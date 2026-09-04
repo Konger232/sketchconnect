@@ -15,3 +15,18 @@ dist/
 
 # OS
 .DS_Store
+
+# Uploaded sketch photos (local dev storage — swap for Supabase Storage)
+backend/uploads/
+
+# Vite leaves these behind if a build is interrupted
+*.timestamp-*.mjs
+
+# Old backup/scratch folders swept up during cleanup (safety net —
+# these get created ad hoc, never meant to be committed)
+_to_delete*/
+
+# Old design-export reference and legacy code, kept locally, not in history
+/SketchConnect.zip
+/SketchConnect_ClaudeDesign/
+backend/legacy/
