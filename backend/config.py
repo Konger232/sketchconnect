@@ -40,3 +40,38 @@ GEMINI_MODEL = "gemini-2.5-flash"
 # Add your real deployed frontend domain here once you have one
 # (e.g. "https://your-project.framer.website" or a Vercel/Netlify URL)
 ALLOWED_ORIGINS = ["http://localhost:5173"]
+# --- Supabase / Postgres ---
+# DATABASE_URL: the Postgres connection string from your Supabase project
+# (Project Settings -> Database -> Connection string -> URI, "Session pooler"
+# works fine for a dev box). Loaded from the environment, not hardcoded.
+import os as _os
+
+DATABASE_URL = _os.environ.get("DATABASE_URL", "")
+
+# Supabase issues auth JWTs; this backend verifies them directly against
+# Supabase's public JWKS — no database lookup needed on the hot path (see
+# design doc, Section 3, Auth). This project is on Supabase's asymmetric
+# JWT Signing Keys (Project Settings -> API -> JWT Settings), so
+# app/auth.py fetches `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`
+# rather than checking against a static shared secret.
+SUPABASE_URL = _os.environ.get("SUPABASE_URL", "")
+# Supabase JWTs use "authenticated" as the standard audience claim for a
+# logged-in user's token.
+SUPABASE_JWT_AUDIENCE = "authenticated"
+
+# --- Scene analysis rule table ---
+# Which prepared-prompt SET is eligible for a given (scene_type, style) pair.
+# Gemini fills in scene-specific wording; this table controls *which*
+# question keys it's allowed to choose from, keeping the AI observing
+# rather than directing (see design doc, Section 5).
+SCENE_TYPES = [
+    "architectural",
+    "still_life_organic",
+    "figure",
+    "open_landscape",
+    "mixed",
+]
+STYLES = ["ink_and_wash", "realistic", "minimalist", "reportage"]
+
+# Focal-region cap: a design decision, not citation-backed (design doc, Sec. 6)
+MAX_FOCAL_REGIONS = 3
