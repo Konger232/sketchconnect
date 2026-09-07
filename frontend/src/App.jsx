@@ -1,193 +1,77 @@
-import { useRef, useState } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import { supabaseConfigured } from './lib/supabaseClient'
+import HomePage from './pages/HomePage'
+import LoginPage from './pages/LoginPage'
+import CapturePage from './pages/CapturePage'
+import SketchFlowPage from './pages/SketchFlowPage'
+import ProfilePage from './pages/ProfilePage'
+import EditProfilePage from './pages/EditProfilePage'
+import SketchDetailPage from './pages/SketchDetailPage'
+import EditSketchPage from './pages/EditSketchPage'
+import SettingsPage from './pages/SettingsPage'
+import WorkshopsPage from './pages/WorkshopsPage'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+function RequireAuth({ children }) {
+  const { user, loading } = useAuth()
+  if (loading) return <div className="p-8 text-center text-ink/50">Loading…</div>
+  if (!user) return <Navigate to="/login" replace />
+  return children
+}
 
-function ValueStudyDemo() {
-  const [imageUrl, setImageUrl] = useState(null)
-  const [selectedFile, setSelectedFile] = useState(null)
-  const [levels, setLevels] = useState(4)
-  const [resultImage, setResultImage] = useState(null)
-  const [toneValues, setToneValues] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-
-  function handleFile(e) {
-    const file = e.target.files[0]
-    if (!file) return
-    setSelectedFile(file)
-    setImageUrl(URL.createObjectURL(file))
-    setResultImage(null)
-    setError(null)
-  }
-
-  async function handleGenerate() {
-    if (!selectedFile) return
-    setLoading(true)
-    setError(null)
-
-    const formData = new FormData()
-    formData.append('image', selectedFile)
-    formData.append('levels', String(levels))
-
-    try {
-      const res = await fetch(`${API_URL}/value-study`, {
-        method: 'POST',
-        body: formData,
-      })
-      const data = await res.json()
-      if (data.error) {
-        setError(data.error)
-        setResultImage(null)
-      } else {
-        setResultImage(data.valueStudyImage)
-        setToneValues(data.toneValues)
-      }
-    } catch (err) {
-      console.error(err)
-      setError('Could not reach the backend. Is it running?')
-    } finally {
-      setLoading(false)
-    }
-  }
-
+// Shown above every page when frontend/.env is missing Supabase config --
+// without this, a missing key used to crash the whole app to a blank
+// white screen instead of telling you what's wrong.
+function ConfigWarningBanner() {
+  if (supabaseConfigured) return null
   return (
-    <div style={{ marginTop: 40, paddingTop: 24, borderTop: '1px solid #ddd' }}>
-      <h2>Value Study</h2>
-      <input type="file" accept="image/*" onChange={handleFile} />
-
-      <div style={{ marginTop: 12 }}>
-        <label>
-          Tonal levels:{' '}
-          <input
-            type="number"
-            min={2}
-            max={8}
-            value={levels}
-            onChange={(e) => setLevels(Number(e.target.value))}
-            style={{ width: 50 }}
-          />
-        </label>
-        <button
-          onClick={handleGenerate}
-          disabled={!selectedFile || loading}
-          style={{ marginLeft: 12 }}
-        >
-          {loading ? 'Generating...' : 'Generate value study'}
-        </button>
-      </div>
-
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-
-      <div style={{ display: 'flex', gap: 16, marginTop: 16, flexWrap: 'wrap' }}>
-        {imageUrl && (
-          <div>
-            <p>Original</p>
-            <img src={imageUrl} style={{ maxWidth: 400, display: 'block' }} />
-          </div>
-        )}
-        {resultImage && (
-          <div>
-            <p>{levels}-value study</p>
-            <img src={resultImage} style={{ maxWidth: 400, display: 'block' }} />
-            {toneValues && (
-              <p style={{ fontSize: 12, color: '#666' }}>
-                Tone values used: {toneValues.join(', ')}
-              </p>
-            )}
-          </div>
-        )}
-      </div>
+    <div className="bg-accent px-4 py-2 text-center text-sm text-paper">
+      Supabase isn't configured — fill in VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
+      in frontend/.env, then restart the dev server.
     </div>
   )
 }
 
-export default function App() {
-  const [imageUrl, setImageUrl] = useState(null)
-  const [result, setResult] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const canvasRef = useRef(null)
-  const imgRef = useRef(null)
-
-  async function handleFile(e) {
-    const file = e.target.files[0]
-    if (!file) return
-    setImageUrl(URL.createObjectURL(file))
-    setResult(null)
-    setLoading(true)
-
-    const formData = new FormData()
-    formData.append('image', file)
-
-    try {
-      const res = await fetch(`${API_URL}/analyze`, {
-        method: 'POST',
-        body: formData,
-      })
-      const data = await res.json()
-      setResult(data)
-    } catch (err) {
-      console.error(err)
-      alert('Could not reach the backend. Is it running?')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function handleImageLoad() {
-    if (!result || !canvasRef.current || !imgRef.current) return
-    const img = imgRef.current
-    const canvas = canvasRef.current
-    canvas.width = img.clientWidth
-    canvas.height = img.clientHeight
-    const scaleX = img.clientWidth / result.imageWidth
-    const scaleY = img.clientHeight / result.imageHeight
-
-    const ctx = canvas.getContext('2d')
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.strokeStyle = 'white'
-    ctx.lineWidth = 2
-    result.lines?.forEach((l) => {
-      ctx.beginPath()
-      ctx.moveTo(l.x1 * scaleX, l.y1 * scaleY)
-      ctx.lineTo(l.x2 * scaleX, l.y2 * scaleY)
-      ctx.stroke()
-    })
-    if (result.vanishingPoint) {
-      ctx.strokeStyle = 'red'
-      ctx.lineWidth = 3
-      ctx.beginPath()
-      ctx.arc(
-        result.vanishingPoint.x * scaleX,
-        result.vanishingPoint.y * scaleY,
-        14,
-        0,
-        2 * Math.PI
-      )
-      ctx.stroke()
-    }
-  }
+function Router() {
+  const location = useLocation()
+  // When Header/NavDrawer navigate to /capture, they pass the page the
+  // sketcher was on as backgroundLocation (see Header.jsx). If it's
+  // present, we render the *background* page via the routes below at its
+  // own location (so it stays mounted/current underneath), then render
+  // /capture a second time, on top, as a modal (desktop/tablet) or
+  // fullscreen takeover (mobile) -- see CapturePage.jsx. A direct or
+  // refreshed visit to /capture has no backgroundLocation, so it falls
+  // through to the normal full-page route in the main <Routes> below.
+  const backgroundLocation = location.state?.backgroundLocation
 
   return (
-    <div style={{ fontFamily: 'sans-serif', padding: 20 }}>
-      <h2>SketchConnect — dev scaffold</h2>
-      <input type="file" accept="image/*" onChange={handleFile} />
-      {loading && <p>Analyzing...</p>}
-      {imageUrl && (
-        <div style={{ position: 'relative', marginTop: 16, maxWidth: 600 }}>
-          <img
-            ref={imgRef}
-            src={imageUrl}
-            style={{ width: '100%', display: 'block' }}
-            onLoad={handleImageLoad}
-          />
-          <canvas
-            ref={canvasRef}
-            style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
-          />
-        </div>
+    <>
+      <Routes location={backgroundLocation || location}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/capture" element={<RequireAuth><CapturePage /></RequireAuth>} />
+        <Route path="/sketch-flow/:sketchId" element={<RequireAuth><SketchFlowPage /></RequireAuth>} />
+        <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+        <Route path="/profile/edit" element={<RequireAuth><EditProfilePage /></RequireAuth>} />
+        <Route path="/sketches/:sketchId" element={<RequireAuth><SketchDetailPage /></RequireAuth>} />
+        <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketchPage /></RequireAuth>} />
+        <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
+        <Route path="/workshops" element={<RequireAuth><WorkshopsPage /></RequireAuth>} />
+      </Routes>
+      {backgroundLocation && (
+        <Routes>
+          <Route path="/capture" element={<RequireAuth><CapturePage /></RequireAuth>} />
+        </Routes>
       )}
+    </>
+  )
+}
 
-      <ValueStudyDemo />
-    </div>
+export default function App() {
+  return (
+    <AuthProvider>
+      <ConfigWarningBanner />
+      <Router />
+    </AuthProvider>
   )
 }

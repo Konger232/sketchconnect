@@ -1,0 +1,205 @@
+/* ==========================================================================
+   SketchConnect design tokens & shared component styles
+   Source of truth: SketchConnect_ClaudeDesign/*.dc.html (the exported
+   Claude Design project HTML) — every value below was read directly out
+   of that markup, not approximated from a screenshot.
+   ========================================================================== */
+
+:root {
+  /* Surfaces */
+  --sc-bg: #f7f7f5;          /* page background (every .dc.html body) */
+  --sc-surface: #ffffff;     /* cards, inputs, drawer panel */
+  --sc-ink: #111111;         /* primary text, footer + drawer-header bg */
+  --sc-ink-soft: #2b2b2b;    /* solid buttons (Login submit) */
+
+  /* Text */
+  --sc-text-muted: #333333;
+  --sc-text-faint: #666666;
+  --sc-text-faint-2: #888888;
+  --sc-text-faint-3: #999999;
+  --sc-label: #222222;
+
+  /* Borders / dividers */
+  --sc-border: #dddddd;
+  --sc-border-soft: #eeeeee;
+  --sc-border-card: #e6e6e3;
+  --sc-border-input: #cccccc;
+
+  /* Accent (the design uses two distinct reds for two distinct jobs —
+     kept separate rather than merged into one "accent" token) */
+  --sc-accent: #e34234;              /* header camera-button ring */
+  --sc-accent-strong: rgb(255, 0, 0);/* active tab underline, map pin */
+  --sc-error: #c0392b;
+
+  /* Links (global anchor color across every page) */
+  --sc-link: #4a7fe8;
+  --sc-link-hover: #3564c9;
+
+  /* Photo / map placeholder swatches (diagonal stripe patterns) */
+  --sc-placeholder-a: #e3e3e0;
+  --sc-placeholder-b: #ececea;
+  --sc-map-a: #e6e9e6;
+  --sc-map-b: #dfe3df;
+
+  /* Misc surfaces */
+  --sc-tag-bg: #eceae6;
+  --sc-why-bg: #dde6f0;
+
+  /* Fonts (Google Fonts links live in index.html) */
+  --sc-font-body: 'Inter', -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --sc-font-heading: 'Roboto', sans-serif;
+  --sc-font-hand: 'Kalam', cursive;
+}
+
+body {
+  background: var(--sc-bg);
+  font-family: var(--sc-font-body);
+}
+
+a {
+  color: var(--sc-link);
+}
+a:hover {
+  color: var(--sc-link-hover);
+}
+
+/* Photo placeholder — diagonal-stripe swatch shown behind every sketch/spot
+   photo slot before (or instead of) a real uploaded image. */
+.sc-photo-placeholder {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--sc-placeholder-a),
+    var(--sc-placeholder-a) 10px,
+    var(--sc-placeholder-b) 10px,
+    var(--sc-placeholder-b) 20px
+  );
+}
+
+/* Map placeholder swatch (Home pages' "Map View" section). */
+.sc-map-placeholder {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--sc-map-a),
+    var(--sc-map-a) 12px,
+    var(--sc-map-b) 12px,
+    var(--sc-map-b) 24px
+  );
+}
+
+/* Tag pill — SketchCard style/scene-type chips. */
+.sc-tag {
+  background: var(--sc-tag-bg);
+  color: var(--sc-text-muted);
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+/* Location pin marker drawn in pure CSS (SketchCard) — not an icon image. */
+.sc-pin {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  border-radius: 50% 50% 50% 0;
+  background: var(--sc-accent-strong);
+  transform: rotate(-45deg);
+  flex-shrink: 0;
+  display: inline-block;
+}
+.sc-pin::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+}
+
+/* Pill-shaped search bar (both Home pages). */
+.sc-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--sc-surface);
+  border: 1px solid var(--sc-border);
+  border-radius: 999px;
+  padding: 12px 20px;
+}
+.sc-search-bar input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  background: transparent;
+  color: var(--sc-text-muted);
+  padding-left: 5px;
+}
+/* Magnifying-glass glyph drawn in pure CSS, matching the .dc.html markup. */
+.sc-search-icon {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--sc-text-faint);
+  border-radius: 50%;
+  position: relative;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.sc-search-icon::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 2px;
+  background: var(--sc-text-faint);
+  bottom: -4px;
+  right: -6px;
+  transform: rotate(45deg);
+  border-radius: 2px;
+}
+
+/* Carousel dots — photo-index indicator on SketchCard / SpotCard. */
+.sc-dots {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+.sc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* Form input (Login / Register). */
+.sc-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px 18px;
+  font-size: 17px;
+  border: 1px solid var(--sc-border-input);
+  border-radius: 10px;
+  background: var(--sc-surface);
+  color: var(--sc-ink);
+}
+
+/* Primary solid button (Login submit, etc.) */
+.sc-btn-primary {
+  width: 100%;
+  padding: 18px;
+  background: var(--sc-ink-soft);
+  color: #fff;
+  font-size: 19px;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import icoCamera from '../../assets/images/ico-camera.png'
 import icoCalendar from '../../assets/images/ico-calendar.png'
@@ -17,9 +17,15 @@ const linkStyle = 'flex items-center gap-2.5 text-[22px] font-bold text-ink no-u
  * About / Contact / Login / Register with no profile block.
  */
 export default function NavDrawer({ open, onClose }) {
-  const { user, profile, signOut } = useAuth()
+  const { user, profile, displayName, signOut } = useAuth()
   const loggedIn = Boolean(user)
-  const displayName = profile?.display_name || user?.user_metadata?.full_name || user?.email
+  const location = useLocation()
+  // Mobile's dedicated camera icon in Header is currently commented out,
+  // so this drawer link is the actual mobile entry point into the capture
+  // wizard -- needs the same backgroundLocation state as Header's desktop
+  // camera icon so App.jsx's Router() can render /capture as a fullscreen
+  // modal takeover instead of a plain navigation.
+  const captureLinkState = { backgroundLocation: location }
 
   return (
     <>
@@ -54,7 +60,7 @@ export default function NavDrawer({ open, onClose }) {
         <div className="flex flex-col px-8 pb-7 pt-6">
           {loggedIn ? (
             <>
-              <Link to="/capture" onClick={onClose} className={linkStyle}>
+              <Link to="/capture" state={captureLinkState} onClick={onClose} className={linkStyle}>
                 <img src={icoCamera} alt="" className="h-[26px] w-[26px]" /> Capture
               </Link>
               <Link to="/workshops" onClick={onClose} className={linkStyle}>

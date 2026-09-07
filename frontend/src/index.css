@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-paper text-ink font-sans;
+}
+
+/* Claude Design system rule: body text -> Inter (above), page headers -> Roboto,
+   hand-drawn accents (logo/tagline/footer nav) stay on Kalam via font-hand. */
+h1, h2, h3 {
+  font-family: theme('fontFamily.heading');
+}

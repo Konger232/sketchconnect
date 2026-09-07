@@ -34,7 +34,7 @@ ANGLE_DEDUP_THRESHOLD = 4            # degrees; lines within this angle of an al
 MAX_CLEAN_LINES = 8                  # cap on how many lines get returned to the frontend
 
 # --- Gemini (/gemini-proxy) ---
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.6-flash"
 
 # --- CORS ---
 # Add your real deployed frontend domain here once you have one

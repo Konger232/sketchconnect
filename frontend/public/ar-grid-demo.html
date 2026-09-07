@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SketchConnect — AR Grid Overlay (proof of concept)</title>
+<style>
+  :root {
+    --sc-accent: #e34234;
+    --sc-ink: #111111;
+    --sc-bg: #f7f7f5;
+  }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--sc-bg);
+    color: var(--sc-ink);
+    font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  #pre-ar {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 32px 20px;
+    text-align: center;
+  }
+  #pre-ar h1 {
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+  #pre-ar p {
+    font-size: 14px;
+    line-height: 1.5;
+    color: #444;
+  }
+  #status {
+    margin: 20px 0;
+    padding: 12px;
+    border-radius: 8px;
+    background: #eceae6;
+    font-size: 13px;
+  }
+  button {
+    font-size: 16px;
+    padding: 12px 24px;
+    border-radius: 999px;
+    border: none;
+    background: var(--sc-accent);
+    color: white;
+    cursor: pointer;
+  }
+  button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+
+  /* Only this subtree is composited over the passthrough camera once
+     the AR session starts (WebXR "dom-overlay" feature). Hidden until then. */
+  #overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+  }
+  body.ar-active #pre-ar { display: none; }
+  body.ar-active #overlay { display: block; }
+
+  .grid-line {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+  }
+  .v-line { top: 0; bottom: 0; width: 1px; }
+  .h-line { left: 0; right: 0; height: 1px; }
+  .crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 22px;
+    height: 22px;
+    margin: -11px 0 0 -11px;
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    border-radius: 50%;
+  }
+  .horizon-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 2px;
+    background: rgba(227, 66, 52, 0.9);
+  }
+
+  .ar-controls {
+    position: absolute;
+    bottom: 24px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+  }
+  .ar-controls button {
+    background: rgba(17, 17, 17, 0.75);
+  }
+
+  #xr-canvas { display: none; }
+</style>
+</head>
+<body>
+
+  <div id="pre-ar">
+    <h1>AR Grid Overlay — proof of concept</h1>
+    <p>
+      Hold your phone up at the scene you want to sketch. This overlays a
+      rule-of-thirds grid and a horizon guide on the live camera view to help
+      you judge composition and proportion before you start drawing —
+      no photo capture, no analysis, just a framing aid.
+    </p>
+    <p id="status">Checking WebXR support…</p>
+    <button id="start-btn" disabled>Start AR</button>
+    <p style="margin-top:20px; font-size:12px; color:#888;">
+      Requires Chrome on an ARCore-capable Android phone, served over HTTPS
+      (or localhost on the same device). Not supported on iOS Safari.
+    </p>
+  </div>
+
+  <div id="overlay">
+    <div class="grid-line v-line" style="left:33.333%"></div>
+    <div class="grid-line v-line" style="left:66.666%"></div>
+    <div class="grid-line h-line" style="top:33.333%"></div>
+    <div class="grid-line h-line" style="top:66.666%"></div>
+    <div class="crosshair"></div>
+    <div class="horizon-line"></div>
+    <div class="ar-controls">
+      <button id="end-btn">End AR</button>
+    </div>
+  </div>
+
+  <canvas id="xr-canvas"></canvas>
+
+<script>
+  const statusEl = document.getElementById('status');
+  const startBtn = document.getElementById('start-btn');
+  const endBtn = document.getElementById('end-btn');
+  const overlayRoot = document.getElementById('overlay');
+  const canvas = document.getElementById('xr-canvas');
+
+  let xrSession = null;
+  let gl = null;
+
+  async function checkSupport() {
+    if (!('xr' in navigator)) {
+      statusEl.textContent = 'WebXR is not available in this browser.';
+      return;
+    }
+    try {
+      const supported = await navigator.xr.isSessionSupported('immersive-ar');
+      if (supported) {
+        statusEl.textContent = 'AR is supported on this device.';
+        startBtn.disabled = false;
+      } else {
+        statusEl.textContent = 'This browser reports no immersive-ar support (needs Chrome on an ARCore-capable Android phone).';
+      }
+    } catch (err) {
+      statusEl.textContent = 'Could not check AR support: ' + err.message;
+    }
+  }
+
+  async function startAR() {
+    startBtn.disabled = true;
+    try {
+      xrSession = await navigator.xr.requestSession('immersive-ar', {
+        optionalFeatures: ['dom-overlay'],
+        domOverlay: { root: overlayRoot }
+      });
+    } catch (err) {
+      statusEl.textContent = 'Failed to start AR session: ' + err.message;
+      startBtn.disabled = false;
+      return;
+    }
+
+    gl = canvas.getContext('webgl', { xrCompatible: true });
+    await gl.makeXRCompatible();
+    xrSession.updateRenderState({ baseLayer: new XRWebGLLayer(xrSession, gl) });
+    await xrSession.requestReferenceSpace('local');
+
+    document.body.classList.add('ar-active');
+    xrSession.addEventListener('end', onSessionEnd);
+    xrSession.requestAnimationFrame(onXRFrame);
+  }
+
+  function onXRFrame(time, frame) {
+    const session = frame.session;
+    session.requestAnimationFrame(onXRFrame);
+    const layer = session.renderState.baseLayer;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    // Deliberately no 3D content: the device compositor shows the real
+    // camera passthrough here. The grid/horizon guides are plain DOM
+    // elements in #overlay, not WebGL — that's what keeps this "minimal."
+  }
+
+  function onSessionEnd() {
+    document.body.classList.remove('ar-active');
+    xrSession = null;
+    startBtn.disabled = false;
+  }
+
+  startBtn.addEventListener('click', startAR);
+  endBtn.addEventListener('click', () => { if (xrSession) xrSession.end(); });
+
+  checkSupport();
+</script>
+</body>
+</html>
