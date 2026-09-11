@@ -3,6 +3,14 @@ SketchConnect backend configuration.
 Tunable values live here so they're easy to find and adjust without
 digging through endpoint logic in main.py.
 """
+from dotenv import load_dotenv
+
+# Loads backend/.env into the process environment. Without this, every
+# os.environ.get() below silently returns "" instead of erroring --
+# which is exactly what caused DATABASE_URL to come back empty, the
+# SQLAlchemy engine to be built as None, and every DB-backed endpoint
+# to fail with UnboundExecutionError instead of a clear startup error.
+load_dotenv()
 
 # --- Image preprocessing ---
 MAX_IMAGE_DIMENSION = 1600       # longest side, in pixels, before any analysis runs
@@ -40,6 +48,11 @@ GEMINI_MODEL = "gemini-3.6-flash"
 # Add your real deployed frontend domain here once you have one
 # (e.g. "https://your-project.framer.website" or a Vercel/Netlify URL)
 ALLOWED_ORIGINS = ["http://localhost:5173"]
+# Also allow the Vite dev server when it's opened from another device on
+# the same Wi-Fi (e.g. testing on a phone) -- Vite prints that "Network:"
+# URL when frontend/main.jsx is started with `npm run dev`. Private-network
+# IP ranges only (192.168.x.x, 10.x.x.x, 172.16-31.x.x), port 5173.
+ALLOWED_ORIGIN_REGEX = r"^http://(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}):5173$"
 # --- Supabase / Postgres ---
 # DATABASE_URL: the Postgres connection string from your Supabase project
 # (Project Settings -> Database -> Connection string -> URI, "Session pooler"

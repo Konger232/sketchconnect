@@ -91,3 +91,21 @@ async def get_current_sketcher_id(
         return payload["sub"]  # auth.uid()
     except JWTError as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, f"Invalid token: {exc}")
+
+
+async def get_optional_sketcher_id(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> str | None:
+    """
+    Like get_current_sketcher_id, but returns None instead of raising 401
+    when no bearer token is present at all -- for endpoints that are
+    readable by anyone (e.g. the public sketch detail page) but still need
+    to know WHICH sketcher is asking, so owner-only fields like AI
+    critique text can be attached for them and stripped for everyone else.
+    A token that IS present but invalid/expired still raises 401 here (via
+    the same check below), rather than silently treating a signed-in
+    sketcher with a stale token as an anonymous stranger.
+    """
+    if credentials is None:
+        return None
+    return await get_current_sketcher_id(credentials)

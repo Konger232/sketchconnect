@@ -83,7 +83,7 @@ export default function EditProfilePage() {
     <div>
       <Header />
       <main className="mx-auto max-w-sm px-6 py-10">
-        <h1 className="font-heading text-4xl font-bold text-ink">Edit Profile</h1>
+        <h1>Edit Profile</h1>
 
         {loading ? (
           <p className="mt-6 text-ink/50">Loading…</p>
@@ -109,27 +109,27 @@ export default function EditProfilePage() {
             </div>
 
             <label className="block">
-              <span className="text-lg" style={{ color: 'var(--sc-label)' }}>Display name</span>
+              <span>Display name</span>
               <input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Jane Doe"
-                className="sc-input mt-2"
+                className="field-input mt-1.5"
               />
             </label>
 
             <label className="block">
-              <span className="text-lg" style={{ color: 'var(--sc-label)' }}>Location</span>
+              <span>Location</span>
               <input
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 placeholder="San Francisco, CA"
-                className="sc-input mt-2"
+                className="field-input mt-1.5"
               />
             </label>
 
             <div>
-              <span className="text-lg" style={{ color: 'var(--sc-label)' }}>Favorite urban sketchers</span>
+              <span className="text-sm font-medium text-ink/70">Favorite urban sketchers</span>
               <p className="mt-1 text-sm text-ink/60">
                 Pulled from the admired artist you set per style in Settings.
               </p>
@@ -152,7 +152,7 @@ export default function EditProfilePage() {
               )}
             </div>
 
-            {error && <p className="text-sm" style={{ color: 'var(--sc-error)' }}>{error}</p>}
+            {error && <p className="text-sm text-accent">{error}</p>}
             {notice && <p className="text-sm text-green-700">{notice}</p>}
 
             <Button type="submit" disabled={saving || uploading}>

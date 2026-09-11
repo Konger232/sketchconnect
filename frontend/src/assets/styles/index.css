@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Leaflet's own bundled CSS (leaflet/dist/leaflet.css) hardcodes
+ * .leaflet-top/.leaflet-bottom (the zoom/attribution control container)
+ * at z-index: 1000, with its internal tile/marker/popup panes at
+ * z-index: 200-800. Leaflet's JS gives the map's root .leaflet-container
+ * div `position: relative` at init, but never an explicit z-index -- and
+ * position:relative with z-index left at its default `auto` does NOT
+ * establish a new CSS stacking context. So none of those numbers are
+ * actually contained "inside the map": they compete directly against
+ * every other positioned element on the page, in whatever ancestor
+ * stacking context the map happens to share with them.
+ *
+ * That's why a map anywhere on the page could render on top of the sticky
+ * Header (z-[100]) despite the header's z-index looking plenty high, and
+ * why NavDrawer, CapturePage's modal, and SketchDetailPage's floating AI
+ * button all needed their own z-index pushed above 1000 just to stay on
+ * top of a map -- each was a symptom of the same root cause, fixed one at
+ * a time instead of at the source.
+ *
+ * Giving .leaflet-container its own explicit z-index (any value) makes it
+ * establish a stacking context of its own, so every z-index inside it --
+ * including that 1000 -- is trapped there and compared only against the
+ * map's own children, never against the rest of the page. This is the
+ * actual fix; the z-index bumps on NavDrawer/CapturePage/the AI button
+ * are harmless now but no longer the thing doing the work.
+ */
+.leaflet-container {
+  position: relative;
+  z-index: 0;
+}
+
+/*
+ * Centralized typography defaults for generic elements (h1/h2/h3, body
+ * text, form labels). Every rule here lives in Tailwind's `base` layer,
+ * which is always compiled BEFORE `components` and `utilities` -- so any
+ * component that adds its own Tailwind utility class (e.g. a standalone
+ * dark-themed screen like the capture wizard/AI flow, which intentionally
+ * looks different) always wins over these defaults with zero specificity
+ * fights. That's what makes it safe to delete one-off text-size classes
+ * from ordinary light-theme pages and just use bare <h1>/<label> tags: the
+ * only components that still need their own inline sizing are ones that
+ * are deliberately breaking from the shared look, not ones that forgot to.
+ */
+
+
+@layer base {
+  body {
+    @apply bg-paper text-ink font-sans;
+    min-width: 320px;
+  }
+
+  /* Claude Design system rule: body text -> Inter, page headers -> Roboto,
+     accent text (tagline/footer nav) uses Nunito Sans via font-hand. */
+  h1, h2, h3 {
+    font-family: theme('fontFamily.heading');
+  }
+
+  h1 {
+    @apply text-2xl font-bold text-ink;
+  }
+  h2 {
+    @apply text-xl font-bold text-ink;
+  }
+  h3 {
+    @apply text-lg font-semibold text-ink;
+  }
+
+  /* Form field labels (the <span> or text node inside a <label>) inherit
+     this from the parent tag -- no per-field className needed. */
+  label {
+    @apply text-sm font-medium text-ink/70;
+  }
+}
+
+@layer components {
+  /* The one shared text-input treatment for ordinary light-theme forms.
+     Pairs with the <Button> component (components/common/Button.jsx) as
+     the other half of "one place to change form styling app-wide". */
+  .field-input {
+    @apply w-full rounded-lg border border-ink/20 bg-white px-4 py-2.5 text-sm text-ink placeholder:text-ink/40 transition-colors focus:border-ink/40 focus:outline-none;
+  }
+
+  /* Formerly base.css's .sc-photo-placeholder -- the diagonal-stripe
+     swatch shown behind a sketch photo slot before a real image loads.
+     Kept as a real class (SketchCard.jsx and SpotCard.jsx used to share
+     it before merging into one component) rather than inlined. */
+  .photo-placeholder {
+    background: repeating-linear-gradient(45deg, #e3e3e0 0 10px, #ececea 10px 20px);
+  }
+
+  /* Formerly .sc-dots / .sc-dot -- the multi-photo carousel indicator.
+     bottom-2 (8px) matches the original base.css value; a component can
+     still override the position with an inline style for a one-off
+     adjustment (SketchCard.jsx's own row layout does, for example). */
+  .photo-dots {
+    @apply absolute inset-x-0 bottom-2 flex justify-center gap-1.5;
+  }
+  .photo-dot {
+    @apply h-1.5 w-1.5 cursor-pointer rounded-full border-0 p-0;
+  }
+
+  /* Formerly .sc-pin -- the CSS-drawn location marker (SketchCard).
+     Needs a real class rather than inline Tailwind since the white
+     center dot is a ::after pseudo-element. Recolored onto the shared
+     `accent` token instead of base.css's separate --sc-accent-strong
+     red, so there's one red in the app rather than two near-duplicates. */
+  .map-pin {
+    @apply relative inline-block h-3 w-3 shrink-0 bg-accent;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+  }
+  .map-pin::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #fff;
+    transform: translate(-50%, -50%);
+  }
+}

@@ -11,14 +11,14 @@ const PALETTES = [
 
 export default function ColorPalettePicker({ onSelect, onSkip }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 rounded-t-2xl bg-paper p-5 shadow-[0_-4px_24px_rgba(0,0,0,0.12)] text-ink">
-      <div className="mb-4 flex items-center justify-between gap-2">
+    <div className="fixed inset-x-0 bottom-0 z-30 animate-fade-in-up rounded-t-2xl bg-paper p-4 shadow-[0_-4px_24px_rgba(0,0,0,0.12)] text-ink">
+      <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <MascotIcon className="h-5 w-5" />
-          <p className="text-lg font-medium">Do you want to pick a color palette?</p>
+          <p className="text-base font-semibold">Do you want to pick a color palette?</p>
         </div>
         {onSkip && (
-          <button onClick={onSkip} aria-label="Close" className="text-xl leading-none text-ink/50">×</button>
+          <button onClick={onSkip} aria-label="Close" className="text-xl leading-none text-ink/50 transition-colors hover:text-ink">×</button>
         )}
       </div>
       <div className="grid grid-cols-3 gap-3">
@@ -26,9 +26,9 @@ export default function ColorPalettePicker({ onSelect, onSkip }) {
           <button
             key={p.id}
             onClick={() => onSelect(p.id)}
-            className="flex flex-col items-center gap-2 rounded-xl border border-black/15 p-3 hover:bg-black/5"
+            className="flex flex-col items-center gap-2 rounded-xl border border-black/15 p-3 transition-all duration-150 hover:bg-black/5 active:scale-[0.97]"
           >
-            <div className="grid h-16 w-16 grid-cols-2 grid-rows-2 overflow-hidden rounded-full">
+            <div className="grid h-16 w-16 grid-cols-2 grid-rows-2 overflow-hidden rounded-full ring-1 ring-black/10">
               {p.swatches.map((c) => (
                 <div key={c} style={{ backgroundColor: c }} />
               ))}

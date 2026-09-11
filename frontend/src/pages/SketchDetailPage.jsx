@@ -13,12 +13,21 @@ const styleLabel = (v) => STYLES.find((s) => s.value === v)?.label || v
 // "Feedback Summary" detail — matches the Figma "My cactus" card: split
 // before/after image, tags, critique text, Done for now / Keep sketching
 // (the critique call supports multiple invocations per session).
+//
+// Public by design: this route has no RequireAuth (see App.jsx) -- any
+// sketch can be opened by anyone, signed in or not, via a link from the
+// Home feeds. The backend (`get_sketch` in sketches.py) tells us whether
+// the current requester is this sketch's owner via `is_owner`, and never
+// even sends critique/feedback text to non-owners in the first place --
+// so everything owner-only below is gated on that one flag rather than
+// on whether *someone* happens to be logged in.
 export default function SketchDetailPage() {
   const { sketchId } = useParams()
   const [params] = useSearchParams()
   const navigate = useNavigate()
 
   const [sketch, setSketch] = useState(null)
+  const [loadError, setLoadError] = useState(null)
   const [finalFile, setFinalFile] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
@@ -28,11 +37,16 @@ export default function SketchDetailPage() {
   // rather than a browser-styled dialog.
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const wantsCritique = params.get('critique') === '1'
+  const isOwner = sketch?.is_owner === true
+  const wantsCritique = isOwner && params.get('critique') === '1'
 
   async function load() {
-    const { data } = await api.get(`/api/sketches/${sketchId}`)
-    setSketch(data)
+    try {
+      const { data } = await api.get(`/api/sketches/${sketchId}`)
+      setSketch(data)
+    } catch (err) {
+      setLoadError(err.response?.status === 404 ? 'not_found' : 'error')
+    }
   }
 
   useEffect(() => { load() }, [sketchId])
@@ -72,9 +86,20 @@ export default function SketchDetailPage() {
     }
   }
 
+  if (loadError) {
+    return (
+      <div>
+        <Header />
+        <main className="mx-auto max-w-2xl px-4 pb-16 pt-8 text-center text-ink/60">
+          {loadError === 'not_found' ? "This sketch doesn't exist (or was deleted)." : 'Could not load this sketch right now.'}
+        </main>
+      </div>
+    )
+  }
+
   if (!sketch) return <div className="p-8 text-center text-ink/50">Loading…</div>
 
-  const latestCritique = sketch.critiques?.[sketch.critiques.length - 1]
+  const latestCritique = isOwner ? sketch.critiques?.[sketch.critiques.length - 1] : null
 
   return (
     <div>
@@ -82,23 +107,25 @@ export default function SketchDetailPage() {
       <main className="mx-auto max-w-2xl px-4 pb-16">
         <div className="mt-4 flex items-center justify-between">
           <button onClick={() => navigate(-1)} className="text-xl">←</button>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate(`/sketches/${sketchId}/edit`)}
-              className="text-sm font-medium text-ink/60 hover:text-ink"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => setConfirmingDelete(true)}
-              className="text-sm font-medium text-accent hover:text-accent/80"
-            >
-              Delete
-            </button>
-          </div>
+          {isOwner && (
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => navigate(`/sketches/${sketchId}/edit`)}
+                className="text-sm font-medium text-ink/60 hover:text-ink"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                className="text-sm font-medium text-accent hover:text-accent/80"
+              >
+                Delete
+              </button>
+            </div>
+          )}
         </div>
 
-        {confirmingDelete && (
+        {isOwner && confirmingDelete && (
           <div className="mt-3 rounded-lg border border-accent/30 bg-accent/5 p-3">
             <p className="text-sm">
               Delete this sketch? This removes its photo and any feedback, and can't be undone.
@@ -113,13 +140,9 @@ export default function SketchDetailPage() {
               >
                 Cancel
               </Button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="flex-1 rounded-lg bg-accent px-4 py-3 text-sm font-medium text-paper transition-colors hover:bg-accent/90 disabled:opacity-60"
-              >
+              <Button variant="danger" className="flex-1" disabled={deleting} onClick={handleDelete}>
                 {deleting ? 'Deleting…' : 'Delete sketch'}
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -138,6 +161,10 @@ export default function SketchDetailPage() {
           {sketch.style && <Tag>{styleLabel(sketch.style)}</Tag>}
           {sketch.scene_type && <Tag>{sceneTypeLabel[sketch.scene_type]}</Tag>}
         </div>
+
+        {sketch.field_notes && (
+          <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-ink/80">{sketch.field_notes}</p>
+        )}
 
         {sketch.location && (
           <div className="mt-4">
@@ -161,18 +188,18 @@ export default function SketchDetailPage() {
           </div>
         )}
 
-        {!latestCritique && (
+        {isOwner && !latestCritique && (
           <button
             onClick={() => navigate(`/sketch-flow/${sketchId}`)}
             aria-label={sketch.style ? 'Resume AI guidance' : 'Start AI guidance'}
             title={sketch.style ? 'Resume AI guidance' : 'Start AI guidance'}
-            className="fixed bottom-24 left-4 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-ink text-paper shadow-lg hover:bg-black"
+            className="fixed bottom-24 left-4 z-[1100] flex h-14 w-14 items-center justify-center rounded-full bg-ink text-paper shadow-lg hover:bg-black"
           >
             <MascotIcon className="h-7 w-7" />
           </button>
         )}
 
-        {latestCritique && (
+        {isOwner && latestCritique && (
           <div className="mt-6">
             <div className="flex items-center gap-2">
               <MascotIcon className="h-5 w-5" />

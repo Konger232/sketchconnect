@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import Header from '../components/layout/Header'
 import Footer from '../components/layout/Footer'
+import Button from '../components/common/Button'
 
 // Matches the Claude Design Login screen: shared Header/Footer templates
 // (the .dc.html hardcodes its own one-off header here instead of reusing
@@ -65,26 +66,26 @@ export default function LoginPage() {
     <div>
       <Header />
 
-      <main className="mx-auto max-w-sm px-6 py-10">
-        <h1 className="font-heading text-4xl font-bold text-ink">{mode === 'sign_in' ? 'Login' : 'Register'}</h1>
+      <main className="mx-auto max-w-sm px-6 py-10 pt-4">
+        <h1>{mode === 'sign_in' ? 'Login' : 'Register'}</h1>
         
-        {error && <p className="text-sm" style={{ color: 'var(--sc-error)' }}>{error}</p>}
+        {error && <p className="text-sm text-accent">{error}</p>}
         {notice && <p className="text-sm text-green-700">{notice}</p>}
         
-        <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-5">
+        <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-5">
           <label className="block">
-            <span className="text-lg" style={{ color: 'var(--sc-label)' }}>Email</span>
+            <span>Email</span>
             <input
               type="email"
               required
               placeholder="jane@framer.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="sc-input mt-2"
+              className="field-input mt-1.5"
             />
           </label>
           <label className="block">
-            <span className="text-lg" style={{ color: 'var(--sc-label)' }}>Password</span>
+            <span>Password</span>
             <input
               type="password"
               required
@@ -92,14 +93,14 @@ export default function LoginPage() {
               placeholder="enter password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="sc-input mt-2"
+              className="field-input mt-1.5"
             />
           </label>
 
 
-          <button disabled={loading} className="sc-btn-primary">
+          <Button disabled={loading} className="w-full">
             {loading ? 'Please wait…' : mode === 'sign_in' ? 'Login' : 'Register'}
-          </button>
+          </Button>
         </form>
 
         <div className="mt-6 flex flex-col items-center gap-2 text-sm">

@@ -22,7 +22,7 @@ from geoalchemy2.elements import WKTElement
 from geoalchemy2.functions import ST_Distance, ST_DWithin
 
 from ..database import get_db
-from ..auth import get_current_sketcher_id
+from ..auth import get_current_sketcher_id, get_optional_sketcher_id
 from ..models import Sketch, CritiqueResponse
 from ..schemas import SketchUpdateRequest
 from ..services.exif_utils import extract_location_and_time
@@ -39,7 +39,7 @@ UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 
-def _sketch_to_dict(s: Sketch) -> dict:
+def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
     location = None
     if s.location is not None:
         point = to_shape(s.location)
@@ -57,7 +57,36 @@ def _sketch_to_dict(s: Sketch) -> dict:
         "original_image_url": s.original_image_url,
         "crop_transform": s.crop_transform,
         "created_at": s.created_at,
+        # The latest critique's text, if any -- this is what
+        # SketchCard.jsx's feed view shows as the sketch's description,
+        # with a Read more/Show less toggle once it runs long. None (not
+        # "") when nothing's been critiqued yet, so the frontend can tell
+        # "no feedback yet" apart from "feedback text that happens to be
+        # empty" via a null check rather than string truthiness.
+        "critique": latest_critique,
     }
+
+
+def _latest_critiques_by_sketch(db: Session, sketch_ids: list[str]) -> dict[str, str]:
+    """
+    One query for the latest critique text per sketch, instead of an N+1
+    loop. CritiqueResponse has no ORM relationship back to Sketch (see
+    models.py -- just a bare sketch_id FK column), so "the latest critique
+    for each of these sketches" has to be assembled by hand, the same way
+    get_sketch already does for a single sketch's full critiques list.
+    """
+    if not sketch_ids:
+        return {}
+    rows = (
+        db.query(CritiqueResponse)
+        .filter(CritiqueResponse.sketch_id.in_(sketch_ids))
+        .order_by(CritiqueResponse.created_at.asc())
+        .all()
+    )
+    latest: dict[str, str] = {}
+    for c in rows:
+        latest[c.sketch_id] = c.critique  # ascending order -> last write wins = latest
+    return latest
 
 
 @router.post("/sketches")
@@ -234,7 +263,8 @@ async def list_sketches(
         .order_by(Sketch.created_at.desc())
         .all()
     )
-    return [_sketch_to_dict(s) for s in rows]
+    latest = _latest_critiques_by_sketch(db, [s.id for s in rows])
+    return [_sketch_to_dict(s, latest.get(s.id)) for s in rows]
 
 
 @router.get("/sketches/recent")
@@ -257,6 +287,10 @@ async def list_recent_sketches(
     routes in file order, and "recent" would otherwise be swallowed as a
     (nonexistent) sketch_id.
     """
+    # AI critique/feedback text is never included here, for anyone --
+    # this feed is public by design (Home page, logged in or not), and
+    # critique is the one thing that stays sketcher-only no matter what.
+    # See get_sketch below for the same rule on the detail page.
     if lat is not None and lon is not None:
         point = WKTElement(f"POINT({lon} {lat})", srid=4326)
         nearby = (
@@ -278,14 +312,29 @@ async def list_recent_sketches(
 async def get_sketch(
     sketch_id: str,
     db: Session = Depends(get_db),
-    sketcher_id: str = Depends(get_current_sketcher_id),
+    sketcher_id: str | None = Depends(get_optional_sketcher_id),
 ):
-    """Detail view backing the 'Feedback Summary' tab: sketch + its critiques."""
-    sketch = db.query(Sketch).filter(
-        Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
-    ).first()
+    """
+    Detail view backing both the owner's 'Feedback Summary' tab AND the
+    public read-only sketch page anyone can click through to from the
+    Home feeds (design decision: sketches are public by default, no
+    per-sketch privacy toggle -- "keep it simple"). Photos, title, field
+    notes, and location are shown to anyone; AI critique/feedback text
+    (and the raw decision_trace behind it) is the one thing that's never
+    shared -- `critiques` is only populated, and the sketch's own
+    `critique` field only filled in, when the requester is verified as
+    this sketch's owner. is_owner tells the frontend whether to render
+    the owner-only Edit/Delete/feedback UI at all.
+    """
+    sketch = db.query(Sketch).filter(Sketch.id == sketch_id).first()
     if sketch is None:
         raise HTTPException(404, "Sketch not found")
+
+    is_owner = sketcher_id is not None and sketcher_id == sketch.sketcher_id
+    if not is_owner:
+        data = _sketch_to_dict(sketch)
+        data["is_owner"] = False
+        return data
 
     critiques = (
         db.query(CritiqueResponse)
@@ -293,7 +342,7 @@ async def get_sketch(
         .order_by(CritiqueResponse.created_at.asc())
         .all()
     )
-    data = _sketch_to_dict(sketch)
+    data = _sketch_to_dict(sketch, critiques[-1].critique if critiques else None)
     data["critiques"] = [
         {
             "critique": c.critique,
@@ -303,4 +352,5 @@ async def get_sketch(
         }
         for c in critiques
     ]
+    data["is_owner"] = True
     return data

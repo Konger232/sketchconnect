@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import SpotCard from '../sketch/SpotCard'
-import LocationMap from '../map/LocationMap'
+import RecentSketchesSection from './RecentSketchesSection'
 import { useGeolocation } from '../../lib/useGeolocation'
-import { relativeTime } from '../../lib/relativeTime'
 import { api } from '../../lib/api'
 
 const FEATURES = [
@@ -47,14 +45,6 @@ export default function LoggedOutHome() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-16">
-      <div className="my-4 flex items-center gap-2 rounded-full border border-black/15 px-4 py-3">
-        <span>🔍</span>
-        <input
-          placeholder="Where you want to sketch today?"
-          className="w-full bg-transparent outline-none placeholder:text-ink/50"
-        />
-      </div>
-
       <h2 className="mt-6 text-xl font-bold">Plan your next sketch</h2>
       <p className="text-sm text-ink/60">
         {coords ? 'Recent sketches near you' : 'Recent sketches from the community'}
@@ -63,23 +53,7 @@ export default function LoggedOutHome() {
       {loaded && sketches.length === 0 && (
         <p className="mt-3 text-sm text-ink/50">No sketches shared yet — be the first!</p>
       )}
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        {sketches.slice(0, 4).map((s) => (
-          <SpotCard
-            key={s.id}
-            photoUrl={s.reference_image_url ? `${api.defaults.baseURL}${s.reference_image_url}` : null}
-            name={s.title || 'Untitled sketch'}
-            location={relativeTime(s.created_at)}
-          />
-        ))}
-      </div>
-
-      <h2 className="mt-8 text-xl font-bold">Map View</h2>
-      <div className="mt-2">
-        <LocationMap
-          points={sketches.filter((s) => s.location).map((s) => ({ ...s.location, label: s.title }))}
-        />
-      </div>
+      <RecentSketchesSection gridSketches={sketches.slice(0, 4)} mapSketches={sketches} />
 
       <p className="mt-8 text-center font-hand text-2xl">Connect &nbsp;.&nbsp; Sketch &nbsp;.&nbsp; Share</p>
       <p className="mt-2 text-center text-sm text-ink/70">

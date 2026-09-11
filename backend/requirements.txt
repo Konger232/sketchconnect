@@ -12,6 +12,8 @@ numpy==1.26.4
 
 # Database + Supabase auth
 sqlalchemy==2.0.35
+python-dotenv==1.2.3  # loads backend/.env -- without this, DATABASE_URL/SUPABASE_URL
+                      # silently read as empty strings instead of erroring
 psycopg2-binary==2.9.12
 geoalchemy2==0.15.2
 shapely==2.0.6  # geoalchemy2's to_shape()/WKB helpers need this; not pulled in automatically

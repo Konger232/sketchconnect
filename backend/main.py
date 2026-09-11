@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from config import ALLOWED_ORIGINS
+from config import ALLOWED_ORIGINS, ALLOWED_ORIGIN_REGEX
 from app.routers import scene_analysis, persona, critique, help_quest, sketches, profile, geocode
 from legacy.perspective_analyze import router as legacy_router
 
@@ -25,6 +25,7 @@ app = FastAPI(title="SketchConnect middle server")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
     allow_methods=["*"],
     allow_headers=["*"],
 )

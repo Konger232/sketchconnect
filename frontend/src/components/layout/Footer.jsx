@@ -10,30 +10,34 @@ const LINKS = [
 ]
 
 /**
- * Ported directly from SketchConnect_ClaudeDesign/Footer.dc.html: real
- * logo image, column layout with a top divider on mobile that becomes a
- * row layout with a left divider at the md breakpoint (768px, matching
- * the source's own isMobile check), and the exact Facebook/Instagram/X
- * glyph markup rather than approximated icon characters.
+ * Ported directly from SketchConnect_ClaudeDesign/Footer.dc.html, with one
+ * deliberate mobile-only departure: the source's own layout stacked logo
+ * above nav with a horizontal divider on narrow screens. Logo+nav are now
+ * wrapped in their own row (`md:contents` makes that wrapper vanish at the
+ * md breakpoint, so desktop's three-column row -- logo, nav, follow-us --
+ * is unchanged) so nav sits to the right of the logo with a vertical
+ * divider between them on mobile too, not just at md: and up.
  */
 export default function Footer() {
   return (
     <footer className="flex w-full flex-col items-start gap-6 bg-ink px-6 py-8 text-white md:flex-row md:px-12 md:py-11 md:gap-[60px] lg:px-[60px]">
-      <img src={logo} alt="SketchConnect" className="block h-[60px] w-auto rounded-md" />
+      <div className="flex w-full flex-row items-start gap-4 md:contents">
+        <img src={logo} alt="SketchConnect" className="block h-[40px] w-auto shrink-0 rounded-md" />
 
-      <div
-        className="flex flex-1 flex-col gap-2.5 border-t pt-5 font-hand text-lg md:border-l md:border-t-0 md:pl-8 md:pt-0"
-        style={{ borderColor: 'rgba(255,255,255,0.3)' }}
-      >
-        {LINKS.map(({ label, href }) => (
-          <a key={label} href={href} className="text-white no-underline hover:underline">
-            {label}
-          </a>
-        ))}
+        <div
+          className="flex flex-1 flex-col items-end gap-2 border-l pl-4 font-hand text-sm md:items-start md:gap-2.5 md:pl-8 md:text-lg"
+          style={{ borderColor: 'rgba(255,255,255,0.3)' }}
+        >
+          {LINKS.map(({ label, href }) => (
+            <a key={label} href={href} className="text-white no-underline hover:underline">
+              {label}
+            </a>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-col items-start gap-3 md:items-end">
-        <span className="font-hand text-lg">Follow us</span>
+        <span className="font-hand text-ls">Follow us</span>
         <div className="flex gap-2.5">
           <a
             href="#"

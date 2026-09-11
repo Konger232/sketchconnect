@@ -39,6 +39,14 @@ uvicorn main:app --reload
 - API docs: http://localhost:8000/docs
 - Health check: http://localhost:8000/health
 
+To open the app from another device on the same Wi-Fi (e.g. a phone,
+for a quick mobile check), add `--host 0.0.0.0` to the uvicorn command
+above -- by default it only listens on localhost. The frontend's `npm
+run dev` already binds `0.0.0.0` and CORS already allows a private-
+network origin on port 5173 (see `backend/config.py`), so once the
+backend is reachable too, open the "Network:" URL Vite prints when it
+starts, from the phone's browser.
+
 ### 3. Frontend
 
 ```

@@ -189,12 +189,12 @@ export default function SketchFlowPage() {
             />
           )}
         </div>
-        {sketch.title && <h1 className="mt-3 text-lg font-semibold">{sketch.title}</h1>}
+        {sketch.title && <h1 className="mt-3 text-base font-semibold tracking-tight">{sketch.title}</h1>}
 
         {error && <p className="mt-3 text-sm text-accent">{error}</p>}
 
         {step === 'analyzing' && (
-          <p className="mt-6 text-center text-white/60">Looking at your scene…</p>
+          <p className="mt-6 animate-fade-in-up text-center text-sm text-white/60">Looking at your scene…</p>
         )}
 
         {analysis?.debug_raw_gemini_response && (
@@ -209,9 +209,9 @@ export default function SketchFlowPage() {
         )}
 
         {step === 'sketching' && (
-          <div className="mt-6 text-center">
-            <p className="text-lg font-medium">Time to sketch!</p>
-            <p className="mt-1 text-sm text-white/60">
+          <div className="mt-6 animate-fade-in-up text-center">
+            <p className="text-base font-semibold">Time to sketch!</p>
+            <p className="mt-1 text-xs text-white/60">
               Work through it at your own pace. Come back and add your finished sketch
               whenever you're ready for feedback.
             </p>
@@ -239,14 +239,14 @@ export default function SketchFlowPage() {
       )}
 
       {helpQuestOpen && (
-        <div className="fixed inset-x-0 bottom-0 z-30 rounded-t-2xl bg-paper p-5 shadow-[0_-4px_24px_rgba(0,0,0,0.12)] text-ink">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-lg font-medium">Ask me anything about this scene</p>
-            <button onClick={() => { setHelpQuestOpen(false); setHelpQuestAnswer(null) }} className="text-xl text-ink/50">×</button>
+        <div className="fixed inset-x-0 bottom-0 z-30 animate-fade-in-up rounded-t-2xl bg-paper p-4 shadow-[0_-4px_24px_rgba(0,0,0,0.12)] text-ink">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-base font-semibold">Ask me anything about this scene</p>
+            <button onClick={() => { setHelpQuestOpen(false); setHelpQuestAnswer(null) }} className="text-xl leading-none text-ink/50 transition-colors hover:text-ink">×</button>
           </div>
           {helpQuestAnswer ? (
             <>
-              <p className="rounded-lg bg-black/5 p-3 text-sm">{helpQuestAnswer}</p>
+              <p className="animate-fade-in-up rounded-lg bg-black/5 p-3 text-sm">{helpQuestAnswer}</p>
               <Button className="mt-3 w-full" onClick={() => { setHelpQuestOpen(false); setHelpQuestAnswer(null); setHelpQuestQuestion('') }}>
                 Back to prompts
               </Button>
@@ -258,7 +258,7 @@ export default function SketchFlowPage() {
                 value={helpQuestQuestion}
                 onChange={(e) => setHelpQuestQuestion(e.target.value)}
                 placeholder="e.g. Should I start with the wine bottles?"
-                className="flex-1 rounded-lg border border-black/15 px-3 py-2 text-ink"
+                className="flex-1 rounded-lg border border-black/15 px-3 py-2 text-sm text-ink transition-colors focus:border-ink/40"
               />
               <Button onClick={handleHelpQuestSend}>Send</Button>
             </div>

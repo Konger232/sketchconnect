@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Header from '../components/layout/Header'
-import SketchCard from '../components/sketch/SketchCard'
+import SketchCard from '../components/common/SketchCard'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'

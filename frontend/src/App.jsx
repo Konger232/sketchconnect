@@ -8,6 +8,7 @@ import SketchFlowPage from './pages/SketchFlowPage'
 import ProfilePage from './pages/ProfilePage'
 import EditProfilePage from './pages/EditProfilePage'
 import SketchDetailPage from './pages/SketchDetailPage'
+import SearchPage from './pages/SearchPage'
 import EditSketchPage from './pages/EditSketchPage'
 import SettingsPage from './pages/SettingsPage'
 import WorkshopsPage from './pages/WorkshopsPage'
@@ -53,7 +54,8 @@ function Router() {
         <Route path="/sketch-flow/:sketchId" element={<RequireAuth><SketchFlowPage /></RequireAuth>} />
         <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/profile/edit" element={<RequireAuth><EditProfilePage /></RequireAuth>} />
-        <Route path="/sketches/:sketchId" element={<RequireAuth><SketchDetailPage /></RequireAuth>} />
+        <Route path="/sketches/:sketchId" element={<SketchDetailPage />} /> {/* public: read-only for non-owners, full owner controls when signed in as the sketcher -- see SketchDetailPage.jsx */}
+        <Route path="/search" element={<SearchPage />} /> {/* public, same as sketch detail -- logged-out visitors search the public recent feed */}
         <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketchPage /></RequireAuth>} />
         <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
         <Route path="/workshops" element={<RequireAuth><WorkshopsPage /></RequireAuth>} />

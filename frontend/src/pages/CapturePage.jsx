@@ -158,16 +158,16 @@ export default function CapturePage() {
           type="button"
           onClick={closeWizard}
           aria-label="Close"
-          className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-2xl leading-none text-white/80 hover:bg-white/20 hover:text-white"
+          className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-2xl leading-none text-white/80 transition-colors hover:bg-white/20 hover:text-white"
         >
           &times;
         </button>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-8 pt-16 md:px-8">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-8 pt-14 md:px-8">
           {step === 'photo' ? (
-            <>
-              <h1 className="text-lg font-bold">New sketch</h1>
-              <p className="mt-1 text-sm text-white/60">Add a photo of what you're sketching.</p>
+            <div key="photo" className="animate-fade-in-up">
+              <h1 className="text-base font-bold tracking-tight">New sketch</h1>
+              <p className="mt-1 text-xs text-white/60">Add a photo of what you're sketching.</p>
 
               <div className="relative mx-auto mt-5 w-full max-w-md">
                 {preview ? (
@@ -229,11 +229,11 @@ export default function CapturePage() {
                   {saving ? 'Saving…' : 'Continue'}
                 </Button>
               </div>
-            </>
+            </div>
           ) : (
-            <>
-              <h1 className="text-lg font-bold">A few details</h1>
-              <p className="mt-1 text-sm text-white/60">You can change any of this later.</p>
+            <div key="details" className="animate-fade-in-up">
+              <h1 className="text-base font-bold tracking-tight">A few details</h1>
+              <p className="mt-1 text-xs text-white/60">You can change any of this later.</p>
 
               <div className="mt-5 flex flex-col gap-6 md:flex-row md:items-start">
                 {preview && (
@@ -244,24 +244,24 @@ export default function CapturePage() {
 
                 <div className="flex w-full flex-col gap-5 md:w-1/2">
                   <label className="block">
-                    <span className="text-sm font-medium text-white/80">Title</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-white/50">Title</span>
                     <input
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       placeholder="Untitled sketch"
-                      className="mt-1 w-full rounded-lg border border-white/20 bg-white/5 px-4 py-3 text-white placeholder:text-white/40"
+                      className="mt-1.5 w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/40 transition-colors focus:border-white/40"
                     />
                   </label>
 
                   <div>
-                    <span className="text-sm font-medium text-white/80">Style</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-white/50">Style</span>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {STYLES.map((s) => (
                         <button
                           key={s.value}
                           type="button"
                           onClick={() => setStyle(s.value)}
-                          className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-95 ${
                             style === s.value
                               ? 'bg-white text-black'
                               : 'bg-white/10 text-white/80 hover:bg-white/20'
@@ -277,27 +277,27 @@ export default function CapturePage() {
                     <button
                       type="button"
                       onClick={() => setLocationExpanded((v) => !v)}
-                      className="flex w-full items-center justify-between rounded-lg border border-white/20 bg-white/5 px-4 py-3 text-left text-sm"
+                      className="flex w-full items-center justify-between rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-left text-sm transition-colors hover:bg-white/10"
                     >
                       <span className="text-white/80">
                         📍 {location ? (locationLabel || 'Location set') : 'Add location'}
                       </span>
-                      <span className="text-white/40">{locationExpanded ? '▲' : '▼'}</span>
+                      <span className="text-white/40 transition-transform duration-200" style={{ transform: locationExpanded ? 'rotate(180deg)' : 'none' }}>▼</span>
                     </button>
                     {locationExpanded && (
-                      <div className="mt-2 rounded-lg bg-white p-3 text-ink">
+                      <div className="mt-2 animate-fade-in-up rounded-lg bg-white p-3 text-ink">
                         <LocationPicker location={location} onLocationChange={setLocation} onLabelChange={setLocationLabel} />
                       </div>
                     )}
                   </div>
 
                   <label className="block">
-                    <span className="text-sm font-medium text-white/80">Date &amp; time</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-white/50">Date &amp; time</span>
                     <input
                       type="datetime-local"
                       value={capturedAt}
                       onChange={(e) => setCapturedAt(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-white/20 bg-white/5 px-4 py-3 text-white [color-scheme:dark]"
+                      className="mt-1.5 w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm text-white [color-scheme:dark] transition-colors focus:border-white/40"
                     />
                   </label>
                 </div>
@@ -310,7 +310,7 @@ export default function CapturePage() {
                   {continuing ? 'Continuing…' : 'Continue'}
                 </Button>
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
