@@ -27,9 +27,18 @@ create table if not exists sketches (
   captured_at timestamptz,
   original_image_url text,
   crop_transform jsonb,
+  focal_points jsonb,
   created_at timestamptz not null default now()
 );
 create index if not exists sketches_sketcher_id_idx on sketches (sketcher_id);
+
+-- Defensive column add: everything above this point in the file has only
+-- ever been evolved by editing the `create table` statement directly
+-- (fine for a fresh project, but a no-op against a Supabase project
+-- created before this column existed). This is the first column added
+-- with that in mind -- if it works out, worth doing for future additions
+-- too rather than only for this one.
+alter table sketches add column if not exists focal_points jsonb;
 
 create table if not exists personas (
   id uuid primary key default gen_random_uuid(),

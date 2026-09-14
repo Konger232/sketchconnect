@@ -42,6 +42,15 @@ RESPONSE_SCHEMA = {
             "description": "Only meaningful when scene_type is 'mixed'; 'null' otherwise.",
         },
         "scene_summary": {"type": "string"},
+        "suggested_title": {
+            "type": "string",
+            "description": (
+                "A short, natural title for this sketch scene itself -- "
+                "not the sketching process, not the style -- at most 8-10 "
+                "words. Title Case, no trailing punctuation, no quotes. "
+                "Example: 'Sunset Over the Old Harbor Bridge'."
+            ),
+        },
         "focal_regions": {
             "type": "array",
             "items": {
@@ -84,7 +93,7 @@ RESPONSE_SCHEMA = {
             },
         },
     },
-    "required": ["scene_type", "scene_summary", "focal_regions", "prepared_prompts"],
+    "required": ["scene_type", "scene_summary", "suggested_title", "focal_regions", "prepared_prompts"],
 }
 
 
@@ -122,6 +131,10 @@ def _build_prompt(style: str, crop_transform: dict | None = None) -> str:
         "buildings with parked bicycles, signage, or vehicles and no "
         "prominent person is \"architectural\". mixed_dominant_region only "
         "ever resolves between \"architectural\" and \"figure\".\n\n"
+        "Also give a \"suggested_title\" for this sketch scene: a short, "
+        "natural title describing the scene itself (not the sketching "
+        "process or the chosen style), at most 8-10 words, Title Case, no "
+        "trailing punctuation or quotes.\n\n"
         "Then suggest a short list of guiding questions grounded in the "
         "Elements and Principles of Design (UC Berkeley Library design "
         "guide). Never tell the sketcher what to draw "
@@ -280,6 +293,16 @@ async def scene_analysis(
     pts = pts[: len(pts) - (len(pts) % 4)]  # drop a trailing partial segment
     pts = pts[:16]  # 4 lines max, defensively -- schema has no maxItems (see above)
     result["perspective_lines"] = [max(0, min(1000, p)) for p in pts]
+
+    # A sketcher hasn't typed anything yet the first time a sketch reaches
+    # this call (title entry is deferred entirely to EditInfoModal.jsx) --
+    # fill it in from Gemini's suggestion so the sketch isn't stuck showing
+    # "Untitled sketch" on the home feed while it's mid-flow. Never
+    # overwrites a title the sketcher already has, including on a re-
+    # analysis triggered by picking a different style.
+    suggested_title = (result.get("suggested_title") or "").strip()
+    if suggested_title and not sketch.title:
+        sketch.title = suggested_title[:150]
 
     # Readable summary of the actual decision: given this style + the
     # scene_type Gemini just classified, which prepared_prompts survived

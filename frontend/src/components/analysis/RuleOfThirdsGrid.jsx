@@ -7,7 +7,7 @@
 export default function RuleOfThirdsGrid() {
   const stops = [33.333, 66.667]
   return (
-    <div className="pointer-events-none absolute inset-0">
+    <div className="pointer-events-none absolute inset-0 border border-white/30">
       {stops.map((pct) => (
         <div
           key={`v-${pct}`}

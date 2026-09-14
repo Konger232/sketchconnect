@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from './AuthContext'
 import icoCamera from '../../assets/images/ico-camera.png'
 import icoCalendar from '../../assets/images/ico-calendar.png'
 import icoHome from '../../assets/images/ico-home.png'
@@ -35,9 +35,9 @@ export default function NavDrawer({ open, onClose }) {
       {/* z-[1500]/[1501], not the original z-[200]/[201] -- Leaflet's own
           zoom/attribution controls default to z-index: 1000 regardless of
           DOM nesting, so a page with a <LocationMap> open underneath this
-          drawer (e.g. SketchDetailPage) had its +/- zoom buttons visibly
+          drawer (e.g. SketchWorkspaceModal) had its +/- zoom buttons visibly
           poke through on top of the drawer. Bumped above even
-          CapturePage's own modal z-[1400] so the drawer always wins if
+          SceneAnalyzerWizard's own modal z-[1400] so the drawer always wins if
           both ever ended up open at once. */}
       {open && <div className="fixed inset-0 z-[1500] bg-black/40" onClick={onClose} />}
       <nav

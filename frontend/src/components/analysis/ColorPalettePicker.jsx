@@ -1,4 +1,5 @@
 import MascotIcon from '../common/MascotIcon'
+import { AI_PROMPT_SIZES as S } from '../../lib/aiPromptSizing'
 
 // "Do you want to pick a color palette?" — three preset wheels. Real
 // swatch values are a design pass away from the Figma file; these are
@@ -9,31 +10,34 @@ const PALETTES = [
   { id: 'cool', label: 'Cool Colors', swatches: ['#2f3f6b', '#5b7fa6', '#0f1d3d', '#bcd2e8'] },
 ]
 
+// Renders as plain content inside GuidedPromptFlow.jsx's white controls
+// panel now, not a fixed bottom sheet of its own -- see AIPromptModal.jsx
+// for the same change and why. Sizing comes from lib/aiPromptSizing.js.
 export default function ColorPalettePicker({ onSelect, onSkip }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 animate-fade-in-up rounded-t-2xl bg-paper p-4 shadow-[0_-4px_24px_rgba(0,0,0,0.12)] text-ink">
+    <div className="animate-fade-in-up">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <MascotIcon className="h-5 w-5" />
-          <p className="text-base font-semibold">Do you want to pick a color palette?</p>
+          <MascotIcon className={`${S.mascotIcon} ${S.mascotIconMd}`} />
+          <p className={`${S.paletteHeadingText} ${S.paletteHeadingTextMd}`}>Do you want to pick a color palette?</p>
         </div>
         {onSkip && (
-          <button onClick={onSkip} aria-label="Close" className="text-xl leading-none text-ink/50 transition-colors hover:text-ink">×</button>
+          <button onClick={onSkip} aria-label="Close" className={`${S.closeIcon} ${S.closeIconMd} text-ink/50 transition-colors hover:text-ink`}>×</button>
         )}
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className={`grid grid-cols-3 ${S.paletteGrid} ${S.paletteGridMd}`}>
         {PALETTES.map((p) => (
           <button
             key={p.id}
             onClick={() => onSelect(p.id)}
             className="flex flex-col items-center gap-2 rounded-xl border border-black/15 p-3 transition-all duration-150 hover:bg-black/5 active:scale-[0.97]"
           >
-            <div className="grid h-16 w-16 grid-cols-2 grid-rows-2 overflow-hidden rounded-full ring-1 ring-black/10">
+            <div className={`grid grid-cols-2 grid-rows-2 overflow-hidden rounded-full ring-1 ring-black/10 ${S.paletteSwatchSize} ${S.paletteSwatchSizeMd}`}>
               {p.swatches.map((c) => (
                 <div key={c} style={{ backgroundColor: c }} />
               ))}
             </div>
-            <span className="text-xs font-medium">{p.label}</span>
+            <span className={`font-medium ${S.paletteLabelText} ${S.paletteLabelTextMd}`}>{p.label}</span>
           </button>
         ))}
       </div>

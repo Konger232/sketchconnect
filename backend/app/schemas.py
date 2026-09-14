@@ -40,6 +40,14 @@ class SceneAnalysisResponse(BaseModel):
     scene_type: SceneType
     mixed_dominant_region: Optional[Literal["architectural", "figure"]] = None
     scene_summary: str
+    # Short, Gemini-suggested title for the sketch scene itself (not the
+    # sketching process) -- at most 8-10 words, e.g. "Sunset Over the Old
+    # Harbor Bridge". scene_analysis.py only applies it to the sketch row
+    # when the sketch doesn't already have a title, so it's a convenience
+    # default, never something that overwrites a sketcher's own edit.
+    # Optional: absent/blank is treated as "no suggestion" rather than an
+    # error, same defensive posture as perspective_lines below.
+    suggested_title: Optional[str] = None
     focal_regions: list[FocalRegion] = Field(default_factory=list, max_length=3)
     # Flat [x1, y1, x2, y2, ...] list, one 4-int group per dominant real
     # perspective/vanishing line Gemini finds in the photo (0-1000 scale,
@@ -155,3 +163,41 @@ class SketchUpdateRequest(BaseModel):
     # skips straight past its now-dead style-picker step.
     style: Optional[Style] = None
     captured_at: Optional[datetime] = None
+
+
+# --- Focal-point marking (prototype-stage — not yet wired to an endpoint;
+# see claude/parking-lot.md, "Focal-area marking: sketcher-marks-first +
+# Gemini-suggests interaction"). These shapes exist so services/focal_pairing.py
+# has something concrete to type against ahead of the real capture-flow build. ---
+
+PairingMethod = Literal["region_ref", "contains", "nearest", "unmatched"]
+
+
+class SketcherFocalPointInput(BaseModel):
+    """
+    One point as it comes off the marking/crop/refine UI — either the
+    sketcher's own free placement, or a Gemini `focal_regions` suggestion
+    they adopted. 0-1000 scale, same convention as `FocalRegion.contour_points`.
+    """
+    x: int
+    y: int
+    source: Literal["own", "adopted"]
+    # Only meaningful when source == "adopted". This is a *positional*
+    # index into that sketch's cached `focal_regions` list, not a stored
+    # id — FocalRegion has no id field today. Stable for one sketch's
+    # lifetime since `cached_scene_analysis` is written once and never
+    # reordered (see models.py's Sketch.cached_scene_analysis comment),
+    # but a real id should replace this if focal_regions ever becomes
+    # independently editable.
+    region_ref: Optional[int] = None
+
+
+class PairedFocalPoint(SketcherFocalPointInput):
+    """SketcherFocalPointInput plus what focal_pairing.py resolved it to."""
+    paired_label: Optional[str] = None
+    paired_region_ref: Optional[int] = None
+    pairing_method: PairingMethod
+    # Distance (0-1000 scale) from the point to the paired region's
+    # boundary. 0 for "region_ref"/"contains" (already inside or already
+    # known); set for "nearest"; None for "unmatched".
+    pairing_distance: Optional[float] = None

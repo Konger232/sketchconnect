@@ -68,6 +68,17 @@ class Sketch(Base):
     # just the original, unmodified).
     crop_transform = Column(JSON, nullable=True)
 
+    # One entry per confirmed focal point once the sketcher has been
+    # through FocalFrameEditor.jsx (mark, then frame-refine) in the sketch
+    # flow: [{x, y, source, region_ref, paired_label, paired_region_ref,
+    # pairing_method, pairing_distance}, ...], schemas.PairedFocalPoint's
+    # own shape, x/y normalized against whatever frame reference_image_url
+    # currently shows (so this stays valid even if a later pass re-crops
+    # and reprojects every point into the new frame -- see
+    # routers/sketches.py's focal_frame endpoint). Null until that flow has
+    # been completed at least once for this sketch.
+    focal_points = Column(JSON, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

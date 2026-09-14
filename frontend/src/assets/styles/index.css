@@ -125,3 +125,13 @@
     transform: translate(-50%, -50%);
   }
 }
+
+/*
+ * Focal-area marking design tokens (sketcher-marked vs. Gemini-suggested
+ */
+:root {
+  --focal-accent-user: #fff01f;   /* sketcher's own marked anchor */
+  --focal-accent-ai: #39ff14;     /* Gemini-suggested anchor, before adoption */
+  --focal-reticle-stroke-width: 1px;
+  --focal-reticle-stroke-opacity: 0.95;
+}

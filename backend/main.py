@@ -6,9 +6,11 @@ on-demand Gemini calls plus persona creation, profile CRUD, and plain
 sketch CRUD, all returning structured JSON so the frontend can highlight
 specific spots on the photo rather than parsing narrative text.
 
-The Phase-0 OpenCV prototype (deterministic perspective/value-study,
-no AI) lives on under /legacy -- preserved for reference, not part of the
-current design.
+The Phase-0 OpenCV prototype this server used to also expose under /legacy
+(deterministic perspective/value-study, no AI) has been fully superseded --
+perspective lines by Gemini's real traced-line detection in
+scene_analysis.py, value-study by app/services/value_study.py -- and was
+removed along with its endpoints (see parking-lot.md).
 """
 from pathlib import Path
 
@@ -18,7 +20,6 @@ from fastapi.staticfiles import StaticFiles
 
 from config import ALLOWED_ORIGINS, ALLOWED_ORIGIN_REGEX
 from app.routers import scene_analysis, persona, critique, help_quest, sketches, profile, geocode
-from legacy.perspective_analyze import router as legacy_router
 
 app = FastAPI(title="SketchConnect middle server")
 
@@ -41,7 +42,6 @@ app.include_router(help_quest.router)
 app.include_router(sketches.router)
 app.include_router(profile.router)
 app.include_router(geocode.router)
-app.include_router(legacy_router, prefix="/legacy", tags=["legacy"])
 
 
 @app.get("/health")

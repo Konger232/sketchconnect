@@ -24,8 +24,10 @@ from geoalchemy2.functions import ST_Distance, ST_DWithin
 from ..database import get_db
 from ..auth import get_current_sketcher_id, get_optional_sketcher_id
 from ..models import Sketch, CritiqueResponse
-from ..schemas import SketchUpdateRequest
+from ..schemas import SketchUpdateRequest, SketcherFocalPointInput, FocalRegion
 from ..services.exif_utils import extract_location_and_time
+from ..services.focal_pairing import pair_focal_points
+from ..services.value_study import compute_value_study
 
 # Registered again here (also done in scene_analysis.py) so this module
 # decodes HEIC/HEIF correctly even if imported before that one — the
@@ -56,6 +58,8 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
         "captured_at": s.captured_at,
         "original_image_url": s.original_image_url,
         "crop_transform": s.crop_transform,
+        "focal_points": s.focal_points,
+        "perspective_lines": (s.cached_scene_analysis or {}).get("perspective_lines", []),
         "created_at": s.created_at,
         # The latest critique's text, if any -- this is what
         # SketchCard.jsx's feed view shows as the sketch's description,
@@ -200,6 +204,160 @@ async def update_sketch(
     db.commit()
     db.refresh(sketch)
     return _sketch_to_dict(sketch)
+
+
+@router.post("/sketches/{sketch_id}/focal-frame")
+async def save_focal_frame(
+    sketch_id: str,
+    old_points: str = Form(...),
+    new_points: str = Form(...),
+    crop_transform: str | None = Form(None),
+    framed_image: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """
+    Persists the result of FocalFrameEditor.jsx's mark-then-frame-refine
+    flow (frontend: FocalFrameEditor.jsx, geometry: lib/focalGeometry.js;
+    backend geometry: services/focal_pairing.py -- see that file's own
+    docstring for why pairing is plain geometry here rather than another
+    Gemini call).
+
+    `old_points` and `new_points` are parallel arrays, same length and
+    order, one entry per confirmed focal point (the sketcher's own marks
+    plus anything they adopted from a Gemini suggestion):
+      - old_points: [{x, y, source, region_ref}], normalized against
+        whatever frame was actually analyzed -- i.e. the same coordinate
+        space `sketch.cached_scene_analysis["focal_regions"]` is already
+        in. This is what pair_focal_points() needs to resolve each point
+        to a region label; it's the frame the sketcher was looking at
+        while marking, not necessarily the frame they end up confirming.
+      - new_points: [{x, y}], the same points reprojected (client-side,
+        via focalGeometry.js's toOriginalSpace/toFrameSpace round trip
+        through the original photo's own coordinate space) into whatever
+        frame the sketcher settled on after the pan/zoom refine step --
+        i.e. the frame `framed_image` below actually shows. These are the
+        positions that get stored, so a reticle drawn at a stored point
+        later lines up with the photo it's stored next to.
+
+    `framed_image` + `crop_transform` are only sent when the sketcher
+    actually changed the framing during the refine step (mirrors
+    create_sketch's own optional `framed_image` -- "no change" is the
+    common case and shouldn't cost a re-encode or a re-upload). When
+    present: the new photo replaces reference_image_url (the old one is
+    deleted unless it's also original_image_url), crop_transform is
+    updated, and -- since focal_regions/perspective_lines were computed
+    against the frame that just changed -- cached_scene_analysis is
+    cleared so SketchFlowPage's next load re-runs Gemini against the new
+    framing rather than serving a now-mismatched cached result (the same
+    invalidation rule scene_analysis.py already applies for a style
+    change, extended to cover a framing change too).
+    """
+    sketch = db.query(Sketch).filter(
+        Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
+    ).first()
+    if sketch is None:
+        raise HTTPException(404, "Sketch not found")
+
+    try:
+        old_points_raw = json.loads(old_points)
+        new_points_raw = json.loads(new_points)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "old_points/new_points must be JSON")
+
+    if not isinstance(old_points_raw, list) or not isinstance(new_points_raw, list):
+        raise HTTPException(400, "old_points/new_points must be JSON arrays")
+    if len(old_points_raw) != len(new_points_raw):
+        raise HTTPException(400, "old_points and new_points must be the same length")
+
+    try:
+        parsed_points = [SketcherFocalPointInput(**p) for p in old_points_raw]
+    except Exception as exc:
+        raise HTTPException(400, f"Invalid old_points: {exc}")
+
+    cached = sketch.cached_scene_analysis or {}
+    try:
+        regions = [FocalRegion(**r) for r in cached.get("focal_regions", [])]
+    except Exception:
+        # A malformed cached region shouldn't block saving the sketcher's
+        # marks -- fall back to "nothing to pair against", same spirit as
+        # focal_pairing.py's own per-region defensiveness.
+        regions = []
+
+    paired = pair_focal_points(parsed_points, regions)
+
+    focal_points = []
+    for paired_point, new_xy in zip(paired, new_points_raw):
+        record = paired_point.model_dump()
+        record["x"] = new_xy.get("x")
+        record["y"] = new_xy.get("y")
+        focal_points.append(record)
+    sketch.focal_points = focal_points
+
+    if framed_image is not None:
+        framed_contents = await framed_image.read()
+        try:
+            framed_pil = Image.open(io.BytesIO(framed_contents)).convert("RGB")
+        except Exception:
+            raise HTTPException(400, "Could not decode framed image")
+        framed_filename = f"{uuid.uuid4()}.jpg"
+        framed_pil.save(UPLOAD_DIR / framed_filename, format="JPEG", quality=90)
+        new_reference_url = f"/uploads/{framed_filename}"
+
+        old_reference_url = sketch.reference_image_url
+        if old_reference_url and old_reference_url != sketch.original_image_url:
+            _delete_upload_file(old_reference_url)
+
+        sketch.reference_image_url = new_reference_url
+        if crop_transform:
+            try:
+                sketch.crop_transform = json.loads(crop_transform)
+            except (TypeError, ValueError):
+                pass
+        # The frame this focal_points set was reprojected onto no longer
+        # matches whatever Gemini last analyzed -- see docstring above.
+        sketch.cached_scene_analysis = None
+        sketch.scene_type = None
+
+    db.commit()
+    db.refresh(sketch)
+    return _sketch_to_dict(sketch)
+
+
+@router.get("/sketches/{sketch_id}/value-study")
+async def sketch_value_study(
+    sketch_id: str,
+    levels: int = 4,
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """
+    On-demand "dominant value shapes" toggle for SketchDetailPage's
+    edit-mode view (see services/value_study.py's docstring for the
+    algorithm -- deterministic OpenCV, not a Gemini call). Scoped to the
+    sketch's owner, same as update_sketch/delete_sketch: this is a
+    working aid for the sketcher's own in-progress sketch, not a public
+    sketch-detail field.
+
+    Computed fresh on every call rather than cached alongside
+    cached_scene_analysis: it's a single deterministic pass over an
+    already-downscaled photo (cheap), and a sketcher may want to try a
+    few different `levels` values, which a cached single result
+    couldn't serve anyway.
+    """
+    sketch = db.query(Sketch).filter(
+        Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
+    ).first()
+    if sketch is None:
+        raise HTTPException(404, "Sketch not found")
+
+    image_path = UPLOAD_DIR / Path(sketch.reference_image_url).name
+    try:
+        pil_image = Image.open(image_path)
+    except Exception:
+        raise HTTPException(400, "Could not load this sketch's photo")
+
+    return compute_value_study(pil_image, levels)
 
 
 def _delete_upload_file(url: str | None) -> None:

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import Header from '../components/layout/Header'
+import Header from '../components/common/Header'
 import Button from '../components/common/Button'
 import { STYLES } from '../data/styles'
 import { api } from '../lib/api'

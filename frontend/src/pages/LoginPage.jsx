@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
-import Header from '../components/layout/Header'
-import Footer from '../components/layout/Footer'
+import Header from '../components/common/Header'
+import Footer from '../components/common/Footer'
 import Button from '../components/common/Button'
 
 // Matches the Claude Design Login screen: shared Header/Footer templates

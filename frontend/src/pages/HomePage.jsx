@@ -1,8 +1,8 @@
-import Header from '../components/layout/Header'
-import Footer from '../components/layout/Footer'
-import LoggedInHome from '../components/home/LoggedInHome'
-import LoggedOutHome from '../components/home/LoggedOutHome'
-import { useAuth } from '../context/AuthContext'
+import Header from '../components/common/Header'
+import Footer from '../components/common/Footer'
+import LoggedInHome from './LoggedInHome'
+import LoggedOutHome from './LoggedOutHome'
+import { useAuth } from '../components/common/AuthContext'
 
 // Landing / home screen. Header now manages its own nav drawer, so this
 // page only decides which body to render: a signed-in sketcher sees their

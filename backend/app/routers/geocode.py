@@ -38,7 +38,12 @@ async def search(q: str):
         try:
             resp = await client.get(
                 f"{NOMINATIM_BASE}/search",
-                params={"q": q, "format": "jsonv2", "limit": 5},
+                # accept-language=en -- without it Nominatim returns
+                # display_name in whatever language is locally used at that
+                # place (e.g. Kyoto's own listing comes back in Japanese
+                # script), which reads as broken to an English-speaking
+                # sketcher rather than as a translation choice.
+                params={"q": q, "format": "jsonv2", "limit": 5, "accept-language": "en"},
                 headers=HEADERS,
             )
         except httpx.HTTPError:
@@ -58,7 +63,11 @@ async def reverse(lat: float, lon: float):
         try:
             resp = await client.get(
                 f"{NOMINATIM_BASE}/reverse",
-                params={"lat": lat, "lon": lon, "format": "jsonv2"},
+                # accept-language=en -- same reasoning as /search above; this
+                # is the endpoint that resolves a sketch's EXIF-detected GPS
+                # coordinates to a readable place name, so it's the one that
+                # actually produced the Japanese-script "Kyoto" label.
+                params={"lat": lat, "lon": lon, "format": "jsonv2", "accept-language": "en"},
                 headers=HEADERS,
             )
         except httpx.HTTPError:

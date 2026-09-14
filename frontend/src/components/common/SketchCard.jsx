@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { relativeTime } from '../../lib/relativeTime'
+import { getSketchStatus } from '../../lib/sketchStatus'
 import { api } from '../../lib/api'
 
-// Same pattern already used on SketchFlowPage.jsx and SketchDetailPage.jsx:
+// Same pattern already used on SketchFlowPage.jsx and SketchWorkspaceModal.jsx:
 // reference_image_url is a relative "/uploads/..." path from FastAPI, not
 // the Vite dev server, so it needs the API's own origin prefixed -- without
 // this it resolves against the frontend's origin instead and 404s.
@@ -32,9 +33,15 @@ export default function SketchCard({ sketch }) {
   const [index, setIndex] = useState(0)
   const [liked, setLiked] = useState(false)
   const activeImage = images[index % Math.max(images.length, 1)]
+  const status = getSketchStatus(sketch)
+  const location = useLocation()
+  // Same backgroundLocation pattern Header.jsx uses for /capture -- keeps
+  // this feed page mounted underneath so the sketch opens as an overlay
+  // (SketchWorkspaceModal.jsx) instead of navigating away from it.
+  const sketchLinkState = { backgroundLocation: location }
 
   return (
-    <Link to={`/sketches/${sketch.id}`} className="flex flex-col text-left">
+    <Link to={`/sketches/${sketch.id}`} state={sketchLinkState} className="flex flex-col text-left">
       <div className="photo-placeholder relative aspect-[4/3] overflow-hidden rounded-[4px]">
         {activeImage && <img src={activeImage} alt="" className="absolute inset-0 h-full w-full object-cover" />}
         <span
@@ -45,6 +52,9 @@ export default function SketchCard({ sketch }) {
           className="absolute right-2.5 top-2.5 flex h-[30px] w-[30px] items-center justify-center rounded-full bg-white/85 text-[15px]"
         >
           {liked ? '♥' : '♡'}
+        </span>
+        <span className="absolute left-2.5 top-2.5 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white">
+          {status}
         </span>
         {images.length > 1 && (
           <div className="photo-dots">

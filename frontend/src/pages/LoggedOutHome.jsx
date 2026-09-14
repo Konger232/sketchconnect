@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import RecentSketchesSection from './RecentSketchesSection'
-import { useGeolocation } from '../../lib/useGeolocation'
-import { api } from '../../lib/api'
+import SketchCard from '../components/common/SketchCard'
+import LocationMap from '../components/common/LocationMap'
+import { useGeolocation } from '../lib/useGeolocation'
+import { api } from '../lib/api'
 
 const FEATURES = [
   {
@@ -28,6 +29,12 @@ const FEATURES = [
  * GET /api/sketches/recent, using the visitor's GPS when they grant it —
  * replacing the earlier hardcoded "popular spots" placeholders — plus the
  * marketing shell from the Figma/Claude-Design "New User" home.
+ *
+ * The sketch-grid + "Map View" block below used to be its own
+ * RecentSketchesSection.jsx, shared with LoggedInHome.jsx -- folded back
+ * in here since the two pages' versions of it had drifted apart enough
+ * (different grid caps, different map source) that sharing it wasn't
+ * actually saving anything.
  */
 export default function LoggedOutHome() {
   const { coords, status } = useGeolocation()
@@ -53,7 +60,19 @@ export default function LoggedOutHome() {
       {loaded && sketches.length === 0 && (
         <p className="mt-3 text-sm text-ink/50">No sketches shared yet — be the first!</p>
       )}
-      <RecentSketchesSection gridSketches={sketches.slice(0, 4)} mapSketches={sketches} />
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        {sketches.slice(0, 4).map((s) => (
+          <SketchCard key={s.id} sketch={s} />
+        ))}
+      </div>
+
+      <h2 className="mt-8 text-xl font-bold">Map View</h2>
+      <div className="mt-2">
+        <LocationMap
+          points={sketches.filter((s) => s.location).map((s) => ({ ...s.location, label: s.title }))}
+        />
+      </div>
 
       <p className="mt-8 text-center font-hand text-2xl">Connect &nbsp;.&nbsp; Sketch &nbsp;.&nbsp; Share</p>
       <p className="mt-2 text-center text-sm text-ink/70">

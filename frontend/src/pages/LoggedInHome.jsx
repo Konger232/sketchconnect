@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import RecentSketchesSection from './RecentSketchesSection'
-import { useAuth } from '../../context/AuthContext'
-import { api } from '../../lib/api'
+import { Link, useLocation } from 'react-router-dom'
+import SketchCard from '../components/common/SketchCard'
+import LocationMap from '../components/common/LocationMap'
+import { useAuth } from '../components/common/AuthContext'
+import { api } from '../lib/api'
 
 /**
  * Home for a signed-in sketcher — matches the Claude Design "Home - Login
@@ -15,15 +16,28 @@ import { api } from '../../lib/api'
  * label, so rather than invent content for it, it links through to the
  * existing Settings page (admired-artist-per-style) — flagged for you to
  * confirm that's what it should be.
+ *
+ * The sketch-grid + "Map View" block below used to be its own
+ * RecentSketchesSection.jsx, shared with LoggedOutHome.jsx -- folded back
+ * in here since the two pages' versions of it had drifted apart enough
+ * (different grid caps, different map source) that sharing it wasn't
+ * actually saving anything.
  */
 export default function LoggedInHome() {
   const { profile, displayName } = useAuth()
+  const location = useLocation()
   const [sketches, setSketches] = useState([])
   const [loading, setLoading] = useState(true)
 
+  // See ProfilePage.jsx's identical comment: depends on location.key so
+  // this refetches whenever something navigates back into this route
+  // (e.g. Delete's navigate) even though the backgroundLocation overlay
+  // trick keeps this page mounted the whole time a modal is open on top
+  // of it, which an empty-deps mount effect would otherwise never redo.
   useEffect(() => {
+    setLoading(true)
     api.get('/api/sketches').then(({ data }) => setSketches(data)).finally(() => setLoading(false))
-  }, [])
+  }, [location.key])
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-16">
@@ -47,7 +61,19 @@ export default function LoggedInHome() {
       {!loading && sketches.length === 0 && (
         <p className="mt-6 text-center text-ink/50">No sketches yet — go capture something!</p>
       )}
-      <RecentSketchesSection gridSketches={sketches} mapSketches={sketches} />
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        {sketches.map((s) => (
+          <SketchCard key={s.id} sketch={s} />
+        ))}
+      </div>
+
+      <h2 className="mt-8 text-xl font-bold">Map View</h2>
+      <div className="mt-2">
+        <LocationMap
+          points={sketches.filter((s) => s.location).map((s) => ({ ...s.location, label: s.title }))}
+        />
+      </div>
     </main>
   )
 }

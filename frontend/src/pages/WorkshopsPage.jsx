@@ -1,4 +1,4 @@
-import Header from '../components/layout/Header'
+import Header from '../components/common/Header'
 
 // Placeholder — "Workshop Calendar" is referenced in the nav drawer but
 // isn't detailed anywhere in the design doc yet. Fill in once that's scoped.

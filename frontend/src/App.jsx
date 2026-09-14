@@ -1,15 +1,14 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { AuthProvider, useAuth } from './context/AuthContext'
+import { AuthProvider, useAuth } from './components/common/AuthContext'
 import { supabaseConfigured } from './lib/supabaseClient'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
-import CapturePage from './pages/CapturePage'
+import SceneAnalyzerWizard from './pages/SceneAnalyzerWizard'
 import SketchFlowPage from './pages/SketchFlowPage'
 import ProfilePage from './pages/ProfilePage'
 import EditProfilePage from './pages/EditProfilePage'
-import SketchDetailPage from './pages/SketchDetailPage'
+import SketchWorkspaceModal from './pages/SketchWorkspaceModal'
 import SearchPage from './pages/SearchPage'
-import EditSketchPage from './pages/EditSketchPage'
 import SettingsPage from './pages/SettingsPage'
 import WorkshopsPage from './pages/WorkshopsPage'
 
@@ -40,7 +39,7 @@ function Router() {
   // present, we render the *background* page via the routes below at its
   // own location (so it stays mounted/current underneath), then render
   // /capture a second time, on top, as a modal (desktop/tablet) or
-  // fullscreen takeover (mobile) -- see CapturePage.jsx. A direct or
+  // fullscreen takeover (mobile) -- see SceneAnalyzerWizard.jsx. A direct or
   // refreshed visit to /capture has no backgroundLocation, so it falls
   // through to the normal full-page route in the main <Routes> below.
   const backgroundLocation = location.state?.backgroundLocation
@@ -50,19 +49,27 @@ function Router() {
       <Routes location={backgroundLocation || location}>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/capture" element={<RequireAuth><CapturePage /></RequireAuth>} />
+        <Route path="/capture" element={<RequireAuth><SceneAnalyzerWizard /></RequireAuth>} />
         <Route path="/sketch-flow/:sketchId" element={<RequireAuth><SketchFlowPage /></RequireAuth>} />
         <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/profile/edit" element={<RequireAuth><EditProfilePage /></RequireAuth>} />
-        <Route path="/sketches/:sketchId" element={<SketchDetailPage />} /> {/* public: read-only for non-owners, full owner controls when signed in as the sketcher -- see SketchDetailPage.jsx */}
-        <Route path="/search" element={<SearchPage />} /> {/* public, same as sketch detail -- logged-out visitors search the public recent feed */}
-        <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketchPage /></RequireAuth>} />
+        <Route path="/sketches/:sketchId" element={<SketchWorkspaceModal />} /> {/* public: read-only for non-owners, full owner controls when signed in as the sketcher -- see SketchWorkspaceModal.jsx */}
+        <Route path="/search" element={<SearchPage />} /> {/* public, same as the sketch workspace modal -- logged-out visitors search the public recent feed */}
         <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
         <Route path="/workshops" element={<RequireAuth><WorkshopsPage /></RequireAuth>} />
       </Routes>
+      {/* When a route below was reached with backgroundLocation in its nav
+          state (SketchCard.jsx clicking a card, Header.jsx's capture icon),
+          the <Routes> above rendered the *background* page at that stashed
+          location, and this second <Routes> -- which has no `location`
+          prop, so it always matches the real current URL -- renders the
+          modal on top of it. A direct or refreshed visit to either route
+          has no backgroundLocation, so it only ever matches once, above,
+          as a normal full-page route. */}
       {backgroundLocation && (
         <Routes>
-          <Route path="/capture" element={<RequireAuth><CapturePage /></RequireAuth>} />
+          <Route path="/capture" element={<RequireAuth><SceneAnalyzerWizard /></RequireAuth>} />
+          <Route path="/sketches/:sketchId" element={<SketchWorkspaceModal />} />
         </Routes>
       )}
     </>

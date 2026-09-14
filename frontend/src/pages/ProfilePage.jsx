@@ -1,21 +1,33 @@
 import { useEffect, useState } from 'react'
-import Header from '../components/layout/Header'
+import Header from '../components/common/Header'
 import SketchCard from '../components/common/SketchCard'
-import { useAuth } from '../context/AuthContext'
-import { Link } from 'react-router-dom'
+import { useAuth } from '../components/common/AuthContext'
+import { Link, useLocation } from 'react-router-dom'
 import { api } from '../lib/api'
 
 // Profile / journey screen: avatar + name, "Sketches" feed — matches the
 // Figma "Later in the evening" flow. Feedback Summary is the same data
-// viewed per-sketch (see SketchDetailPage) rather than a separate fetch.
+// viewed per-sketch (see SketchWorkspaceModal) rather than a separate fetch.
 export default function ProfilePage() {
   const { profile, displayName } = useAuth()
+  const location = useLocation()
   const [sketches, setSketches] = useState([])
   const [loading, setLoading] = useState(true)
 
+  // Depends on location.key, not []. This page stays mounted underneath
+  // SketchWorkspaceModal the whole time it's open (the backgroundLocation
+  // overlay trick), and Delete's navigate('/profile') is a same-pathname
+  // forward navigation into a page that's already rendered -- React Router
+  // doesn't remount a component just because you navigated to the route
+  // it's already showing, so an empty-deps mount effect would never refire
+  // and this list would keep showing a just-deleted sketch. location.key
+  // changes on every real navigation into this route (even a repeat of the
+  // same pathname), so it refetches then, without also refetching on
+  // every unrelated re-render.
   useEffect(() => {
+    setLoading(true)
     api.get('/api/sketches').then(({ data }) => setSketches(data)).finally(() => setLoading(false))
-  }, [])
+  }, [location.key])
 
   return (
     <div>
@@ -29,9 +41,9 @@ export default function ProfilePage() {
           </div>
           <div>
             <p className="text-xl font-semibold">{displayName}</p>
-            <Link to="/profile/edit" className="text-sm text-blue-600 underline">
+            {/* <Link to="/profile/edit" className="text-sm text-blue-600 underline">
               Edit profile
-            </Link>
+            </Link> */}
           </div>
         </div>
 
@@ -43,9 +55,11 @@ export default function ProfilePage() {
         {!loading && sketches.length === 0 && (
           <p className="mt-6 text-center text-ink/50">No sketches yet — go capture something!</p>
         )}
-        {sketches.map((s) => (
-          <SketchCard key={s.id} sketch={s} />
-        ))}
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          {sketches.map((s) => (
+            <SketchCard key={s.id} sketch={s} />
+          ))}
+        </div>
       </main>
     </div>
   )
