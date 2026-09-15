@@ -24,6 +24,7 @@ create table if not exists sketches (
   final_sketch_url text,
   final_sketch_provided boolean not null default false,
   location geography(point, 4326),
+  location_label text,
   captured_at timestamptz,
   original_image_url text,
   crop_transform jsonb,
@@ -39,6 +40,7 @@ create index if not exists sketches_sketcher_id_idx on sketches (sketcher_id);
 -- with that in mind -- if it works out, worth doing for future additions
 -- too rather than only for this one.
 alter table sketches add column if not exists focal_points jsonb;
+alter table sketches add column if not exists location_label text;
 
 create table if not exists personas (
   id uuid primary key default gen_random_uuid(),

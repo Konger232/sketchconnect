@@ -45,7 +45,7 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
     location = None
     if s.location is not None:
         point = to_shape(s.location)
-        location = {"lat": point.y, "lon": point.x}
+        location = {"lat": point.y, "lon": point.x, "label": s.location_label}
     return {
         "id": s.id,
         "title": s.title,
@@ -59,6 +59,12 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
         "original_image_url": s.original_image_url,
         "crop_transform": s.crop_transform,
         "focal_points": s.focal_points,
+        # Gemini's own suggested focal regions (label + contour), so
+        # FocalFrameEditor.jsx can re-offer any of these the sketcher
+        # hasn't already adopted when it's reopened from EditSketch.jsx
+        # -- previously only surfaced during the original capture flow,
+        # never persisted back out to the frontend after the fact.
+        "focal_regions": (s.cached_scene_analysis or {}).get("focal_regions", []),
         "perspective_lines": (s.cached_scene_analysis or {}).get("perspective_lines", []),
         "created_at": s.created_at,
         # The latest critique's text, if any -- this is what
@@ -180,7 +186,12 @@ async def update_sketch(
     optional and independently updatable — only fields present in the
     request body get changed (design doc doesn't specify a partial-update
     convention, so this mirrors profile.py's update_profile: None means
-    "leave as-is", not "clear this field").
+    "leave as-is", not "clear this field") -- EXCEPT `location`, which is
+    the one field with a real "clear it" affordance in the UI
+    (LocationSearchField.jsx's X button): sending `location: null`
+    explicitly clears both the coordinates and their label, distinguished
+    from simply omitting `location` (leave as-is) via `model_fields_set`,
+    since Optional[...] = None can't tell those two apart on its own.
     """
     sketch = db.query(Sketch).filter(
         Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
@@ -192,10 +203,15 @@ async def update_sketch(
         sketch.title = body.title
     if body.field_notes is not None:
         sketch.field_notes = body.field_notes
-    if body.location is not None:
-        sketch.location = WKTElement(
-            f"POINT({body.location.lon} {body.location.lat})", srid=4326
-        )
+    if "location" in body.model_fields_set:
+        if body.location is None:
+            sketch.location = None
+            sketch.location_label = None
+        else:
+            sketch.location = WKTElement(
+                f"POINT({body.location.lon} {body.location.lat})", srid=4326
+            )
+            sketch.location_label = body.location.label
     if body.style is not None:
         sketch.style = body.style
     if body.captured_at is not None:

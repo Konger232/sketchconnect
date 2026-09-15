@@ -1,5 +1,5 @@
 // Central sizing knobs for the wizard/AI-flow's two-panel (black photo +
-// white controls) screens: SceneAnalyzerWizard.jsx's phase A and style step,
+// white controls) screens: CreateSketch.jsx's phase A and style step,
 // FocalFrameEditor.jsx, and GuidedPromptFlow.jsx. All four read from here
 // so retuning panel height or the photo's max width is a one-file edit.
 //

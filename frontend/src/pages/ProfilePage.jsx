@@ -7,7 +7,7 @@ import { api } from '../lib/api'
 
 // Profile / journey screen: avatar + name, "Sketches" feed — matches the
 // Figma "Later in the evening" flow. Feedback Summary is the same data
-// viewed per-sketch (see SketchWorkspaceModal) rather than a separate fetch.
+// viewed per-sketch (see EditSketch) rather than a separate fetch.
 export default function ProfilePage() {
   const { profile, displayName } = useAuth()
   const location = useLocation()
@@ -15,7 +15,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
 
   // Depends on location.key, not []. This page stays mounted underneath
-  // SketchWorkspaceModal the whole time it's open (the backgroundLocation
+  // EditSketch the whole time it's open (the backgroundLocation
   // overlay trick), and Delete's navigate('/profile') is a same-pathname
   // forward navigation into a page that's already rendered -- React Router
   // doesn't remount a component just because you navigated to the route

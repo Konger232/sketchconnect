@@ -15,12 +15,12 @@ import { WIZARD_IMAGE_MAX_WIDTH_CLASS, WIZARD_PANEL_HEIGHT_CLASS } from '../../l
  * Extracted so there's exactly one implementation shared by two call
  * sites:
  *
- *  - SceneAnalyzerWizard.jsx's Step 3, mounted the moment scene analysis
+ *  - CreateSketch.jsx's Step 3, mounted the moment scene analysis
  *    returns -- rendered inline inside the wizard's fixed-size modal
  *    (`fullPage={false}`).
  *  - SketchFlowPage.jsx, a thin full-page wrapper used only to RESUME
  *    this flow later (the "Start/Resume AI guidance" button on
- *    SketchWorkspaceModal.jsx), for a sketch that already has a style set
+ *    EditSketch.jsx), for a sketch that already has a style set
  *    but hasn't finished the questions yet (`fullPage` defaults to true).
  *
  * `onFinished` fires once every prepared prompt (and the palette step)

@@ -24,7 +24,7 @@ function ClickToSetLocation({ onLocationChange }) {
  *
  * Pass `editable` + `onLocationChange` (added for the sketch-edit flow) to
  * let the sketcher click anywhere on the map, or drag the existing pin, to
- * set/adjust the location — every other caller (SketchWorkspaceModal, the Home
+ * set/adjust the location — every other caller (EditSketch, the Home
  * page's Map View) omits both and keeps the original display-only behavior.
  */
 export default function LocationMap({ lat, lon, label, points, zoom = 13, editable = false, onLocationChange, height = 'h-72' }) {

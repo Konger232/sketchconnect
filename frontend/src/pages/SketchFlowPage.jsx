@@ -7,13 +7,13 @@ import { api } from '../lib/api'
  * Thin RESUME wrapper around GuidedPromptFlow.jsx. Photo capture, crop,
  * focal-point marking, style selection, the scene-analysis call, and the
  * guided-prompt flow itself all now happen inside the capture wizard
- * (SceneAnalyzerWizard.jsx's Step 3 mounts GuidedPromptFlow directly, the
+ * (CreateSketch.jsx's Step 3 mounts GuidedPromptFlow directly, the
  * moment scene analysis returns) -- a fresh capture never lands here.
  *
  * This route exists only for a sketch that already has a style set but
  * hasn't finished the guided questions yet -- reached via "Resume the
  * AI-guided questions" in the AI Critique section of
- * SketchWorkspaceModal.jsx. There's nowhere
+ * EditSketch.jsx. There's nowhere
  * server-side that a scene-analysis result is cached to read back
  * (only style/scene_type persist on the Sketch row), so resuming means
  * re-running scene analysis once, then handing off to the same
@@ -113,7 +113,7 @@ export default function SketchFlowPage() {
       fullPage
       onCancel={() => navigate(`/sketches/${sketchId}`)}
       // Same "finished guiding, back to your sketches" destination as
-      // SceneAnalyzerWizard's own handleFinishWizard -- resuming from
+      // CreateSketch's own handleFinishWizard -- resuming from
       // here vs. finishing inline during capture shouldn't land the
       // sketcher anywhere different.
       onFinished={() => navigate('/profile')}

@@ -9,14 +9,8 @@ export default {
         accent: "#c23b22", // red outline/underline accent seen throughout the Figma prototype
       },
       fontFamily: {
-        // Logo, tagline, footer nav accents. Was Kalam (a handwritten-style
-        // font, matching the original Claude Design system look) -- swapped
-        // to Nunito Sans after pulling it from lizsteel.com's typography,
-        // for a cleaner, less "handwriting font" feel on these accents.
         hand: ["'Nunito Sans'", "sans-serif"],
-        // Page headers (h1/h2/h3).
         heading: ["'Roboto'", "system-ui", "sans-serif"],
-        // Body text.
         sans: ["'Inter'", "system-ui", "sans-serif"],
       },
       // Small, reusable motion vocabulary for the capture wizard / AI prompt

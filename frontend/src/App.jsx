@@ -3,11 +3,11 @@ import { AuthProvider, useAuth } from './components/common/AuthContext'
 import { supabaseConfigured } from './lib/supabaseClient'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
-import SceneAnalyzerWizard from './pages/SceneAnalyzerWizard'
+import CreateSketch from './pages/CreateSketch'
 import SketchFlowPage from './pages/SketchFlowPage'
 import ProfilePage from './pages/ProfilePage'
 import EditProfilePage from './pages/EditProfilePage'
-import SketchWorkspaceModal from './pages/SketchWorkspaceModal'
+import EditSketch from './pages/EditSketch'
 import SearchPage from './pages/SearchPage'
 import SettingsPage from './pages/SettingsPage'
 import WorkshopsPage from './pages/WorkshopsPage'
@@ -19,9 +19,7 @@ function RequireAuth({ children }) {
   return children
 }
 
-// Shown above every page when frontend/.env is missing Supabase config --
-// without this, a missing key used to crash the whole app to a blank
-// white screen instead of telling you what's wrong.
+// Universal error message for DB 
 function ConfigWarningBanner() {
   if (supabaseConfigured) return null
   return (
@@ -39,7 +37,7 @@ function Router() {
   // present, we render the *background* page via the routes below at its
   // own location (so it stays mounted/current underneath), then render
   // /capture a second time, on top, as a modal (desktop/tablet) or
-  // fullscreen takeover (mobile) -- see SceneAnalyzerWizard.jsx. A direct or
+  // fullscreen takeover (mobile) -- see CreateSketch.jsx. A direct or
   // refreshed visit to /capture has no backgroundLocation, so it falls
   // through to the normal full-page route in the main <Routes> below.
   const backgroundLocation = location.state?.backgroundLocation
@@ -49,12 +47,12 @@ function Router() {
       <Routes location={backgroundLocation || location}>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/capture" element={<RequireAuth><SceneAnalyzerWizard /></RequireAuth>} />
+        <Route path="/capture" element={<RequireAuth><CreateSketch /></RequireAuth>} />
         <Route path="/sketch-flow/:sketchId" element={<RequireAuth><SketchFlowPage /></RequireAuth>} />
         <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/profile/edit" element={<RequireAuth><EditProfilePage /></RequireAuth>} />
-        <Route path="/sketches/:sketchId" element={<SketchWorkspaceModal />} /> {/* public: read-only for non-owners, full owner controls when signed in as the sketcher -- see SketchWorkspaceModal.jsx */}
-        <Route path="/search" element={<SearchPage />} /> {/* public, same as the sketch workspace modal -- logged-out visitors search the public recent feed */}
+        <Route path="/sketches/:sketchId" element={<EditSketch />} /> {/* public: read-only for non-owners, full owner controls when signed in as the sketcher -- see EditSketch.jsx */}
+        <Route path="/search" element={<SearchPage />} /> {/* public, same as EditSketch.jsx -- logged-out visitors search the public recent feed */}
         <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
         <Route path="/workshops" element={<RequireAuth><WorkshopsPage /></RequireAuth>} />
       </Routes>
@@ -68,8 +66,8 @@ function Router() {
           as a normal full-page route. */}
       {backgroundLocation && (
         <Routes>
-          <Route path="/capture" element={<RequireAuth><SceneAnalyzerWizard /></RequireAuth>} />
-          <Route path="/sketches/:sketchId" element={<SketchWorkspaceModal />} />
+          <Route path="/capture" element={<RequireAuth><CreateSketch /></RequireAuth>} />
+          <Route path="/sketches/:sketchId" element={<EditSketch />} />
         </Routes>
       )}
     </>

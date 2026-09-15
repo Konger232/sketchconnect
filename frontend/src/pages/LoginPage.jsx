@@ -73,19 +73,19 @@ export default function LoginPage() {
         {notice && <p className="text-sm text-green-700">{notice}</p>}
         
         <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-5">
-          <label className="block">
-            <span>Email</span>
+          <label className="block text-sm">
+            <span className="text-gray-500">Email</span>
             <input
               type="email"
               required
               placeholder="jane@framer.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="field-input mt-1.5"
+              className="mt-1.5 w-full rounded-sm border border-gray-300 px-3 py-1 text-sm shadow-sm focus:border-accent-500 focus:outline-none focus:ring-1"
             />
           </label>
-          <label className="block">
-            <span>Password</span>
+          <label className="block text-sm">
+            <span className="text-gray-500">Password</span>
             <input
               type="password"
               required
@@ -93,16 +93,17 @@ export default function LoginPage() {
               placeholder="enter password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="field-input mt-1.5"
+              className="mt-1.5 w-full rounded-sm border border-gray-300 px-3 py-1 text-sm shadow-sm focus:border-accent-500 focus:outline-none focus:ring-1"
             />
           </label>
 
 
-          <Button disabled={loading} className="w-full">
+          <Button disabled={loading} className="primary">
             {loading ? 'Please wait…' : mode === 'sign_in' ? 'Login' : 'Register'}
           </Button>
         </form>
 
+        {/* link to register and login jsx */}
         <div className="mt-6 flex flex-col items-center gap-2 text-sm">
           <button onClick={() => setMode(mode === 'sign_in' ? 'sign_up' : 'sign_in')} className="text-blue-600 underline">
             {mode === 'sign_in' ? "Don't have an account yet? Register" : 'Already have an account? Login'}

@@ -4,7 +4,7 @@ import { relativeTime } from '../../lib/relativeTime'
 import { getSketchStatus } from '../../lib/sketchStatus'
 import { api } from '../../lib/api'
 
-// Same pattern already used on SketchFlowPage.jsx and SketchWorkspaceModal.jsx:
+// Same pattern already used on SketchFlowPage.jsx and EditSketch.jsx:
 // reference_image_url is a relative "/uploads/..." path from FastAPI, not
 // the Vite dev server, so it needs the API's own origin prefixed -- without
 // this it resolves against the frontend's origin instead and 404s.
@@ -37,7 +37,7 @@ export default function SketchCard({ sketch }) {
   const location = useLocation()
   // Same backgroundLocation pattern Header.jsx uses for /capture -- keeps
   // this feed page mounted underneath so the sketch opens as an overlay
-  // (SketchWorkspaceModal.jsx) instead of navigating away from it.
+  // (EditSketch.jsx) instead of navigating away from it.
   const sketchLinkState = { backgroundLocation: location }
 
   return (

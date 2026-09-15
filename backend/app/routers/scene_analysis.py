@@ -18,6 +18,7 @@ from ..schemas import SceneAnalysisResponse
 from ..services.gemini_client import call_gemini_json_with_raw
 from ..services import rules
 from ..services.exif_utils import extract_location_and_time
+from .geocode import reverse_geocode
 from config import MAX_IMAGE_DIMENSION
 
 pillow_heif.register_heif_opener()
@@ -237,6 +238,15 @@ async def scene_analysis(
     # (Cancel then reopen, a page reload, SketchFlowPage's resume-on-load)
     # is a real, common case and shouldn't cost a fresh Gemini call.
     if sketch.style == style and sketch.cached_scene_analysis:
+        # Backfill a still-missing title even on a cache hit -- a sketch
+        # analyzed before suggested_title existed in this schema (or one
+        # whose title was cleared some other way) would otherwise never
+        # pick it up, since re-entering the same style always takes this
+        # early-return path and skips the fresh-call logic below entirely.
+        cached_title = (sketch.cached_scene_analysis.get("suggested_title") or "").strip()
+        if cached_title and not sketch.title:
+            sketch.title = cached_title[:150]
+            db.commit()
         return sketch.cached_scene_analysis
 
     contents = await image.read()
@@ -295,7 +305,7 @@ async def scene_analysis(
     result["perspective_lines"] = [max(0, min(1000, p)) for p in pts]
 
     # A sketcher hasn't typed anything yet the first time a sketch reaches
-    # this call (title entry is deferred entirely to EditInfoModal.jsx) --
+    # this call (title entry is deferred entirely to EditSketch.jsx) --
     # fill it in from Gemini's suggestion so the sketch isn't stuck showing
     # "Untitled sketch" on the home feed while it's mid-flow. Never
     # overwrites a title the sketcher already has, including on a re-
@@ -321,7 +331,19 @@ async def scene_analysis(
     sketch.scene_type = result["scene_type"]
     sketch.cached_scene_analysis = result
     if location:
+        # Only resolve/store a label the first time a location is being
+        # set for this sketch -- a re-analysis (picking a different style,
+        # say) should never clobber a label the sketcher already has,
+        # whether that came from this same EXIF reading earlier or from a
+        # manual search pick since (LocationSearchField.jsx). Real
+        # reverse geocoding via Nominatim (geocode.py), not a Gemini
+        # guess from bare coordinates -- see parking-lot.md.
+        had_location_already = sketch.location is not None
         sketch.location = WKTElement(f"POINT({location['lon']} {location['lat']})", srid=4326)
+        if not had_location_already:
+            label = await reverse_geocode(location["lat"], location["lon"])
+            if label:
+                sketch.location_label = label[:200]
     if captured_at:
         sketch.captured_at = captured_at
     db.commit()

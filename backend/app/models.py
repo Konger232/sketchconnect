@@ -53,6 +53,14 @@ class Sketch(Base):
 
     # geography(Point, 4326) — see design doc, Section 3 "Location capture"
     location = Column(Geography(geometry_type="POINT", srid=4326), nullable=True)
+    # Human-readable "City, Country" for `location` above -- set once,
+    # either from Gemini's own reading of the EXIF coordinates (scene_
+    # analysis.py, when the sketch doesn't have a location yet) or from
+    # whichever search result the sketcher picked in the location field
+    # (sketches.py's update_sketch). Cleared alongside `location` whenever
+    # that's explicitly cleared. Deliberately stored rather than resolved
+    # live on every read -- see LocationSearchField.jsx.
+    location_label = Column(String, nullable=True)
     captured_at = Column(DateTime, nullable=True)  # from EXIF, not upload time
 
     # Untouched upload, kept alongside reference_image_url once the

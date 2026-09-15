@@ -26,7 +26,7 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
-  // The scene-analyzer wizard (SceneAnalyzerWizard) renders as a modal overlay on top
+  // The create-sketch flow (CreateSketch) renders as a modal overlay on top
   // of whatever page is open (desktop/tablet) or a fullscreen takeover
   // (mobile) -- see App.jsx's Router(). Passing the current location as
   // backgroundLocation is what tells App.jsx to keep rendering this

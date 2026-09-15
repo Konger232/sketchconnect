@@ -30,7 +30,7 @@ const LOCATION_SEARCH_LIMIT = 50
  *    currently loaded (same substring match LoggedInHome's search box
  *    used to do);
  *  - a place name, resolved to coordinates via the same
- *    GET /api/geocode/search Nominatim proxy LocationPicker.jsx already
+ *    GET /api/geocode/search Nominatim proxy LocationSearchField.jsx already
  *    uses for the capture flow's location editor. Once a place is picked:
  *      - signed in (searching your own sketches, already fully loaded via
  *        GET /api/sketches): ranked/filtered client-side with a plain

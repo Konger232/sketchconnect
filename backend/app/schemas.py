@@ -149,6 +149,12 @@ class ProfileUpdateRequest(BaseModel):
 class LocationInput(BaseModel):
     lat: float
     lon: float
+    # Human-readable label to store alongside the coordinates --
+    # sent by the frontend's LocationSearchField whenever it already
+    # has one on hand (a search result's own label, or the label
+    # already showing from Gemini's EXIF reading), so update_sketch
+    # never has to resolve one itself.
+    label: Optional[str] = None
 
 
 class SketchUpdateRequest(BaseModel):

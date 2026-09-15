@@ -16,9 +16,12 @@ and isn't meant for bulk or production-scale traffic. Swap this for a
 paid geocoder before this app has real concurrent users, same caveat as
 the local-disk upload storage in sketches.py.
 
-Nothing here is persisted -- Sketch.location stays lat/lon-only (see
-models.py); the human-readable label is resolved live whenever it's
-needed rather than stored, so no schema change was needed to add this.
+Search results and a sketcher's own map interactions are never
+persisted here -- callers resolve/display those live. scene_analysis.py
+is the one exception: it calls reverse_geocode() directly (not the route
+below) to store a label on Sketch.location_label the first time a
+sketch's EXIF coordinates are read, so the location editor
+(LocationSearchField.jsx) doesn't need to re-resolve one on every visit.
 """
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -56,23 +59,38 @@ async def search(q: str):
     ]
 
 
-@router.get("/reverse")
-async def reverse(lat: float, lon: float):
-    """Reverse geocoding: a lat/lon (from EXIF, a map click, or a drag) -> a label."""
+async def reverse_geocode(lat: float, lon: float) -> str | None:
+    """
+    Core reverse-geocode call, factored out so scene_analysis.py can reuse
+    it directly (rather than asking Gemini to guess a city/country from
+    bare coordinates, which it briefly did -- see parking-lot.md) instead
+    of going through the /reverse route below. Returns None on any
+    failure rather than raising -- a geocode hiccup during scene analysis
+    shouldn't block the sketch from being created; the /reverse endpoint
+    below is what turns a None into a proper 502 for its own caller.
+    """
     async with httpx.AsyncClient(timeout=8) as client:
         try:
             resp = await client.get(
                 f"{NOMINATIM_BASE}/reverse",
                 # accept-language=en -- same reasoning as /search above; this
-                # is the endpoint that resolves a sketch's EXIF-detected GPS
+                # is the call that resolves a sketch's EXIF-detected GPS
                 # coordinates to a readable place name, so it's the one that
                 # actually produced the Japanese-script "Kyoto" label.
                 params={"lat": lat, "lon": lon, "format": "jsonv2", "accept-language": "en"},
                 headers=HEADERS,
             )
         except httpx.HTTPError:
-            raise HTTPException(502, "Location lookup is temporarily unavailable")
+            return None
     if resp.status_code != 200:
+        return None
+    return resp.json().get("display_name")
+
+
+@router.get("/reverse")
+async def reverse(lat: float, lon: float):
+    """Reverse geocoding: a lat/lon (from EXIF, a map click, or a drag) -> a label."""
+    label = await reverse_geocode(lat, lon)
+    if label is None:
         raise HTTPException(502, "Location lookup is temporarily unavailable")
-    data = resp.json()
-    return {"label": data.get("display_name")}
+    return {"label": label}

@@ -85,22 +85,42 @@ function Reticle({ x, y }) {
  *
  * Layout: a two-panel shell on md+ (image/canvas flush left at 70% width,
  * a white controls panel at 30% on the right -- same "media left, white
- * form panel right" pattern as SketchWorkspaceModal.jsx and SceneAnalyzerWizard's own
+ * form panel right" pattern as EditSketch.jsx and CreateSketch's own
  * phase A), stacked on mobile via the same breakpoint. Every phase's
  * heading/body copy/buttons live in that white panel rather than
  * overlaid on the photo -- the only thing that ever sits on the black
  * side is the photo itself, the rule-of-thirds grid, and the reticles.
+ *
+ * Reused (not duplicated) from EditSketch.jsx as a "Focal points" view
+ * alongside Photo / Perspective lines / Dominant value shapes -- marking
+ * a scene's focal points is as much a part of a sketcher's discovery
+ * process as those other analyses, so it shouldn't only be available
+ * once, during the original capture wizard. That caller passes
+ * `initialOwnPoints` (from the sketch's already-saved `focal_points`)
+ * and pre-annotates `focalRegions` with `adopted`/`asked` for whichever
+ * Gemini suggestions were already accepted, so reopening this view shows
+ * exactly what was confirmed before rather than starting blank -- while
+ * anything Gemini suggested but the sketcher never resolved still
+ * surfaces again via the normal mark-asking flow, in case they want to
+ * reconsider it.
  */
 export default function FocalFrameEditor({
   sketchId,
   originalImageUrl,
   initialCropTransform,
   focalRegions = [],
+  // Pre-existing confirmed points, for reopening this component on a
+  // sketch that's already been through the mark-then-frame flow once
+  // (EditSketch.jsx's "Focal points" view) -- same {x, y} shape as what
+  // handleMarkTap produces, in the same coordinate frame `focalRegions`
+  // and `initialCropTransform` already describe. Empty for a fresh
+  // capture, where there's nothing to pre-fill yet.
+  initialOwnPoints = [],
   onSaved,
   onSkip,
   // Optional -- when passed, renders a small "Retake photo" link in the
   // white panel, visible across every phase. Needed because photos now
-  // upload immediately on pick (no Continue gate in SceneAnalyzerWizard's
+  // upload immediately on pick (no Continue gate in CreateSketch's
   // phase A): by the time this component is mounted there's already a
   // real sketch row + uploaded file on the server, so the caller is
   // expected to actually clean that up (not just reset its own local
@@ -124,8 +144,22 @@ export default function FocalFrameEditor({
   const [boxSize, setBoxSize] = useState({ width: 0, height: 0 })
 
   const [phase, setPhase] = useState('mark-placing')
-  const [ownPoints, setOwnPoints] = useState([]) // {x,y}, normalized to the fixed initial frame
-  const [regions, setRegions] = useState(() => focalRegions.map((r) => ({ ...r, asked: false, adopted: false })))
+  // Rule-of-thirds overlay during the frame-adjusting phase -- on by
+  // default (most sketchers want the composition guide), toggleable via
+  // the button next to the zoom slider below for the few who find it
+  // distracting once they've settled on a frame.
+  const [showGrid, setShowGrid] = useState(true)
+  const [ownPoints, setOwnPoints] = useState(initialOwnPoints) // {x,y}, normalized to the fixed initial frame
+  // `focalRegions` entries may already carry `adopted`/`asked` (EditSketch.jsx
+  // sets `adopted: true` for whichever regions a previous focal_points
+  // save recorded as source: "adopted") -- default only what's actually
+  // unset, rather than always resetting to a blank slate, so a
+  // previously accepted suggestion still shows as accepted on reopen,
+  // while anything never resolved still surfaces via the mark-asking
+  // flow same as a fresh capture.
+  const [regions, setRegions] = useState(() =>
+    focalRegions.map((r) => ({ ...r, asked: r.asked ?? false, adopted: r.adopted ?? false }))
+  )
   const [pendingMarkQuestions, setPendingMarkQuestions] = useState([]) // indices into `regions`
   const [markQuestionPos, setMarkQuestionPos] = useState(0)
 
@@ -489,8 +523,8 @@ export default function FocalFrameEditor({
   return (
     // Two-panel shell: image/canvas flush left (70%), white controls
     // panel right (30%) on md+; stacked (image on top, panel below) on
-    // mobile via the same `md:` breakpoint SketchWorkspaceModal.jsx and
-    // SceneAnalyzerWizard's phase A use. This always renders inside
+    // mobile via the same `md:` breakpoint EditSketch.jsx and
+    // CreateSketch's phase A use. This always renders inside
     // SketchFlowPage's own <main>, so it has no outer max-width of its
     // own -- the grid just fills whatever width it's given.
     <div className="md:grid md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
@@ -524,7 +558,7 @@ export default function FocalFrameEditor({
             className="pointer-events-none absolute box-border"
             style={box ? { left: box.left, top: box.top, width: box.width, height: box.height } : { opacity: 0 }}
           />
-          {isFramePhase && <RuleOfThirdsGrid />}
+          {isFramePhase && showGrid && <RuleOfThirdsGrid />}
           <svg
             ref={svgRef}
             viewBox="0 0 1000 1000"
@@ -618,6 +652,15 @@ export default function FocalFrameEditor({
               Drag the photo to pan, or use the slider to zoom — watch how your points sit against the rule-of-thirds
               grid. Moving one out of frame will ask before letting it go.
             </p>
+            <button
+              type="button"
+              onClick={() => setShowGrid((v) => !v)}
+              className={`mt-3 self-start rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                showGrid ? 'bg-ink text-white' : 'bg-ink/10 text-ink/60 hover:bg-ink/20'
+              }`}
+            >
+              Rule of thirds grid: {showGrid ? 'On' : 'Off'}
+            </button>
             <div className="mt-4 flex items-center gap-2">
               <span className="text-xs text-ink/40">−</span>
               <input

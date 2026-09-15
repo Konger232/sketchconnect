@@ -35,9 +35,9 @@ export default function NavDrawer({ open, onClose }) {
       {/* z-[1500]/[1501], not the original z-[200]/[201] -- Leaflet's own
           zoom/attribution controls default to z-index: 1000 regardless of
           DOM nesting, so a page with a <LocationMap> open underneath this
-          drawer (e.g. SketchWorkspaceModal) had its +/- zoom buttons visibly
+          drawer (e.g. EditSketch) had its +/- zoom buttons visibly
           poke through on top of the drawer. Bumped above even
-          SceneAnalyzerWizard's own modal z-[1400] so the drawer always wins if
+          CreateSketch's own modal z-[1400] so the drawer always wins if
           both ever ended up open at once. */}
       {open && <div className="fixed inset-0 z-[1500] bg-black/40" onClick={onClose} />}
       <nav

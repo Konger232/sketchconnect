@@ -3,12 +3,13 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import Button from '../components/common/Button'
 import Tag from '../components/common/Tag'
 import MascotIcon from '../components/common/MascotIcon'
-import LocationPicker from '../components/common/LocationPicker'
+import LocationSearchField from '../components/common/LocationSearchField'
 import LocationMap from '../components/common/LocationMap'
 import PerspectiveLinesOverlay from '../components/analysis/PerspectiveLinesOverlay'
+import FocalFrameEditor from '../components/analysis/FocalFrameEditor'
 import icoPencilAi from '../assets/images/ico_pencil_ai.png'
 import { sceneTypeLabel, STYLES } from '../data/styles'
-import { WIZARD_IMAGE_MAX_WIDTH_CLASS, WIZARD_PANEL_HEIGHT_CLASS } from '../lib/wizardLayout'
+import { WIZARD_IMAGE_MAX_WIDTH_CLASS, WIZARD_PANEL_HEIGHT_CLASS, WIZARD_PANEL_HEIGHT_PX } from '../lib/wizardLayout'
 import { api } from '../lib/api'
 
 const styleLabel = (v) => STYLES.find((s) => s.value === v)?.label || v
@@ -53,7 +54,7 @@ function resolveUrl(url) {
  * the backend never sends critique text to non-owners in the first place
  * (see sketches.py's get_sketch), so there's nothing to hide client-side.
  */
-export default function SketchWorkspaceModal() {
+export default function EditSketch() {
   const { sketchId } = useParams()
   const navigate = useNavigate()
   const routerLocation = useLocation()
@@ -132,7 +133,12 @@ export default function SketchWorkspaceModal() {
       const { data } = await api.put(`/api/sketches/${sketchId}`, {
         title,
         field_notes: fieldNotes,
-        location: sketchLocation || undefined,
+        // Always sent, even as `null` -- distinct from omitting the key
+        // entirely, so clearing a location via LocationSearchField's X
+        // button actually clears it server-side (see sketches.py's
+        // update_sketch: `location` is the one field with a real "clear
+        // it" affordance).
+        location: sketchLocation,
         captured_at: capturedAt || undefined,
       })
       setSketch(data)
@@ -182,6 +188,19 @@ export default function SketchWorkspaceModal() {
     }
   }
 
+  // FocalFrameEditor replaces this page's whole two-panel layout with its
+  // own while it's open (see the render below) -- there's no separate
+  // "retake" concept here (the photo's already final), so onRetake is
+  // deliberately not passed.
+  function handleFocalSaved(updatedSketch) {
+    setSketch(updatedSketch)
+    setViewMode('photo')
+  }
+
+  function handleFocalSkip() {
+    setViewMode('photo')
+  }
+
   // Dominant value shapes are computed on demand (deterministic OpenCV,
   // not cached server-side), so the first toggle-on fetches it and every
   // toggle after that reuses the already-fetched image.
@@ -211,11 +230,11 @@ export default function SketchWorkspaceModal() {
   function Shell({ children }) {
     return (
       <div className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/60 md:p-6">
-        {/* bg-black text-white -- matches SceneAnalyzerWizard.jsx's outer
+        {/* bg-black text-white -- matches CreateSketch.jsx's outer
             shell exactly (same box, same top-bar treatment), so Add and
             Edit read as one visual language rather than two. The right
             panel below still renders as its own white surface, same as
-            SceneAnalyzerWizard's own white instructional panels do. */}
+            CreateSketch's own white instructional panels do. */}
         <div className="relative flex h-full w-full flex-col bg-black text-white md:h-[640px] md:w-[960px] md:max-h-[90vh] md:max-w-[95vw] md:overflow-hidden md:rounded-2xl">
           {children}
         </div>
@@ -250,10 +269,44 @@ export default function SketchWorkspaceModal() {
   const referenceImageUrl = resolveUrl(sketch.reference_image_url)
   const hasPerspectiveLines = (sketch.perspective_lines?.length || 0) > 0
   const hasFeedback = isOwner ? !!latestCritique : !!sketch.critique
+  // Shown under the "AI Critique" heading in both of its states below --
+  // computed once here rather than duplicated in each branch. Style and
+  // scene_type are always set together by the time a sketch reaches this
+  // page (CreateSketch.jsx now guarantees that -- see parking-lot.md), so
+  // in practice both tags always appear together, but each is still
+  // checked independently in case an older sketch predates that guarantee.
+  const styleAndSceneTags = (sketch.style || sketch.scene_type) && (
+    <div className="mt-1 flex gap-2">
+      {sketch.style && <Tag>{styleLabel(sketch.style)}</Tag>}
+      {sketch.scene_type && <Tag>{sceneTypeLabel[sketch.scene_type]}</Tag>}
+    </div>
+  )
+  // Re-open FocalFrameEditor already showing what was confirmed last
+  // time, rather than blank: the sketcher's own free-placed points seed
+  // `initialOwnPoints`, and any Gemini suggestion already accepted
+  // (source: "adopted", matched by its region_ref) is pre-marked
+  // `adopted`/`asked` on the region itself -- see that component's own
+  // docstring for why. Anything Gemini suggested but never resolved is
+  // left `adopted: false, asked: false`, so it still surfaces through
+  // the normal mark-asking flow for reconsideration.
+  const initialOwnPoints = (sketch.focal_points || [])
+    .filter((p) => p.source === 'own')
+    .map((p) => ({ x: p.x, y: p.y }))
+  const adoptedRegionRefs = new Set(
+    (sketch.focal_points || [])
+      .filter((p) => p.source === 'adopted' && p.region_ref != null)
+      .map((p) => p.region_ref)
+  )
+  const focalRegionsForEditor = (sketch.focal_regions || []).map((r, i) => ({
+    ...r,
+    adopted: adoptedRegionRefs.has(i),
+    asked: adoptedRegionRefs.has(i),
+  }))
 
   return (
     <>
     <Shell>
+      {/* Modal window title bar */}
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <button type="button" onClick={handleClose} className="text-sm font-medium text-white/70 hover:text-white">
           Close
@@ -277,15 +330,28 @@ export default function SketchWorkspaceModal() {
         <div className="border-b border-white/10 bg-accent/10 px-4 py-2 text-xs text-accent">{saveError}</div>
       )}
 
-      {/* minmax(0,...) on both tracks, not a bare 7fr/3fr -- see
-          wizardLayout.js / parking-lot.md's landscape-photo grid bug. */}
+      {viewMode === 'focal' ? (
+        <FocalFrameEditor
+          sketchId={sketchId}
+          originalImageUrl={resolveUrl(sketch.original_image_url) || referenceImageUrl}
+          initialCropTransform={sketch.crop_transform}
+          focalRegions={focalRegionsForEditor}
+          initialOwnPoints={initialOwnPoints}
+          onSaved={handleFocalSaved}
+          onSkip={handleFocalSkip}
+          panelHeightPx={WIZARD_PANEL_HEIGHT_PX}
+        />
+      ) : (
       <div className="min-h-0 flex-1 overflow-y-auto md:grid md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] md:overflow-hidden">
-        {/* Left: reference photo + scaffold tools. Always the reference
+        { 
+          /* [X] Always the reference
             photo, never the final sketch -- perspective lines and the
             value study are analyses of the scene the sketcher is
-            observing, not of their finished art. */}
+            observing, not of their finished art. */
+          /* Left reference photo panel + scaffold tools. */  
+            }
         <div className={`flex w-full shrink-0 flex-col bg-black md:items-center ${WIZARD_PANEL_HEIGHT_CLASS}`}>
-          {/* w-auto/max-w cap on md: and up, matching SceneAnalyzerWizard.jsx's
+          {/* w-auto/max-w cap on md: and up, matching CreateSketch.jsx's
               and GuidedPromptFlow.jsx's own reference-photo treatment, so a
               wide/panoramic photo doesn't stretch edge-to-edge here while it's
               capped everywhere else. The wrapper shares the same md:w-auto
@@ -302,7 +368,9 @@ export default function SketchWorkspaceModal() {
             {viewMode === 'perspective' && <PerspectiveLinesOverlay lines={sketch.perspective_lines} />}
           </div>
 
-          {isOwner && (
+          
+          {/* Buttons : Original Photo | Perspective | Dominant Shapes */
+            isOwner && (
             <div className="flex w-full flex-wrap gap-2 p-3">
               <button
                 type="button"
@@ -334,25 +402,43 @@ export default function SketchWorkspaceModal() {
               >
                 {loadingValueStudy ? 'Loading…' : 'Dominant value shapes'}
               </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('focal')}
+                className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white/70 transition-colors hover:bg-white/20"
+              >
+                Focal points
+              </button>
+              {/* AI guidance as just one more tool in this row, alongside
+                  the other scene-analysis views -- rather than a
+                  separate link in the metadata panel. Only relevant
+                  before there's any feedback yet (once hasFeedback, the
+                  guided-questions flow is already done). */}
+              {!hasFeedback && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/sketch-flow/${sketchId}`)}
+                  className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white/70 transition-colors hover:bg-white/20"
+                >
+                  Resume AI-guided questions
+                </button>
+              )}
             </div>
           )}
         </div>
 
-        {/* Right: one long scroll -- AI critique, title, location, field
-            notes, save. Explicit bg-white/text-ink -- matches
-            SceneAnalyzerWizard.jsx's own white instructional panels, since
-            this now sits inside a black shell rather than a paper one. */}
+        {/* Right Panel: one long scroll -- AI critique, title, location, field notes. */}
         <div className={`flex w-full flex-col gap-6 bg-white p-4 text-ink md:overflow-y-auto md:p-2 ${WIZARD_PANEL_HEIGHT_CLASS}`}>
-          {/* 1. AI critique, or the path to get one. */}
-          <div>
-            <div className="flex items-center gap-2">
-              <img src={icoPencilAi} alt="" className="h-5 w-5" />
-              <h2 className="text-sm font-semibold">AI Critique</h2>
-            </div>
 
-            {isOwner && hasFeedback && !requestingNewCritique && (
+            { /* show the existing critique text + "Upload a newer version" link */
+            isOwner && hasFeedback && !requestingNewCritique && (
               <div className="mt-2">
-                <p className="whitespace-pre-line text-sm leading-relaxed text-ink/80">{latestCritique.critique}</p>
+                <div className="flex items-center gap-2">
+                  <img src={icoPencilAi} alt="" className="h-5 w-5" />
+                  <h3 className="text-sm font-semibold">AI Critique</h3>
+                </div>
+                {styleAndSceneTags}
+                <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink/80">{latestCritique.critique}</p>
                 <button
                   type="button"
                   onClick={() => setRequestingNewCritique(true)}
@@ -363,47 +449,36 @@ export default function SketchWorkspaceModal() {
               </div>
             )}
 
-            {isOwner && (!hasFeedback || requestingNewCritique) && (
-              <div className="mt-2">
-                {!hasFeedback && (
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/sketch-flow/${sketchId}`)}
-                    className="mb-3 flex items-center gap-2 text-xs font-medium text-ink/60 hover:text-ink"
-                  >
-                    <MascotIcon className="h-4 w-4" />
-                    Resume the AI-guided questions
-                  </button>
-                )}
-                <p className="text-xs font-medium text-ink/70">Upload your final sketch for feedback</p>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setFinalFile(e.target.files[0])}
-                  className="mt-2 w-full text-xs"
-                />
-                {critiqueError && <p className="mt-2 text-xs text-accent">{critiqueError}</p>}
-                <Button size="sm" className="mt-3 w-full" disabled={submitting || !finalFile} onClick={submitCritique}>
-                  {submitting ? 'Getting feedback…' : 'Get feedback'}
-                </Button>
-                {requestingNewCritique && (
-                  <button
-                    type="button"
-                    onClick={() => setRequestingNewCritique(false)}
-                    className="mt-2 text-xs text-ink/50 hover:text-ink"
-                  >
-                    Cancel
-                  </button>
-                )}
+            { /* show the upload form */
+            isOwner && (!hasFeedback || requestingNewCritique) && (
+            <div className="mt-2">
+              <div className="flex items-center gap-2">
+                <img src={icoPencilAi} alt="" className="h-5 w-5" />
+                <h3 className="text-sm font-semibold">AI Critique</h3>
               </div>
-            )}
-
-            {!isOwner && (
-              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink/80">
-                {sketch.critique || 'No feedback yet.'}
-              </p>
-            )}
-          </div>
+              {styleAndSceneTags}
+              <p className="mt-2 text-xs font-medium text-ink/70">Upload your final sketch for feedback</p>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setFinalFile(e.target.files[0])}
+                className="mt-2 w-full text-xs"
+              />
+              {critiqueError && <p className="mt-2 text-xs text-accent">{critiqueError}</p>}
+              <Button size="sm" className="mt-3 w-full" disabled={submitting || !finalFile} onClick={submitCritique}>
+                {submitting ? 'Getting feedback…' : 'Get feedback'}
+              </Button>
+              {requestingNewCritique && (
+                <button
+                  type="button"
+                  onClick={() => setRequestingNewCritique(false)}
+                  className="mt-2 text-xs text-ink/50 hover:text-ink"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          )}
 
           {/* 2. Title. */}
           {isOwner ? (
@@ -427,15 +502,17 @@ export default function SketchWorkspaceModal() {
           )}
 
           {/* 3. Location -- decoded from the photo's own GPS/EXIF data by
-              default; LocationPicker's search box and map let the sketcher
-              correct or add one. Reverse-geocoded labels now always come
-              back in English (see geocode.py) rather than the place's own
-              local-language name. */}
+              default (Gemini reads the coordinates and names the city/
+              country -- see scene_analysis.py's location_label), always
+              in English. LocationSearchField lets the sketcher search for
+              a different place instead, or clear it with its X button --
+              no embedded map here; LocationMap.jsx is still used to show
+              other sketchers' locations on the Home feed. */}
           <div>
             <span className="text-xs font-semibold uppercase tracking-wide text-ink/50">Location</span>
             <div className="mt-1.5">
               {isOwner ? (
-                <LocationPicker location={sketchLocation} onLocationChange={setSketchLocation} />
+                <LocationSearchField location={sketchLocation} onLocationChange={setSketchLocation} />
               ) : sketch.location ? (
                 <LocationMap lat={sketch.location.lat} lon={sketch.location.lon} label={sketch.title} />
               ) : (
@@ -477,14 +554,16 @@ export default function SketchWorkspaceModal() {
           {/* 5. Delete -- swapped down here from the top bar; Save moved up
               to the top bar in its place (see the header above). */}
           {isOwner && (
-            <div className="mt-auto pt-2">
-              <Button variant="danger" className="w-full" onClick={() => setConfirmingDelete(true)}>
+            // <div className="mt-auto pt-2">
+              <Button variant="danger" size="sm" className="w-full py-1 px-2.5 font-medium tracking-wide" 
+              onClick={() => setConfirmingDelete(true)}>
                 Delete sketch
               </Button>
-            </div>
+            // </div>
           )}
         </div>
       </div>
+      )}
     </Shell>
 
     {/* Delete confirmation as its own modal in front of the wizard, rather
@@ -513,7 +592,9 @@ export default function SketchWorkspaceModal() {
             <Button variant="danger" size="sm" className="flex-1" disabled={deleting} onClick={handleDelete}>
               {deleting ? 'Deleting…' : 'Delete sketch'}
             </Button>
+          
           </div>
+          
         </div>
       </div>
     )}
