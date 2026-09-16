@@ -28,12 +28,12 @@ export default function ImagePanel({
   return (
     <div
       ref={containerRef}
-      className={`relative flex w-full items-center justify-center overflow-hidden bg-black p-3 md:p-4 ${heightClass}`}
+      className={`relative flex w-full select-none items-center justify-center overflow-hidden bg-black p-3 md:p-4 ${heightClass}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onWheel={onWheel}
-    >
+    > 
       {/* If no image is provided, 
       render the upload trigger button inside the panel */}
       {!imageUrl ? (
@@ -70,6 +70,7 @@ export default function ImagePanel({
         src={imageUrl}
         alt=""
         crossOrigin="anonymous"
+        draggable={false}
         onLoad={onImageLoad}
         style={
             box
@@ -79,9 +80,11 @@ export default function ImagePanel({
                 height: `${box.height}px`,
                 left: `${box.left}px`,
                 top: `${box.top}px`,
-                // transform: `translate(${offset.x * boxSize.width}px, ${offset.y * boxSize.height}px) scale(${zoom})`,
-                // transformOrigin: '0 0',
+                maxWidth: 'none',
+                maxHeight: 'none',
                 pointerEvents: 'none',
+                userSelect: 'none',     //Chrome + FireFox
+                WebkitUserDrag: 'none', // safari
                 }
             : { position: 'absolute', opacity: 0, width: '1px', height: '1px' }
         }

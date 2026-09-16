@@ -52,16 +52,7 @@ export default function FocalSpotPicker({
 }) {
   return (
     <div className="flex flex-col justify-center gap-4 bg-white p-5 text-ink md:p-6">
-      {/* {onRetake && (
-        <button
-          type="button"
-          onClick={onRetake}
-          className="self-end text-xs font-medium text-ink/50 transition-colors hover:text-ink"
-        >
-          Retake photo
-        </button>
-      )} */}
-
+    
       {phase === 'mark-placing' && (
         <div className="animate-fade-in-up">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-ink/50">Mark your focal points</h2>
@@ -132,6 +123,7 @@ export default function FocalSpotPicker({
             />
             <span className="text-xs text-ink/40">+</span>
           </div>
+          <span className="text-xs text-ink/40 items-center">{zoom}</span>
           <Button size="sm" className="mt-4 w-full" onClick={handleConfirmFrame} disabled={saving}>
             {saving ? 'Saving…' : 'Confirm framing'}
           </Button>

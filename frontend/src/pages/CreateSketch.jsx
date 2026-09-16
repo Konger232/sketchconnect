@@ -1,15 +1,23 @@
-import { useRef, useState, useLayoutEffect } from 'react'
+import { useEffect, useRef, useState, useLayoutEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ImagePanel from '../components/analysis/ImagePanel'
 import FocalSpotPicker, { Reticle } from '../components/analysis/FocalSpotPicker'
 import StylePicker from '../components/analysis/StylePicker'
-import GuidedPromptFlow from '../components/analysis/GuidedPromptFlow'
+
+import Button from '../components/common/Button'
+import AIPromptModal from '../components/analysis/AIPromptModal'
+import ColorPalettePicker from '../components/analysis/ColorPalettePicker'
+import ShapeOutlineOverlay from '../components/analysis/ShapeOutlineOverlay'
+import PerspectiveLinesOverlay from '../components/analysis/PerspectiveLinesOverlay'
+import ConfirmDialog from '../components/common/ConfirmDialog'
 
 import { STYLES } from '../data/styles'
 import { api } from '../lib/api'
 import { WIZARD_IMAGE_MAX_WIDTH_CLASS, WIZARD_PANEL_HEIGHT_CLASS, WIZARD_PANEL_HEIGHT_PX } from '../lib/wizardLayout'
 import { bakeCrop, computeImageBox, resolveAspectRatio } from '../lib/cropMath'
 import { pointNearRegion, regionCentroid, toFrameSpace, toOriginalSpace } from '../lib/focalGeometry'
+import { AI_PROMPT_SIZES as S } from '../lib/aiPromptSizing'
+import { useOverlayToggle } from '../lib/useOverlayToggle'
 
 const OWN_POINT_CAP = 3
 const MIN_ZOOM = 0.2
@@ -42,18 +50,18 @@ export default function CreateSketch() {
 
   const [step, setStep] = useState('capture') // 'capture' | 'style' | 'summary'
 
-  // Step 1, phase A: pick photo state
+  // Upload photo state
   const [preview, setPreview] = useState(null)
   const [saving, setSaving] = useState(false)
   const fileInputRef = useRef(null)
 
-  // Step 1, phase B: server state & focal editing state
+  // Server state & focal editing state
   const [sketchId, setSketchId] = useState(null)
   const [originalImageUrl, setOriginalImageUrl] = useState(null)
   const [referenceImageUrl, setReferenceImageUrl] = useState(null)
   const [cropTransform, setCropTransform] = useState(null)
 
-  // Focal-point and framing logic state (previously inside FocalFrameEditor)
+  // Focal-point and framing logic state
   const aspectRatioKey = cropTransform?.aspect_ratio || 'original'
   const initialTransform = {
     zoom: cropTransform?.zoom ?? 1,
@@ -93,13 +101,38 @@ export default function CreateSketch() {
   const phaseRef = useRef(phase)
   phaseRef.current = phase
 
-  // Step 2: style & analysis
+  // StylePicker State
   const [style, setStyle] = useState(null)
+
+  // analysis returns by various visual analaysis components
   const [analyzing, setAnalyzing] = useState(false)
-  const [analysis, setAnalysis] = useState(null)
+  const [analysis, setAnalysis] = useState(null) 
+
   const [error, setError] = useState(null)
 
+  const perspectiveLines = useOverlayToggle(analysis)
+  const focalAreas = useOverlayToggle(analysis)
+
+  const [promptIndex, setPromptIndex] = useState(0)
+  const [sessionChoices, setSessionChoices] = useState([])
+  const [helpQuestLog, setHelpQuestLog] = useState([])
+  const [helpQuestOpen, setHelpQuestOpen] = useState(false)
+  const [helpQuestQuestion, setHelpQuestQuestion] = useState('')
+  const [helpQuestAnswer, setHelpQuestAnswer] = useState(null)
+  const [showPalette, setShowPalette] = useState(false)
+  const [showRetakeConfirm, setShowRetakeConfirm] = useState(false)
+
+  useEffect(() => {
+    setPromptIndex(0)
+    setSessionChoices([])
+    setShowPalette(false)
+    setHelpQuestOpen(false)
+    setHelpQuestAnswer(null)
+  }, [analysis])
+
   const ratio = resolveAspectRatio(aspectRatioKey, naturalSize)
+
+
 
   useLayoutEffect(() => {
     const container = containerRef.current
@@ -131,9 +164,15 @@ export default function CreateSketch() {
     zoomRef.current = clamped
     setZoom(clamped)
   }
+
   function setOffsetTracked(o) {
     offsetRef.current = o
     setOffset(o)
+  }
+
+  function resetTransform(next = { zoom: 1, offset: { x: 0, y: 0 } }) {
+    setZoomTracked(next.zoom)
+    setOffsetTracked(next.offset)
   }
 
   function confirmedPointsFromState() {
@@ -196,8 +235,10 @@ export default function CreateSketch() {
     confirmedPointsRef.current = pts
     originSpacePointsRef.current = pts.map((p) => toOriginalSpace(p, ratio, initialTransformRef.current, naturalSize))
     setRemovedIndices(new Set())
-    setZoomTracked(initialTransformRef.current.zoom)
-    setOffsetTracked({ x: initialTransformRef.current.offset_x, y: initialTransformRef.current.offset_y })
+    resetTransform({
+      zoom: initialTransformRef.current.zoom,
+      offset: { x: initialTransformRef.current.offset_x, y: initialTransformRef.current.offset_y },
+    })
     setPhase('frame-adjusting')
   }
 
@@ -375,6 +416,7 @@ export default function CreateSketch() {
       if (data?.reference_image_url) {
         setReferenceImageUrl(resolveUrl(data.reference_image_url))
       }
+      resetTransform()
       setStep('style')
     } catch (err) {
       console.log('DEBUG confirmFrame', err)
@@ -430,7 +472,9 @@ export default function CreateSketch() {
     setAnalysis(null)
     setError(null)
     setOwnPoints([])
+    resetTransform()
     setPhase('mark-placing')
+    setStep('capture')
   }
 
   async function handleStyleSelect(value) {
@@ -460,21 +504,96 @@ export default function CreateSketch() {
     navigate('/profile')
   }
 
+  function currentPrompt() {
+    return analysis?.prepared_prompts?.[promptIndex] || null
+  }
+
+  function handlePromptSelect(option) {
+    const prompt = currentPrompt()
+    setSessionChoices((prev) => [...prev, { prompt: prompt.question, response: option }])
+    advancePrompt()
+  }
+
+  function advancePrompt() {
+    const next = promptIndex + 1
+    if (analysis && next < analysis.prepared_prompts.length) {
+      setPromptIndex(next)
+    } else if (!showPalette) {
+      setShowPalette(true)
+    } else {
+      handleFinishWizard()
+    }
+  }
+
+  function handlePaletteDone() {
+    setShowPalette(false)
+    handleFinishWizard()
+  }
+
+  function handleFinishNow() {
+    setShowPalette(false)
+    handleFinishWizard()
+  }
+
+  async function fetchReferenceImageBlob() {
+    const res = await fetch(referenceImageUrl || originalImageUrl)
+    return res.blob()
+  }
+
+  async function handleHelpQuestSend() {
+    if (!helpQuestQuestion.trim()) return
+    try {
+      const blob = await fetchReferenceImageBlob()
+      const form = new FormData()
+      form.append('sketch_id', sketchId)
+      form.append('question', helpQuestQuestion)
+      form.append('style', style)
+      form.append('scene_type', analysis.scene_type)
+      form.append('step_id', `prompt-${promptIndex}`)
+      form.append('image', blob, 'reference.jpg')
+      const { data } = await api.post('/api/help-quest', form)
+      setHelpQuestAnswer(data.answer)
+      setHelpQuestLog((prev) => [...prev, {
+        step_id: `prompt-${promptIndex}`,
+        question: helpQuestQuestion,
+        answer: data.answer,
+        principle_reference: data.principle_reference,
+      }])
+    } catch {
+      setHelpQuestAnswer('Could not reach Help Quest right now.')
+    }
+  }
+
   const box =
     naturalSize && boxSize.width && boxSize.height
       ? computeImageBox(boxSize.width, boxSize.height, naturalSize.width, naturalSize.height, zoom, offset.x, offset.y)
       : null
-  //console.log('DEBUG', { naturalSize, boxSize, ratio, box })
+  
+  const summaryBox =
+  naturalSize && boxSize.width && boxSize.height
+    ? computeImageBox(boxSize.width, boxSize.height, naturalSize.width, naturalSize.height, 1, 0, 0)
+    : null    
 
   const isFramePhase = phase === 'frame-adjusting' || phase === 'frame-asking'
   const reticles = isFramePhase
     ? projectedPoints()
     : confirmedPointsFromState().map((p, i) => ({ i, x: p.x, y: p.y, source: p.source, region_ref: p.region_ref }))
 
-  // const stepIndex = STEPS.indexOf(step)
-
   return (
     <div className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/60 md:p-6">
+      <ConfirmDialog
+        open={showRetakeConfirm}
+        title="Retake photo?"
+        message="Retaking now will delete this sketch and everything you've done so far, style, focal points, and any AI guidance. This can't be undone."
+        confirmLabel="Discard and retake"
+        cancelLabel="Keep working"
+        onConfirm={() => {
+          setShowRetakeConfirm(false)
+          handleRetake()
+        }}
+        onCancel={() => setShowRetakeConfirm(false)}
+      />
+      
       <div className="relative flex h-full w-full flex-col bg-black text-white md:h-[640px] md:w-[960px] md:max-h-[90vh] md:max-w-[95vw] md:overflow-hidden md:rounded-2xl">
         
         {/* Modal Window top row */}
@@ -482,11 +601,11 @@ export default function CreateSketch() {
           <button type="button" onClick={closeWizard} className="text-sm font-medium text-white/70 hover:text-white">
             Cancel
           </button>
-          <span className="w-40 text-right text-xs font-medium text-white/40">New Sketch</span>
+          <span className="w-40 text-right text-xs font-medium text-white/40">New Sketch {preview}</span>
           {preview && (
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => setShowRetakeConfirm(true)}
                 disabled={saving}
                 className="self-start rounded-full bg-ink/10 px-3 py-1.5 text-xs font-medium text-white/70 disabled:opacity-50"
               >
@@ -496,21 +615,116 @@ export default function CreateSketch() {
         </div>{/* END Modal Window top row */}
         
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-8 pt-3 md:px-8">
-          {step === 'summary' ? (
-            <div className="animate-fade-in-up">
-              <GuidedPromptFlow
-                sketchId={sketchId}
-                referenceImageUrl={referenceImageUrl || originalImageUrl}
-                style={style}
-                analysis={analysis}
-                fullPage={false}
-                onFinished={handleFinishWizard}
+        {step === 'summary' ? (
+          <div className="animate-fade-in-up md:grid md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
+            <div className="flex flex-col gap-3">
+              <ImagePanel
+                containerRef={containerRef}
+                boxSize={boxSize}
+                imageUrl={referenceImageUrl || originalImageUrl}
+                box={summaryBox}
+                zoom={1}
+                offset={{ x: 0, y: 0 }}
+                heightClass={WIZARD_PANEL_HEIGHT_CLASS}
+                onImageLoad={handleImageLoad}
+                overlayChildren={
+                  <>
+                    <ShapeOutlineOverlay focalRegions={focalAreas.mode !== 'none' ? analysis?.focal_regions || [] : []} />
+                    <PerspectiveLinesOverlay lines={perspectiveLines.mode !== 'none' ? analysis?.perspective_lines || [] : []} />
+                  </>
+                }
               />
+              <div className="flex gap-2 px-3 md:px-4">
+                <Button
+                  variant={perspectiveLines.mode !== 'none' ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={perspectiveLines.toggle}
+                  disabled={!analysis?.perspective_lines?.length}
+                >
+                  Perspective lines
+                </Button>
+                <Button
+                  variant={focalAreas.mode !== 'none' ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={focalAreas.toggle}
+                  disabled={!analysis?.focal_regions?.length}
+                >
+                  Focal shapes
+                </Button>
+              </div>
             </div>
-          ) : (
+
+            <div className="flex flex-col justify-center gap-4 overflow-y-auto bg-paper p-5 text-ink md:p-6">
+              {currentPrompt() && !helpQuestOpen && !showPalette && (
+                <AIPromptModal
+                  question={currentPrompt().question}
+                  options={currentPrompt().options}
+                  onSelect={handlePromptSelect}
+                  onAskMe={() => setHelpQuestOpen(true)}
+                />
+              )}
+
+              {showPalette && (
+                <ColorPalettePicker onSelect={handlePaletteDone} onSkip={handlePaletteDone} />
+              )}
+
+              {!helpQuestOpen && (currentPrompt() || showPalette) && (
+                <Button variant="outline" size="sm" className="w-full" onClick={handleFinishNow}>
+                  Start Sketching Now
+                </Button>
+              )}
+
+              {helpQuestOpen && (
+                <div className="animate-fade-in-up">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className={`font-semibold ${S.helpHeadingText} ${S.helpHeadingTextMd}`}>Ask me anything about this scene</p>
+                    <button
+                      onClick={() => { setHelpQuestOpen(false); setHelpQuestAnswer(null) }}
+                      className={`${S.closeIcon} ${S.closeIconMd} text-ink/50 transition-colors hover:text-ink`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  {helpQuestAnswer ? (
+                    <>
+                      <p className={`animate-fade-in-up rounded-lg bg-black/5 p-3 ${S.helpInputText} ${S.helpInputTextMd}`}>{helpQuestAnswer}</p>
+                      <Button
+                        size="sm"
+                        className="mt-3 w-full"
+                        onClick={() => { setHelpQuestOpen(false); setHelpQuestAnswer(null); setHelpQuestQuestion('') }}
+                      >
+                        Back to prompts
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        autoFocus
+                        value={helpQuestQuestion}
+                        onChange={(e) => setHelpQuestQuestion(e.target.value)}
+                        placeholder="e.g. Should I start with the wine bottles?"
+                        className={`flex-1 rounded-lg border border-black/15 text-ink transition-colors focus:border-ink/40 ${S.helpInputPadding} ${S.helpInputPaddingMd} ${S.helpInputText} ${S.helpInputTextMd}`}
+                      />
+                      <Button size="sm" onClick={handleHelpQuestSend}>Send</Button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {analysis?.debug_raw_gemini_response && (
+                <details className="rounded-lg border border-black/10 bg-black/5 p-3 text-xs">
+                  <summary className="cursor-pointer font-medium text-ink/60">Debug: raw Gemini response</summary>
+                  <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-ink/70">
+                    {analysis.debug_raw_gemini_response}
+                  </pre>
+                </details>
+              )}
+            </div>
+          </div>
+        ) : (
            
-            <div className="animate-fade-in-up md:grid md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
-              
+          <div className="animate-fade-in-up md:grid md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
+          
             {/* Universal Left Panel */}
             <ImagePanel
               key={step}
