@@ -52,7 +52,7 @@ export default function FocalSpotPicker({
 }) {
   return (
     <div className="flex flex-col justify-center gap-4 bg-white p-5 text-ink md:p-6">
-      {onRetake && (
+      {/* {onRetake && (
         <button
           type="button"
           onClick={onRetake}
@@ -60,7 +60,7 @@ export default function FocalSpotPicker({
         >
           Retake photo
         </button>
-      )}
+      )} */}
 
       {phase === 'mark-placing' && (
         <div className="animate-fade-in-up">

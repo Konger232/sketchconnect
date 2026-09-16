@@ -9,8 +9,6 @@ import { WIZARD_IMAGE_MAX_WIDTH_CLASS, WIZARD_PANEL_HEIGHT_CLASS, WIZARD_PANEL_H
 import { bakeCrop, computeImageBox, resolveAspectRatio } from '../lib/cropMath'
 import { pointNearRegion, regionCentroid, toFrameSpace, toOriginalSpace } from '../lib/focalGeometry'
 
-const STEPS = ['capture', 'style', 'summary']
-const STEP_LABELS = { capture: 'Capture', style: 'Style', summary: 'Guidance' }
 const OWN_POINT_CAP = 3
 const MIN_ZOOM = 0.2
 const MAX_ZOOM = 4
@@ -471,7 +469,7 @@ export default function CreateSketch() {
     ? projectedPoints()
     : confirmedPointsFromState().map((p, i) => ({ i, x: p.x, y: p.y, source: p.source, region_ref: p.region_ref }))
 
-  const stepIndex = STEPS.indexOf(step)
+  // const stepIndex = STEPS.indexOf(step)
 
   return (
     <div className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/60 md:p-6">
@@ -482,17 +480,7 @@ export default function CreateSketch() {
           <button type="button" onClick={closeWizard} className="text-sm font-medium text-white/70 hover:text-white">
             Cancel
           </button>
-          <div className="flex items-center gap-1.5" aria-hidden="true">
-            {STEPS.map((s, i) => (
-              <span
-                key={s}
-                className={`h-1.5 w-1.5 rounded-full transition-colors ${
-                  i === stepIndex ? 'bg-white' : i < stepIndex ? 'bg-white/50' : 'bg-white/20'
-                }`}
-              />
-            ))}
-          </div>
-          <span className="w-40 text-right text-xs font-medium text-white/40">New Sketch : {STEP_LABELS[step]}</span>
+          <span className="w-40 text-right text-xs font-medium text-white/40">New Sketch</span>
         </div>{/* END Modal Window top row */}
         
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-8 pt-3 md:px-8">
@@ -557,6 +545,7 @@ export default function CreateSketch() {
                 </g>
               )}
             </ImagePanel>
+
             {/* Right Control Panel Slot */}
             {step === 'capture' && !sketchId ? (
               <div className="flex flex-col gap-4 bg-white p-5 text-ink md:p-6">
@@ -564,7 +553,6 @@ export default function CreateSketch() {
                   <p className="text-xs text-ink/60">
                     Add a photo and tell us what caught your attention.
                   </p>
-                  <span className="text-sm bgcolor-red">{preview}</span>
                 </div>
             
                 {preview && (
