@@ -2,7 +2,9 @@ import { useRef, useState, useLayoutEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ImagePanel from '../components/analysis/ImagePanel'
 import FocalSpotPicker, { Reticle } from '../components/analysis/FocalSpotPicker'
+import StylePicker from '../components/analysis/StylePicker'
 import GuidedPromptFlow from '../components/analysis/GuidedPromptFlow'
+
 import { STYLES } from '../data/styles'
 import { api } from '../lib/api'
 import { WIZARD_IMAGE_MAX_WIDTH_CLASS, WIZARD_PANEL_HEIGHT_CLASS, WIZARD_PANEL_HEIGHT_PX } from '../lib/wizardLayout'
@@ -481,6 +483,16 @@ export default function CreateSketch() {
             Cancel
           </button>
           <span className="w-40 text-right text-xs font-medium text-white/40">New Sketch</span>
+          {preview && (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={saving}
+                className="self-start rounded-full bg-ink/10 px-3 py-1.5 text-xs font-medium text-white/70 disabled:opacity-50"
+              >
+                Retake
+              </button>
+            )}
         </div>{/* END Modal Window top row */}
         
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-8 pt-3 md:px-8">
@@ -597,31 +609,14 @@ export default function CreateSketch() {
                 error={error}
               />
             ) : (
-              <div className="flex flex-col justify-center gap-4 bg-white p-5 text-ink md:p-6">
-                <div>
-                  <h1 className="text-base font-bold tracking-tight">Pick a style</h1>
-                  <p className="mt-1 text-xs text-ink/60">This shapes how the AI looks at your scene.</p>
-                </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {STYLES.map((s) => (
-                    <button
-                      key={s.value}
-                      type="button"
-                      disabled={analyzing}
-                      onClick={() => handleStyleSelect(s.value)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-95 disabled:opacity-50 ${
-                        style === s.value ? 'bg-ink text-white' : 'bg-ink/10 text-ink/80 hover:bg-ink/20'
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
+              <StylePicker
+                style={style}
+                analyzing={analyzing}
+                error={error}
+                onSelectStyle={handleStyleSelect}
+              />
 
-                {analyzing && <p className="animate-fade-in-up text-sm text-ink/60">Looking at your scene…</p>}
-                {error && <p className="text-sm text-accent">{error}</p>}
-              </div>
             )}
 
           </div>

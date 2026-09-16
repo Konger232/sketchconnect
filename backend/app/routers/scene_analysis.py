@@ -11,6 +11,9 @@ import pillow_heif
 from sqlalchemy.orm import Session
 from geoalchemy2.elements import WKTElement
 
+from app.services.gemini_client import call_gemini_json_with_raw, GeminiQuotaExceededError
+from fastapi import HTTPException
+
 from ..database import get_db
 from ..auth import get_current_sketcher_id
 from ..models import Sketch
@@ -258,9 +261,13 @@ async def scene_analysis(
     location, captured_at = extract_location_and_time(pil_image)
     pil_image = _resize_if_needed(pil_image)
 
-    result, raw_gemini_text = call_gemini_json_with_raw(
-        _build_prompt(style, sketch.crop_transform), RESPONSE_SCHEMA, pil_image
-    )
+    try:
+        result, raw_gemini_text = call_gemini_json_with_raw(
+            _build_prompt(style, sketch.crop_transform), RESPONSE_SCHEMA, pil_image
+        )
+    except GeminiQuotaExceededError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+
     if result.get("mixed_dominant_region") == "null":
         result["mixed_dominant_region"] = None
     result["debug_raw_gemini_response"] = raw_gemini_text

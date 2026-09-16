@@ -6,11 +6,16 @@ or code responses.
 """
 import json
 import os
+from pathlib import Path
 
 import google.generativeai as genai
-from PIL import Image
 
+from google.api_core.exceptions import ResourceExhausted
+from PIL import Image
 from config import GEMINI_MODEL
+
+USE_MOCK_GEMINI = os.getenv("USE_MOCK_GEMINI", "false").lower() == "true"
+MOCK_RESPONSE_PATH = Path(__file__).parent / "mockdata" / "mock_scene_analysis.json"
 
 
 def _configure():
@@ -20,22 +25,19 @@ def _configure():
     genai.configure(api_key=api_key)
 
 
+def _mock_gemini_response():
+    raw_text = MOCK_RESPONSE_PATH.read_text()
+    result = json.loads(raw_text)
+    return result, raw_text
+
+
 def call_gemini_json_with_raw(
     prompt: str, response_schema: dict, image: Image.Image | None = None
 ) -> tuple[dict, str]:
-    """
-    Fires one Gemini call, forcing JSON output against `response_schema`
-    (a plain dict in Gemini's OpenAPI-subset schema format). Returns
-    (parsed_dict, raw_text) — the raw text is Gemini's response exactly as
-    received, before the ```json fence stripping below. Raises on
-    non-JSON output rather than silently returning a malformed shape —
-    callers should let FastAPI turn that into a 502.
+    """Return the raw Gemini response to the GUI"""
+    if USE_MOCK_GEMINI:
+        return _mock_gemini_response()
 
-    Split out from call_gemini_json (below) so routers that want to show
-    the sketcher/developer the actual raw model output — not just the
-    parsed-and-filtered result — can get at it without changing the
-    return shape for every other caller.
-    """
     _configure()
     model = genai.GenerativeModel(
         GEMINI_MODEL,
@@ -57,7 +59,13 @@ def call_gemini_json_with_raw(
     print("[Gemini call] response_schema sent:\n" + json.dumps(response_schema, indent=2))
     print("=" * 80)
 
-    response = model.generate_content(contents)
+    try:
+        response = model.generate_content(contents)
+    except ResourceExhausted as exc:
+        raise GeminiQuotaExceededError(
+            "Gemini API quota exceeded. Try again later."
+        ) from exc 
+
     raw_text = response.text.strip()
 
     print("[Gemini call] raw response:\n" + raw_text)
@@ -77,3 +85,8 @@ def call_gemini_json(prompt: str, response_schema: dict, image: Image.Image | No
     caller that doesn't need the raw text (Persona, Critique, Help Quest)."""
     parsed, _raw_text = call_gemini_json_with_raw(prompt, response_schema, image)
     return parsed
+
+
+class GeminiQuotaExceededError(Exception):
+    """Raise when Gemini's free-tier daily quota is used up."""
+    pass

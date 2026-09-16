@@ -1,0 +1,108 @@
+{
+  "type": "object",
+  "properties": {
+    "scene_type": {
+      "type": "string",
+      "enum": [
+        "architectural",
+        "still_life_organic",
+        "figure",
+        "open_landscape",
+        "mixed"
+      ],
+      "description": "Reserve 'mixed' for a human figure competing with architecture for attention in the same frame -- not merely a scene with more than one kind of object in it."
+    },
+    "mixed_dominant_region": {
+      "type": "string",
+      "enum": [
+        "architectural",
+        "figure",
+        "null"
+      ],
+      "description": "Only meaningful when scene_type is 'mixed'; 'null' otherwise."
+    },
+    "scene_summary": {
+      "type": "string"
+    },
+    "suggested_title": {
+      "type": "string",
+      "description": "A short, natural title for this sketch scene itself -- not the sketching process, not the style -- at most 8-10 words. Title Case, no trailing punctuation, no quotes. Example: 'Sunset Over the Old Harbor Bridge'."
+    },
+    "focal_regions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "contour_points": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "label",
+          "contour_points"
+        ]
+      }
+    },
+    "perspective_lines": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "description": "Optional. A flat [x1, y1, x2, y2, ...] list, 0-1000 scale, one 4-integer group per dominant real perspective/vanishing line actually visible in the photo (a building edge, sidewalk curb, railing, roofline, etc. that visibly converges toward a vanishing point). Trace each line along its real path in the photo -- never invent a line that isn't actually there. Return at most 4 lines (16 integers), strongest/most useful first. Return an empty array if the scene has no clear converging lines."
+    },
+    "prepared_prompts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "compare_weights",
+              "focal_building",
+              "gesture_first",
+              "hide_background",
+              "horizon_placement",
+              "perspective_lines",
+              "proportion_check",
+              "routing_question",
+              "show_focal_areas",
+              "sky_ground_ratio",
+              "split_shapes",
+              "time_pressure_tip",
+              "tonal_values",
+              "value_masses"
+            ]
+          },
+          "question": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "question",
+          "options"
+        ]
+      }
+    }
+  },
+  "required": [
+    "scene_type",
+    "scene_summary",
+    "suggested_title",
+    "focal_regions",
+    "prepared_prompts"
+  ]
+}
