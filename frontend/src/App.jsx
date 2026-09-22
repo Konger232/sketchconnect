@@ -4,7 +4,7 @@ import { supabaseConfigured } from './lib/supabaseClient'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import CreateSketch from './pages/CreateSketch'
-import SketchFlowPage from './pages/SketchFlowPage'
+
 import ProfilePage from './pages/ProfilePage'
 import EditProfilePage from './pages/EditProfilePage'
 import EditSketch from './pages/EditSketch'
@@ -48,7 +48,7 @@ function Router() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/capture" element={<RequireAuth><CreateSketch /></RequireAuth>} />
-        <Route path="/sketch-flow/:sketchId" element={<RequireAuth><SketchFlowPage /></RequireAuth>} />
+        
         <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/profile/edit" element={<RequireAuth><EditProfilePage /></RequireAuth>} />
         <Route path="/sketches/:sketchId" element={<EditSketch />} /> {/* public: read-only for non-owners, full owner controls when signed in as the sketcher -- see EditSketch.jsx */}

@@ -1,24 +1,51 @@
-// The one shared <Button> used everywhere in the app -- Login, Edit
-// Profile, Settings, sketch detail, and the capture wizard / AI-guided
-// flow all render through this file, so a change here is a change
-// everywhere UNLESS it's gated behind a prop like `size` below.
+// The one shared <Button> used everywhere in the app 
 //
-// `size` exists specifically so the wizard/AI flow (a compact,
-// fixed-size modal and two-panel layout) can use a smaller button
-// without touching every other page. `size="md"` (the default) is the
-// button's original size, unchanged -- Login and everything else that
-// doesn't pass `size` keeps looking exactly as it always has.
-export default function Button({ variant = 'primary', size = 'md', className = '', ...props }) {
-  const base = 'rounded-sm font-small transition-colors'
+// `variant` covers every button *shape* in the app now, not just the
+// original solid/outline/ghost/danger action buttons:
+// - `link` / `linkOnDark` -- a plain text link with no padding or
+//   background, for a light-panel or dark-panel context respectively
+//   (modal-header "Cancel"/"Close", "Skip this step", etc).
+// - `pill` / `pillOnLight` -- the rounded-full toggle-pill pattern
+//   (view-mode switches, style picker, grid toggle) on a dark photo
+//   panel or a light control panel respectively. Pass `active` to
+//   switch between its filled/selected state and its dim/unselected
+//   one; pills with no real on/off state (a plain static pill, or one
+//   that always reads as "not yet active") can just pass
+//   `active={false}`.
+// `link*`/`pill*` opt out of the standard `sizes` padding (they carry
+// their own spacing) rather than trying to override it via className
+// -- two Tailwind utilities touching the same CSS property don't
+// reliably resolve in class-attribute order, so overriding padding or
+// border-radius from the outside isn't safe to rely on. Font-weight is
+// deliberately left out of every variant for the same reason -- pass
+// it yourself via className (e.g. `font-medium`, `font-semibold`).
+export default function Button({ variant = 'primary', size = 'md', active = false, className = '', ...props }) {
+  const isLink = variant === 'link' || variant === 'linkOnDark'
+  const isPill = variant === 'pill' || variant === 'pillOnLight'
+
+  const base = isLink
+    ? 'transition-colors'
+    : isPill
+    ? 'rounded-full transition-all duration-150 active:scale-95 disabled:opacity-50'
+    : 'rounded-sm font-small transition-colors'
+
   const variants = {
     primary: 'bg-ink text-paper hover:bg-black',
     outline: 'border border-ink/20 text-ink hover:bg-black/5',
     ghost: 'text-ink hover:bg-black/5',
     danger: 'bg-accent text-paper hover:bg-accent/90 disabled:opacity-60',
+    link: 'text-sm text-ink/60 hover:text-ink',
+    linkOnDark: 'text-sm text-white/70 hover:text-white',
+    pill: active ? 'bg-white text-ink' : 'bg-white/10 text-white/70 hover:bg-white/20',
+    pillOnLight: active ? 'bg-ink text-white' : 'bg-ink/10 text-ink/70 hover:bg-ink/20',
   }
+
   const sizes = {
     md: 'px-2 py-2 text-sm',
     sm: 'px-3 py-1 text-xs',
   }
-  return <button className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...props} />
+
+  const spacing = isLink ? '' : isPill ? 'px-3 py-1.5 text-xs' : sizes[size]
+
+  return <button className={`${base} ${spacing} ${variants[variant]} ${className}`} {...props} />
 }

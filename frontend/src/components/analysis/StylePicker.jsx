@@ -1,9 +1,11 @@
 import Button from '../common/Button'
+import LoadingDots from '../common/LoadingDots'
 import { STYLES } from '../../data/styles'
 
 export default function StylePicker({ style, analyzing, error, onSelectStyle }) {
   return (
-    <div className="flex flex-col justify-center gap-4 bg-white p-5 text-ink md:p-6">
+    <div>
+     {/* <div className="flex flex-col justify-center gap-4 bg-white p-5 text-ink md:p-6"> */}
       <div>
         <h1 className="text-base font-bold tracking-tight">Pick a style</h1>
         <p className="mt-1 text-xs text-ink/60">This shapes how the AI looks at your scene.</p>
@@ -11,21 +13,25 @@ export default function StylePicker({ style, analyzing, error, onSelectStyle }) 
 
       <div className="flex flex-wrap gap-2">
         {STYLES.map((s) => (
-          <button
+          <Button
             key={s.value}
+            variant="pillOnLight"
+            active={style === s.value}
             type="button"
             disabled={analyzing}
             onClick={() => onSelectStyle(s.value)}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-95 disabled:opacity-50 ${
-              style === s.value ? 'bg-ink text-white' : 'bg-ink/10 text-ink/80 hover:bg-ink/20'
-            }`}
+            className="font-semibold"
           >
             {s.label}
-          </button>
+          </Button>
         ))}
       </div>
 
-      {analyzing && <p className="animate-fade-in-up text-sm text-ink/60">Looking at your scene…</p>}
+      {analyzing && (
+        <p className="animate-fade-in-up flex items-center text-sm text-ink/60">
+          Looking at your scene <LoadingDots className="ml-0.5" />
+        </p>
+      )}
       {error && <p className="text-sm text-accent">{error}</p>}
     </div>
   )

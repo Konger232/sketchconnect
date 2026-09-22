@@ -51,11 +51,12 @@ export default function FocalSpotPicker({
   error,
 }) {
   return (
-    <div className="flex flex-col justify-center gap-4 bg-white p-5 text-ink md:p-6">
+    <div>
+     {/* <div className="flex flex-col justify-center gap-4 bg-white p-5 text-ink md:p-6"> */}
     
       {phase === 'mark-placing' && (
         <div className="animate-fade-in-up">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink/50">Mark your focal points</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink/80">Mark your focal points</h2>
           <p className="mt-2 text-sm text-ink/70">
             Tap the photo for what catches your eye. Gemini will ask about anything you missed once you continue.
           </p>
@@ -64,9 +65,9 @@ export default function FocalSpotPicker({
             {ownPoints.length >= ownPointCap && ' — tap a marker to remove it and free up a spot'}
           </p>
           <div className="mt-4 flex items-center gap-3">
-            <button onClick={onSkip} className="text-sm font-medium text-ink/50 hover:text-ink">
+            <Button variant="link" onClick={onSkip} className="font-medium">
               Skip this step
-            </button>
+            </Button>
             <Button size="sm" onClick={onMarkContinue}>Continue</Button>
           </div>
         </div>
@@ -78,7 +79,8 @@ export default function FocalSpotPicker({
             Question {markQuestionPos + 1} of {pendingMarkQuestions.length}
           </p>
           <p className="mt-1 text-base font-semibold leading-snug">
-            Gemini also noticed {regions[pendingMarkQuestions[markQuestionPos]]?.label} — add it as a focal point?
+            Have you noticed the {regions[pendingMarkQuestions[markQuestionPos]]?.label}? 
+            Do you want to add it as a focal point?
           </p>
           <div className="mt-4 flex gap-2">
             <Button variant="outline" size="sm" className="flex-1" onClick={() => answerMarkQuestion(false)}>
@@ -93,20 +95,22 @@ export default function FocalSpotPicker({
 
       {phase === 'frame-adjusting' && (
         <div className="animate-fade-in-up">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-ink/50">Fine-tune the frame</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-ink/80">
+            Fine-tune the frame
+          </h2>
           <p className="mt-2 text-xs text-ink/60">
             Drag the photo to pan, or use the slider to zoom — watch how your points sit against the rule-of-thirds
             grid. Moving one out of frame will ask before letting it go.
           </p>
-          <button
+          <Button
+            variant="pillOnLight"
+            active={showGrid}
             type="button"
             onClick={() => setShowGrid((v) => !v)}
-            className={`mt-3 self-start rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-              showGrid ? 'bg-ink text-white' : 'bg-ink/10 text-ink/60 hover:bg-ink/20'
-            }`}
+            className="mt-3 self-start font-medium"
           >
             Rule of thirds grid: {showGrid ? 'On' : 'Off'}
-          </button>
+          </Button>
           <div className="mt-4 flex items-center gap-2">
             <span className="text-xs text-ink/40">−</span>
             <input

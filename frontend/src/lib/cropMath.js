@@ -37,7 +37,24 @@ export function computeImageBox(frameWidth, frameHeight, naturalWidth, naturalHe
   const height = naturalHeight * scale
   const centerX = frameWidth / 2 + offsetX * frameWidth
   const centerY = frameHeight / 2 + offsetY * frameHeight
-  return { width, height, left: centerX - width / 2, top: centerY - height / 2 }
+  let left = centerX - width / 2
+  let top = centerY - height / 2
+  // Clamp panning to the image's own edges whenever it's large enough to
+  // fully cover the frame in that dimension (width/height >= the frame's
+  // own) -- without this, at zoom === 1 (aspectRatioKey is always
+  // 'original' now, so width/height land exactly on frameWidth/
+  // frameHeight with zero slack) any offset just shifts the photo off
+  // the frame, leaving a black gap on one edge and clipping the other --
+  // not a crop, just a broken-looking shift. Only zoom < 1 is meant to
+  // reveal the black backdrop (CropFrame's letterboxing), so the clamp
+  // only kicks in once there's real slack to pan within.
+  if (width >= frameWidth) {
+    left = Math.min(0, Math.max(left, frameWidth - width))
+  }
+  if (height >= frameHeight) {
+    top = Math.min(0, Math.max(top, frameHeight - height))
+  }
+  return { width, height, left, top }
 }
 
 // Renders the current frame state to a JPEG Blob at a fixed export width,

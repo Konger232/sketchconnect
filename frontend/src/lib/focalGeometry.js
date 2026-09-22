@@ -1,31 +1,3 @@
-// Geometry for the focal-point marking + frame-refinement feature
-// (FocalFrameEditor.jsx). Two independent jobs live here:
-//
-// 1. Reprojecting a point between two different crops of the SAME
-//    original photo. A focal point is captured in whatever frame is on
-//    screen at the moment (0-1000, normalized independently per axis to
-//    that frame's own width/height -- the same convention
-//    ShapeOutlineOverlay/FocalRegion.contour_points already use). If the
-//    sketcher then pans/zooms to a *different* frame, a point that stayed
-//    physically still in the photo has to move on screen to compensate --
-//    otherwise the reticle drifts off the object it was marking. Round-tripping
-//    every point through the original (uncropped) photo's own normalized
-//    space as a stable intermediate is what makes this correct regardless
-//    of how many times the frame changes in between.
-//
-// 2. A plain-geometry stand-in for services/focal_pairing.py's
-//    point-in-region / nearest-match test, used client-side only to
-//    decide *live*, as the sketcher marks, which of Gemini's focal_regions
-//    still need to be asked about (the ask-based-reveal in
-//    FocalFrameEditor.jsx). This is a UX convenience, not the source of
-//    truth -- whatever the sketcher finally confirms is re-paired
-//    authoritatively server-side (via the real focal_pairing.py, which has
-//    shapely available and this file deliberately doesn't reach for a
-//    geometry library just to duplicate it) at persist time. Keep
-//    NEAREST_MATCH_THRESHOLD equal to that file's constant of the same
-//    name -- there's no shared config between the two runtimes, so this
-//    is a manual sync point.
-
 import { computeImageBox } from './cropMath'
 
 export const NEAREST_MATCH_THRESHOLD = 60

@@ -3,21 +3,16 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import ImagePanel from '../components/analysis/ImagePanel'
 import FocalSpotPicker, { Reticle } from '../components/analysis/FocalSpotPicker'
 import StylePicker from '../components/analysis/StylePicker'
+import GuidedPromptFlow from '../components/analysis/GuidedPromptFlow'
 
 import Button from '../components/common/Button'
-import AIPromptModal from '../components/analysis/AIPromptModal'
-import ColorPalettePicker from '../components/analysis/ColorPalettePicker'
-import ShapeOutlineOverlay from '../components/analysis/ShapeOutlineOverlay'
-import PerspectiveLinesOverlay from '../components/analysis/PerspectiveLinesOverlay'
+
 import ConfirmDialog from '../components/common/ConfirmDialog'
 
-import { STYLES } from '../data/styles'
 import { api } from '../lib/api'
-import { WIZARD_IMAGE_MAX_WIDTH_CLASS, WIZARD_PANEL_HEIGHT_CLASS, WIZARD_PANEL_HEIGHT_PX } from '../lib/wizardLayout'
+import { WIZARD_PANEL_HEIGHT_CLASS } from '../lib/wizardLayout'
 import { bakeCrop, computeImageBox, resolveAspectRatio } from '../lib/cropMath'
 import { pointNearRegion, regionCentroid, toFrameSpace, toOriginalSpace } from '../lib/focalGeometry'
-import { AI_PROMPT_SIZES as S } from '../lib/aiPromptSizing'
-import { useOverlayToggle } from '../lib/useOverlayToggle'
 
 const OWN_POINT_CAP = 3
 const MIN_ZOOM = 0.2
@@ -110,29 +105,15 @@ export default function CreateSketch() {
 
   const [error, setError] = useState(null)
 
-  const perspectiveLines = useOverlayToggle(analysis)
-  const focalAreas = useOverlayToggle(analysis)
-
-  const [promptIndex, setPromptIndex] = useState(0)
-  const [sessionChoices, setSessionChoices] = useState([])
-  const [helpQuestLog, setHelpQuestLog] = useState([])
-  const [helpQuestOpen, setHelpQuestOpen] = useState(false)
-  const [helpQuestQuestion, setHelpQuestQuestion] = useState('')
-  const [helpQuestAnswer, setHelpQuestAnswer] = useState(null)
-  const [showPalette, setShowPalette] = useState(false)
   const [showRetakeConfirm, setShowRetakeConfirm] = useState(false)
-
-  useEffect(() => {
-    setPromptIndex(0)
-    setSessionChoices([])
-    setShowPalette(false)
-    setHelpQuestOpen(false)
-    setHelpQuestAnswer(null)
-  }, [analysis])
 
   const ratio = resolveAspectRatio(aspectRatioKey, naturalSize)
 
-
+  // suppress the parent window scroll
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = '' }
+  }, [])
 
   useLayoutEffect(() => {
     const container = containerRef.current
@@ -140,7 +121,8 @@ export default function CreateSketch() {
     function recompute() {
       const availableWidth = container.clientWidth
       const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768
-      const availableHeight = isDesktop && WIZARD_PANEL_HEIGHT_PX ? WIZARD_PANEL_HEIGHT_PX : window.innerHeight * 0.55
+      //const availableHeight = isDesktop && WIZARD_PANEL_HEIGHT_PX ? WIZARD_PANEL_HEIGHT_PX : window.innerHeight * 0.55
+      const availableHeight = isDesktop ? container.clientHeight : window.innerHeight * 0.55
       if (!availableWidth || !availableHeight) return
       const heightAtFullWidth = availableWidth / ratio
       if (heightAtFullWidth <= availableHeight) {
@@ -157,7 +139,7 @@ export default function CreateSketch() {
       ro?.disconnect()
       window.removeEventListener('resize', recompute)
     }
-  }, [ratio, WIZARD_PANEL_HEIGHT_PX])
+  }, [ratio])
 
   function setZoomTracked(z) {
     const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z))
@@ -193,10 +175,6 @@ export default function CreateSketch() {
     const x = ((e.clientX - rect.left) / rect.width) * 1000
     const y = ((e.clientY - rect.top) / rect.height) * 1000
     setOwnPoints((prev) => [...prev, { x, y }])
-  }
-
-  function removeOwnPoint(i) {
-    setOwnPoints((prev) => prev.filter((_, idx) => idx !== i))
   }
 
   function regionsNeedingQuestions() {
@@ -504,75 +482,10 @@ export default function CreateSketch() {
     navigate('/profile')
   }
 
-  function currentPrompt() {
-    return analysis?.prepared_prompts?.[promptIndex] || null
-  }
-
-  function handlePromptSelect(option) {
-    const prompt = currentPrompt()
-    setSessionChoices((prev) => [...prev, { prompt: prompt.question, response: option }])
-    advancePrompt()
-  }
-
-  function advancePrompt() {
-    const next = promptIndex + 1
-    if (analysis && next < analysis.prepared_prompts.length) {
-      setPromptIndex(next)
-    } else if (!showPalette) {
-      setShowPalette(true)
-    } else {
-      handleFinishWizard()
-    }
-  }
-
-  function handlePaletteDone() {
-    setShowPalette(false)
-    handleFinishWizard()
-  }
-
-  function handleFinishNow() {
-    setShowPalette(false)
-    handleFinishWizard()
-  }
-
-  async function fetchReferenceImageBlob() {
-    const res = await fetch(referenceImageUrl || originalImageUrl)
-    return res.blob()
-  }
-
-  async function handleHelpQuestSend() {
-    if (!helpQuestQuestion.trim()) return
-    try {
-      const blob = await fetchReferenceImageBlob()
-      const form = new FormData()
-      form.append('sketch_id', sketchId)
-      form.append('question', helpQuestQuestion)
-      form.append('style', style)
-      form.append('scene_type', analysis.scene_type)
-      form.append('step_id', `prompt-${promptIndex}`)
-      form.append('image', blob, 'reference.jpg')
-      const { data } = await api.post('/api/help-quest', form)
-      setHelpQuestAnswer(data.answer)
-      setHelpQuestLog((prev) => [...prev, {
-        step_id: `prompt-${promptIndex}`,
-        question: helpQuestQuestion,
-        answer: data.answer,
-        principle_reference: data.principle_reference,
-      }])
-    } catch {
-      setHelpQuestAnswer('Could not reach Help Quest right now.')
-    }
-  }
-
   const box =
     naturalSize && boxSize.width && boxSize.height
       ? computeImageBox(boxSize.width, boxSize.height, naturalSize.width, naturalSize.height, zoom, offset.x, offset.y)
       : null
-  
-  const summaryBox =
-  naturalSize && boxSize.width && boxSize.height
-    ? computeImageBox(boxSize.width, boxSize.height, naturalSize.width, naturalSize.height, 1, 0, 0)
-    : null    
 
   const isFramePhase = phase === 'frame-adjusting' || phase === 'frame-asking'
   const reticles = isFramePhase
@@ -583,7 +496,7 @@ export default function CreateSketch() {
     <div className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/60 md:p-6">
       <ConfirmDialog
         open={showRetakeConfirm}
-        title="Retake photo?"
+        title={sketchId ? "Discard and Retake" : "Retake photo?"}
         message="Retaking now will delete this sketch and everything you've done so far, style, focal points, and any AI guidance. This can't be undone."
         confirmLabel="Discard and retake"
         cancelLabel="Keep working"
@@ -598,129 +511,34 @@ export default function CreateSketch() {
         
         {/* Modal Window top row */}
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-          <button type="button" onClick={closeWizard} className="text-sm font-medium text-white/70 hover:text-white">
+          <Button variant="linkOnDark" type="button" onClick={closeWizard} className="font-medium">
             Cancel
-          </button>
-          <span className="w-40 text-right text-xs font-medium text-white/40">New Sketch {preview}</span>
+          </Button>
+          <span className="w-40 text-right text-xs font-medium text-white/40">New Sketch</span>
           {preview && (
-              <button
+              <Button
+                variant="pill"
+                active={false}
                 type="button"
                 onClick={() => setShowRetakeConfirm(true)}
                 disabled={saving}
-                className="self-start rounded-full bg-ink/10 px-3 py-1.5 text-xs font-medium text-white/70 disabled:opacity-50"
+                className="self-start font-medium"
               >
-                Retake
-              </button>
+                { sketchId ? 'Discard' : 'Retake'}
+              </Button>
             )}
         </div>{/* END Modal Window top row */}
         
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-8 pt-3 md:px-8">
+        <div className="min-h-0 flex-1 overflow-y-auto pl-3 pt-3 md:pl-8">
         {step === 'summary' ? (
-          <div className="animate-fade-in-up md:grid md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
-            <div className="flex flex-col gap-3">
-              <ImagePanel
-                containerRef={containerRef}
-                boxSize={boxSize}
-                imageUrl={referenceImageUrl || originalImageUrl}
-                box={summaryBox}
-                zoom={1}
-                offset={{ x: 0, y: 0 }}
-                heightClass={WIZARD_PANEL_HEIGHT_CLASS}
-                onImageLoad={handleImageLoad}
-                overlayChildren={
-                  <>
-                    <ShapeOutlineOverlay focalRegions={focalAreas.mode !== 'none' ? analysis?.focal_regions || [] : []} />
-                    <PerspectiveLinesOverlay lines={perspectiveLines.mode !== 'none' ? analysis?.perspective_lines || [] : []} />
-                  </>
-                }
-              />
-              <div className="flex gap-2 px-3 md:px-4">
-                <Button
-                  variant={perspectiveLines.mode !== 'none' ? 'primary' : 'outline'}
-                  size="sm"
-                  onClick={perspectiveLines.toggle}
-                  disabled={!analysis?.perspective_lines?.length}
-                >
-                  Perspective lines
-                </Button>
-                <Button
-                  variant={focalAreas.mode !== 'none' ? 'primary' : 'outline'}
-                  size="sm"
-                  onClick={focalAreas.toggle}
-                  disabled={!analysis?.focal_regions?.length}
-                >
-                  Focal shapes
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex flex-col justify-center gap-4 overflow-y-auto bg-paper p-5 text-ink md:p-6">
-              {currentPrompt() && !helpQuestOpen && !showPalette && (
-                <AIPromptModal
-                  question={currentPrompt().question}
-                  options={currentPrompt().options}
-                  onSelect={handlePromptSelect}
-                  onAskMe={() => setHelpQuestOpen(true)}
-                />
-              )}
-
-              {showPalette && (
-                <ColorPalettePicker onSelect={handlePaletteDone} onSkip={handlePaletteDone} />
-              )}
-
-              {!helpQuestOpen && (currentPrompt() || showPalette) && (
-                <Button variant="outline" size="sm" className="w-full" onClick={handleFinishNow}>
-                  Start Sketching Now
-                </Button>
-              )}
-
-              {helpQuestOpen && (
-                <div className="animate-fade-in-up">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className={`font-semibold ${S.helpHeadingText} ${S.helpHeadingTextMd}`}>Ask me anything about this scene</p>
-                    <button
-                      onClick={() => { setHelpQuestOpen(false); setHelpQuestAnswer(null) }}
-                      className={`${S.closeIcon} ${S.closeIconMd} text-ink/50 transition-colors hover:text-ink`}
-                    >
-                      ×
-                    </button>
-                  </div>
-                  {helpQuestAnswer ? (
-                    <>
-                      <p className={`animate-fade-in-up rounded-lg bg-black/5 p-3 ${S.helpInputText} ${S.helpInputTextMd}`}>{helpQuestAnswer}</p>
-                      <Button
-                        size="sm"
-                        className="mt-3 w-full"
-                        onClick={() => { setHelpQuestOpen(false); setHelpQuestAnswer(null); setHelpQuestQuestion('') }}
-                      >
-                        Back to prompts
-                      </Button>
-                    </>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        autoFocus
-                        value={helpQuestQuestion}
-                        onChange={(e) => setHelpQuestQuestion(e.target.value)}
-                        placeholder="e.g. Should I start with the wine bottles?"
-                        className={`flex-1 rounded-lg border border-black/15 text-ink transition-colors focus:border-ink/40 ${S.helpInputPadding} ${S.helpInputPaddingMd} ${S.helpInputText} ${S.helpInputTextMd}`}
-                      />
-                      <Button size="sm" onClick={handleHelpQuestSend}>Send</Button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {analysis?.debug_raw_gemini_response && (
-                <details className="rounded-lg border border-black/10 bg-black/5 p-3 text-xs">
-                  <summary className="cursor-pointer font-medium text-ink/60">Debug: raw Gemini response</summary>
-                  <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-ink/70">
-                    {analysis.debug_raw_gemini_response}
-                  </pre>
-                </details>
-              )}
-            </div>
-          </div>
+          <GuidedPromptFlow
+            sketchId={sketchId}
+            referenceImageUrl={referenceImageUrl || originalImageUrl}
+            style={style}
+            analysis={analysis}
+            fullPage={false}
+            onFinished={handleFinishWizard}
+          />
         ) : (
            
           <div className="animate-fade-in-up md:grid md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
@@ -773,66 +591,57 @@ export default function CreateSketch() {
             </ImagePanel>
 
             {/* Right Control Panel Slot */}
-            {step === 'capture' && !sketchId ? (
-              <div className="flex flex-col gap-4 bg-white p-5 text-ink md:p-6">
+            <div className="flex flex-col justify-center gap-4 bg-white p-5 text-ink md:p-6">
+              {step === 'capture' && !sketchId ? (
+              
                 <div>
                   <p className="text-xs text-ink/60">
                     Add a photo and tell us what caught your attention.
                   </p>
+                  {error && <p className="text-sm text-accent">{error}</p>}
                 </div>
-            
-                {preview && (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={saving}
-                    className="self-start rounded-full bg-ink/10 px-3 py-1.5 text-xs font-medium text-ink disabled:opacity-50"
-                  >
-                    Retake
-                  </button>
-                )}
-                {error && <p className="text-sm text-accent">{error}</p>}
-              </div>
-            ) : step === 'capture' && sketchId ? (
-              <FocalSpotPicker
-                phase={phase}
-                onRetake={handleRetake}
-                ownPoints={ownPoints}
-                ownPointCap={OWN_POINT_CAP}
-                onSkip={() => setStep('style')}
-                onMarkContinue={handleMarkContinue}
-                pendingMarkQuestions={pendingMarkQuestions}
-                markQuestionPos={markQuestionPos}
-                regions={regions}
-                answerMarkQuestion={answerMarkQuestion}
-                showGrid={showGrid}
-                setShowGrid={setShowGrid}
-                minZoom={MIN_ZOOM}
-                maxZoom={MAX_ZOOM}
-                zoom={zoom}
-                handleZoomSliderStart={handleZoomSliderStart}
-                handleZoomSliderChange={handleZoomSliderChange}
-                handleZoomSliderCommit={handleZoomSliderCommit}
-                handleConfirmFrame={handleConfirmFrame}
-                saving={saving}
-                frameQuestionPos={frameQuestionPos}
-                frameQuestionQueue={frameQuestionQueue}
-                anchorLabel={anchorLabel}
-                handleFrameKeep={handleFrameKeep}
-                handleFrameRemove={handleFrameRemove}
-                error={error}
-              />
-            ) : (
+    
+              
+              ) : step === 'capture' && sketchId ? (
+                <FocalSpotPicker
+                  phase={phase}
+                  onRetake={setShowRetakeConfirm}
+                  ownPoints={ownPoints}
+                  ownPointCap={OWN_POINT_CAP}
+                  onSkip={() => setStep('style')}
+                  onMarkContinue={handleMarkContinue}
+                  pendingMarkQuestions={pendingMarkQuestions}
+                  markQuestionPos={markQuestionPos}
+                  regions={regions}
+                  answerMarkQuestion={answerMarkQuestion}
+                  showGrid={showGrid}
+                  setShowGrid={setShowGrid}
+                  minZoom={MIN_ZOOM}
+                  maxZoom={MAX_ZOOM}
+                  zoom={zoom}
+                  handleZoomSliderStart={handleZoomSliderStart}
+                  handleZoomSliderChange={handleZoomSliderChange}
+                  handleZoomSliderCommit={handleZoomSliderCommit}
+                  handleConfirmFrame={handleConfirmFrame}
+                  saving={saving}
+                  frameQuestionPos={frameQuestionPos}
+                  frameQuestionQueue={frameQuestionQueue}
+                  anchorLabel={anchorLabel}
+                  handleFrameKeep={handleFrameKeep}
+                  handleFrameRemove={handleFrameRemove}
+                  error={error}
+                />
+              ) : (
 
-              <StylePicker
-                style={style}
-                analyzing={analyzing}
-                error={error}
-                onSelectStyle={handleStyleSelect}
-              />
+                <StylePicker
+                  style={style}
+                  analyzing={analyzing}
+                  error={error}
+                  onSelectStyle={handleStyleSelect}
+                />
 
-            )}
-
+              )}
+            </div>
           </div>
 
 

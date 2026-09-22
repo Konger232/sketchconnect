@@ -1,108 +1,43 @@
 {
-  "type": "object",
-  "properties": {
-    "scene_type": {
-      "type": "string",
-      "enum": [
-        "architectural",
-        "still_life_organic",
-        "figure",
-        "open_landscape",
-        "mixed"
-      ],
-      "description": "Reserve 'mixed' for a human figure competing with architecture for attention in the same frame -- not merely a scene with more than one kind of object in it."
+  "scene_type": "architectural",
+  "mixed_dominant_region": "null",
+  "scene_summary": "A narrow European street lined with tall shuttered townhouses in warm ochre and cream tones, leading toward a small stone bridge in the distance.",
+  "suggested_title": "Shuttered Street Toward the Stone Bridge",
+  "focal_regions": [
+    {
+      "label": "corner building facade",
+      "contour_points": [120, 300, 180, 260, 340, 270, 360, 420, 300, 460, 140, 440]
     },
-    "mixed_dominant_region": {
-      "type": "string",
-      "enum": [
-        "architectural",
-        "figure",
-        "null"
-      ],
-      "description": "Only meaningful when scene_type is 'mixed'; 'null' otherwise."
+    {
+      "label": "stone bridge arch",
+      "contour_points": [560, 520, 640, 500, 700, 540, 690, 600, 600, 610, 550, 570]
     },
-    "scene_summary": {
-      "type": "string"
-    },
-    "suggested_title": {
-      "type": "string",
-      "description": "A short, natural title for this sketch scene itself -- not the sketching process, not the style -- at most 8-10 words. Title Case, no trailing punctuation, no quotes. Example: 'Sunset Over the Old Harbor Bridge'."
-    },
-    "focal_regions": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "label": {
-            "type": "string"
-          },
-          "contour_points": {
-            "type": "array",
-            "items": {
-              "type": "integer"
-            }
-          }
-        },
-        "required": [
-          "label",
-          "contour_points"
-        ]
-      }
-    },
-    "perspective_lines": {
-      "type": "array",
-      "items": {
-        "type": "integer"
-      },
-      "description": "Optional. A flat [x1, y1, x2, y2, ...] list, 0-1000 scale, one 4-integer group per dominant real perspective/vanishing line actually visible in the photo (a building edge, sidewalk curb, railing, roofline, etc. that visibly converges toward a vanishing point). Trace each line along its real path in the photo -- never invent a line that isn't actually there. Return at most 4 lines (16 integers), strongest/most useful first. Return an empty array if the scene has no clear converging lines."
-    },
-    "prepared_prompts": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string",
-            "enum": [
-              "compare_weights",
-              "focal_building",
-              "gesture_first",
-              "hide_background",
-              "horizon_placement",
-              "perspective_lines",
-              "proportion_check",
-              "routing_question",
-              "show_focal_areas",
-              "sky_ground_ratio",
-              "split_shapes",
-              "time_pressure_tip",
-              "tonal_values",
-              "value_masses"
-            ]
-          },
-          "question": {
-            "type": "string"
-          },
-          "options": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "key",
-          "question",
-          "options"
-        ]
-      }
+    {
+      "label": "row of shuttered windows",
+      "contour_points": [220, 180, 410, 170, 415, 260, 225, 270]
     }
-  },
-  "required": [
-    "scene_type",
-    "scene_summary",
-    "suggested_title",
-    "focal_regions",
-    "prepared_prompts"
+  ],
+  "perspective_lines": [100, 650, 520, 400, 900, 700, 540, 420],
+  "prepared_prompts": [
+    {
+      "key": "perspective_lines",
+      "question": "Want to see the perspective lines running toward the bridge?",
+      "options": ["Show the vanishing lines", "Just note the strongest angle", "Skip perspective for now"]
+    },
+    {
+      "key": "proportion_check",
+      "question": "Should we check the proportions of the corner building before you commit to line weight?",
+      "options": ["Check proportions first", "Eyeball it and adjust as you go", "Skip proportion check"]
+    },
+    {
+      "key": "focal_building",
+      "question": "Which building should anchor your composition -- the corner facade or the one near the bridge?",
+      "options": ["Anchor on the corner facade", "Let the bridge lead instead", "Decide as you sketch"]
+    },
+    {
+      "key": "show_focal_areas",
+      "question": "Want to see which areas of this street stood out most to the AI?",
+      "options": ["Show all of them", "Just the strongest one", "Decide on my own"]
+    }
   ]
 }

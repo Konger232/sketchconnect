@@ -6,6 +6,7 @@ import SketchCard from '../components/common/SketchCard'
 import { useAuth } from '../components/common/AuthContext'
 import { api } from '../lib/api'
 import { distanceKm } from '../lib/geo'
+import Button from '../components/common/Button'
 
 // Sketches farther than this from a chosen location are hidden rather
 // than just sorted last -- matches the default radius_km already used by
@@ -141,9 +142,9 @@ export default function SearchPage() {
         {place ? (
           <div className="mb-4 flex items-center justify-between rounded-full border border-black/15 px-4 py-2 text-sm">
             <span>📍 Near {place.label}</span>
-            <button type="button" onClick={handleClearPlace} className="font-semibold text-ink/50 hover:text-ink">
+            <Button variant="link" type="button" onClick={handleClearPlace} className="font-semibold">
               Clear
-            </button>
+            </Button>
           </div>
         ) : (
           <form onSubmit={handlePlaceSearch} className="mb-1 flex gap-2">
