@@ -54,7 +54,7 @@ async def create_persona(
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
-    result = call_gemini_json(_build_prompt(body.style, body.admired_artist_name), RESPONSE_SCHEMA)
+    result = call_gemini_json(_build_prompt(body.style, body.admired_artist_name), RESPONSE_SCHEMA, mock_name="persona")
 
     persona = (
         db.query(Persona)

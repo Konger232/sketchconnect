@@ -1,0 +1,11 @@
+{
+  "persona_source": "system_default",
+  "persona_label": "[MOCK] Friendly on-location coach",
+  "voice": "Warm, practical, speaks from years of sketching outdoors.",
+  "priorities": [
+    "emphasis",
+    "value contrast",
+    "simplifying big shapes"
+  ],
+  "tone": "encouraging"
+}

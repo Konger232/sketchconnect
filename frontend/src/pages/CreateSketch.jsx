@@ -3,7 +3,9 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import ImagePanel from '../components/analysis/ImagePanel'
 import FocalSpotPicker, { Reticle } from '../components/analysis/FocalSpotPicker'
 import StylePicker from '../components/analysis/StylePicker'
-import GuidedPromptFlow from '../components/analysis/GuidedPromptFlow'
+import AIGuidance from '../components/analysis/AIGuidance'
+import ShapeOutlineOverlay from '../components/analysis/ShapeOutlineOverlay'
+import PerspectiveLinesOverlay from '../components/analysis/PerspectiveLinesOverlay'
 
 import Button from '../components/common/Button'
 
@@ -13,6 +15,7 @@ import { api } from '../lib/api'
 import { WIZARD_PANEL_HEIGHT_CLASS } from '../lib/wizardLayout'
 import { bakeCrop, computeImageBox, resolveAspectRatio } from '../lib/cropMath'
 import { pointNearRegion, regionCentroid, toFrameSpace, toOriginalSpace } from '../lib/focalGeometry'
+import { useOverlayToggle } from '../lib/useOverlayToggle'
 
 const OWN_POINT_CAP = 3
 const MIN_ZOOM = 0.2
@@ -33,7 +36,8 @@ export default function CreateSketch() {
   const backgroundLocation = routerLocation.state?.backgroundLocation
 
   async function closeWizard() {
-    if (sketchId && step !== 'summary') {
+    // Leaving before AI guidance starts discards the half-made sketch.
+    if (sketchId && step !== 'guidance') {
       try {
         await api.delete(`/api/sketches/${sketchId}`)
       } catch {
@@ -43,7 +47,11 @@ export default function CreateSketch() {
     navigate(backgroundLocation || '/profile')
   }
 
-  const [step, setStep] = useState('capture') // 'capture' | 'style' | 'summary'
+  // 'capture'  -> upload a photo
+  // 'focal'    -> focal point selection, then crop/pan/zoom
+  // 'style'    -> pick a style (this fires the scene analysis call)
+  // 'guidance' -> AI guided questions
+  const [step, setStep] = useState('capture')
 
   // Upload photo state
   const [preview, setPreview] = useState(null)
@@ -99,9 +107,13 @@ export default function CreateSketch() {
   // StylePicker State
   const [style, setStyle] = useState(null)
 
-  // analysis returns by various visual analaysis components
+  // Scene analysis call result (scene type, prompts, overlays)
   const [analyzing, setAnalyzing] = useState(false)
-  const [analysis, setAnalysis] = useState(null) 
+  const [analysis, setAnalysis] = useState(null)
+
+  // AI guidance overlays. Both reset to off whenever a new analysis comes in.
+  const perspectiveLines = useOverlayToggle(analysis)
+  const focalAreas = useOverlayToggle(analysis)
 
   const [error, setError] = useState(null)
 
@@ -139,7 +151,40 @@ export default function CreateSketch() {
       ro?.disconnect()
       window.removeEventListener('resize', recompute)
     }
-  }, [ratio])
+  }, [ratio, step])
+
+  // ===== CAPTURE =====
+
+  function handleFile(e) {
+    const f = e.target.files[0]
+    if (!f) return
+    setPreview(URL.createObjectURL(f))
+    uploadPhoto(f)
+  }
+
+  async function uploadPhoto(f) {
+    setSaving(true)
+    setError(null)
+    try {
+      const form = new FormData()
+      form.append('image', f)
+      const { data } = await api.post('/api/sketches', form)
+      setSketchId(data.id)
+      setOriginalImageUrl(resolveUrl(data.original_image_url || data.reference_image_url))
+      setReferenceImageUrl(resolveUrl(data.reference_image_url))
+      setCropTransform(data.crop_transform || null)
+      if (data.focal_regions) {
+        setRegions(data.focal_regions.map((r) => ({ ...r, asked: false, adopted: false })))
+      }
+      setStep('focal')
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Could not save this sketch.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ===== FOCAL POINT SELECTION + CROP/PAN/ZOOM =====
 
   function setZoomTracked(z) {
     const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z))
@@ -404,33 +449,38 @@ export default function CreateSketch() {
     }
   }
 
-  function handleFile(e) {
-    const f = e.target.files[0]
-    if (!f) return
-    setPreview(URL.createObjectURL(f))
-    uploadPhoto(f)
-  }
+  // ===== PICK A STYLE (fires the scene analysis call) =====
 
-  async function uploadPhoto(f) {
-    setSaving(true)
+  async function handleStyleSelect(value) {
+    if (analyzing) return
+    setStyle(value)
+    setAnalyzing(true)
     setError(null)
     try {
+      await api.put(`/api/sketches/${sketchId}`, { style: value })
+      const res = await fetch(referenceImageUrl || originalImageUrl)
+      const blob = await res.blob()
       const form = new FormData()
-      form.append('image', f)
-      const { data } = await api.post('/api/sketches', form)
-      setSketchId(data.id)
-      setOriginalImageUrl(resolveUrl(data.original_image_url || data.reference_image_url))
-      setReferenceImageUrl(resolveUrl(data.reference_image_url))
-      setCropTransform(data.crop_transform || null)
-      if (data.focal_regions) {
-        setRegions(data.focal_regions.map((r) => ({ ...r, asked: false, adopted: false })))
-      }
+      form.append('sketch_id', sketchId)
+      form.append('style', value)
+      form.append('image', blob, 'reference.jpg')
+      const { data } = await api.post('/api/scene-analysis', form)
+      setAnalysis(data)
+      setStep('guidance')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Could not save this sketch.')
+      setError(err.response?.data?.detail || 'Scene analysis failed.')
     } finally {
-      setSaving(false)
+      setAnalyzing(false)
     }
   }
+
+  // ===== AI GUIDANCE =====
+
+  function handleFinishWizard() {
+    navigate('/profile')
+  }
+
+  // ===== RETAKE / DISCARD (resets every stage) =====
 
   async function handleRetake() {
     if (sketchId) {
@@ -455,33 +505,6 @@ export default function CreateSketch() {
     setStep('capture')
   }
 
-  async function handleStyleSelect(value) {
-    if (analyzing) return
-    setStyle(value)
-    setAnalyzing(true)
-    setError(null)
-    try {
-      await api.put(`/api/sketches/${sketchId}`, { style: value })
-      const res = await fetch(referenceImageUrl || originalImageUrl)
-      const blob = await res.blob()
-      const form = new FormData()
-      form.append('sketch_id', sketchId)
-      form.append('style', value)
-      form.append('image', blob, 'reference.jpg')
-      const { data } = await api.post('/api/scene-analysis', form)
-      setAnalysis(data)
-      setStep('summary')
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Scene analysis failed.')
-    } finally {
-      setAnalyzing(false)
-    }
-  }
-
-  function handleFinishWizard() {
-    navigate('/profile')
-  }
-
   const box =
     naturalSize && boxSize.width && boxSize.height
       ? computeImageBox(boxSize.width, boxSize.height, naturalSize.width, naturalSize.height, zoom, offset.x, offset.y)
@@ -494,6 +517,7 @@ export default function CreateSketch() {
 
   return (
     <div className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/60 md:p-6">
+      {/* ==== Confirmation Dialog Box ====== */}
       <ConfirmDialog
         open={showRetakeConfirm}
         title={sketchId ? "Discard and Retake" : "Retake photo?"}
@@ -505,148 +529,191 @@ export default function CreateSketch() {
           handleRetake()
         }}
         onCancel={() => setShowRetakeConfirm(false)}
-      />
+      />{/* END:==== Confirmation Dialog Box ====== */}
       
       <div className="relative flex h-full w-full flex-col bg-black text-white md:h-[640px] md:w-[960px] md:max-h-[90vh] md:max-w-[95vw] md:overflow-hidden md:rounded-2xl">
         
-        {/* Modal Window top row */}
+        {/*==== Modal Window top row ===*/}
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-          <Button variant="linkOnDark" type="button" onClick={closeWizard} className="font-medium">
-            Cancel
-          </Button>
+          <button type="button" onClick={closeWizard} aria-label="Cancel" className="text-2xl leading-none text-white/70 transition-colors hover:text-white">
+            {/*=== Close Button ===*/}
+            <svg class="w-4 h-4 text-gray-500" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+              <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+              <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
+              <g id="SVGRepo_iconCarrier">
+                <path d="M195.2 195.2a64 64 0 0 1 90.496 0L512 421.504 738.304 195.2a64 64 0 0 1 90.496 90.496L602.496 512 828.8 738.304a64 64 0 0 1-90.496 90.496L512 602.496 285.696 828.8a64 64 0 0 1-90.496-90.496L421.504 512 195.2 285.696a64 64 0 0 1 0-90.496z"></path>
+              </g>
+          </svg>
+          </button>
           <span className="w-40 text-right text-xs font-medium text-white/40">New Sketch</span>
           {preview && (
-              <Button
-                variant="pill"
-                active={false}
+              <button
                 type="button"
                 onClick={() => setShowRetakeConfirm(true)}
                 disabled={saving}
-                className="self-start font-medium"
+                className="self-start rounded-full bg-ink/10 px-3 py-1.5 text-xs font-medium text-white/70 disabled:opacity-50"
               >
                 { sketchId ? 'Discard' : 'Retake'}
-              </Button>
+              </button>
             )}
-        </div>{/* END Modal Window top row */}
+        </div>{/* END:=== Modal Window top row ===*/}
         
-        <div className="min-h-0 flex-1 overflow-y-auto pl-3 pt-3 md:pl-8">
-        {step === 'summary' ? (
-          <GuidedPromptFlow
-            sketchId={sketchId}
-            referenceImageUrl={referenceImageUrl || originalImageUrl}
-            style={style}
-            analysis={analysis}
-            fullPage={false}
-            onFinished={handleFinishWizard}
-          />
-        ) : (
-           
-          <div className="animate-fade-in-up md:grid md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
-          
-            {/* Universal Left Panel */}
-            <ImagePanel
-              key={step}
-              containerRef={containerRef}
-              imgRef={imgRef}
-              svgRef={svgRef}
-              boxSize={boxSize}
-              imageUrl={
-                step === 'capture'
-                  ? originalImageUrl || preview
-                  : step === 'style'
-                  ? referenceImageUrl || originalImageUrl
-                  : originalImageUrl
-              }
-              zoom={zoom}
-              offset={offset}
-              box={box}
-              heightClass={WIZARD_PANEL_HEIGHT_CLASS}
-              fileInputRef={fileInputRef}
-              onFileChange={handleFile}
-              saving={saving}
-              onPointerDown={step === 'capture' && sketchId && isFramePhase ? handlePointerDown : undefined}
-              onPointerMove={step === 'capture' && sketchId && isFramePhase ? handlePointerMove : undefined}
-              onPointerUp={step === 'capture' && sketchId && isFramePhase ? handlePointerUp : undefined}
-              onWheel={step === 'capture' && sketchId && isFramePhase ? handleWheel : undefined}
-              onImageLoad={handleImageLoad}
-              onClick={step === 'capture' && sketchId && phase === 'mark-placing' ? handleMarkTap : undefined}
-            >
-              {/* Grid and Reticle SVG overlays */}
-              {showGrid && (
-                <g className="pointer-events-none opacity-30">
-                  <line x1="333.33" y1="0" x2="333.33" y2="1000" stroke="white" strokeWidth="2" />
-                  <line x1="666.66" y1="0" x2="666.66" y2="1000" stroke="white" strokeWidth="2" />
-                  <line x1="0" y1="333.33" x2="1000" y2="333.33" stroke="white" strokeWidth="2" />
-                  <line x1="0" y1="666.66" x2="1000" y2="666.66" stroke="white" strokeWidth="2" />
-                </g>
-              )}
-              {/* Focal Point Picker */}
-              {step === 'capture' && (
-                <g className="pointer-events-none">
-                  {reticles.map((r) => (
-                    <Reticle key={r.i} x={r.x} y={r.y} />
-                  ))}
-                </g>
-              )}
-            </ImagePanel>
+        <div className="animate-fade-in-up min-h-0 flex-1 overflow-y-auto md:grid md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]">
 
-            {/* Right Control Panel Slot */}
-            <div className="flex flex-col justify-center gap-4 bg-white p-5 text-ink md:p-6">
-              {step === 'capture' && !sketchId ? (
-              
-                <div>
-                  <p className="text-xs text-ink/60">
-                    Add a photo and tell us what caught your attention.
-                  </p>
-                  {error && <p className="text-sm text-accent">{error}</p>}
+            {/* ===== LEFT PANEL: one photo shared by every stage ===== */}
+            <div className="flex flex-col gap-3">
+              <ImagePanel
+                key={step}
+                containerRef={containerRef}
+                imgRef={imgRef}
+                svgRef={svgRef}
+                boxSize={boxSize}
+                // Needed for Confirm framing: bakeCrop draws this <img> onto
+                // a canvas. Without CORS loading, the backend photo taints
+                // the canvas and the export fails ("toBlob failed").
+                crossOrigin="anonymous"
+                // Capture and focal work on the original upload. From style
+                // on, the photo is the cropped reference image.
+                imageUrl={
+                  step === 'capture' || step === 'focal'
+                    ? originalImageUrl || preview
+                    : referenceImageUrl || originalImageUrl
+                }
+                zoom={zoom}
+                offset={offset}
+                box={box}
+                heightClass={WIZARD_PANEL_HEIGHT_CLASS}
+                fileInputRef={fileInputRef}
+                onFileChange={handleFile}
+                saving={saving}
+                onPointerDown={step === 'focal' && isFramePhase ? handlePointerDown : undefined}
+                onPointerMove={step === 'focal' && isFramePhase ? handlePointerMove : undefined}
+                onPointerUp={step === 'focal' && isFramePhase ? handlePointerUp : undefined}
+                onWheel={step === 'focal' && isFramePhase ? handleWheel : undefined}
+                onImageLoad={handleImageLoad}
+                onClick={step === 'focal' && phase === 'mark-placing' ? handleMarkTap : undefined}
+              >
+                {/* --- Rule-of-thirds grid (every stage, toggled in focal) --- */}
+                {showGrid && (
+                  <g className="pointer-events-none opacity-30">
+                    <line x1="333.33" y1="0" x2="333.33" y2="1000" stroke="white" strokeWidth="2" />
+                    <line x1="666.66" y1="0" x2="666.66" y2="1000" stroke="white" strokeWidth="2" />
+                    <line x1="0" y1="333.33" x2="1000" y2="333.33" stroke="white" strokeWidth="2" />
+                    <line x1="0" y1="666.66" x2="1000" y2="666.66" stroke="white" strokeWidth="2" />
+                  </g>
+                )}
+
+                {/* --- Focal point selection: the sketcher's reticles --- */}
+                {step === 'focal' && (
+                  <g className="pointer-events-none">
+                    {reticles.map((r) => (
+                      <Reticle key={r.i} x={r.x} y={r.y} />
+                    ))}
+                  </g>
+                )}
+
+                {/* --- AI guidance: overlays, off until turned on --- */}
+                {step === 'guidance' && (
+                  <>
+                    <ShapeOutlineOverlay focalRegions={focalAreas.mode !== 'none' ? analysis?.focal_regions || [] : []} />
+                    <PerspectiveLinesOverlay lines={perspectiveLines.mode !== 'none' ? analysis?.perspective_lines || [] : []} />
+                  </>
+                )}
+              </ImagePanel>
+
+              {/* --- AI guidance: overlay toggles --- */}
+              {step === 'guidance' && (
+                <div className="flex gap-2 px-3 md:px-4">
+                  <Button
+                    variant="pill"
+                    active={perspectiveLines.mode !== 'none'}
+                    onClick={perspectiveLines.toggle}
+                    disabled={!analysis?.perspective_lines?.length}
+                    className="font-medium"
+                  >
+                    Perspective lines
+                  </Button>
+                  <Button
+                    variant="pill"
+                    active={focalAreas.mode !== 'none'}
+                    onClick={focalAreas.toggle}
+                    disabled={!analysis?.focal_regions?.length}
+                    className="font-medium"
+                  >
+                    Focal shapes
+                  </Button>
                 </div>
-    
-              
-              ) : step === 'capture' && sketchId ? (
-                <FocalSpotPicker
-                  phase={phase}
-                  onRetake={setShowRetakeConfirm}
-                  ownPoints={ownPoints}
-                  ownPointCap={OWN_POINT_CAP}
-                  onSkip={() => setStep('style')}
-                  onMarkContinue={handleMarkContinue}
-                  pendingMarkQuestions={pendingMarkQuestions}
-                  markQuestionPos={markQuestionPos}
-                  regions={regions}
-                  answerMarkQuestion={answerMarkQuestion}
-                  showGrid={showGrid}
-                  setShowGrid={setShowGrid}
-                  minZoom={MIN_ZOOM}
-                  maxZoom={MAX_ZOOM}
-                  zoom={zoom}
-                  handleZoomSliderStart={handleZoomSliderStart}
-                  handleZoomSliderChange={handleZoomSliderChange}
-                  handleZoomSliderCommit={handleZoomSliderCommit}
-                  handleConfirmFrame={handleConfirmFrame}
-                  saving={saving}
-                  frameQuestionPos={frameQuestionPos}
-                  frameQuestionQueue={frameQuestionQueue}
-                  anchorLabel={anchorLabel}
-                  handleFrameKeep={handleFrameKeep}
-                  handleFrameRemove={handleFrameRemove}
-                  error={error}
-                />
-              ) : (
-
-                <StylePicker
-                  style={style}
-                  analyzing={analyzing}
-                  error={error}
-                  onSelectStyle={handleStyleSelect}
-                />
-
               )}
-            </div>
-          </div>
+            </div>{/* ===== END LEFT PANEL ===== */}
 
+            {/* ===== RIGHT PANEL: controls for the current stage ===== */}
+            {step !== 'guidance' ? (
+              <div className="flex flex-col justify-center gap-4 bg-white p-5 text-ink md:p-6">
 
-          )}
+                {/* --- Capture --- */}
+                {step === 'capture' && (
+                  <div>
+                    <p className="text-xs text-ink/60">
+                      Add a photo and tell us what caught your attention.
+                    </p>
+                    {error && <p className="text-sm text-accent">{error}</p>}
+                  </div>
+                )}
+
+                {/* --- Focal point selection + crop/pan/zoom --- */}
+                {step === 'focal' && (
+                  <FocalSpotPicker
+                    phase={phase}
+                    onRetake={setShowRetakeConfirm}
+                    ownPoints={ownPoints}
+                    ownPointCap={OWN_POINT_CAP}
+                    onSkip={() => setStep('style')}
+                    onMarkContinue={handleMarkContinue}
+                    pendingMarkQuestions={pendingMarkQuestions}
+                    markQuestionPos={markQuestionPos}
+                    regions={regions}
+                    answerMarkQuestion={answerMarkQuestion}
+                    showGrid={showGrid}
+                    setShowGrid={setShowGrid}
+                    minZoom={MIN_ZOOM}
+                    maxZoom={MAX_ZOOM}
+                    zoom={zoom}
+                    handleZoomSliderStart={handleZoomSliderStart}
+                    handleZoomSliderChange={handleZoomSliderChange}
+                    handleZoomSliderCommit={handleZoomSliderCommit}
+                    handleConfirmFrame={handleConfirmFrame}
+                    saving={saving}
+                    frameQuestionPos={frameQuestionPos}
+                    frameQuestionQueue={frameQuestionQueue}
+                    anchorLabel={anchorLabel}
+                    handleFrameKeep={handleFrameKeep}
+                    handleFrameRemove={handleFrameRemove}
+                    error={error}
+                  />
+                )}
+
+                {/* --- Pick a style (fires the scene analysis call) --- */}
+                {step === 'style' && (
+                  <StylePicker
+                    style={style}
+                    analyzing={analyzing}
+                    error={error}
+                    onSelectStyle={handleStyleSelect}
+                  />
+                )}
+              </div>
+            ) : (
+              /* --- AI guidance: brings its own panel --- */
+              <AIGuidance
+                sketchId={sketchId}
+                referenceImageUrl={referenceImageUrl || originalImageUrl}
+                style={style}
+                analysis={analysis}
+                onFinished={handleFinishWizard}
+              />
+            )}{/* ===== END RIGHT PANEL ===== */}
         </div>
+        
       </div>
     </div>
   )

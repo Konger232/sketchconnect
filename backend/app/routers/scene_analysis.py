@@ -4,6 +4,7 @@ Section 5, steps 1-4; schema: gemini_call_schemas.md #1).
 """
 import io
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from PIL import Image
@@ -27,6 +28,8 @@ from config import MAX_IMAGE_DIMENSION
 pillow_heif.register_heif_opener()
 
 router = APIRouter(prefix="/api", tags=["scene-analysis"])
+
+UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
 
 RESPONSE_SCHEMA = {
     "type": "object",
@@ -217,7 +220,16 @@ def _build_prompt(style: str, crop_transform: dict | None = None) -> str:
 async def scene_analysis(
     sketch_id: str = Form(...),
     style: str = Form(...),
-    image: UploadFile = File(...),
+    # Optional now: both call sites (CreateSketch.jsx right after
+    # upload, EditSketch.jsx's "Resume AI-guided questions") are calling
+    # this for a sketch whose reference photo is already on disk, so
+    # there's no need to have the browser fetch it back from /uploads
+    # and re-post it here -- that round trip is redundant work and, for
+    # a same-origin-port-mismatched dev setup, a needless cross-origin
+    # fetch that CORS can legitimately block. Kept accepting a direct
+    # upload for backward compatibility / any future caller that has
+    # fresh bytes the server doesn't have yet.
+    image: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
@@ -252,11 +264,20 @@ async def scene_analysis(
             db.commit()
         return sketch.cached_scene_analysis
 
-    contents = await image.read()
-    try:
-        pil_image = Image.open(io.BytesIO(contents)).convert("RGB")
-    except Exception:
-        raise HTTPException(400, "Could not decode image")
+    if image is not None:
+        contents = await image.read()
+        try:
+            pil_image = Image.open(io.BytesIO(contents)).convert("RGB")
+        except Exception:
+            raise HTTPException(400, "Could not decode image")
+    else:
+        if not sketch.reference_image_url:
+            raise HTTPException(400, "This sketch has no reference photo on file")
+        image_path = UPLOAD_DIR / Path(sketch.reference_image_url).name
+        try:
+            pil_image = Image.open(image_path).convert("RGB")
+        except Exception:
+            raise HTTPException(400, "Could not load this sketch's photo")
 
     location, captured_at = extract_location_and_time(pil_image)
     pil_image = _resize_if_needed(pil_image)

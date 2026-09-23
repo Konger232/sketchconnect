@@ -15,7 +15,8 @@ from PIL import Image
 from config import GEMINI_MODEL
 
 USE_MOCK_GEMINI = os.getenv("USE_MOCK_GEMINI", "false").lower() == "true"
-MOCK_RESPONSE_PATH = Path(__file__).parent / "mockdata" / "mock_scene_analysis.json"
+# One mock file per call type: mockdata/mock_<mock_name>.json
+MOCK_DIR = Path(__file__).parent / "mockdata"
 
 
 def _configure():
@@ -25,18 +26,22 @@ def _configure():
     genai.configure(api_key=api_key)
 
 
-def _mock_gemini_response():
-    raw_text = MOCK_RESPONSE_PATH.read_text()
+def _mock_gemini_response(mock_name: str):
+    raw_text = (MOCK_DIR / f"mock_{mock_name}.json").read_text()
     result = json.loads(raw_text)
     return result, raw_text
 
 
 def call_gemini_json_with_raw(
-    prompt: str, response_schema: dict, image: Image.Image | None = None
+    prompt: str,
+    response_schema: dict,
+    image: Image.Image | None = None,
+    mock_name: str = "scene_analysis",
 ) -> tuple[dict, str]:
-    """Return the raw Gemini response to the GUI"""
+    """Return the raw Gemini response to the GUI.
+    In mock mode, `mock_name` picks the mock file that matches this call."""
     if USE_MOCK_GEMINI:
-        return _mock_gemini_response()
+        return _mock_gemini_response(mock_name)
 
     _configure()
     model = genai.GenerativeModel(
@@ -80,10 +85,15 @@ def call_gemini_json_with_raw(
     return json.loads(text), raw_text
 
 
-def call_gemini_json(prompt: str, response_schema: dict, image: Image.Image | None = None) -> dict:
+def call_gemini_json(
+    prompt: str,
+    response_schema: dict,
+    image: Image.Image | None = None,
+    mock_name: str = "scene_analysis",
+) -> dict:
     """Existing public shape — parsed dict only. Unchanged for every
     caller that doesn't need the raw text (Persona, Critique, Help Quest)."""
-    parsed, _raw_text = call_gemini_json_with_raw(prompt, response_schema, image)
+    parsed, _raw_text = call_gemini_json_with_raw(prompt, response_schema, image, mock_name)
     return parsed
 
 

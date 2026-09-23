@@ -50,6 +50,9 @@ class Sketch(Base):
     reference_image_url = Column(String, nullable=True)
     final_sketch_url = Column(String, nullable=True)
     final_sketch_provided = Column(Boolean, default=False)
+    # Critique call progress: None (never run) | 'pending' | 'done' | 'failed'.
+    # Set by routers/critique.py, polled by EditSketch.jsx.
+    critique_status = Column(String, nullable=True)
 
     # geography(Point, 4326) — see design doc, Section 3 "Location capture"
     location = Column(Geography(geometry_type="POINT", srid=4326), nullable=True)
@@ -86,6 +89,9 @@ class Sketch(Base):
     # routers/sketches.py's focal_frame endpoint). Null until that flow has
     # been completed at least once for this sketch.
     focal_points = Column(JSON, nullable=True)
+    # Guided-question answers, one {prompt, response} per pick, appended
+    # by POST /api/sketches/{id}/session-choices. Read by the critique call.
+    session_choices = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

@@ -130,8 +130,9 @@
  * Focal-area marking design tokens (sketcher-marked vs. Gemini-suggested
  */
 :root {
-  --focal-accent-user: #fff01f;   /* sketcher's own marked anchor */
+  --focal-accent-user: #FF073A;   /* sketcher's own marked anchor */
   --focal-accent-ai: #39ff14;     /* Gemini-suggested anchor, before adoption */
-  --focal-reticle-stroke-width: 1px;
-  --focal-reticle-stroke-opacity: 0.95;
+  --focal-reticle-stroke-width: 2px;
+  --focal-reticle-stroke-opacity: 1;
+  --focal-reticle-fill-opacity: 0.4;
 }

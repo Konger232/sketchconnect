@@ -6,6 +6,17 @@ export default function ImagePanel({
   svgRef,
   boxSize,
   imageUrl,
+  // Only CreateSketch.jsx's crop step actually needs this -- it later
+  // draws this exact <img> onto a canvas (bakeCrop, via imgRef) to
+  // produce the cropped/framed image, and a canvas tainted by a
+  // cross-origin image with no CORS attribute throws on export. A
+  // read-only display (AIGuidance, focal points,
+  // etc.) never touches canvas pixels, and forcing crossOrigin="anonymous"
+  // there just adds a real CORS check the browser doesn't otherwise
+  // require for a plain <img> -- if that check fails for any reason, the
+  // image silently never loads (onLoad never fires, box stays null, and
+  // ImagePanel renders it at 1px/opacity:0 below).
+  crossOrigin,
   zoom = 1,
   offset = { x: 0, y: 0 },
   box,
@@ -69,7 +80,7 @@ export default function ImagePanel({
         ref={imgRef}
         src={imageUrl}
         alt=""
-        crossOrigin="anonymous"
+        crossOrigin={crossOrigin}
         draggable={false}
         onLoad={onImageLoad}
         style={

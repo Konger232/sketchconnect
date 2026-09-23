@@ -13,7 +13,7 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, Form, HTTPException
 from PIL import Image, ImageOps
 import pillow_heif
 from sqlalchemy.orm import Session
@@ -23,11 +23,12 @@ from geoalchemy2.functions import ST_Distance, ST_DWithin
 
 from ..database import get_db
 from ..auth import get_current_sketcher_id, get_optional_sketcher_id
-from ..models import Sketch, CritiqueResponse
-from ..schemas import SketchUpdateRequest, SketcherFocalPointInput, FocalRegion
+from ..models import Sketch, CritiqueResponse, Profile
+from ..schemas import SketchUpdateRequest, SketcherFocalPointInput, FocalRegion, SessionChoice
 from ..services.exif_utils import extract_location_and_time
 from ..services.focal_pairing import pair_focal_points
 from ..services.value_study import compute_value_study
+from .critique import start_critique
 
 # Registered again here (also done in scene_analysis.py) so this module
 # decodes HEIC/HEIF correctly even if imported before that one — the
@@ -340,6 +341,65 @@ async def save_focal_frame(
     return _sketch_to_dict(sketch)
 
 
+@router.post("/sketches/{sketch_id}/session-choices")
+async def add_session_choice(
+    sketch_id: str,
+    body: SessionChoice,
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """Append one guided-question answer. Read later by the critique call."""
+    sketch = db.query(Sketch).filter(
+        Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
+    ).first()
+    if sketch is None:
+        raise HTTPException(404, "Sketch not found")
+    # Assign a new list. SQLAlchemy doesn't detect in-place edits to a JSON column.
+    sketch.session_choices = [*(sketch.session_choices or []), body.model_dump()]
+    db.commit()
+    return {"count": len(sketch.session_choices)}
+
+
+@router.post("/sketches/{sketch_id}/final-sketch")
+async def upload_final_sketch(
+    sketch_id: str,
+    background_tasks: BackgroundTasks,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """
+    Save the sketcher's final sketch, then start the critique call in the
+    background. Returns right away with critique_status 'pending'.
+    A newer upload replaces the old file and runs the critique again.
+    """
+    sketch = db.query(Sketch).filter(
+        Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
+    ).first()
+    if sketch is None:
+        raise HTTPException(404, "Sketch not found")
+    if sketch.critique_status == "pending":
+        raise HTTPException(409, "Feedback is still being prepared for the last upload")
+
+    contents = await image.read()
+    try:
+        pil_image = ImageOps.exif_transpose(Image.open(io.BytesIO(contents))).convert("RGB")
+    except Exception:
+        raise HTTPException(400, "Could not decode final sketch image")
+
+    filename = f"{uuid.uuid4()}.jpg"
+    pil_image.save(UPLOAD_DIR / filename, format="JPEG", quality=90)
+    _delete_upload_file(sketch.final_sketch_url)
+    sketch.final_sketch_url = f"/uploads/{filename}"
+    sketch.final_sketch_provided = True
+
+    start_critique(db, sketch, background_tasks)  # commits
+    db.refresh(sketch)
+    data = _sketch_to_dict(sketch)
+    data["critique_status"] = sketch.critique_status
+    return data
+
+
 @router.get("/sketches/{sketch_id}/value-study")
 async def sketch_value_study(
     sketch_id: str,
@@ -417,7 +477,7 @@ async def delete_sketch(
     if sketch is None:
         raise HTTPException(404, "Sketch not found")
 
-    for url in {sketch.original_image_url, sketch.reference_image_url}:
+    for url in {sketch.original_image_url, sketch.reference_image_url, sketch.final_sketch_url}:
         _delete_upload_file(url)
 
     db.delete(sketch)
@@ -505,8 +565,18 @@ async def get_sketch(
         raise HTTPException(404, "Sketch not found")
 
     is_owner = sketcher_id is not None and sketcher_id == sketch.sketcher_id
+
+    # The sketch owner's public name and avatar, shown at the top of the
+    # sketch's right panel. Public, like the profile itself.
+    owner_profile = db.query(Profile).filter(Profile.id == sketch.sketcher_id).first()
+    owner = {
+        "display_name": owner_profile.display_name if owner_profile else None,
+        "avatar_url": owner_profile.avatar_url if owner_profile else None,
+    }
+
     if not is_owner:
         data = _sketch_to_dict(sketch)
+        data["owner"] = owner
         data["is_owner"] = False
         return data
 
@@ -526,5 +596,7 @@ async def get_sketch(
         }
         for c in critiques
     ]
+    data["owner"] = owner
+    data["critique_status"] = sketch.critique_status
     data["is_owner"] = True
     return data

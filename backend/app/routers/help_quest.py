@@ -52,7 +52,7 @@ async def help_quest(
         "a nudge, not a lecture."
     )
 
-    result = call_gemini_json(prompt, RESPONSE_SCHEMA, pil_image)
+    result = call_gemini_json(prompt, RESPONSE_SCHEMA, pil_image, mock_name="help_quest")
 
     db.add(HelpQuestLog(
         sketch_id=sketch_id,

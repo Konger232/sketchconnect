@@ -1,0 +1,16 @@
+{
+  "prior_review_summary": "First review for this sketch.",
+  "decision_trace": {
+    "carried_through": [
+      "Kept the focal point on the main building, as marked during framing."
+    ],
+    "shifted": [
+      "Chose a looser line than the guided answers suggested."
+    ],
+    "instinct_only": [
+      "Added figures in the foreground without asking for help."
+    ]
+  },
+  "critique": "[MOCK] Your framing held up well. The building you marked stays the clear focal point, and the lighter foreground lets it breathe. Look at how the value contrast is strongest where you chose to focus. That is emphasis working for you.",
+  "final_sketch_provided": true
+}
