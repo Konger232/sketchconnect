@@ -4,28 +4,9 @@ import { relativeTime } from '../../lib/relativeTime'
 import { getSketchStatus } from '../../lib/sketchStatus'
 import { api } from '../../lib/api'
 
-// Same pattern already used on SketchFlowPage.jsx and EditSketch.jsx:
-// reference_image_url is a relative "/uploads/..." path from FastAPI, not
-// the Vite dev server, so it needs the API's own origin prefixed -- without
-// this it resolves against the frontend's origin instead and 404s.
+// Baked image
 const resolveImageUrl = (url) => (url?.startsWith('http') ? url : `${api.defaults.baseURL}${url}`)
 
-/**
- * Merged replacement for the old SpotCard.jsx + SketchCard.jsx split --
- * both existed only because SpotCard's compact grid-tile layout (the one
- * actually used on both Home feeds) never got wired to real API data or a
- * click-through, while SketchCard's data-wiring/dot-carousel logic lived
- * in a fuller row layout nothing currently used. This keeps SpotCard's
- * simple tile (photo, heart-save, title, location/time beneath) and
- * SketchCard's real-data plumbing: resolving reference_image_url/images[]
- * against the API's own origin, and now a real Link to the detail page
- * instead of the dead onClick both cards used to take.
- *
- * The heart/save toggle is local UI state only -- there's no favorites
- * endpoint yet, so it doesn't persist across a reload. Left in since it
- * was part of the original Claude Design import; flag if that's confusing
- * rather than decorative.
- */
 export default function SketchCard({ sketch }) {
   const images = sketch.images?.length
     ? sketch.images.map(resolveImageUrl)
@@ -35,9 +16,7 @@ export default function SketchCard({ sketch }) {
   const activeImage = images[index % Math.max(images.length, 1)]
   const status = getSketchStatus(sketch)
   const location = useLocation()
-  // Same backgroundLocation pattern Header.jsx uses for /capture -- keeps
-  // this feed page mounted underneath so the sketch opens as an overlay
-  // (EditSketch.jsx) instead of navigating away from it.
+  
   const sketchLinkState = { backgroundLocation: location }
 
   return (
@@ -53,7 +32,7 @@ export default function SketchCard({ sketch }) {
         >
           {liked ? '♥' : '♡'}
         </span>
-        <span className="absolute left-2.5 top-2.5 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-medium text-white">
+        <span className="absolute left-2.5 top-2.5 rounded-full bg-black/60 px-2 py-0.5 text-3xs font-medium text-white">
           {status}
         </span>
         {images.length > 1 && (
@@ -71,10 +50,10 @@ export default function SketchCard({ sketch }) {
           </div>
         )}
       </div>
-      <div className="mt-2.5 pl-2.5 font-heading text-[17px] font-bold text-ink">
+      <div className="mt-2.5 pl-2.5 font-heading text-base font-bold text-ink">
         {sketch.title || 'Untitled sketch'}
       </div>
-      <div className="pl-2.5 text-sm text-ink/50">{relativeTime(sketch.created_at)}</div>
+      <div className="pl-2.5 text-3xs text-ink/50">{relativeTime(sketch.created_at)}</div>
     </Link>
   )
 }

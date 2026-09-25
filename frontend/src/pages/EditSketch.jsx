@@ -9,15 +9,11 @@ import RuleOfThirdsGrid from '../components/analysis/RuleOfThirdsGrid'
 import AIGuidance from '../components/analysis/AIGuidance'
 import { WIZARD_IMAGE_MAX_WIDTH_CLASS, WIZARD_PANEL_HEIGHT_CLASS } from '../lib/wizardLayout'
 import { api } from '../lib/api'
+import { STYLES, sceneTypeLabel } from '../data/styles'
 import icoEdit from '../assets/images/ico-pencil.png'
 
 // Frontend name for the AI guided questions. One place to rename it.
 const GUIDANCE_LABEL = 'Observation guide'
-
-// Shared right-panel styles
-const SECTION_CLASS = 'px-4'
-const LABEL_CLASS = 'text-xs font-semibold uppercase tracking-wide text-white/50'
-const INPUT_CLASS = 'mt-1 w-full rounded-lg border border-white/15 bg-gray-800 px-4 py-2.5 text-sm text-white/80 transition-colors focus:border-white/40'
 
 function resolveUrl(url) {
   if (!url) return url
@@ -31,6 +27,22 @@ function Shell({ children }) {
       <div className="relative flex h-full w-full flex-col bg-black text-white md:h-[640px] md:w-[960px] md:max-h-[90vh] md:max-w-[95vw] md:overflow-hidden md:rounded-2xl">
         {children}
       </div>
+    </div>
+  )
+}
+
+// Read-only pills under the title: the chosen style and the scene type
+// the scene analysis call detected. Scene type stays hidden until the
+// analysis has run.
+const TAG_CLASS = 'rounded-full bg-white/15 px-3 py-1 text-3xs text-white/70'
+
+function SketchTags({ sketch }) {
+  const styleLabel = STYLES.find((s) => s.value === sketch.style)?.label
+  const sceneLabel = sceneTypeLabel[sketch.scene_type]
+  return (
+    <div className="flex flex-wrap gap-2">
+      <span className={TAG_CLASS}>{styleLabel || 'No style yet'}</span>
+      {sceneLabel && <span className={TAG_CLASS}>{sceneLabel}</span>}
     </div>
   )
 }
@@ -220,6 +232,10 @@ export default function EditSketch() {
     const opening = !guidanceOpen
     setGuidanceOpen(opening)
     if (!opening || analysis) return
+    if (!sketch.style) {
+      setGuidanceError('Pick a style for this sketch first.')
+      return
+    }
     setAnalyzing(true)
     setGuidanceError(null)
     try {
@@ -228,6 +244,7 @@ export default function EditSketch() {
       form.append('style', sketch.style)
       const { data } = await api.post('/api/scene-analysis', form)
       setAnalysis(data)
+      setSketch((prev) => ({ ...prev, scene_type: data.scene_type }))
     } catch (err) {
       setGuidanceError(err.response?.data?.detail || `Could not start the ${GUIDANCE_LABEL.toLowerCase()} right now.`)
     } finally {
@@ -472,30 +489,34 @@ export default function EditSketch() {
               {sketch.owner?.avatar_url ? (
                 <img src={sketch.owner.avatar_url} alt="" className="h-full w-full object-cover" />
               ) : (
-                <span className="font-mono text-[8px] text-white/60">photo</span>
+                <span className="font-mono text-3xs text-white/60">photo</span>
               )}
             </div>
             <span className="text-sm font-semibold">{sketch.owner?.display_name || 'Sketcher'}</span>
           </div>
 
+          {/* Everything below the header shares the panel padding (panel-body in index.css). */}
+          <div className="panel-body">
           {!isOwner ? (
             <>
               {/* ===== VIEWER ===== */}
 
+              {/* Seleteed Style and Detected Scene Type */}
+              <SketchTags sketch={sketch} />
               {/* --- Title --- */}
-              <h2 className={`${SECTION_CLASS} text-lg font-bold text-white/80`}>{sketch.title || 'Untitled sketch'}</h2>
+              <h2 className="text-lg font-bold text-white/80">{sketch.title || 'Untitled sketch'}</h2>
 
               {/* --- Date and time --- */}
-              <div className={SECTION_CLASS}>
-                <span className={LABEL_CLASS}>Date &amp; time</span>
+              <div>
+                <span className="panel-label">Date &amp; time</span>
                 <p className="mt-1 text-sm text-white/80">
                   {sketch.captured_at ? new Date(sketch.captured_at).toLocaleString() : 'Not set'}
                 </p>
               </div>
 
               {/* --- Location --- */}
-              <div className={SECTION_CLASS}>
-                <span className={LABEL_CLASS}>Location</span>
+              <div>
+                <span className="panel-label">Location</span>
                 <div className="mt-1">
                   {sketch.location ? (
                     <LocationMap lat={sketch.location.lat} lon={sketch.location.lon} label={sketch.title} />
@@ -512,26 +533,28 @@ export default function EditSketch() {
               {/* --- Title + field notes (read-only until Edit) --- */}
               {isEditing ? (
                 <>
-                  <label className={`block ${SECTION_CLASS}`}>
-                    <span className={LABEL_CLASS}>Title</span>
-                    <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Untitled sketch" className={INPUT_CLASS} />
+                  <label className="block">
+                    <span className="panel-label">Title</span>
+                    <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Untitled sketch" className="panel-input" />
                   </label>
-                  <label className={`block ${SECTION_CLASS}`}>
-                    <span className={LABEL_CLASS}>Field notes</span>
+                  <label className="block">
+                    <span className="panel-label">Field notes</span>
                     <textarea
                       value={fieldNotes}
                       onChange={(e) => setFieldNotes(e.target.value)}
                       placeholder="Optional. Add this whenever you like."
                       rows={4}
-                      className={INPUT_CLASS}
+                      className="panel-input"
                     />
                   </label>
                 </>
               ) : (
                 <>
-                  <h2 className={`${SECTION_CLASS} text-lg font-bold text-white/80`}>{sketch.title || 'Untitled sketch'}</h2>
+                  <SketchTags sketch={sketch} />
+                  <h2 className="text-lg font-bold text-white/80">{sketch.title || 'Untitled sketch'}</h2>
+                  
                   {sketch.field_notes && (
-                    <p className={`${SECTION_CLASS} whitespace-pre-line text-sm leading-relaxed text-white/80`}>{sketch.field_notes}</p>
+                    <p className="whitespace-pre-line text-sm leading-relaxed text-white/80">{sketch.field_notes}</p>
                   )}
                 </>
               )}
@@ -539,8 +562,8 @@ export default function EditSketch() {
               {/* --- Location (read-only until Edit) --- */}
               {/* Prefilled from the photo's GPS data. In Edit, search to
                   change it, or clear it with the X. */}
-              <div className={SECTION_CLASS}>
-                <span className={LABEL_CLASS}>Location</span>
+              <div>
+                <span className="panel-label">Location</span>
                 <div className="mt-1">
                   {isEditing ? (
                     <LocationSearchField location={sketchLocation} onLocationChange={setSketchLocation} dark />
@@ -553,15 +576,15 @@ export default function EditSketch() {
               </div>
 
               {/* --- Final sketch: upload (shown in the slideshow) --- */}
-              <div className={SECTION_CLASS}>
-                <span className={LABEL_CLASS}>Final sketch</span>
+              <div>
+                <span className="panel-label">Final sketch</span>
                 <Button variant="outlineOnDark" size="sm" className="mt-2 w-full" onClick={openUploadOverlay} disabled={critiquePending}>
                   {sketch.final_sketch_url ? 'Upload a newer final sketch' : 'Upload final sketch'}
                 </Button>
               </div>
 
               {/* --- Observation guide (AIGuidance), collapsible --- */}
-              <div className="border-y border-white/20">
+              <div className="-mx-4 border-y border-white/20">
                 <button
                   type="button"
                   onClick={handleToggleGuidance}
@@ -591,8 +614,8 @@ export default function EditSketch() {
               </div>
 
               {/* --- Feedback (critique call, runs in the background) --- */}
-              <div className={SECTION_CLASS}>
-                <span className={LABEL_CLASS}>Feedback</span>
+              <div>
+                <span className="panel-label">Feedback</span>
                 {critiquePending ? (
                   <p className="mt-2 animate-pulse text-sm text-white/60">Reviewing your whole journey. This can take a minute…</p>
                 ) : sketch.critique_status === 'failed' ? (
@@ -612,22 +635,23 @@ export default function EditSketch() {
               {/* --- Save + delete (Edit only) --- */}
               {isEditing && (
                 <>
-                  <div className={SECTION_CLASS}>
+                  <div>
                     {saveError && <p className="mb-2 text-xs text-accent">{saveError}</p>}
                     <Button variant="primaryOnDark" size="sm" className="w-full" onClick={handleSave} disabled={saving}>
                       {saving ? 'Saving…' : 'Save'}
                     </Button>
                   </div>
-                  <div className={SECTION_CLASS}>
+                  <div>
                     <Button variant="danger" size="sm" className="w-full font-medium" onClick={() => setConfirmingDelete(true)}>
                       Delete sketch
                     </Button>
                   </div>
                 </>
               )}
-              {savedJustNow && <p className={`${SECTION_CLASS} text-xs text-white/60`}>Saved ✓</p>}
+              {savedJustNow && <p className="text-xs text-white/60">Saved ✓</p>}
             </>
           )}
+          </div>
         </div>{/* ===== END RIGHT PANEL ===== */}
       </div>
     </Shell>

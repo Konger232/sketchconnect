@@ -54,7 +54,7 @@ export default function NavDrawer({ open, onClose }) {
               {profile?.avatar_url ? (
                 <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
               ) : (
-                <span className="font-mono text-[9px] text-white/60">photo</span>
+                <span className="font-mono text-3xs text-white/60">photo</span>
               )}
             </div>
             <span className="text-lg font-semibold text-white">{displayName}</span>

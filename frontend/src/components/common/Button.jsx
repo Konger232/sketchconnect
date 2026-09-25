@@ -1,24 +1,4 @@
-// The one shared <Button> used everywhere in the app 
-//
-// `variant` covers every button *shape* in the app now, not just the
-// original solid/outline/ghost/danger action buttons:
-// - `link` / `linkOnDark` -- a plain text link with no padding or
-//   background, for a light-panel or dark-panel context respectively
-//   (modal-header "Cancel"/"Close", "Skip this step", etc).
-// - `pill` / `pillOnLight` -- the rounded-full toggle-pill pattern
-//   (view-mode switches, style picker, grid toggle) on a dark photo
-//   panel or a light control panel respectively. Pass `active` to
-//   switch between its filled/selected state and its dim/unselected
-//   one; pills with no real on/off state (a plain static pill, or one
-//   that always reads as "not yet active") can just pass
-//   `active={false}`.
-// `link*`/`pill*` opt out of the standard `sizes` padding (they carry
-// their own spacing) rather than trying to override it via className
-// -- two Tailwind utilities touching the same CSS property don't
-// reliably resolve in class-attribute order, so overriding padding or
-// border-radius from the outside isn't safe to rely on. Font-weight is
-// deliberately left out of every variant for the same reason -- pass
-// it yourself via className (e.g. `font-medium`, `font-semibold`).
+
 export default function Button({ variant = 'primary', size = 'md', active = false, className = '', ...props }) {
   const isLink = variant === 'link' || variant === 'linkOnDark'
   const isPill = variant === 'pill' || variant === 'pillOnLight'
@@ -47,7 +27,7 @@ export default function Button({ variant = 'primary', size = 'md', active = fals
     sm: 'px-3 py-1 text-xs',
   }
 
-  const spacing = isLink ? '' : isPill ? 'px-3 py-1.5 text-[10px]' : sizes[size]
+  const spacing = isLink ? '' : isPill ? 'px-3 py-1.5 text-2xs' : sizes[size]
 
   return <button className={`${base} ${spacing} ${variants[variant]} ${className}`} {...props} />
 }

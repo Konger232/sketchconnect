@@ -2,50 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/*
- * Leaflet's own bundled CSS (leaflet/dist/leaflet.css) hardcodes
- * .leaflet-top/.leaflet-bottom (the zoom/attribution control container)
- * at z-index: 1000, with its internal tile/marker/popup panes at
- * z-index: 200-800. Leaflet's JS gives the map's root .leaflet-container
- * div `position: relative` at init, but never an explicit z-index -- and
- * position:relative with z-index left at its default `auto` does NOT
- * establish a new CSS stacking context. So none of those numbers are
- * actually contained "inside the map": they compete directly against
- * every other positioned element on the page, in whatever ancestor
- * stacking context the map happens to share with them.
- *
- * That's why a map anywhere on the page could render on top of the sticky
- * Header (z-[100]) despite the header's z-index looking plenty high, and
- * why NavDrawer, CapturePage's modal, and SketchDetailPage's floating AI
- * button all needed their own z-index pushed above 1000 just to stay on
- * top of a map -- each was a symptom of the same root cause, fixed one at
- * a time instead of at the source.
- *
- * Giving .leaflet-container its own explicit z-index (any value) makes it
- * establish a stacking context of its own, so every z-index inside it --
- * including that 1000 -- is trapped there and compared only against the
- * map's own children, never against the rest of the page. This is the
- * actual fix; the z-index bumps on NavDrawer/CapturePage/the AI button
- * are harmless now but no longer the thing doing the work.
- */
+/* Map */
 .leaflet-container {
   position: relative;
   z-index: 0;
 }
-
-/*
- * Centralized typography defaults for generic elements (h1/h2/h3, body
- * text, form labels). Every rule here lives in Tailwind's `base` layer,
- * which is always compiled BEFORE `components` and `utilities` -- so any
- * component that adds its own Tailwind utility class (e.g. a standalone
- * dark-themed screen like the capture wizard/AI flow, which intentionally
- * looks different) always wins over these defaults with zero specificity
- * fights. That's what makes it safe to delete one-off text-size classes
- * from ordinary light-theme pages and just use bare <h1>/<label> tags: the
- * only components that still need their own inline sizing are ones that
- * are deliberately breaking from the shared look, not ones that forgot to.
- */
-
 
 @layer base {
   body {
@@ -103,11 +64,7 @@
     @apply h-1.5 w-1.5 cursor-pointer rounded-full border-0 p-0;
   }
 
-  /* Formerly .sc-pin -- the CSS-drawn location marker (SketchCard).
-     Needs a real class rather than inline Tailwind since the white
-     center dot is a ::after pseudo-element. Recolored onto the shared
-     `accent` token instead of base.css's separate --sc-accent-strong
-     red, so there's one red in the app rather than two near-duplicates. */
+  /* map */
   .map-pin {
     @apply relative inline-block h-3 w-3 shrink-0 bg-accent;
     border-radius: 50% 50% 50% 0;
@@ -124,6 +81,33 @@
     background: #fff;
     transform: translate(-50%, -50%);
   }
+
+    /* AI guided prompts: AIGuidance.jsx, ColorPalettePicker.jsx */
+  .ai-mascot   { @apply h-5 w-5 md:h-4 md:w-4; }
+  .ai-close    { @apply text-xl leading-none md:text-lg text-white/50 transition-colors hover:text-white; }
+
+  .ai-question { @apply text-base font-semibold leading-snug md:text-sm; }
+  .ai-options  { @apply flex flex-col gap-2 md:gap-1.5; }
+  .ai-option   { @apply rounded-xl border border-white/15 text-white/80 text-left transition-all duration-150
+                        hover:bg-white/10 active:scale-[0.98]
+                        px-4 py-2.5 text-sm md:px-3 md:py-2 md:text-xs; }
+
+  .ai-help-heading { @apply text-base font-semibold md:text-sm; }
+  .ai-help-text    { @apply text-sm md:text-xs; }
+  .ai-help-input   { @apply px-3 py-2 text-sm md:px-2.5 md:py-1.5 md:text-xs; }
+
+  .palette-heading { @apply text-base font-semibold md:text-sm; }
+  .palette-grid    { @apply grid grid-cols-3 gap-3 md:gap-2; }
+  .palette-swatch  { @apply h-16 w-16 md:h-12 md:w-12; }
+  .palette-label   { @apply text-xs font-medium md:text-2xs; }
+
+
+  /* Dark right panel, shared by EditSketch and CreateSketch. */
+  /* Padding and spacing for everything below the panel header. */
+  .panel-body    { @apply flex flex-col gap-4 px-4; }
+  .panel-label   { @apply text-xs font-semibold uppercase tracking-wide text-white/50; }
+  .panel-input   { @apply mt-1 w-full rounded-lg border border-white/15 bg-gray-800 px-4 py-2.5
+                          text-sm text-white/80 transition-colors focus:border-white/40; }
 }
 
 /*
@@ -135,4 +119,24 @@
   --focal-reticle-stroke-width: 2px;
   --focal-reticle-stroke-opacity: 1;
   --focal-reticle-fill-opacity: 0.4;
+
+  /* Master knob: scales all text, not spacing. 1 = the sizes below. */
+  --font-scale: 1;
+
+  /* Type scale (Instagram reference: 14px body, 12px meta) */
+  --text-3xs:  calc(0.5625rem  * var(--font-scale)); /*  9px */
+  --text-2xs:  calc(0.6875rem  * var(--font-scale)); /* 11px */
+  --text-xs:   calc(0.75rem    * var(--font-scale)); /* 12px */
+  --text-sm:   calc(0.8125rem  * var(--font-scale)); /* 13px, was 14 */
+  --text-base: calc(0.875rem   * var(--font-scale)); /* 14px, was 16 */
+  --text-lg:   calc(1rem       * var(--font-scale)); /* 16px, was 18 */
+  --text-xl:   calc(1.125rem   * var(--font-scale)); /* 18px, was 20 */
+  --text-2xl:  calc(1.25rem    * var(--font-scale)); /* 20px, was 24 */
+  --text-4xl:  calc(1.875rem   * var(--font-scale)); /* 30px, was 36 */
+
+  /* Unitless line heights so they follow the size automatically */
+  --leading-tight:  1.25;
+  --leading-snug:   1.4;
+  --leading-normal: 1.5;
+  
 }

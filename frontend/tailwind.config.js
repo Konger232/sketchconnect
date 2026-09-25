@@ -13,15 +13,17 @@ export default {
         heading: ["'Roboto'", "system-ui", "sans-serif"],
         sans: ["'Inter'", "system-ui", "sans-serif"],
       },
-      // Small, reusable motion vocabulary for the capture wizard / AI prompt
-      // flow (CapturePage, SketchFlowPage, AIPromptModal, ColorPalettePicker).
-      // Mostly entrance-only by design -- these elements are conditionally
-      // mounted by their parent (no exit-animation state machine needed to
-      // get a transition when they first appear), and remounting
-      // AIPromptModal per prompt (via a `key`) replays fadeInUp for each new
-      // question. bounceDot is the one exception -- a looping animation for
-      // LoadingDots.jsx, used on "Looking at your scene…"-style labels while
-      // an actual Gemini call is in flight, not just on mount.
+      fontSize: {
+        '3xs':  ['var(--text-3xs)',  { lineHeight: 'var(--leading-tight)' }],
+        '2xs':  ['var(--text-2xs)',  { lineHeight: 'var(--leading-tight)' }],
+        xs:     ['var(--text-xs)',   { lineHeight: 'var(--leading-normal)' }],
+        sm:     ['var(--text-sm)',   { lineHeight: 'var(--leading-normal)' }],
+        base:   ['var(--text-base)', { lineHeight: 'var(--leading-normal)' }],
+        lg:     ['var(--text-lg)',   { lineHeight: 'var(--leading-snug)' }],
+        xl:     ['var(--text-xl)',   { lineHeight: 'var(--leading-snug)' }],
+        '2xl':  ['var(--text-2xl)',  { lineHeight: 'var(--leading-tight)' }],
+        '4xl':  ['var(--text-4xl)',  { lineHeight: 'var(--leading-tight)' }],
+      },
       keyframes: {
         fadeInUp: {
           '0%': { opacity: 0, transform: 'translateY(12px)' },

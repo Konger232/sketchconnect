@@ -2,9 +2,6 @@ import { useEffect, useState } from 'react'
 import MascotIcon from '../common/MascotIcon'
 import Button from '../common/Button'
 import { api } from '../../lib/api'
-import { AI_PROMPT_SIZES as S } from '../../lib/aiPromptSizing'
-
-const OPTION_CLASS = `rounded-xl border border-black/15 text-left transition-all duration-150 hover:bg-black/5 active:scale-[0.98] ${S.optionPadding} ${S.optionPaddingMd} ${S.optionText} ${S.optionTextMd}`
 
 /**
  * AI Prompts and Help Quest. For the right panel in CreateSketch.jsx and EditSketch.jsx only.
@@ -13,8 +10,7 @@ export default function AIGuidance({ sketchId, referenceImageUrl, style, analysi
 
   const [promptIndex, setPromptIndex] = useState(0)
 
-  // Help Quest ("Ask me"). Each answer is also saved server-side by
-  // /api/help-quest, so the critique call can read it later.
+  // Help Quest ("Ask me"). 
   const [helpQuestOpen, setHelpQuestOpen] = useState(false)
   const [helpQuestQuestion, setHelpQuestQuestion] = useState('')
   const [helpQuestAnswer, setHelpQuestAnswer] = useState(null)
@@ -78,39 +74,35 @@ export default function AIGuidance({ sketchId, referenceImageUrl, style, analysi
   }
 
   return (
-      <div className="flex flex-col justify-center gap-4 overflow-y-auto bg-paper p-5 text-ink md:p-6">
+      <div className="flex flex-col justify-center gap-4 overflow-y-auto bg-gray-900 p-5 text-white/80 md:p-6">
         {!analysis ? (
-          <p className="text-sm text-ink/60">Preparing your questions…</p>
+          <p className="text-sm text-white/60">Preparing your questions…</p>
         ) : (
           <>
             {currentPrompt() && !helpQuestOpen && (
               
               <div className="animate-fade-in-up">
                 <div className="mb-3 flex items-start gap-2">
-                  <MascotIcon className={`mt-0.5 shrink-0 ${S.mascotIcon} ${S.mascotIconMd}`} />
-                  <p className={`leading-snug ${S.questionText} ${S.questionTextMd}`}>{currentPrompt().question}</p>
+                  <MascotIcon className="ai-mascot" />
+                  <p className="ai-question">{currentPrompt().question}</p>
                 </div>
-                <div className={`flex flex-col ${S.optionGap} ${S.optionGapMd}`}>
+                <div className="ai-options">
                   {(currentPrompt().options || []).map((opt) => (
-                    <button key={opt} onClick={() => handlePromptSelect(opt)} className={OPTION_CLASS}>
+                    <button key={opt} onClick={() => handlePromptSelect(opt)} className="ai-option">
                       {opt}
                     </button>
                   ))}
-                  <button onClick={() => setHelpQuestOpen(true)} className={`flex items-center justify-between ${OPTION_CLASS}`}>
+                  <button onClick={() => setHelpQuestOpen(true)} className={`ai-option flex items-center justify-between`}>
                     Ask me
-                    <MascotIcon className={`${S.mascotIcon} ${S.mascotIconMd}`} />
+                    <MascotIcon className="ai-mascot" />
                   </button>
                 </div>
               </div>
 
             )}
 
-            {/* Disabled before advisor meeting -- color-swatch step.
-                ColorPalettePicker.jsx stays unused until true photo-derived
-                palette extraction is built (see parking-lot.md). */}
-
             {!helpQuestOpen && currentPrompt() && (
-              <Button variant="outline" size="sm" className="w-full" onClick={handleFinishNow}>
+              <Button variant="outlineOnDark" size="sm" className="w-full" onClick={handleFinishNow}>
                 Start Sketching Now
               </Button>
             )}
@@ -118,18 +110,19 @@ export default function AIGuidance({ sketchId, referenceImageUrl, style, analysi
             {helpQuestOpen && (
               <div className="animate-fade-in-up">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className={`font-semibold ${S.helpHeadingText} ${S.helpHeadingTextMd}`}>Ask me anything about this scene</p>
+                  <p className="panel-label">Ask me anything about this scene</p>
                   <button
                     onClick={() => { setHelpQuestOpen(false); setHelpQuestAnswer(null) }}
-                    className={`${S.closeIcon} ${S.closeIconMd} text-ink/50 transition-colors hover:text-ink`}
+                    className="ai-close"
                   >
                     ×
                   </button>
                 </div>
                 {helpQuestAnswer ? (
                   <>
-                    <p className={`animate-fade-in-up rounded-lg bg-black/5 p-3 ${S.helpInputText} ${S.helpInputTextMd}`}>{helpQuestAnswer}</p>
+                    <p className="animate-fade-in-up rounded-lg bg-white/10 p-3 ai-help-text">{helpQuestAnswer}</p>
                     <Button
+                      variant="primaryOnDark"
                       size="sm"
                       className="mt-3 w-full"
                       onClick={() => { setHelpQuestOpen(false); setHelpQuestAnswer(null); setHelpQuestQuestion('') }}
@@ -144,18 +137,18 @@ export default function AIGuidance({ sketchId, referenceImageUrl, style, analysi
                       value={helpQuestQuestion}
                       onChange={(e) => setHelpQuestQuestion(e.target.value)}
                       placeholder="e.g. Should I start with the wine bottles?"
-                      className={`flex-1 rounded-lg border border-black/15 text-ink transition-colors focus:border-ink/40 ${S.helpInputPadding} ${S.helpInputPaddingMd} ${S.helpInputText} ${S.helpInputTextMd}`}
+                      className="panel-input mt-0 flex-1"
                     />
-                    <Button size="sm" onClick={handleHelpQuestSend}>Send</Button>
+                    <Button variant="primaryOnDark" size="sm" onClick={handleHelpQuestSend}>Send</Button>
                   </div>
                 )}
               </div>
             )}
 
             {analysis?.debug_raw_gemini_response && (
-              <details className="rounded-lg border border-black/10 bg-black/5 p-3 text-xs">
-                <summary className="cursor-pointer font-medium text-ink/60">Debug: raw Gemini response</summary>
-                <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-ink/70">
+              <details className="rounded-lg border border-white/10 bg-white/5 p-3 text-xs">
+                <summary className="cursor-pointer font-medium text-white/60">Debug: raw Gemini response</summary>
+                <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-white/70">
                   {analysis.debug_raw_gemini_response}
                 </pre>
               </details>

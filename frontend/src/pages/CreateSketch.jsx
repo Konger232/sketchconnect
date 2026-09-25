@@ -648,12 +648,12 @@ export default function CreateSketch() {
 
             {/* ===== RIGHT PANEL: controls for the current stage ===== */}
             {step !== 'guidance' ? (
-              <div className="flex flex-col justify-center gap-4 bg-white p-5 text-ink md:p-6">
+              <div className="flex flex-col justify-center gap-4 bg-gray-900 p-5 text-white/80 md:p-6">
 
                 {/* --- Capture --- */}
                 {step === 'capture' && (
                   <div>
-                    <p className="text-xs text-ink/60">
+                    <p className="text-xs text-white/60">
                       Add a photo and tell us what caught your attention.
                     </p>
                     {error && <p className="text-sm text-accent">{error}</p>}

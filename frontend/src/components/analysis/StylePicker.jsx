@@ -7,15 +7,15 @@ export default function StylePicker({ style, analyzing, error, onSelectStyle }) 
     <div>
      {/* <div className="flex flex-col justify-center gap-4 bg-white p-5 text-ink md:p-6"> */}
       <div>
-        <h1 className="text-base font-bold tracking-tight">Pick a style</h1>
-        <p className="mt-1 text-xs text-ink/60">This shapes how the AI looks at your scene.</p>
+        <h1 className="text-base font-bold tracking-tight text-white">Pick a style</h1>
+        <p className="mt-1 text-xs text-white/60">This shapes how the AI looks at your scene.</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
         {STYLES.map((s) => (
           <Button
             key={s.value}
-            variant="pillOnLight"
+            variant="pill"
             active={style === s.value}
             type="button"
             disabled={analyzing}
@@ -28,7 +28,7 @@ export default function StylePicker({ style, analyzing, error, onSelectStyle }) 
       </div>
 
       {analyzing && (
-        <p className="animate-fade-in-up flex items-center text-sm text-ink/60">
+        <p className="animate-fade-in-up flex items-center text-sm text-white/60">
           Looking at your scene <LoadingDots className="ml-0.5" />
         </p>
       )}
