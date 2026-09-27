@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Button from '../common/Button'
 
 /**
- * Planning marks: freehand lines the sketcher draws over their framed photo
+ * Marks: freehand lines the sketcher draws over their framed photo
  * (big shapes, a horizon, lines to follow) after marking focal points.
  *
  * Marks are stored as data, never baked into reference_image_url, so the
@@ -172,7 +172,7 @@ export default function MarkPanel({
   return (
     <div className="animate-fade-in-up flex flex-col gap-5">
       <div>
-        <h2 className="panel-label text-sm text-white/80">Add planning marks</h2>
+        <h2 className="panel-label text-sm text-white/80">Add marks</h2>
         <p className="mt-2 text-xs text-white/60">
           Optional. Sketch guides on your frame: big shapes, a horizon, the lines you'll follow. Your coach sees
           them later.

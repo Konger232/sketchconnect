@@ -13,7 +13,7 @@ from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Boolean, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from geoalchemy2 import Geography
 
-from .database import Base
+from app.core.database import Base
 
 
 def gen_uuid():
@@ -51,7 +51,7 @@ class Sketch(Base):
     final_sketch_url = Column(String, nullable=True)
     final_sketch_provided = Column(Boolean, default=False)
     # Critique call progress: None (never run) | 'pending' | 'done' | 'failed'.
-    # Set by routers/critique.py, polled by EditSketch.jsx.
+    # Set by features/critique_agent/router.py, polled by EditSketch.jsx.
     critique_status = Column(String, nullable=True)
 
     # geography(Point, 4326) — see design doc, Section 3 "Location capture"
@@ -86,7 +86,7 @@ class Sketch(Base):
     # own shape, x/y normalized against whatever frame reference_image_url
     # currently shows (so this stays valid even if a later pass re-crops
     # and reprojects every point into the new frame -- see
-    # routers/sketches.py's focal_frame endpoint). Null until that flow has
+    # features/sketches/router.py's focal_frame endpoint). Null until that flow has
     # been completed at least once for this sketch.
     focal_points = Column(JSON, nullable=True)
     # The sketcher's planning marks (Marks.jsx): freehand lines
@@ -166,7 +166,7 @@ class Profile(Base):
     `location` is the sketcher's own general location (e.g. "Portland, OR"),
     not tied to any one sketch -- distinct from Sketch.location, which is a
     specific sketch's GPS point. No auto-create trigger on auth.users yet,
-    so app/routers/profile.py upserts a bare row on first GET rather than
+    so app/features/profile/router.py upserts a bare row on first GET rather than
     assuming one already exists.
     """
     __tablename__ = "profiles"

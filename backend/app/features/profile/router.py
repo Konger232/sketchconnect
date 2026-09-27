@@ -6,17 +6,17 @@ GET upserts a bare row on first visit instead of 404ing.
 
 GET /api/personas -- read-only list of every per-style admired-artist
 persona already set in Settings (design doc: "one artist per style" --
-see app/routers/persona.py). The profile page's "favorite urban sketchers"
+see app/features/persona/router.py). The profile page's "favorite urban sketchers"
 section reads this instead of keeping its own separate field, so there's
 exactly one place that data lives.
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..auth import get_current_sketcher_id
-from ..models import Profile, Persona
-from ..schemas import ProfileUpdateRequest
+from app.core.database import get_db
+from app.core.auth import get_current_sketcher_id
+from app.core.models import Profile, Persona
+from app.features.profile.schemas import ProfileUpdateRequest
 
 router = APIRouter(prefix="/api", tags=["profile"])
 

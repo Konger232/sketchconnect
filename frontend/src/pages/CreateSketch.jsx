@@ -49,7 +49,7 @@ export default function CreateSketch() {
   }
 
   // 'capture'  -> upload a photo
-  // 'focal'    -> crop/pan/zoom, then focal point selection, then planning marks
+  // 'focal'    -> crop/pan/zoom, then focal point selection, then marks
   // 'style'    -> pick a style (this fires the scene analysis call)
   // 'guidance' -> AI guided questions
   const [step, setStep] = useState('capture')
@@ -86,7 +86,7 @@ export default function CreateSketch() {
   const [regions, setRegions] = useState([])
   const [pendingMarkQuestions, setPendingMarkQuestions] = useState([])
 
-  // Planning marks (phase 'drawing', after focal points). Saved as data
+  // Marks (phase 'drawing', after focal points). Saved as data
   // with the focal points -- never baked into the reference photo.
   const [markColor, setMarkColor] = useState('#ffd400')
   const [markWidth, setMarkWidth] = useState(6)
@@ -336,14 +336,14 @@ export default function CreateSketch() {
     setNaturalSize({ width: e.target.naturalWidth, height: e.target.naturalHeight })
   }
 
-  // Skipping focal points still moves on to planning marks, with no points.
+  // Skipping focal points still moves on to marks, with no points.
   function handleSkipFocalPoints() {
     setOwnPoints([])
     setRegions((prev) => prev.map((r) => ({ ...r, adopted: false })))
     setPhase('drawing')
   }
 
-  // Saves the crop, focal points and planning marks together, at the end
+  // Saves the crop, focal points and marks together, at the end
   // of the drawing step. skipMarks: "Skip this step" saves without marks.
   async function handleConfirmFrame(skipMarks = false) {
     setSaving(true)
@@ -395,6 +395,8 @@ export default function CreateSketch() {
       if (data?.reference_image_url) {
         setReferenceImageUrl(resolveUrl(data.reference_image_url))
       }
+      // Skipped marks weren't saved, so don't keep showing them.
+      if (skipMarks) drawing.clear()
       resetTransform()
       setStep('style')
     } catch (err) {
@@ -468,6 +470,11 @@ export default function CreateSketch() {
       : null
 
   const isFramePhase = phase === 'frame-adjusting'
+
+  // Focal points and marks stay on the photo from marking through
+  // style picking and AI guidance. From 'style' on, the photo is the saved
+  // framed image, which is the same frame the points and marks were placed on.
+  const showPlan = step === 'focal' || step === 'style' || step === 'guidance'
 
   // Who gets the photo's pointer gestures: panning/zooming while framing,
   // the pen while drawing, nothing otherwise.
@@ -570,14 +577,16 @@ export default function CreateSketch() {
                   </g>
                 )}
 
-                {/* --- Planning marks: drawn in 'drawing', kept visible if
-                    the sketcher steps back to focal points --- */}
-                {step === 'focal' && (
+                {/* --- Marks: drawn in 'drawing', kept visible if
+                    the sketcher steps back to focal points, and on the saved
+                    frame through style picking and AI guidance --- */}
+                {showPlan && (
                   <MarksLayer marks={drawing.marks} live={drawing.live} />
                 )}
 
-                {/* --- Focal point selection: the sketcher's reticles --- */}
-                {step === 'focal' && (
+                {/* --- Focal point selection: the sketcher's reticles. Only
+                    tappable (to remove) while marking focal points. --- */}
+                {showPlan && (
                   <g>
                     {reticles.map((r) => (
                       <g
@@ -671,7 +680,7 @@ export default function CreateSketch() {
                   />
                 )}
 
-                {/* --- Planning marks --- */}
+                {/* --- Marks --- */}
                 {step === 'focal' && phase === 'drawing' && (
                   <MarkPanel
                     color={markColor}

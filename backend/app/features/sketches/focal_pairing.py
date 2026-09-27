@@ -27,7 +27,8 @@ Two entry points:
 from shapely.geometry import Point, Polygon, LineString
 from shapely.validation import make_valid
 
-from ..schemas import FocalRegion, SketcherFocalPointInput, PairedFocalPoint
+from app.core.schemas import FocalRegion
+from app.features.sketches.schemas import SketcherFocalPointInput, PairedFocalPoint
 
 # How close (0-1000 scale, same as every other coordinate in this app) an
 # "own" point has to be to a region's boundary to count as a match when
@@ -183,7 +184,7 @@ def filter_perspective_lines_near(
 
 
 if __name__ == "__main__":
-    # Small self-test, run directly (`python3 -m app.services.focal_pairing`
+    # Small self-test, run directly (`python3 -m app.features.sketches.focal_pairing`
     # from backend/) -- this project has no pytest/tests dir (see
     # claude/parking-lot.md's verification convention: py_compile + a
     # manual run, not a checked-in test suite), so this mirrors that.

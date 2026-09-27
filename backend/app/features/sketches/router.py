@@ -21,15 +21,17 @@ from geoalchemy2.shape import to_shape
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.functions import ST_Distance, ST_DWithin
 
-from ..database import get_db
-from ..auth import get_current_sketcher_id, get_optional_sketcher_id
-from ..models import Sketch, CritiqueResponse, Profile
-from ..schemas import SketchUpdateRequest, SketcherFocalPointInput, FocalRegion, SessionChoice
-from ..services.exif_utils import extract_location_and_time
-from ..services.focal_pairing import pair_focal_points
-from ..services.value_study import compute_value_study
-from .critique import start_critique
-from .geocode import reverse_geocode
+from app.core.database import get_db
+from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
+from app.core.models import Sketch, CritiqueResponse, Profile
+from app.features.sketches.schemas import SketchUpdateRequest, SketcherFocalPointInput
+from app.core.schemas import FocalRegion, SessionChoice
+from app.core.exif_utils import extract_location_and_time
+from app.features.sketches.focal_pairing import pair_focal_points
+from app.core.value_study import compute_value_study
+from app.core.paths import UPLOAD_DIR
+from app.features.critique_agent.router import start_critique
+from app.features.geocode.service import reverse_geocode
 
 # Registered again here (also done in scene_analysis.py) so this module
 # decodes HEIC/HEIF correctly even if imported before that one — the
@@ -39,7 +41,6 @@ pillow_heif.register_heif_opener()
 
 router = APIRouter(prefix="/api", tags=["sketches"])
 
-UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 
@@ -285,7 +286,7 @@ async def save_focal_frame(
     """
     Persists the result of FocalFrameEditor.jsx's mark-then-frame-refine
     flow (frontend: FocalFrameEditor.jsx, geometry: lib/focalGeometry.js;
-    backend geometry: services/focal_pairing.py -- see that file's own
+    backend geometry: features/sketches/focal_pairing.py -- see that file's own
     docstring for why pairing is plain geometry here rather than another
     Gemini call).
 
@@ -466,7 +467,7 @@ async def sketch_value_study(
 ):
     """
     On-demand "dominant value shapes" toggle for SketchDetailPage's
-    edit-mode view (see services/value_study.py's docstring for the
+    edit-mode view (see core/value_study.py's docstring for the
     algorithm -- deterministic OpenCV, not a Gemini call). Scoped to the
     sketch's owner, same as update_sketch/delete_sketch: this is a
     working aid for the sketcher's own in-progress sketch, not a public

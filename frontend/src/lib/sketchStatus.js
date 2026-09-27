@@ -9,7 +9,7 @@
 // presentational label. Revisit only if a future feature needs to query
 // by stage server-side.
 //
-// Note: `_sketch_to_dict` (backend/app/routers/sketches.py) does NOT
+// Note: `_sketch_to_dict` (backend/app/features/sketches/router.py) does NOT
 // serialize `cached_scene_analysis` or `final_sketch_provided` -- only
 // `style`, `scene_type`, and `final_sketch_url` are, so those three are
 // what this derivation reads. `focal_points` is deliberately not a

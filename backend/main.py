@@ -9,7 +9,7 @@ specific spots on the photo rather than parsing narrative text.
 The Phase-0 OpenCV prototype this server used to also expose under /legacy
 (deterministic perspective/value-study, no AI) has been fully superseded --
 perspective lines by Gemini's real traced-line detection in
-scene_analysis.py, value-study by app/services/value_study.py -- and was
+features/scene_analysis/, value-study by app/core/value_study.py -- and was
 removed along with its endpoints (see parking-lot.md).
 """
 from pathlib import Path
@@ -19,7 +19,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from config import ALLOWED_ORIGINS, ALLOWED_ORIGIN_REGEX
-from app.routers import scene_analysis, persona, critique, help_quest, sketches, profile, geocode
+# One folder per feature under app/features/ (router, service, schemas,
+# prompts); shared code in app/core/.
+from app.features.scene_analysis import router as scene_analysis
+from app.features.persona import router as persona
+from app.features.critique_agent import router as critique
+from app.features.help_quest import router as help_quest
+from app.features.sketches import router as sketches
+from app.features.profile import router as profile
+from app.features.geocode import router as geocode
 
 app = FastAPI(title="SketchConnect middle server")
 

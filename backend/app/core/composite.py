@@ -22,8 +22,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 from config import MAX_IMAGE_DIMENSION
+from app.core.paths import UPLOAD_DIR
 
-UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
 
 FOCAL_COLOR = (255, 7, 58)          # --focal-accent-user
 RETICLE_HALF = 30                   # frame units, same as Reticle (60 wide)
@@ -201,11 +201,3 @@ def summarize_marks(marks: list[dict] | None) -> str:
     if not descs:
         return "none drawn"
     return f"{len(descs)} mark{'s' if len(descs) != 1 else ''}: " + "; ".join(descs)
-
-
-COMPOSITE_EXPLANATION = (
-    "The reference photo image shows the sketcher's framed view with their own "
-    "additions drawn on top: red square reticles are the focal points they chose, and "
-    "any other coloured lines are their planning marks (guides they drew before "
-    "sketching). These additions are the sketcher's plan, not part of the scene."
-)

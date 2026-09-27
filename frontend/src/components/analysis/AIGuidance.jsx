@@ -54,7 +54,7 @@ export default function AIGuidance({ sketchId, referenceImageUrl, style, analysi
     if (!helpQuestQuestion.trim()) return
     try {
       // No image: the backend builds it from the saved sketch (reference
-      // photo + focal points + planning marks -- services/composite.py).
+      // photo + focal points + marks -- services/composite.py).
       const form = new FormData()
       form.append('sketch_id', sketchId)
       form.append('question', helpQuestQuestion)

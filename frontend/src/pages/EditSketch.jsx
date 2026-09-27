@@ -409,7 +409,7 @@ export default function EditSketch() {
             {/* --- Framed slide overlays --- */}
             {onFramed && (
               <>
-                {/* Planning marks: on by default, toggled below. Under the focal points. */}
+                {/* Marks: on by default, toggled below. Under the focal points. */}
                 {showMarks && sketchMarks.length > 0 && (
                   <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full">
                     <MarksLayer marks={sketchMarks} />
@@ -485,7 +485,7 @@ export default function EditSketch() {
               </Button>
               {sketchMarks.length > 0 && (
                 <Button variant="pill" active={showMarks} onClick={() => setShowMarks((v) => !v)}>
-                  Planning marks
+                  Marks
                 </Button>
               )}
               <Button variant="pill" active={showRuleOfThirds} onClick={() => setShowRuleOfThirds((v) => !v)}>
