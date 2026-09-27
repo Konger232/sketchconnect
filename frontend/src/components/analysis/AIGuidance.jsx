@@ -50,22 +50,17 @@ export default function AIGuidance({ sketchId, referenceImageUrl, style, analysi
     onFinished?.()
   }
 
-  async function fetchReferenceImageBlob() {
-    const res = await fetch(referenceImageUrl)
-    return res.blob()
-  }
-
   async function handleHelpQuestSend() {
     if (!helpQuestQuestion.trim()) return
     try {
-      const blob = await fetchReferenceImageBlob()
+      // No image: the backend builds it from the saved sketch (reference
+      // photo + focal points + planning marks -- services/composite.py).
       const form = new FormData()
       form.append('sketch_id', sketchId)
       form.append('question', helpQuestQuestion)
       form.append('style', style)
       form.append('scene_type', analysis.scene_type)
       form.append('step_id', `prompt-${promptIndex}`)
-      form.append('image', blob, 'reference.jpg')
       const { data } = await api.post('/api/help-quest', form)
       setHelpQuestAnswer(data.answer)
     } catch {

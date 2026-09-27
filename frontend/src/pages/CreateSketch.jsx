@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useLayoutEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ImagePanel from '../components/analysis/ImagePanel'
 import FocalSpotPicker, { Reticle } from '../components/analysis/FocalSpotPicker'
+import MarkPanel, { MarksLayer, useMarkDrawing } from '../components/analysis/Marks'
 import StylePicker from '../components/analysis/StylePicker'
 import AIGuidance from '../components/analysis/AIGuidance'
 import ShapeOutlineOverlay from '../components/analysis/ShapeOutlineOverlay'
@@ -14,7 +15,7 @@ import ConfirmDialog from '../components/common/ConfirmDialog'
 import { api } from '../lib/api'
 import { WIZARD_PANEL_HEIGHT_CLASS } from '../lib/wizardLayout'
 import { bakeCrop, computeImageBox, resolveAspectRatio } from '../lib/cropMath'
-import { pointNearRegion, regionCentroid, toFrameSpace, toOriginalSpace } from '../lib/focalGeometry'
+import { pointNearRegion, regionCentroid } from '../lib/focalGeometry'
 import { useOverlayToggle } from '../lib/useOverlayToggle'
 
 const OWN_POINT_CAP = 3
@@ -48,7 +49,7 @@ export default function CreateSketch() {
   }
 
   // 'capture'  -> upload a photo
-  // 'focal'    -> focal point selection, then crop/pan/zoom
+  // 'focal'    -> crop/pan/zoom, then focal point selection, then planning marks
   // 'style'    -> pick a style (this fires the scene analysis call)
   // 'guidance' -> AI guided questions
   const [step, setStep] = useState('capture')
@@ -79,11 +80,16 @@ export default function CreateSketch() {
   const [naturalSize, setNaturalSize] = useState(null)
   const [boxSize, setBoxSize] = useState({ width: 0, height: 0 })
 
-  const [phase, setPhase] = useState('mark-placing')
+  const [phase, setPhase] = useState('frame-adjusting')
   const [showGrid, setShowGrid] = useState(true)
   const [ownPoints, setOwnPoints] = useState([])
   const [regions, setRegions] = useState([])
   const [pendingMarkQuestions, setPendingMarkQuestions] = useState([])
+
+  // Planning marks (phase 'drawing', after focal points). Saved as data
+  // with the focal points -- never baked into the reference photo.
+  const [markColor, setMarkColor] = useState('#ffd400')
+  const [markWidth, setMarkWidth] = useState(6)
   const [markQuestionPos, setMarkQuestionPos] = useState(0)
 
   const [zoom, setZoom] = useState(initialTransform.zoom)
@@ -91,18 +97,8 @@ export default function CreateSketch() {
   const zoomRef = useRef(zoom)
   const offsetRef = useRef(offset)
 
-  const confirmedPointsRef = useRef([])
-  const originSpacePointsRef = useRef([])
-  const [removedIndices, setRemovedIndices] = useState(new Set())
-  const [frameQuestionQueue, setFrameQuestionQueue] = useState([])
-  const [frameQuestionPos, setFrameQuestionPos] = useState(0)
-  const gestureSnapshotRef = useRef(null)
-
   const pointersRef = useRef(new Map())
   const gestureRef = useRef(null)
-  const wheelTimerRef = useRef(null)
-  const phaseRef = useRef(phase)
-  phaseRef.current = phase
 
   // StylePicker State
   const [style, setStyle] = useState(null)
@@ -116,6 +112,8 @@ export default function CreateSketch() {
   const focalAreas = useOverlayToggle(analysis)
 
   const [error, setError] = useState(null)
+
+  const drawing = useMarkDrawing(svgRef, { color: markColor, width: markWidth, enabled: phase === 'drawing' })
 
   const [showRetakeConfirm, setShowRetakeConfirm] = useState(false)
 
@@ -222,6 +220,16 @@ export default function CreateSketch() {
     setOwnPoints((prev) => [...prev, { x, y }])
   }
 
+  // Tapping an existing marker removes it. An adopted Gemini suggestion
+  // stays `asked`, so Continue won't offer it again.
+  function removeFocalPoint(r) {
+    if (r.source === 'own') {
+      setOwnPoints((prev) => prev.filter((_, idx) => idx !== r.i))
+    } else if (r.region_ref != null) {
+      setRegions((prev) => prev.map((reg, ri) => (ri === r.region_ref ? { ...reg, adopted: false } : reg)))
+    }
+  }
+
   function regionsNeedingQuestions() {
     return regions
       .map((r, i) => ({ r, i }))
@@ -232,7 +240,7 @@ export default function CreateSketch() {
   function handleMarkContinue() {
     const pending = regionsNeedingQuestions()
     if (pending.length === 0) {
-      enterFramePhase()
+      setPhase('drawing')
       return
     }
     setPendingMarkQuestions(pending)
@@ -253,68 +261,21 @@ export default function CreateSketch() {
     }
   }
 
-  function enterFramePhase() {
-    const pts = confirmedPointsFromState()
-    confirmedPointsRef.current = pts
-    originSpacePointsRef.current = pts.map((p) => toOriginalSpace(p, ratio, initialTransformRef.current, naturalSize))
-    setRemovedIndices(new Set())
-    resetTransform({
-      zoom: initialTransformRef.current.zoom,
-      offset: { x: initialTransformRef.current.offset_x, y: initialTransformRef.current.offset_y },
-    })
+  // Crop comes first: once the sketcher moves on, the photo stays frozen at
+  // the chosen zoom/offset and focal points are tapped straight onto that
+  // frame, so they're already in the final frame's 0-1000 space -- no
+  // reprojection or "moved out of frame" questions needed.
+  function handleFrameContinue() {
+    setPhase('mark-placing')
+  }
+
+  // Back to framing from the marking stage. Points were placed against the
+  // current frame, so they're cleared rather than left misaligned.
+  function handleBackToFrame() {
+    setOwnPoints([])
+    drawing.clear()
+    setRegions((prev) => prev.map((r) => ({ ...r, asked: false, adopted: false })))
     setPhase('frame-adjusting')
-  }
-
-  function projectedPoints() {
-    const transform = { zoom: zoomRef.current, offset_x: offsetRef.current.x, offset_y: offsetRef.current.y }
-    return originSpacePointsRef.current
-      .map((op, i) => ({ i, ...toFrameSpace(op, ratio, transform, naturalSize) }))
-      .filter(({ i }) => !removedIndices.has(i))
-  }
-
-  function checkFrameExclusions() {
-    const transform = { zoom: zoomRef.current, offset_x: offsetRef.current.x, offset_y: offsetRef.current.y }
-    const excluded = []
-    originSpacePointsRef.current.forEach((op, i) => {
-      if (removedIndices.has(i)) return
-      const proj = toFrameSpace(op, ratio, transform, naturalSize)
-      if (!proj.inFrame) excluded.push(i)
-    })
-    if (excluded.length === 0) return
-    setFrameQuestionQueue(excluded)
-    setFrameQuestionPos(0)
-    setPhase('frame-asking')
-  }
-
-  function anchorLabel(i) {
-    const point = confirmedPointsRef.current[i]
-    if (!point) return 'one of your marked spots'
-    return point.source === 'own' ? 'one of your marked spots' : regions[point.region_ref]?.label || 'that spot'
-  }
-
-  function finishFrameQuestions() {
-    setFrameQuestionQueue([])
-    setFrameQuestionPos(0)
-    setPhase('frame-adjusting')
-  }
-
-  function handleFrameKeep() {
-    if (gestureSnapshotRef.current) {
-      setZoomTracked(gestureSnapshotRef.current.zoom)
-      setOffsetTracked({ x: gestureSnapshotRef.current.offset_x, y: gestureSnapshotRef.current.offset_y })
-    }
-    finishFrameQuestions()
-  }
-
-  function handleFrameRemove() {
-    const idx = frameQuestionQueue[frameQuestionPos]
-    setRemovedIndices((prev) => new Set(prev).add(idx))
-    const next = frameQuestionPos + 1
-    if (next < frameQuestionQueue.length) {
-      setFrameQuestionPos(next)
-    } else {
-      finishFrameQuestions()
-    }
   }
 
   function handlePointerDown(e) {
@@ -323,7 +284,6 @@ export default function CreateSketch() {
     pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
 
     if (pointersRef.current.size === 1) {
-      gestureSnapshotRef.current = { zoom: zoomRef.current, offset_x: offsetRef.current.x, offset_y: offsetRef.current.y }
       gestureRef.current = { mode: 'pan', startX: e.clientX, startY: e.clientY, startOffset: offsetRef.current }
     } else if (pointersRef.current.size === 2) {
       const pts = Array.from(pointersRef.current.values())
@@ -356,7 +316,6 @@ export default function CreateSketch() {
     pointersRef.current.delete(e.pointerId)
     if (pointersRef.current.size === 0) {
       gestureRef.current = null
-      checkFrameExclusions()
     } else if (pointersRef.current.size === 1) {
       const [[, pt]] = Array.from(pointersRef.current.entries())
       gestureRef.current = { mode: 'pan', startX: pt.x, startY: pt.y, startOffset: offsetRef.current }
@@ -367,48 +326,45 @@ export default function CreateSketch() {
     if (phase !== 'frame-adjusting') return
     e.preventDefault()
     setZoomTracked(zoomRef.current * (1 - e.deltaY * 0.0015))
-    window.clearTimeout(wheelTimerRef.current)
-    wheelTimerRef.current = window.setTimeout(() => {
-      if (phaseRef.current === 'frame-adjusting') checkFrameExclusions()
-    }, 250)
   }
 
-  function handleZoomSliderStart() {
-    if (phase !== 'frame-adjusting') return
-    gestureSnapshotRef.current = { zoom: zoomRef.current, offset_x: offsetRef.current.x, offset_y: offsetRef.current.y }
-  }
   function handleZoomSliderChange(e) {
     setZoomTracked(parseFloat(e.target.value))
-  }
-  function handleZoomSliderCommit() {
-    if (phase === 'frame-adjusting') checkFrameExclusions()
   }
 
   function handleImageLoad(e) {
     setNaturalSize({ width: e.target.naturalWidth, height: e.target.naturalHeight })
   }
 
-  async function handleConfirmFrame() {
+  // Skipping focal points still moves on to planning marks, with no points.
+  function handleSkipFocalPoints() {
+    setOwnPoints([])
+    setRegions((prev) => prev.map((r) => ({ ...r, adopted: false })))
+    setPhase('drawing')
+  }
+
+  // Saves the crop, focal points and planning marks together, at the end
+  // of the drawing step. skipMarks: "Skip this step" saves without marks.
+  async function handleConfirmFrame(skipMarks = false) {
     setSaving(true)
     setError(null)
     try {
       const finalTransform = { zoom: zoomRef.current, offset_x: offsetRef.current.x, offset_y: offsetRef.current.y }
-      const survivors = confirmedPointsRef.current.map((p, i) => ({ p, i })).filter(({ i }) => !removedIndices.has(i))
-
-      const oldPoints = survivors.map(({ p }) => ({
+      // Points were tapped on the already-framed photo, so their stored
+      // (new) position is the same as the position they were marked at.
+      const points = confirmedPointsFromState()
+      const oldPoints = points.map((p) => ({
         x: Math.round(p.x),
         y: Math.round(p.y),
         source: p.source,
         region_ref: p.region_ref,
       }))
-      const newPoints = survivors.map(({ i }) => {
-        const proj = toFrameSpace(originSpacePointsRef.current[i], ratio, finalTransform, naturalSize)
-        return { x: Math.round(proj.x), y: Math.round(proj.y) }
-      })
+      const newPoints = oldPoints.map(({ x, y }) => ({ x, y }))
 
       const form = new FormData()
       form.append('old_points', JSON.stringify(oldPoints))
       form.append('new_points', JSON.stringify(newPoints))
+      form.append('marks', JSON.stringify(skipMarks ? [] : drawing.marks))
 
       const transformChanged =
         finalTransform.zoom !== initialTransformRef.current.zoom ||
@@ -500,8 +456,9 @@ export default function CreateSketch() {
     setAnalysis(null)
     setError(null)
     setOwnPoints([])
+    drawing.clear()
     resetTransform()
-    setPhase('mark-placing')
+    setPhase('frame-adjusting')
     setStep('capture')
   }
 
@@ -510,10 +467,19 @@ export default function CreateSketch() {
       ? computeImageBox(boxSize.width, boxSize.height, naturalSize.width, naturalSize.height, zoom, offset.x, offset.y)
       : null
 
-  const isFramePhase = phase === 'frame-adjusting' || phase === 'frame-asking'
-  const reticles = isFramePhase
-    ? projectedPoints()
-    : confirmedPointsFromState().map((p, i) => ({ i, x: p.x, y: p.y, source: p.source, region_ref: p.region_ref }))
+  const isFramePhase = phase === 'frame-adjusting'
+
+  // Who gets the photo's pointer gestures: panning/zooming while framing,
+  // the pen while drawing, nothing otherwise.
+  const panelPointerHandlers =
+    step !== 'focal'
+      ? {}
+      : isFramePhase
+        ? { onPointerDown: handlePointerDown, onPointerMove: handlePointerMove, onPointerUp: handlePointerUp, onWheel: handleWheel }
+        : phase === 'drawing'
+          ? drawing.handlers
+          : {}
+  const reticles = confirmedPointsFromState().map((p, i) => ({ i, x: p.x, y: p.y, source: p.source, region_ref: p.region_ref }))
 
   return (
     <div className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/60 md:p-6">
@@ -586,10 +552,11 @@ export default function CreateSketch() {
                 fileInputRef={fileInputRef}
                 onFileChange={handleFile}
                 saving={saving}
-                onPointerDown={step === 'focal' && isFramePhase ? handlePointerDown : undefined}
-                onPointerMove={step === 'focal' && isFramePhase ? handlePointerMove : undefined}
-                onPointerUp={step === 'focal' && isFramePhase ? handlePointerUp : undefined}
-                onWheel={step === 'focal' && isFramePhase ? handleWheel : undefined}
+                onPointerDown={panelPointerHandlers.onPointerDown}
+                onPointerMove={panelPointerHandlers.onPointerMove}
+                onPointerUp={panelPointerHandlers.onPointerUp}
+                onPointerCancel={panelPointerHandlers.onPointerCancel}
+                onWheel={panelPointerHandlers.onWheel}
                 onImageLoad={handleImageLoad}
                 onClick={step === 'focal' && phase === 'mark-placing' ? handleMarkTap : undefined}
               >
@@ -603,11 +570,29 @@ export default function CreateSketch() {
                   </g>
                 )}
 
+                {/* --- Planning marks: drawn in 'drawing', kept visible if
+                    the sketcher steps back to focal points --- */}
+                {step === 'focal' && (
+                  <MarksLayer marks={drawing.marks} live={drawing.live} />
+                )}
+
                 {/* --- Focal point selection: the sketcher's reticles --- */}
                 {step === 'focal' && (
-                  <g className="pointer-events-none">
+                  <g>
                     {reticles.map((r) => (
-                      <Reticle key={r.i} x={r.x} y={r.y} />
+                      <g
+                        key={r.i}
+                        style={{ cursor: phase === 'mark-placing' ? 'pointer' : 'default' }}
+                        onClick={(e) => {
+                          if (phase !== 'mark-placing') return
+                          e.stopPropagation() // don't also add a new point here
+                          removeFocalPoint(r)
+                        }}
+                      >
+                        {/* Invisible, larger tap target around the reticle */}
+                        <rect x={r.x - 60} y={r.y - 60} width={120} height={120} fill="transparent" />
+                        <Reticle x={r.x} y={r.y} />
+                      </g>
                     ))}
                   </g>
                 )}
@@ -661,14 +646,15 @@ export default function CreateSketch() {
                 )}
 
                 {/* --- Focal point selection + crop/pan/zoom --- */}
-                {step === 'focal' && (
+                {step === 'focal' && phase !== 'drawing' && (
                   <FocalSpotPicker
                     phase={phase}
                     onRetake={setShowRetakeConfirm}
                     ownPoints={ownPoints}
                     ownPointCap={OWN_POINT_CAP}
-                    onSkip={() => setStep('style')}
+                    onSkip={handleSkipFocalPoints}
                     onMarkContinue={handleMarkContinue}
+                    onBackToFrame={handleBackToFrame}
                     pendingMarkQuestions={pendingMarkQuestions}
                     markQuestionPos={markQuestionPos}
                     regions={regions}
@@ -678,16 +664,27 @@ export default function CreateSketch() {
                     minZoom={MIN_ZOOM}
                     maxZoom={MAX_ZOOM}
                     zoom={zoom}
-                    handleZoomSliderStart={handleZoomSliderStart}
                     handleZoomSliderChange={handleZoomSliderChange}
-                    handleZoomSliderCommit={handleZoomSliderCommit}
-                    handleConfirmFrame={handleConfirmFrame}
+                    onFrameContinue={handleFrameContinue}
                     saving={saving}
-                    frameQuestionPos={frameQuestionPos}
-                    frameQuestionQueue={frameQuestionQueue}
-                    anchorLabel={anchorLabel}
-                    handleFrameKeep={handleFrameKeep}
-                    handleFrameRemove={handleFrameRemove}
+                    error={error}
+                  />
+                )}
+
+                {/* --- Planning marks --- */}
+                {step === 'focal' && phase === 'drawing' && (
+                  <MarkPanel
+                    color={markColor}
+                    onColorChange={setMarkColor}
+                    width={markWidth}
+                    onWidthChange={setMarkWidth}
+                    count={drawing.marks.length}
+                    onUndo={drawing.undo}
+                    onClear={drawing.clear}
+                    onBack={() => setPhase('mark-placing')}
+                    onSkip={() => handleConfirmFrame(true)}
+                    onContinue={() => handleConfirmFrame()}
+                    saving={saving}
                     error={error}
                   />
                 )}

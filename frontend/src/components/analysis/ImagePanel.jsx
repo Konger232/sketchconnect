@@ -25,6 +25,7 @@ export default function ImagePanel({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onPointerCancel,
   onWheel,
   onImageLoad,
   onClick,
@@ -39,10 +40,13 @@ export default function ImagePanel({
   return (
     <div
       ref={containerRef}
-      className={`relative flex w-full select-none items-center justify-center overflow-hidden bg-black p-3 md:p-4 ${heightClass}`}
+      // touch-none while a gesture handler is attached (pan/zoom, drawing),
+      // so a finger on the photo doesn't scroll the page instead.
+      className={`relative flex w-full select-none items-center justify-center overflow-hidden bg-black p-3 md:p-4 ${onPointerDown ? 'touch-none' : ''} ${heightClass}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
       onWheel={onWheel}
     > 
       {/* If no image is provided, 

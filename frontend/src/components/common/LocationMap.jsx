@@ -1,4 +1,5 @@
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet'
+import { useEffect } from 'react'
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 
 // Child of MapContainer only — useMapEvents needs the Leaflet map context,
@@ -13,20 +14,22 @@ function ClickToSetLocation({ onLocationChange }) {
   return null
 }
 
-/**
- * "Where this happened" map (design doc, Section 3, "Display, this
- * semester"): react-leaflet + free OpenStreetMap tiles, no paid API key.
- *
- * Two shapes: pass `lat`/`lon` for a single-pin display (a sketch's own
- * location), or `points` (array of {lat, lon, label}) for the Home page's
- * "Map View" of many sketches at once — centered on their average position,
- * which is good enough for a first pass without pulling in a fitBounds hook.
- *
- * Pass `editable` + `onLocationChange` (added for the sketch-edit flow) to
- * let the sketcher click anywhere on the map, or drag the existing pin, to
- * set/adjust the location — every other caller (EditSketch, the Home
- * page's Map View) omits both and keeps the original display-only behavior.
- */
+// Fits the view to every marker (or centres on a single one). Needed
+// because MapContainer's center/zoom props are only read once, on mount.
+function FitToMarkers({ markers, zoom }) {
+  const map = useMap()
+  const key = markers.map((p) => `${p.lat},${p.lon}`).join('|')
+  useEffect(() => {
+    if (markers.length === 0) return
+    if (markers.length === 1) {
+      map.setView([markers[0].lat, markers[0].lon], zoom)
+    } else {
+      map.fitBounds(markers.map((p) => [p.lat, p.lon]), { padding: [30, 30], maxZoom: 15 })
+    }
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  return null
+}
+
 export default function LocationMap({ lat, lon, label, points, zoom = 13, editable = false, onLocationChange, height = 'h-72' }) {
   const markers = points?.length ? points : (lat != null && lon != null ? [{ lat, lon, label }] : [])
 
@@ -52,10 +55,12 @@ export default function LocationMap({ lat, lon, label, points, zoom = 13, editab
     <div>
       <MapContainer center={center} zoom={initialZoom} scrollWheelZoom={editable} className={`${height} w-full rounded-lg`}>
         <TileLayer
-          attribution='&copy; OpenStreetMap contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+            attribution='Tiles &copy; Esri &mdash; Sources: Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+          />
         {editable && <ClickToSetLocation onLocationChange={onLocationChange} />}
+        {!editable && <FitToMarkers markers={markers} zoom={zoom} />}
+
         {markers.map((p, i) => (
           <Marker
             key={i}

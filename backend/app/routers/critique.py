@@ -8,7 +8,15 @@ sketch's `critique_status` ('pending' | 'done' | 'failed') for the result.
 
 The whole journey is read from the database, not the request: guided
 answers (sketches.session_choices), Help Quest history (help_quest_log),
-the latest prior review, and the stored final sketch.
+the latest prior review, the sketcher's focal points and planning marks,
+and up to three images, in this order (services/composite.py):
+  1. the untouched original photo -- always
+  2. the planning image: framed photo + focal points + planning marks --
+     only when the sketcher reframed, marked focal points or drew marks
+     (render_composite returns None otherwise, and it isn't sent)
+  3. the final sketch, when uploaded
+Together they show what was in front of the sketcher, what they chose to
+frame and plan, and what they drew.
 """
 import json
 import logging
@@ -22,6 +30,14 @@ from ..database import SessionLocal, get_db
 from ..auth import get_current_sketcher_id
 from ..models import Sketch, Persona, CritiqueResponse, HelpQuestLog
 from ..services.gemini_client import call_gemini_json
+from ..services.composite import (
+    COMPOSITE_EXPLANATION,
+    describe_focal_points,
+    load_original,
+    render_composite,
+    summarize_marks,
+    was_reframed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -108,18 +124,46 @@ def _run_critique(db: Session, sketch: Sketch) -> None:
     if sketch.final_sketch_url:
         final_image = Image.open(UPLOAD_DIR / Path(sketch.final_sketch_url).name).convert("RGB")
 
+    original = load_original(sketch)                # untouched upload
+    composite = render_composite(sketch)            # None if no planning at all
+
+    images, image_notes = [], []
+    if original is not None:
+        images.append(original)
+        image_notes.append(
+            f"Image {len(images)} is the untouched original photo of the scene, before "
+            "the sketcher cropped or reframed it."
+        )
+    if composite is not None:
+        images.append(composite)
+        framing = (
+            "the sketcher's chosen framing of that photo"
+            if was_reframed(sketch)
+            else "the same photo (framing unchanged)"
+        )
+        image_notes.append(f"Image {len(images)} is {framing}, their planning image. {COMPOSITE_EXPLANATION}")
+    if final_image is not None:
+        images.append(final_image)
+        image_notes.append(f"Image {len(images)} is the sketcher's final sketch.")
+    images_text = " ".join(image_notes) if image_notes else "No images are attached."
+
     prompt = (
         f"You are critiquing an urban sketcher's journey, speaking in the voice of "
         f"persona '{persona.persona_label}' ({persona.voice}, tone: {persona.tone}), "
         f"prioritizing: {', '.join(persona.priorities)}. Scene type: {sketch.scene_type or 'unknown'}, "
         f"style: {sketch.style}. Evaluate the whole journey — the choices made along the "
         f"way and where the sketcher needed outside help — not just the final image "
-        f"in isolation. Session choices: {session_choices}. Help Quest history: "
+        f"in isolation. {images_text} "
+        f"Focal points the sketcher marked: {describe_focal_points(sketch.focal_points)}. "
+        f"Planning marks: {summarize_marks(sketch.marks)}. "
+        f"Compare the scene, the plan (framing, focal points, marks) and what the "
+        f"final sketch actually did, where each is attached. "
+        f"Session choices: {session_choices}. Help Quest history: "
         f"{help_quest_log}. Prior review summary: {prior_review_summary or 'none — first critique this session'}. "
         f"Keep `critique` under ~200 words and never tell the sketcher what to draw next."
     )
 
-    result = call_gemini_json(prompt, RESPONSE_SCHEMA, final_image, mock_name="critique")
+    result = call_gemini_json(prompt, RESPONSE_SCHEMA, images, mock_name="critique")
 
     db.add(CritiqueResponse(
         sketch_id=sketch.id,

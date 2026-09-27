@@ -29,6 +29,7 @@ from ..services.exif_utils import extract_location_and_time
 from ..services.focal_pairing import pair_focal_points
 from ..services.value_study import compute_value_study
 from .critique import start_critique
+from .geocode import reverse_geocode
 
 # Registered again here (also done in scene_analysis.py) so this module
 # decodes HEIC/HEIF correctly even if imported before that one — the
@@ -60,6 +61,7 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
         "original_image_url": s.original_image_url,
         "crop_transform": s.crop_transform,
         "focal_points": s.focal_points,
+        "marks": s.marks or [],
         # Gemini's own suggested focal regions (label + contour), so
         # FocalFrameEditor.jsx can re-offer any of these the sketcher
         # hasn't already adopted when it's reopened from EditSketch.jsx
@@ -76,6 +78,49 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
         # empty" via a null check rather than string truthiness.
         "critique": latest_critique,
     }
+
+
+MAX_MARKS = 200
+MAX_POINTS_PER_MARK = 5000
+
+
+def _clean_marks(raw: str) -> list[dict]:
+    """
+    Validate the client's marks JSON into
+    [{color: '#rrggbb', width: float, points: [[x, y], ...]}], x/y clamped
+    to the 0-1000 frame. Malformed individual marks are dropped rather than
+    failing the whole save; a payload that isn't a JSON list is a 400.
+    """
+    try:
+        data = json.loads(raw)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "marks must be JSON")
+    if not isinstance(data, list):
+        raise HTTPException(400, "marks must be a JSON array")
+
+    cleaned = []
+    for m in data[:MAX_MARKS]:
+        if not isinstance(m, dict):
+            continue
+        color = m.get("color")
+        width = m.get("width")
+        points = m.get("points")
+        if not (isinstance(color, str) and len(color) == 7 and color.startswith("#")):
+            continue
+        if not isinstance(width, (int, float)) or not (0 < width <= 50):
+            continue
+        if not isinstance(points, list) or not points:
+            continue
+        pts = []
+        for p in points[:MAX_POINTS_PER_MARK]:
+            if (
+                isinstance(p, (list, tuple)) and len(p) == 2
+                and all(isinstance(v, (int, float)) for v in p)
+            ):
+                pts.append([round(min(1000, max(0, p[0])), 1), round(min(1000, max(0, p[1])), 1)])
+        if pts:
+            cleaned.append({"color": color.lower(), "width": float(width), "points": pts})
+    return cleaned
 
 
 def _latest_critiques_by_sketch(db: Session, sketch_ids: list[str]) -> dict[str, str]:
@@ -164,6 +209,9 @@ async def create_sketch(
     )
     if location:
         sketch.location = WKTElement(f"POINT({location['lon']} {location['lat']})", srid=4326)
+        label = await reverse_geocode(location["lat"], location["lon"])
+        if label:
+            sketch.location_label = label[:200]
     if crop_transform:
         try:
             sketch.crop_transform = json.loads(crop_transform)
@@ -230,6 +278,7 @@ async def save_focal_frame(
     new_points: str = Form(...),
     crop_transform: str | None = Form(None),
     framed_image: UploadFile | None = File(None),
+    marks: str | None = Form(None),
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
@@ -310,6 +359,14 @@ async def save_focal_frame(
         record["y"] = new_xy.get("y")
         focal_points.append(record)
     sketch.focal_points = focal_points
+
+    # Planning marks (Marks.jsx), drawn on the same frame as the
+    # points above. Omitted -> leave as-is, unless the frame itself changed
+    # below, in which case old marks no longer line up and are dropped.
+    if marks is not None:
+        sketch.marks = _clean_marks(marks)
+    elif framed_image is not None:
+        sketch.marks = None
 
     if framed_image is not None:
         framed_contents = await framed_image.read()

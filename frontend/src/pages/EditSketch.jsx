@@ -4,6 +4,7 @@ import Button from '../components/common/Button'
 import LocationSearchField from '../components/common/LocationSearchField'
 import LocationMap from '../components/common/LocationMap'
 import { Reticle } from '../components/analysis/FocalSpotPicker'
+import { MarksLayer } from '../components/analysis/Marks'
 import PerspectiveLinesOverlay from '../components/analysis/PerspectiveLinesOverlay'
 import RuleOfThirdsGrid from '../components/analysis/RuleOfThirdsGrid'
 import AIGuidance from '../components/analysis/AIGuidance'
@@ -72,8 +73,11 @@ export default function EditSketch() {
   const [valueStudyImage, setValueStudyImage] = useState(null)
   const [loadingValueStudy, setLoadingValueStudy] = useState(false)
   const [showFocalPoints, setShowFocalPoints] = useState(true)
+  const [showMarks, setShowMarks] = useState(true)
   const [showRuleOfThirds, setShowRuleOfThirds] = useState(true)
   const [toolError, setToolError] = useState(null)
+  const placeLabel = sketch?.location?.label || null
+
 
   // ===== STATE: RIGHT PANEL (owner only) =====
   // Title, field notes, location. Read-only until the owner taps Edit.
@@ -333,6 +337,7 @@ export default function EditSketch() {
   const referenceImageUrl = resolveUrl(sketch.reference_image_url)
   const latestCritique = sketch.critiques?.[sketch.critiques.length - 1] || null
   const focalPoints = sketch.focal_points || []
+  const sketchMarks = sketch.marks || []
 
   // ===== SLIDES =====
   // 1. Original upload (skipped when it was never cropped, so the same
@@ -365,7 +370,7 @@ export default function EditSketch() {
         <Button variant="linkOnDark" type="button" onClick={handleClose} className="font-medium">
           {/*=== Close Button ===*/}
           <svg class="w-4 h-4 text-gray-500" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
-            <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+            <g id="SVGRepo_bgCarrier" strokeWidth="0"></g>
             <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
             <g id="SVGRepo_iconCarrier">
               <path d="M195.2 195.2a64 64 0 0 1 90.496 0L512 421.504 738.304 195.2a64 64 0 0 1 90.496 90.496L602.496 512 828.8 738.304a64 64 0 0 1-90.496 90.496L512 602.496 285.696 828.8a64 64 0 0 1-90.496-90.496L421.504 512 195.2 285.696a64 64 0 0 1 0-90.496z"></path>
@@ -404,6 +409,12 @@ export default function EditSketch() {
             {/* --- Framed slide overlays --- */}
             {onFramed && (
               <>
+                {/* Planning marks: on by default, toggled below. Under the focal points. */}
+                {showMarks && sketchMarks.length > 0 && (
+                  <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full">
+                    <MarksLayer marks={sketchMarks} />
+                  </svg>
+                )}
                 {/* Focal points: on by default, toggled below */}
                 {showFocalPoints && focalPoints.length > 0 && (
                   <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full">
@@ -472,6 +483,11 @@ export default function EditSketch() {
               <Button variant="pill" active={showFocalPoints} onClick={() => setShowFocalPoints((v) => !v)} disabled={focalPoints.length === 0}>
                 Focal points
               </Button>
+              {sketchMarks.length > 0 && (
+                <Button variant="pill" active={showMarks} onClick={() => setShowMarks((v) => !v)}>
+                  Planning marks
+                </Button>
+              )}
               <Button variant="pill" active={showRuleOfThirds} onClick={() => setShowRuleOfThirds((v) => !v)}>
                 Rule of thirds
               </Button>
@@ -519,7 +535,12 @@ export default function EditSketch() {
                 <span className="panel-label">Location</span>
                 <div className="mt-1">
                   {sketch.location ? (
-                    <LocationMap lat={sketch.location.lat} lon={sketch.location.lon} label={sketch.title} />
+                    <>
+                      <p className="mt-1.5 text-2xs leading-snug text-white/60">
+                        {placeLabel || `${sketch.location.lat.toFixed(4)}, ${sketch.location.lon.toFixed(4)}`}
+                      </p>
+                      <LocationMap lat={sketch.location.lat} lon={sketch.location.lon} label={placeLabel || sketch.title} />
+                    </>
                   ) : (
                     <p className="text-sm text-white/50">No location set.</p>
                   )}
@@ -568,7 +589,12 @@ export default function EditSketch() {
                   {isEditing ? (
                     <LocationSearchField location={sketchLocation} onLocationChange={setSketchLocation} dark />
                   ) : sketch.location ? (
-                    <LocationMap lat={sketch.location.lat} lon={sketch.location.lon} label={sketch.title} />
+                    <>
+                      <p className="mt-1.5 text-2xs leading-snug text-white/60">
+                        {placeLabel || `${sketch.location.lat.toFixed(4)}, ${sketch.location.lon.toFixed(4)}`}
+                      </p>
+                      <LocationMap lat={sketch.location.lat} lon={sketch.location.lon} label={placeLabel || sketch.title} />
+                    </>
                   ) : (
                     <p className="text-sm text-white/50">No location set.</p>
                   )}

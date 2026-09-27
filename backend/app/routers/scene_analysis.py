@@ -366,9 +366,8 @@ async def scene_analysis(
         # manual search pick since (LocationSearchField.jsx). Real
         # reverse geocoding via Nominatim (geocode.py), not a Gemini
         # guess from bare coordinates -- see parking-lot.md.
-        had_location_already = sketch.location is not None
         sketch.location = WKTElement(f"POINT({location['lon']} {location['lat']})", srid=4326)
-        if not had_location_already:
+        if not sketch.location_label:
             label = await reverse_geocode(location["lat"], location["lon"])
             if label:
                 sketch.location_label = label[:200]

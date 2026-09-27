@@ -31,6 +31,22 @@ router = APIRouter(prefix="/api/geocode", tags=["geocode"])
 NOMINATIM_BASE = "https://nominatim.openstreetmap.org"
 HEADERS = {"User-Agent": "SketchConnect-Capstone/1.0 (Harvard precapstone project, non-commercial)"}
 
+def short_label(r: dict) -> str | None:
+    """'Place, Area, City' from Nominatim's address parts instead of the
+    full display_name (house number, district, postcode, country...)."""
+    a = r.get("address") or {}
+    candidates = [
+        r.get("name"),                                           # a landmark/POI name, if the pin is on one
+        a.get("suburb") or a.get("quarter") or a.get("neighbourhood") or a.get("village"),
+        a.get("city") or a.get("town") or a.get("county") or a.get("state"),
+    ]
+    parts = []
+    for p in candidates:
+        if p and p not in parts:
+            parts.append(p)
+    if len(parts) < 2 and a.get("country"):
+        parts.append(a["country"])
+    return ", ".join(parts) or r.get("display_name")
 
 @router.get("/search")
 async def search(q: str):
@@ -46,7 +62,7 @@ async def search(q: str):
                 # place (e.g. Kyoto's own listing comes back in Japanese
                 # script), which reads as broken to an English-speaking
                 # sketcher rather than as a translation choice.
-                params={"q": q, "format": "jsonv2", "limit": 5, "accept-language": "en"},
+                params={"q": q, "format": "jsonv2", "limit": 5, "accept-language": "en", "addressdetails": 1},
                 headers=HEADERS,
             )
         except httpx.HTTPError:
@@ -54,7 +70,7 @@ async def search(q: str):
     if resp.status_code != 200:
         raise HTTPException(502, "Location search is temporarily unavailable")
     return [
-        {"label": r["display_name"], "lat": float(r["lat"]), "lon": float(r["lon"])}
+        {"label": short_label(r), "detail": r["display_name"], "lat": float(r["lat"]), "lon": float(r["lon"])}
         for r in resp.json()
     ]
 
@@ -84,7 +100,7 @@ async def reverse_geocode(lat: float, lon: float) -> str | None:
             return None
     if resp.status_code != 200:
         return None
-    return resp.json().get("display_name")
+    return short_label(resp.json())
 
 
 @router.get("/reverse")

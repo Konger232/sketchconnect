@@ -89,6 +89,12 @@ class Sketch(Base):
     # routers/sketches.py's focal_frame endpoint). Null until that flow has
     # been completed at least once for this sketch.
     focal_points = Column(JSON, nullable=True)
+    # The sketcher's planning marks (Marks.jsx): freehand lines
+    # drawn over the framed photo, [{color, width, points: [[x, y], ...]}]
+    # in the same 0-1000 frame space as focal_points. Kept as data rather
+    # than baked into reference_image_url so scene analysis sees a clean
+    # photo; coaching calls can render them onto a composite when needed.
+    marks = Column(JSON, nullable=True)
     # Guided-question answers, one {prompt, response} per pick, appended
     # by POST /api/sketches/{id}/session-choices. Read by the critique call.
     session_choices = Column(JSON, nullable=True)

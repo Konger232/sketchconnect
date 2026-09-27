@@ -35,10 +35,13 @@ def _mock_gemini_response(mock_name: str):
 def call_gemini_json_with_raw(
     prompt: str,
     response_schema: dict,
-    image: Image.Image | None = None,
+    image: Image.Image | list[Image.Image | None] | None = None,
     mock_name: str = "scene_analysis",
 ) -> tuple[dict, str]:
     """Return the raw Gemini response to the GUI.
+    `image` is one image or a list of them (e.g. the critique's coaching
+    composite + final sketch), sent after the prompt in list order; None
+    entries are skipped. The prompt should say which image is which.
     In mock mode, `mock_name` picks the mock file that matches this call."""
     if USE_MOCK_GEMINI:
         return _mock_gemini_response(mock_name)
@@ -51,7 +54,9 @@ def call_gemini_json_with_raw(
             "response_schema": response_schema,
         },
     )
-    contents = [prompt, image] if image is not None else [prompt]
+    images = image if isinstance(image, list) else [image]
+    images = [im for im in images if im is not None]
+    contents = [prompt, *images]
 
     # Dev-time visibility into exactly what gets sent/received per call —
     # this is the one place every call type (Scene Analysis, Persona,
@@ -60,6 +65,7 @@ def call_gemini_json_with_raw(
     # in the uvicorn --reload terminal during local testing.
     print("\n" + "=" * 80)
     print(f"[Gemini call] model: {GEMINI_MODEL}")
+    print(f"[Gemini call] images sent: {len(images)}")
     print("[Gemini call] prompt sent:\n" + prompt)
     print("[Gemini call] response_schema sent:\n" + json.dumps(response_schema, indent=2))
     print("=" * 80)
@@ -88,7 +94,7 @@ def call_gemini_json_with_raw(
 def call_gemini_json(
     prompt: str,
     response_schema: dict,
-    image: Image.Image | None = None,
+    image: Image.Image | list[Image.Image | None] | None = None,
     mock_name: str = "scene_analysis",
 ) -> dict:
     """Existing public shape — parsed dict only. Unchanged for every

@@ -60,6 +60,7 @@ export default function FocalSpotPicker({
   ownPointCap,
   onSkip,
   onMarkContinue,
+  onBackToFrame,
   pendingMarkQuestions,
   markQuestionPos,
   regions,
@@ -69,37 +70,34 @@ export default function FocalSpotPicker({
   minZoom,
   maxZoom,
   zoom,
-  handleZoomSliderStart,
   handleZoomSliderChange,
-  handleZoomSliderCommit,
-  handleConfirmFrame,
+  onFrameContinue,
   saving,
-  frameQuestionPos,
-  frameQuestionQueue,
-  anchorLabel,
-  handleFrameKeep,
-  handleFrameRemove,
   error,
 }) {
   return (
     <div>
-     {/* <div className="flex flex-col justify-center gap-4 bg-white p-5 text-ink md:p-6"> */}
-    
+
       {phase === 'mark-placing' && (
         <div className="animate-fade-in-up">
           <h2 className="panel-label text-sm text-white/80">Mark your focal points</h2>
           <p className="mt-2 text-sm text-white/70">
-            Tap the photo for what catches your eye. Gemini will ask about anything you missed once you continue.
+            Tap the photo for what catches your eye. 
           </p>
           <p className="mt-3 text-xs text-white/50">
             Your own: {ownPoints.length} / {ownPointCap}
             {ownPoints.length >= ownPointCap && ' — tap a marker to remove it and free up a spot'}
           </p>
           <div className="mt-4 flex items-center gap-3">
-            <Button variant="linkOnDark" onClick={onSkip} className="font-medium">
+            <Button variant="linkOnDark" onClick={onBackToFrame} disabled={saving} className="text-3xs">
+              Back to framing
+            </Button>
+            <Button variant="linkOnDark" onClick={onSkip} disabled={saving} className="text-3xs">
               Skip this step
             </Button>
-            <Button variant="primaryOnDark" size="sm" onClick={onMarkContinue}>Continue</Button>
+            <Button variant="primaryOnDark" size="sm" onClick={onMarkContinue} disabled={saving}>
+              {saving ? 'Saving…' : 'Continue'}
+            </Button>
           </div>
         </div>
       )}
@@ -127,21 +125,11 @@ export default function FocalSpotPicker({
       {phase === 'frame-adjusting' && (
         <div className="animate-fade-in-up">
           <h2 className="panel-label text-sm text-white/80">
-            Fine-tune the frame
+            Frame your scene
           </h2>
           <p className="mt-2 text-xs text-white/60">
-            Drag the photo to pan, or use the slider to zoom — watch how your points sit against the rule-of-thirds
-            grid. Moving one out of frame will ask before letting it go.
+            Drag the photo to pan, or use the slider to zoom. Use the rule-of-thirds grid to decide what stays in.
           </p>
-          {/* <Button
-            variant="pill"
-            active={showGrid}
-            type="button"
-            onClick={() => setShowGrid((v) => !v)}
-            className="mt-3 self-start font-medium"
-          >
-            Rule of thirds grid: {showGrid ? 'On' : 'Off'}
-          </Button> */}
           <div className="mt-4 flex items-center gap-2">
             <span className="text-xs text-white/40">−</span>
             <input
@@ -150,38 +138,16 @@ export default function FocalSpotPicker({
               max={maxZoom}
               step={0.01}
               value={zoom}
-              onPointerDown={handleZoomSliderStart}
               onChange={handleZoomSliderChange}
-              onPointerUp={handleZoomSliderCommit}
               className="h-1.5 flex-1 accent-white"
               aria-label="Zoom"
             />
             <span className="text-xs text-white/40">+</span>
           </div>
-          <span className="text-xs text-white/40 items-center">{zoom}</span>
-          <Button variant="primaryOnDark" size="sm" className="mt-4 w-full" onClick={handleConfirmFrame} disabled={saving}>
-            {saving ? 'Saving…' : 'Confirm framing'}
+          <span className="text-xs text-white/40 items-center">{zoom.toFixed(2)}×</span>
+          <Button variant="primaryOnDark" size="sm" className="mt-4 w-full" onClick={onFrameContinue}>
+            Next: mark focal points
           </Button>
-        </div>
-      )}
-
-      {phase === 'frame-asking' && (
-        <div className="animate-fade-in-up">
-          <p className="panel-label">
-            Question {frameQuestionPos + 1} of {frameQuestionQueue.length}
-          </p>
-          <p className="mt-1 text-base font-semibold leading-snug">
-            You've moved {anchorLabel(frameQuestionQueue[frameQuestionPos])} out of frame — not interested in that
-            area anymore?
-          </p>
-          <div className="mt-4 flex gap-2">
-            <Button variant="outlineOnDark" size="sm" className="flex-1" onClick={handleFrameKeep}>
-              No, keep it in frame
-            </Button>
-            <Button variant="primaryOnDark" size="sm" className="flex-1" onClick={handleFrameRemove}>
-              Correct, remove it
-            </Button>
-          </div>
         </div>
       )}
 

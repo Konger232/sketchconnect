@@ -68,7 +68,8 @@ export default function LoggedInHome() {
         ))}
       </div>
 
-      <h2 className="mt-8 text-xl font-bold">Map View</h2>
+      <h2 className="mt-8 text-xl font-bold">Map View</h2> 
+      
       <div className="mt-2">
         <LocationMap
           points={sketches.filter((s) => s.location).map((s) => ({ ...s.location, label: s.title }))}
