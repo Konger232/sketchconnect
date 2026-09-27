@@ -14,6 +14,9 @@ load_dotenv()
 
 # --- Image preprocessing ---
 MAX_IMAGE_DIMENSION = 1600       # longest side, in pixels, before any analysis runs
+COACHING_MAX_DIMENSION = 1024    # longest side for images sent to Help Quest and the
+                                  # critique -- they judge composition, not exact
+                                  # coordinates, so they don't need scene analysis's 1600
                                   # (fixes the memory crash on full-size phone photos)
 
 # --- Value study (/value-study) ---

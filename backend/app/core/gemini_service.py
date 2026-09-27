@@ -80,6 +80,7 @@ def call_gemini_json_with_raw(
     raw_text = response.text.strip()
 
     print("[Gemini call] raw response:\n" + raw_text)
+    _print_token_usage(response)
     print("=" * 80 + "\n")
 
     text = raw_text
@@ -89,6 +90,31 @@ def call_gemini_json_with_raw(
             text = text[4:]
         text = text.strip()
     return json.loads(text), raw_text
+
+
+def _print_token_usage(response) -> None:
+    """
+    Actual token counts Gemini billed for this call (images included), from
+    the response's usage_metadata. `cached` is the part of the prompt Gemini
+    served from its cache -- how much the fixed opening of a prompt is
+    saving. Fields a model doesn't report print as "n/a".
+    """
+    usage = getattr(response, "usage_metadata", None)
+    if usage is None:
+        print("[Gemini call] token usage: not reported")
+        return
+
+    def field(name):
+        value = getattr(usage, name, None)
+        return "n/a" if value is None else value
+
+    print(
+        "[Gemini call] token usage: "
+        f"prompt={field('prompt_token_count')} "
+        f"(cached={field('cached_content_token_count')}), "
+        f"response={field('candidates_token_count')}, "
+        f"total={field('total_token_count')}"
+    )
 
 
 def call_gemini_json(

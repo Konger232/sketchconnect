@@ -12,6 +12,7 @@ from pathlib import Path
 from PIL import Image
 
 from app.core.prompt_loader import render_prompt
+from config import COACHING_MAX_DIMENSION
 from app.core.composite import (
     describe_focal_points,
     load_original,
@@ -38,7 +39,7 @@ def pick_image(sketch) -> tuple[Image.Image | None, bool]:
     composite = render_composite(sketch)
     if composite is not None:
         return composite, True
-    return load_original(sketch), False
+    return load_original(sketch, COACHING_MAX_DIMENSION), False
 
 
 def build_prompt(sketch, question: str, style: str, scene_type: str, step_id: str, has_plan: bool) -> str:

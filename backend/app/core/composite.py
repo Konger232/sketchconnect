@@ -21,7 +21,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from config import MAX_IMAGE_DIMENSION
+from config import COACHING_MAX_DIMENSION, MAX_IMAGE_DIMENSION
 from app.core.paths import UPLOAD_DIR
 
 
@@ -47,8 +47,8 @@ def _hex_to_rgb(color: str) -> tuple[int, int, int]:
         return (255, 255, 255)
 
 
-def _load_upload(url: str | None) -> Image.Image | None:
-    """Open an /uploads/... image, downsized to MAX_IMAGE_DIMENSION."""
+def _load_upload(url: str | None, max_dim: int = MAX_IMAGE_DIMENSION) -> Image.Image | None:
+    """Open an /uploads/... image, downsized so its longest side is at most max_dim."""
     if not url:
         return None
     path = UPLOAD_DIR / Path(url).name
@@ -56,8 +56,8 @@ def _load_upload(url: str | None) -> Image.Image | None:
         return None
     img = Image.open(path).convert("RGB")
     w, h = img.size
-    if max(w, h) > MAX_IMAGE_DIMENSION:
-        scale = MAX_IMAGE_DIMENSION / max(w, h)
+    if max(w, h) > max_dim:
+        scale = max_dim / max(w, h)
         img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
     return img
 
@@ -84,7 +84,8 @@ def render_composite(sketch) -> Image.Image | None:
     marks = sketch.marks or []
     if not was_reframed(sketch) and not focal_points and not marks:
         return None
-    img = _load_upload(sketch.reference_image_url)
+    # Coaching-size: only Help Quest and the critique use this image.
+    img = _load_upload(sketch.reference_image_url, COACHING_MAX_DIMENSION)
     if img is None:
         return None
     if not focal_points and not marks:
@@ -125,13 +126,13 @@ def render_composite(sketch) -> Image.Image | None:
     return Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
 
 
-def load_original(sketch) -> Image.Image | None:
+def load_original(sketch, max_dim: int = MAX_IMAGE_DIMENSION) -> Image.Image | None:
     """
     The untouched upload (original_image_url), before any crop, pan or
     zoom. Falls back to reference_image_url for older sketches saved before
     original_image_url existed. None only if neither file is on disk.
     """
-    return _load_upload(sketch.original_image_url or sketch.reference_image_url)
+    return _load_upload(sketch.original_image_url or sketch.reference_image_url, max_dim)
 
 
 def _region_name(x: float, y: float) -> str:

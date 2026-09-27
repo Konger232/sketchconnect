@@ -35,6 +35,9 @@ from app.core.paths import UPLOAD_DIR
 
 PROMPTS = Path(__file__).parent / "prompts"
 
+# Most recent Help Quest Q&As included in the critique prompt.
+HELP_QUEST_HISTORY_LIMIT = 10
+
 
 RESPONSE_SCHEMA = {
     "type": "object",
@@ -68,12 +71,19 @@ def run_critique(db: Session, sketch: Sketch) -> None:
         raise RuntimeError("No persona set for this style yet")
 
     session_choices = json.dumps(sketch.session_choices or [])
+    # Only the most recent Help Quest exchanges, oldest first, so a long
+    # session doesn't keep growing the prompt.
+    recent_help = (
+        db.query(HelpQuestLog)
+        .filter(HelpQuestLog.sketch_id == sketch.id)
+        .order_by(HelpQuestLog.created_at.desc())
+        .limit(HELP_QUEST_HISTORY_LIMIT)
+        .all()
+    )
     help_quest_log = json.dumps([
         {"step_id": h.step_id, "question": h.question, "answer": h.answer,
          "principle_reference": h.principle_reference}
-        for h in db.query(HelpQuestLog)
-        .filter(HelpQuestLog.sketch_id == sketch.id)
-        .order_by(HelpQuestLog.created_at)
+        for h in reversed(recent_help)
     ])
     latest = (
         db.query(CritiqueResponse)
