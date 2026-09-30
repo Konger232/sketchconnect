@@ -1,0 +1,837 @@
+{
+  "name": "0e1faaf5-cf0b-4333-b4e3-8ae40f7473e1",
+  "style": "realistic",
+  "geometry": {
+    "marks": [
+      {
+        "id": "m1",
+        "order": 1,
+        "kind": "freehand line",
+        "guide": false,
+        "big": false,
+        "selected": false,
+        "color": "#fde68a",
+        "size_mm": 1.0,
+        "start": [
+          29,
+          553
+        ],
+        "end": [
+          397,
+          442
+        ],
+        "box": [
+          29,
+          442,
+          397,
+          572
+        ],
+        "points": 67,
+        "started_ms": 11849,
+        "duration_ms": 628
+      },
+      {
+        "id": "m2",
+        "order": 2,
+        "kind": "freehand line",
+        "guide": false,
+        "big": false,
+        "selected": false,
+        "color": "#fde68a",
+        "size_mm": 1.0,
+        "start": [
+          412,
+          382
+        ],
+        "end": [
+          571,
+          553
+        ],
+        "box": [
+          375,
+          382,
+          624,
+          868
+        ],
+        "points": 246,
+        "started_ms": 12795,
+        "duration_ms": 2319
+      },
+      {
+        "id": "m3",
+        "order": 3,
+        "kind": "closed shape",
+        "guide": false,
+        "big": true,
+        "selected": true,
+        "color": "#fde68a",
+        "size_mm": 1.0,
+        "start": [
+          42,
+          122
+        ],
+        "end": [
+          108,
+          179
+        ],
+        "box": [
+          42,
+          122,
+          954,
+          676
+        ],
+        "points": 413,
+        "started_ms": 16785,
+        "duration_ms": 2200
+      },
+      {
+        "id": "m4",
+        "order": 4,
+        "kind": "freehand line",
+        "guide": false,
+        "big": false,
+        "selected": false,
+        "color": "#fde68a",
+        "size_mm": 1.0,
+        "start": [
+          684,
+          450
+        ],
+        "end": [
+          827,
+          446
+        ],
+        "box": [
+          684,
+          366,
+          827,
+          498
+        ],
+        "points": 95,
+        "started_ms": 21706,
+        "duration_ms": 804
+      },
+      {
+        "id": "m5",
+        "order": 5,
+        "kind": "freehand line",
+        "guide": false,
+        "big": false,
+        "selected": false,
+        "color": "#fde68a",
+        "size_mm": 1.0,
+        "start": [
+          656,
+          386
+        ],
+        "end": [
+          817,
+          361
+        ],
+        "box": [
+          656,
+          320,
+          817,
+          387
+        ],
+        "points": 63,
+        "started_ms": 22962,
+        "duration_ms": 777
+      },
+      {
+        "id": "m6",
+        "order": 6,
+        "kind": "freehand line",
+        "guide": false,
+        "big": false,
+        "selected": true,
+        "color": "#fde68a",
+        "size_mm": 1.0,
+        "start": [
+          5,
+          537
+        ],
+        "end": [
+          424,
+          370
+        ],
+        "box": [
+          5,
+          349,
+          424,
+          556
+        ],
+        "points": 379,
+        "started_ms": 25002,
+        "duration_ms": 3659
+      },
+      {
+        "id": "m7",
+        "order": 7,
+        "kind": "closed shape",
+        "guide": false,
+        "big": false,
+        "selected": false,
+        "color": "#fde68a",
+        "size_mm": 1.0,
+        "start": [
+          97,
+          582
+        ],
+        "end": [
+          114,
+          579
+        ],
+        "box": [
+          45,
+          579,
+          116,
+          938
+        ],
+        "points": 131,
+        "started_ms": 31439,
+        "duration_ms": 1184
+      },
+      {
+        "id": "m8",
+        "order": 8,
+        "kind": "freehand line",
+        "guide": false,
+        "big": false,
+        "selected": false,
+        "color": "#fde68a",
+        "size_mm": 1.0,
+        "start": [
+          134,
+          617
+        ],
+        "end": [
+          501,
+          585
+        ],
+        "box": [
+          134,
+          517,
+          501,
+          617
+        ],
+        "points": 79,
+        "started_ms": 34349,
+        "duration_ms": 963
+      },
+      {
+        "id": "m9",
+        "order": 9,
+        "kind": "closed shape",
+        "guide": false,
+        "big": false,
+        "selected": false,
+        "color": "#fde68a",
+        "size_mm": 1.0,
+        "start": [
+          552,
+          563
+        ],
+        "end": [
+          535,
+          570
+        ],
+        "box": [
+          535,
+          562,
+          562,
+          700
+        ],
+        "points": 77,
+        "started_ms": 35908,
+        "duration_ms": 825
+      },
+      {
+        "id": "m10",
+        "order": 10,
+        "kind": "freehand line",
+        "guide": false,
+        "big": false,
+        "selected": false,
+        "color": "#fde68a",
+        "size_mm": 1.0,
+        "start": [
+          517,
+          674
+        ],
+        "end": [
+          531,
+          823
+        ],
+        "box": [
+          434,
+          674,
+          612,
+          832
+        ],
+        "points": 161,
+        "started_ms": 37229,
+        "duration_ms": 2218
+      },
+      {
+        "id": "m11",
+        "order": 11,
+        "kind": "freehand line",
+        "guide": false,
+        "big": false,
+        "selected": false,
+        "color": "#fde68a",
+        "size_mm": 1.0,
+        "start": [
+          587,
+          653
+        ],
+        "end": [
+          816,
+          781
+        ],
+        "box": [
+          587,
+          618,
+          816,
+          815
+        ],
+        "points": 68,
+        "started_ms": 40123,
+        "duration_ms": 691
+      },
+      {
+        "id": "m12",
+        "order": 12,
+        "kind": "freehand line",
+        "guide": false,
+        "big": false,
+        "selected": false,
+        "color": "#fde68a",
+        "size_mm": 1.0,
+        "start": [
+          880,
+          682
+        ],
+        "end": [
+          787,
+          854
+        ],
+        "box": [
+          787,
+          682,
+          898,
+          854
+        ],
+        "points": 55,
+        "started_ms": 41101,
+        "duration_ms": 625
+      },
+      {
+        "id": "m13",
+        "order": 13,
+        "kind": "dot",
+        "guide": false,
+        "big": false,
+        "selected": false,
+        "color": "#fde68a",
+        "size_mm": 1.0,
+        "start": [
+          427,
+          988
+        ],
+        "end": [
+          427,
+          988
+        ],
+        "box": [
+          427,
+          988,
+          427,
+          988
+        ],
+        "points": 1,
+        "started_ms": 42943,
+        "duration_ms": 509
+      },
+      {
+        "id": "m14",
+        "order": 14,
+        "kind": "straight line",
+        "guide": false,
+        "big": false,
+        "selected": false,
+        "color": "#fde68a",
+        "size_mm": 1.0,
+        "start": [
+          479,
+          989
+        ],
+        "end": [
+          793,
+          909
+        ],
+        "box": [
+          479,
+          909,
+          793,
+          989
+        ],
+        "points": 41,
+        "started_ms": 45184,
+        "duration_ms": 698
+      }
+    ],
+    "links": [
+      {
+        "a": "m1",
+        "b": "m2",
+        "kind": "connects",
+        "at": [
+          397,
+          442
+        ]
+      },
+      {
+        "a": "m1",
+        "b": "m3",
+        "kind": "connects",
+        "at": [
+          397,
+          442
+        ]
+      },
+      {
+        "a": "m1",
+        "b": "m6",
+        "kind": "connects",
+        "at": [
+          29,
+          553
+        ]
+      },
+      {
+        "a": "m1",
+        "b": "m7",
+        "kind": "connects",
+        "at": [
+          97,
+          582
+        ]
+      },
+      {
+        "a": "m2",
+        "b": "m3",
+        "kind": "runs_along",
+        "length": 90
+      },
+      {
+        "a": "m2",
+        "b": "m6",
+        "kind": "connects",
+        "at": [
+          424,
+          370
+        ]
+      },
+      {
+        "a": "m2",
+        "b": "m8",
+        "kind": "crosses",
+        "at": [
+          [
+            402,
+            521
+          ]
+        ]
+      },
+      {
+        "a": "m3",
+        "b": "m4",
+        "kind": "connects",
+        "at": [
+          684,
+          450
+        ]
+      },
+      {
+        "a": "m3",
+        "b": "m6",
+        "kind": "runs_along",
+        "length": 135
+      },
+      {
+        "a": "m3",
+        "b": "m11",
+        "kind": "runs_along",
+        "length": 115
+      },
+      {
+        "a": "m3",
+        "b": "m12",
+        "kind": "connects",
+        "at": [
+          880,
+          682
+        ]
+      },
+      {
+        "a": "m4",
+        "b": "m5",
+        "kind": "crosses",
+        "at": [
+          [
+            747,
+            378
+          ]
+        ]
+      },
+      {
+        "a": "m7",
+        "b": "m8",
+        "kind": "connects",
+        "at": [
+          134,
+          617
+        ]
+      },
+      {
+        "a": "m9",
+        "b": "m10",
+        "kind": "runs_along",
+        "length": 105
+      }
+    ],
+    "groups": [
+      {
+        "id": "s1",
+        "mark_ids": [
+          "m1",
+          "m2"
+        ]
+      },
+      {
+        "id": "s2",
+        "mark_ids": [
+          "m3"
+        ]
+      },
+      {
+        "id": "s3",
+        "mark_ids": [
+          "m4",
+          "m5"
+        ]
+      },
+      {
+        "id": "s4",
+        "mark_ids": [
+          "m6"
+        ]
+      },
+      {
+        "id": "s5",
+        "mark_ids": [
+          "m7",
+          "m8"
+        ]
+      },
+      {
+        "id": "s6",
+        "mark_ids": [
+          "m9",
+          "m10"
+        ]
+      },
+      {
+        "id": "s7",
+        "mark_ids": [
+          "m11"
+        ]
+      },
+      {
+        "id": "s8",
+        "mark_ids": [
+          "m12"
+        ]
+      },
+      {
+        "id": "s9",
+        "mark_ids": [
+          "m13"
+        ]
+      },
+      {
+        "id": "s10",
+        "mark_ids": [
+          "m14"
+        ]
+      }
+    ]
+  },
+  "sizes": {
+    "marks": 14,
+    "points": 1876,
+    "marks_json_kb": 30.0,
+    "prompt_chars": 10155,
+    "geometry_ms": 33.4
+  },
+  "call_seconds": 32.6,
+  "result": {
+    "scene_type": "architectural",
+    "marks": [
+      {
+        "mark_id": "m1",
+        "traces": "left roof line of the main temple roof",
+        "element": "line",
+        "role": "contour",
+        "fit": "close",
+        "note": "Traces the sloping roofline on the left side of the temple."
+      },
+      {
+        "mark_id": "m2",
+        "traces": "center column and roof angle of the temple",
+        "element": "line",
+        "role": "perspective_guide",
+        "fit": "loose",
+        "note": "Establishes the central vertical support and roof slope."
+      },
+      {
+        "mark_id": "m3",
+        "traces": "outer contour of the temple roof and power lines",
+        "element": "shape",
+        "role": "big_shape",
+        "fit": "loose",
+        "note": "Encloses the main mass of the temple roof complex and upper overhead wires."
+      },
+      {
+        "mark_id": "m4",
+        "traces": "lower roof edge of the right temple tier",
+        "element": "line",
+        "role": "contour",
+        "fit": "close",
+        "note": "Marks the horizontal roof eave on the right side of the temple."
+      },
+      {
+        "mark_id": "m5",
+        "traces": "top decorative ridge of the right temple roof",
+        "element": "line",
+        "role": "contour",
+        "fit": "close",
+        "note": "Follows the ornate upper roofline of the right tower."
+      },
+      {
+        "mark_id": "m6",
+        "traces": "row of hanging red lanterns along the left eave",
+        "element": "line",
+        "role": "gesture",
+        "fit": "loose",
+        "note": "Captures the rhythmic looping motion of the suspended lantern chain."
+      },
+      {
+        "mark_id": "m7",
+        "traces": "left main pillar of the temple entrance",
+        "element": "form",
+        "role": "contour",
+        "fit": "close",
+        "note": "Outlines the tall red column supporting the left side of the porch."
+      },
+      {
+        "mark_id": "m8",
+        "traces": "horizontal entrance beam under the left roof",
+        "element": "line",
+        "role": "alignment",
+        "fit": "close",
+        "note": "Connects the structural supports along the lower front beam."
+      },
+      {
+        "mark_id": "m9",
+        "traces": "roof of the small stone kiosk",
+        "element": "shape",
+        "role": "big_shape",
+        "fit": "close",
+        "note": "Blocks in the roof structure of the small central stone booth."
+      },
+      {
+        "mark_id": "m10",
+        "traces": "walls of the small stone kiosk",
+        "element": "line",
+        "role": "contour",
+        "fit": "close",
+        "note": "Traces the vertical walls of the kiosk in front of the temple."
+      },
+      {
+        "mark_id": "m11",
+        "traces": "balcony line of the side building",
+        "element": "line",
+        "role": "perspective_guide",
+        "fit": "close",
+        "note": "Guides the perspective angle along the right side balcony."
+      },
+      {
+        "mark_id": "m12",
+        "traces": "outer vertical wall edge on the right",
+        "element": "line",
+        "role": "contour",
+        "fit": "close",
+        "note": "Defines the rightmost corner edge of the building facade."
+      },
+      {
+        "mark_id": "m13",
+        "traces": "nothing in the scene",
+        "element": "space",
+        "role": "measurement",
+        "fit": "not_applicable",
+        "note": "Marks a reference point on the street surface."
+      },
+      {
+        "mark_id": "m14",
+        "traces": "street ground line in front of the crowd",
+        "element": "line",
+        "role": "ground_line",
+        "fit": "loose",
+        "note": "Establishes the sloped ground plane of the street in the foreground."
+      }
+    ],
+    "mark_relationships": [
+      {
+        "mark_ids": [
+          "m1",
+          "m2",
+          "m8"
+        ],
+        "kind": "alignment",
+        "principle": "line",
+        "observation": "The main roof slope, central support, and horizontal beam meet to form the structural framework of the temple entrance."
+      },
+      {
+        "mark_ids": [
+          "m4",
+          "m5"
+        ],
+        "kind": "repetition",
+        "principle": "rhythm",
+        "observation": "The upper and lower rooflines of the right temple tier repeat parallel decorative angles."
+      },
+      {
+        "mark_ids": [
+          "m9",
+          "m10"
+        ],
+        "kind": "containment",
+        "principle": "form",
+        "observation": "The kiosk roof shape sits directly on top of its vertical wall structure."
+      }
+    ],
+    "form_relationships": [
+      {
+        "forms": [
+          {
+            "label": "main temple roof",
+            "x": 380,
+            "y": 480
+          },
+          {
+            "label": "right temple tower",
+            "x": 720,
+            "y": 440
+          }
+        ],
+        "mark_ids": [
+          "m1",
+          "m2",
+          "m4",
+          "m5"
+        ],
+        "kind": "overlap_in_depth",
+        "principle": "space",
+        "observation": "The main entrance roof overlaps the decorative right side tower structure in depth."
+      },
+      {
+        "forms": [
+          {
+            "label": "small stone kiosk",
+            "x": 520,
+            "y": 720
+          },
+          {
+            "label": "temple entrance facade",
+            "x": 280,
+            "y": 680
+          }
+        ],
+        "mark_ids": [
+          "m7",
+          "m8",
+          "m9",
+          "m10"
+        ],
+        "kind": "contrast_of_size",
+        "principle": "proportion",
+        "observation": "The small stone kiosk in the foreground contrasts in scale with the large temple structure behind it."
+      }
+    ],
+    "stroke_order_note": "The sketcher began with the main roof slopes and large temple silhouette before moving to smaller architectural details like the pillars, kiosk, and ground plane.",
+    "prepared_prompts": [
+      {
+        "key": "proportion_check",
+        "question": "Should we check proportions of the temple roof structures before you commit to line weight?",
+        "mark_ids": [
+          "m1",
+          "m2",
+          "m3",
+          "m4",
+          "m5"
+        ],
+        "options": [
+          {
+            "label": "Check proportions first",
+            "mark_ids": [
+              "m1",
+              "m2",
+              "m3",
+              "m4",
+              "m5"
+            ]
+          },
+          {
+            "label": "Eyeball it and adjust as you go",
+            "mark_ids": []
+          },
+          {
+            "label": "Skip proportion check",
+            "mark_ids": []
+          }
+        ]
+      },
+      {
+        "key": "focal_building",
+        "question": "Which part of the scene should anchor your composition?",
+        "mark_ids": [
+          "m3",
+          "m7",
+          "m9"
+        ],
+        "options": [
+          {
+            "label": "Anchor on the most prominent structure",
+            "mark_ids": [
+              "m3"
+            ]
+          },
+          {
+            "label": "Let a smaller detail lead instead",
+            "mark_ids": [
+              "m9"
+            ]
+          },
+          {
+            "label": "Decide as you sketch",
+            "mark_ids": []
+          }
+        ]
+      }
+    ]
+  },
+  "problems": []
+}

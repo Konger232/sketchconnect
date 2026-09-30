@@ -11,6 +11,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from app.core import debug
 from app.core.prompt_loader import render_prompt
 from config import COACHING_MAX_DIMENSION
 from app.core.composite import (
@@ -44,6 +45,7 @@ def pick_image(sketch) -> tuple[Image.Image | None, bool]:
 
 def build_prompt(sketch, question: str, style: str, scene_type: str, step_id: str, has_plan: bool) -> str:
     if has_plan:
+        debug.print_marks("help_quest", sketch.id, sketch.marks, (sketch.cached_scene_analysis or {}).get("frame_aspect", 1.0))
         plan_context = render_prompt(
             PROMPTS / "help_quest_plan.md",
             planning_image=render_prompt("planning_image.md"),

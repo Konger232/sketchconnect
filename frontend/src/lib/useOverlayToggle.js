@@ -17,5 +17,15 @@ export function useOverlayToggle(resetKey) {
     setMode((prev) => (prev === 'none' ? 'all' : 'none'))
   }
 
-  return { mode, toggle }
+  // Turn on (never off): used when a guided-question answer asks for it.
+  function show() {
+    setMode('all')
+  }
+
+  // Turn off: used when another overlay takes its place.
+  function hide() {
+    setMode('none')
+  }
+
+  return { mode, toggle, show, hide }
 }

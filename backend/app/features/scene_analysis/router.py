@@ -3,10 +3,12 @@ POST /api/scene-analysis — fires once per reference photo (design doc,
 Section 5, steps 1-4; schema: gemini_call_schemas.md #1).
 
 HTTP layer only: auth, caching, loading the photo, and saving results on
-the sketch. The Gemini call itself (schema, prompt, result cleaning) is in
+the sketch. The sketcher's plan (focal points, marks) is read from the
+stored sketch, never sent from the browser. The Gemini call itself (schema, prompt, result cleaning) is in
 features/scene_analysis/service.py; the prompt text is in prompts/scene_analysis*.md.
 """
 import io
+from config import DEBUG
 from datetime import datetime
 from pathlib import Path
 
@@ -61,25 +63,21 @@ async def scene_analysis(
     if sketch is None:
         raise HTTPException(404, "Sketch not found")
 
-    # Cache hit: a sketch's photo and crop_transform can never change after
-    # creation (sketches.py has no route that edits either), so the only
-    # thing that can make a previous analysis stale is a different style
-    # -- Gemini adapts prepared_prompts wording/tone per style even though
-    # scene_type itself is a property of the photo, not the style (design
-    # doc, Section 2). Re-entering the same sketch with the same style
-    # (Cancel then reopen, a page reload, SketchFlowPage's resume-on-load)
-    # is a real, common case and shouldn't cost a fresh Gemini call.
-    if sketch.style == style and sketch.cached_scene_analysis:
-        # Backfill a still-missing title even on a cache hit -- a sketch
-        # analyzed before suggested_title existed in this schema (or one
-        # whose title was cleared some other way) would otherwise never
-        # pick it up, since re-entering the same style always takes this
-        # early-return path and skips the fresh-call logic below entirely.
-        cached_title = (sketch.cached_scene_analysis.get("suggested_title") or "").strip()
+    # Cache hit: same style, and nothing else the analysis depends on has
+    # changed -- framing, focal points or marks (service.plan_fingerprint).
+    # The fingerprint is stored with the cached result; a result cached
+    # before it existed has none, so it re-runs once.
+    fingerprint = scene_analysis_service.plan_fingerprint(sketch)
+    cached = sketch.cached_scene_analysis
+    if sketch.style == style and cached and cached.get("plan_fingerprint") == fingerprint:
+        # Backfill a still-missing title even on a cache hit.
+        cached_title = (cached.get("suggested_title") or "").strip()
         if cached_title and not sketch.title:
             sketch.title = cached_title[:150]
             db.commit()
-        return sketch.cached_scene_analysis
+        # Recompute the "There is the ... here" questions against the sketch's
+        # current points and marks, dropping areas adopted since.
+        return scene_analysis_service.refresh_suggestions(cached, sketch.focal_points, sketch.marks, style)
 
     if image is not None:
         contents = await image.read()
@@ -100,10 +98,15 @@ async def scene_analysis(
     pil_image = scene_analysis_service.resize_if_needed(pil_image)
 
     try:
-        result, raw_gemini_text = scene_analysis_service.analyze(pil_image, style, sketch.crop_transform)
+        result, raw_gemini_text = scene_analysis_service.analyze(
+            pil_image, style, sketch.crop_transform,
+            plan=scene_analysis_service.build_plan(sketch),
+        )
     except GeminiQuotaExceededError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
-    result["debug_raw_gemini_response"] = raw_gemini_text
+    # The browser's debug panel shows it only with DEBUG=true in .env.
+    result["debug_raw_gemini_response"] = raw_gemini_text if DEBUG else None
+    result["plan_fingerprint"] = fingerprint
 
     # A sketcher hasn't typed anything yet the first time a sketch reaches
     # this call (title entry is deferred entirely to EditSketch.jsx) --

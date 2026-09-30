@@ -62,6 +62,14 @@ ALLOWED_ORIGIN_REGEX = r"^http://(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3
 # works fine for a dev box). Loaded from the environment, not hardcoded.
 import os as _os
 
+# --- Debugging ---
+# DEBUG=true in backend/.env prints every Gemini call in full in the
+# uvicorn terminal: the prompt, the response schema, the raw response and
+# token counts (core/gemini_service.py), plus scene analysis's decision
+# summary, and sends the raw response to the browser's debug panel.
+# Off (the default): one short line per call with its token counts.
+DEBUG = _os.environ.get("DEBUG", "false").strip().lower() in ("1", "true", "yes")
+
 DATABASE_URL = _os.environ.get("DATABASE_URL", "")
 
 # Supabase issues auth JWTs; this backend verifies them directly against
@@ -75,11 +83,10 @@ SUPABASE_URL = _os.environ.get("SUPABASE_URL", "")
 # logged-in user's token.
 SUPABASE_JWT_AUDIENCE = "authenticated"
 
-# --- Scene analysis rule table ---
-# Which prepared-prompt SET is eligible for a given (scene_type, style) pair.
-# Gemini fills in scene-specific wording; this table controls *which*
-# question keys it's allowed to choose from, keeping the AI observing
-# rather than directing (see design doc, Section 5).
+# --- Scene types and styles ---
+# Which guided questions each scene type may use lives in
+# app/features/scene_analysis/question_bank.json, checked against this
+# list on load (design doc, Section 11, item 12).
 SCENE_TYPES = [
     "architectural",
     "still_life_organic",
@@ -91,3 +98,23 @@ STYLES = ["ink_and_wash", "realistic", "minimalist", "reportage"]
 
 # Focal-region cap: a design decision, not citation-backed (design doc, Sec. 6)
 MAX_FOCAL_REGIONS = 3
+
+# How many missed focal areas (focal_regions the sketcher did not mark)
+# become "The AI also noticed..." guided questions. A design decision, kept
+# low so the questions don't crowd out the sketcher's own choices.
+MAX_FOCAL_SUGGESTIONS = 2
+
+# Marks (Marks.jsx). MAX_MARKS caps what is stored, erased marks included;
+# when a save goes over, the oldest erased marks are dropped first.
+# MAX_MARKS_FOR_AI caps how many visible marks are described to Gemini
+# one by one (selected marks first, then stroke order). Past it, the
+# prompt says how many more there are. A design decision: labels on the
+# planning image start to overlap at about 15-20 marks.
+MAX_MARKS = 200
+MAX_POINTS_PER_MARK = 5000
+MAX_MARKS_FOR_AI = 24
+
+# "What do you see these marks as?" questions, one per selected shape,
+# asked first (design doc, item 17). A design decision, kept low so the
+# guidance doesn't open with a quiz.
+MAX_MARK_MEANING_QUESTIONS = 2

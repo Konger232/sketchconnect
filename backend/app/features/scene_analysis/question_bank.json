@@ -1,0 +1,286 @@
+{
+  "about": "Guided question bank for the scene analysis call. scene_types decides which questions each scene type may use. The AI adapts the wording of question and options to the photo, but cannot add a question that is not listed here. Checked by question_bank.py on every load. By convention the last option is the skip or do-it-differently choice. focal_suggestion is not chosen by the AI: the app asks it once for each focal area the sketcher did not mark, pointing at it with a reticle, filling in $label and $reason from the scene analysis. Its first option adds the area to the plan as a mark along its outline (source 'prompted', design doc item 17). The others are only recorded: one for an area the sketcher already had in mind, one for declining. Each option is a label plus an optional action. An action names an overlay the app shows when the sketcher picks that option; the valid names and what each shows are listed in 'actions'. style_actions swaps an action for one style, e.g. realistic shows the square grid wherever the rule-of-thirds grid would show.",
+  "principles": [
+    "line",
+    "shape",
+    "form",
+    "space",
+    "value",
+    "color",
+    "texture",
+    "balance",
+    "emphasis",
+    "movement",
+    "pattern",
+    "rhythm",
+    "proportion",
+    "unity",
+    "variety",
+    "contrast"
+  ],
+  "actions": {
+    "proportions": "Proportion check: one unit the AI traced (e.g. a column's height) and 2-3 spans measured against it, e.g. 'roof width = 3.5 units'.",
+    "perspective": "Eye level and vanishing points, each traced edge extended to its point.",
+    "focal_shapes": "The AI's traced outlines of the strongest focal areas.",
+    "value_study": "The photo simplified into a few flat value shapes, light to dark.",
+    "rule_of_thirds": "The rule-of-thirds grid over the frame.",
+    "grid": "A square grid for the grid method, cells set by --grid-cell-mm in index.css (10 mm).",
+    "describe": "Not an overlay: the app shows a short text field so the sketcher can answer in their own words."
+  },
+  "style_actions": {
+    "realistic": {
+      "rule_of_thirds": "grid"
+    }
+  },
+  "focal_suggestion": {
+    "principle": "emphasis",
+    "question": "There is the $label here. $reason Add it to your plan?",
+    "options": [
+      {
+        "label": "Yes, add it"
+      },
+      {
+        "label": "Already in my plan"
+      },
+      {
+        "label": "No thanks"
+      }
+    ]
+  },
+  "mark_meaning": {
+    "about": "Asked first, once per selected shape (at most MAX_MARK_MEANING_QUESTIONS), before any other question. The AI never assumes what a selected mark means; the sketcher says. The AI writes the question and the first two options, its best reading and the next most likely one. The third option is fixed and lets the sketcher type their own words. The answer is what the sketcher saw the marks as, and it wins over the AI's own reading (design doc, item 17).",
+    "principle": "shape",
+    "question": "What do you see these marks as?",
+    "options": [
+      {
+        "label": "The AI's best reading of the marks"
+      },
+      {
+        "label": "The next most likely reading"
+      },
+      {
+        "label": "Something else",
+        "action": "describe"
+      }
+    ]
+  },
+  "questions": {
+    "proportion_check": {
+      "principle": "proportion",
+      "question": "Should we check proportions before you commit to line weight?",
+      "options": [
+        {
+          "label": "Check proportions first",
+          "action": "proportions"
+        },
+        {
+          "label": "Eyeball it and adjust as you go"
+        },
+        {
+          "label": "Skip proportion check"
+        }
+      ]
+    },
+    "focal_building": {
+      "principle": "emphasis",
+      "question": "Which part of the scene should anchor your composition?",
+      "options": [
+        {
+          "label": "Anchor on the most prominent structure",
+          "action": "focal_shapes"
+        },
+        {
+          "label": "Let a smaller detail lead instead"
+        },
+        {
+          "label": "Decide as you sketch"
+        }
+      ]
+    },
+    "hide_background": {
+      "principle": "space",
+      "question": "What feels easiest to trace first?",
+      "options": [
+        {
+          "label": "Start with the foreground shapes"
+        },
+        {
+          "label": "Block in the background first"
+        },
+        {
+          "label": "Work both together"
+        }
+      ]
+    },
+    "split_shapes": {
+      "principle": "shape",
+      "question": "Background is clear. What's next?",
+      "options": [
+        {
+          "label": "Group shapes by value",
+          "action": "value_study"
+        },
+        {
+          "label": "Group shapes by type"
+        },
+        {
+          "label": "Keep it as one continuous mass"
+        }
+      ]
+    },
+    "compare_weights": {
+      "principle": "balance",
+      "question": "Want to compare the relative weights of these shapes?",
+      "options": [
+        {
+          "label": "Compare the heaviest and lightest shapes"
+        },
+        {
+          "label": "Look at how the dark areas balance the light ones",
+          "action": "value_study"
+        },
+        {
+          "label": "Skip the comparison"
+        }
+      ]
+    },
+    "tonal_values": {
+      "principle": "value",
+      "question": "Should we simplify this into a few tonal values?",
+      "options": [
+        {
+          "label": "Block in 3 main values",
+          "action": "value_study"
+        },
+        {
+          "label": "Focus on line contours first"
+        },
+        {
+          "label": "Work directly with full detail"
+        }
+      ]
+    },
+    "gesture_first": {
+      "principle": "movement",
+      "question": "Want to start with a quick gesture line before details?",
+      "options": [
+        {
+          "label": "Start with a quick gesture line"
+        },
+        {
+          "label": "Go straight to detail"
+        },
+        {
+          "label": "Block in the big shapes first"
+        }
+      ]
+    },
+    "time_pressure_tip": {
+      "principle": "movement",
+      "question": "This subject may move. Want a tip for working fast?",
+      "options": [
+        {
+          "label": "Capture the gesture fast, refine later"
+        },
+        {
+          "label": "Focus on the head or core shape only"
+        },
+        {
+          "label": "Take a reference photo as backup"
+        }
+      ]
+    },
+    "horizon_placement": {
+      "principle": "space",
+      "question": "Where should the horizon sit in your composition?",
+      "options": [
+        {
+          "label": "Place it low for more sky",
+          "action": "rule_of_thirds"
+        },
+        {
+          "label": "Place it high for more foreground",
+          "action": "rule_of_thirds"
+        },
+        {
+          "label": "Center it evenly"
+        }
+      ]
+    },
+    "value_masses": {
+      "principle": "value",
+      "question": "Want to see this scene as large flat value shapes?",
+      "options": [
+        {
+          "label": "Block in large flat shapes first",
+          "action": "value_study"
+        },
+        {
+          "label": "Work light-to-dark gradually"
+        },
+        {
+          "label": "Jump straight to detail"
+        }
+      ]
+    },
+    "sky_ground_ratio": {
+      "principle": "balance",
+      "question": "How much of the frame should sky take up?",
+      "options": [
+        {
+          "label": "Let the sky dominate",
+          "action": "rule_of_thirds"
+        },
+        {
+          "label": "Let the ground dominate",
+          "action": "rule_of_thirds"
+        },
+        {
+          "label": "Split it evenly"
+        }
+      ]
+    },
+    "routing_question": {
+      "principle": "emphasis",
+      "question": "What do you want to focus on first?",
+      "options": [
+        {
+          "label": "Architecture first"
+        },
+        {
+          "label": "Figures first"
+        },
+        {
+          "label": "Whatever draws your eye"
+        }
+      ]
+    }
+  },
+  "scene_types": {
+    "architectural": [
+      "proportion_check",
+      "focal_building"
+    ],
+    "still_life_organic": [
+      "hide_background",
+      "split_shapes",
+      "compare_weights",
+      "tonal_values"
+    ],
+    "figure": [
+      "gesture_first",
+      "proportion_check",
+      "time_pressure_tip"
+    ],
+    "open_landscape": [
+      "horizon_placement",
+      "value_masses",
+      "sky_ground_ratio"
+    ],
+    "mixed": [
+      "routing_question",
+      "focal_building",
+      "gesture_first"
+    ]
+  }
+}

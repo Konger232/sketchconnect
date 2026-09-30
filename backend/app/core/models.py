@@ -37,7 +37,7 @@ class Sketch(Base):
     style = Column(String, nullable=True)  # ink_and_wash | realistic | minimalist | reportage
     scene_type = Column(String, nullable=True)
     # Full scene-analysis response (scene_summary, focal_regions,
-    # perspective_lines, prepared_prompts, debug_raw_gemini_response),
+    # perspective, prepared_prompts, debug_raw_gemini_response, plan_fingerprint),
     # cached verbatim the first time Gemini computes it for this sketch.
     # The photo and crop_transform can never change after creation
     # (sketches.py has no route that edits either), so the only thing

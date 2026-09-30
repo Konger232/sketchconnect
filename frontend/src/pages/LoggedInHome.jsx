@@ -4,6 +4,7 @@ import SketchCard from '../components/common/SketchCard'
 import LocationMap from '../components/common/LocationMap'
 import { useAuth } from '../components/common/AuthContext'
 import { api } from '../lib/api'
+import { useSketchesVersion } from '../lib/sketchEvents'
 
 /**
  * Home for a signed-in sketcher — matches the Claude Design "Home - Login
@@ -27,6 +28,8 @@ export default function LoggedInHome() {
   const { profile, displayName } = useAuth()
   const location = useLocation()
   const [sketches, setSketches] = useState([])
+  // Goes up when a modal on top creates, edits or deletes a sketch.
+  const sketchesVersion = useSketchesVersion()
   const [loading, setLoading] = useState(true)
 
   // See ProfilePage.jsx's identical comment: depends on location.key so
@@ -37,7 +40,7 @@ export default function LoggedInHome() {
   useEffect(() => {
     setLoading(true)
     api.get('/api/sketches').then(({ data }) => setSketches(data)).finally(() => setLoading(false))
-  }, [location.key])
+  }, [location.key, sketchesVersion])
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-16">

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../lib/api'
+import Icon from './Icon'
 
 // A single, compact search field for a sketch's own location 
 // `location` is { lat, lon, label } | null -- the shape sketches.py now
@@ -95,19 +96,14 @@ export default function LocationSearchField({ location, onLocationChange, dark =
               : 'border-black/15 focus:border-ink/60'
           }`}
         />
-        {/* Location Icon */}
-        <svg viewBox="0 0 24.00 24.00" fill="none" xmlns="http://www.w3.org/2000/svg"
-         className={`w-4 h-4 pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm ${dark ? 'text-white/50' : 'text-ink/60'}`}
-          aria-hidden="true">
-          <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
-          <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
-          <g id="SVGRepo_iconCarrier"> 
-            <path d="M12 21C15.5 17.4 19 14.1764 19 10.2C19 6.22355 15.866 3 12 3C8.13401 3 5 6.22355 5 10.2C5 14.1764 8.5 17.4 12 21Z" 
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path> 
-            <path d="M12 13C13.6569 13 15 11.6569 15 10C15 8.34315 13.6569 7 12 7C10.3431 7 9 8.34315 9 10C9 11.6569 10.3431 13 12 13Z" 
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path> 
-          </g>
-        </svg>
+        {/* Location pin; hidden while the clear button sits in its place */}
+        {!query && (
+          <Icon
+            name="location-outline"
+            size={14}
+            className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${dark ? 'text-white/50' : 'text-ink/60'}`}
+          />
+        )}
         {query && (
           <button
             type="button"
@@ -117,7 +113,7 @@ export default function LocationSearchField({ location, onLocationChange, dark =
               dark ? 'text-white/50 hover:bg-white/10 hover:text-white' : 'text-ink/40 hover:bg-black/5 hover:text-ink'
             }`}
           >
-            ✕
+            <Icon name="close" size={10} className="h-2.5 w-2.5" />
           </button>
         )}
       </div>

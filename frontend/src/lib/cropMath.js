@@ -6,14 +6,20 @@
 
 export const ASPECT_RATIOS = {
   original: null, // resolved from the photo's own natural size at call time
+  '3:4': 3 / 4,
   '1:1': 1,
-  '4:5': 4 / 5,
+  '4:3': 4 / 3,
+  '4:5': 4 / 5,   // older sketches may carry these two
   '16:9': 16 / 9,
 }
 
-export const ASPECT_RATIO_ORDER = ['original', '1:1', '4:5', '16:9']
+// The ratio buttons on the Crop and reframe step, in order.
+export const ASPECT_RATIO_ORDER = ['original', '3:4', '1:1', '4:3']
 
-export function resolveAspectRatio(key, naturalSize) {
+// 'custom' is a free shape the sketcher dragged out with the corners
+// (customRatio, width / height). It has no button.
+export function resolveAspectRatio(key, naturalSize, customRatio = null) {
+  if (key === 'custom' && customRatio) return customRatio
   const fixed = ASPECT_RATIOS[key]
   if (fixed != null) return fixed
   if (naturalSize && naturalSize.height) return naturalSize.width / naturalSize.height
@@ -60,8 +66,8 @@ export function computeImageBox(frameWidth, frameHeight, naturalWidth, naturalHe
 // Renders the current frame state to a JPEG Blob at a fixed export width,
 // letterboxed with black wherever zoom < 1 leaves the frame not fully
 // covered by the photo -- the actual "Save" of the crop.
-export function bakeCrop({ imageEl, naturalSize, aspectRatioKey, zoom, offset, exportWidth = 1440 }) {
-  const ratio = resolveAspectRatio(aspectRatioKey, naturalSize)
+export function bakeCrop({ imageEl, naturalSize, aspectRatioKey, customRatio = null, zoom, offset, exportWidth = 1440 }) {
+  const ratio = resolveAspectRatio(aspectRatioKey, naturalSize, customRatio)
   const exportHeight = Math.round(exportWidth / ratio)
   const canvas = document.createElement('canvas')
   canvas.width = exportWidth
@@ -82,6 +88,26 @@ export function bakeCrop({ imageEl, naturalSize, aspectRatioKey, zoom, offset, e
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('toBlob failed'))), 'image/jpeg', 0.9)
   })
+}
+
+// Corner crop. The sketcher dragged the frame's corners in to `rect`
+// (x, y, width, height, in the same units as `imageBox`, relative to the
+// frame's top-left). Returns the zoom and offset that make `rect` the new
+// frame, showing exactly the part of the photo that was inside it.
+// computeImageBox only depends on the frame's shape, not its size, so
+// the new frame can be measured in rect's own units.
+export function reframeToRect(rect, imageBox, naturalWidth, naturalHeight) {
+  const baseScale = Math.max(rect.width / naturalWidth, rect.height / naturalHeight)
+  const zoom = imageBox.width / naturalWidth / baseScale
+  const left = imageBox.left - rect.x
+  const top = imageBox.top - rect.y
+  return {
+    zoom,
+    offset: {
+      x: (left + imageBox.width / 2) / rect.width - 0.5,
+      y: (top + imageBox.height / 2) / rect.height - 0.5,
+    },
+  }
 }
 
 // True once the sketcher has actually touched the framing -- used to skip

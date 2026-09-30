@@ -1,12 +1,23 @@
 
+// Modal buttons from the design handoff (Create / Edit sketch): 44px tall,
+// 10px radius, 15px bold. Colours are the sc-* tokens (index.css).
+//   action           amber, the one primary action per screen
+//   secondaryOnDark  outlined, next to an action
+//   quietOnDark      text only (Skip)
+//   choice           an answer to a guide question, full width, left aligned
+const MODAL_VARIANTS = ['action', 'secondaryOnDark', 'quietOnDark', 'choice']
+
 export default function Button({ variant = 'primary', size = 'md', active = false, className = '', ...props }) {
   const isLink = variant === 'link' || variant === 'linkOnDark'
   const isPill = variant === 'pill' || variant === 'pillOnLight'
+  const isModal = MODAL_VARIANTS.includes(variant)
 
   const base = isLink
     ? 'transition-colors'
     : isPill
     ? 'rounded-full font-normal transition-all duration-150 active:scale-95 disabled:opacity-50'
+    : isModal
+    ? 'rounded-[10px] transition-colors disabled:opacity-50'
     : 'rounded-sm font-normal transition-colors'
 
   const variants = {
@@ -20,6 +31,12 @@ export default function Button({ variant = 'primary', size = 'md', active = fals
     linkOnDark: 'text-sm text-white/70 hover:text-white',
     pill: active ? 'bg-white/60 text-ink' : 'bg-white/20 text-white/70 hover:bg-white/20',
     pillOnLight: active ? 'bg-ink text-white' : 'bg-ink/10 text-ink/70 hover:bg-ink/20',
+    action: 'bg-sc-action px-5 font-bold text-sc-action-ink hover:brightness-105',
+    secondaryOnDark: 'border-[1.5px] border-sc-strong px-[18px] font-bold text-white hover:bg-white/5',
+    quietOnDark: 'px-3 font-semibold text-sc-text2 hover:text-white',
+    choice: `min-h-[50px] w-full border-[1.5px] px-3.5 py-2 text-left font-semibold ${
+      active ? 'border-sc-guide bg-sc-raised text-white' : 'border-sc-border bg-sc-raised text-white hover:border-sc-strong'
+    }`,
   }
 
   const sizes = {
@@ -27,7 +44,7 @@ export default function Button({ variant = 'primary', size = 'md', active = fals
     sm: 'px-3 py-1 text-xs',
   }
 
-  const spacing = isLink ? '' : isPill ? 'px-3 py-1.5 text-2xs' : sizes[size]
+  const spacing = isLink ? '' : isPill ? 'px-3 py-1.5 text-2xs' : isModal ? `min-h-11 text-md ${variant === 'choice' ? '' : 'whitespace-nowrap'}` : sizes[size]
 
-  return <button className={`${base} ${spacing} ${variants[variant]} ${className}`} {...props} />
+  return <button type={isModal ? 'button' : undefined} className={`${base} ${spacing} ${variants[variant]} ${className}`} {...props} />
 }

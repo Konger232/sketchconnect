@@ -12,7 +12,7 @@ import google.generativeai as genai
 
 from google.api_core.exceptions import ResourceExhausted
 from PIL import Image
-from config import GEMINI_MODEL
+from config import DEBUG, GEMINI_MODEL
 
 USE_MOCK_GEMINI = os.getenv("USE_MOCK_GEMINI", "false").lower() == "true"
 # One mock file per call type: mockdata/mock_<mock_name>.json
@@ -44,7 +44,12 @@ def call_gemini_json_with_raw(
     entries are skipped. The prompt should say which image is which.
     In mock mode, `mock_name` picks the mock file that matches this call."""
     if USE_MOCK_GEMINI:
-        return _mock_gemini_response(mock_name)
+        result, raw_text = _mock_gemini_response(mock_name)
+        if DEBUG:
+            _print_request(mock_name, prompt, response_schema, 0, mock=True)
+            print(f"[Gemini {mock_name}] mock response:\n" + raw_text)
+            print("=" * 80 + "\n")
+        return result, raw_text
 
     _configure()
     model = genai.GenerativeModel(
@@ -58,17 +63,11 @@ def call_gemini_json_with_raw(
     images = [im for im in images if im is not None]
     contents = [prompt, *images]
 
-    # Dev-time visibility into exactly what gets sent/received per call —
-    # this is the one place every call type (Scene Analysis, Persona,
-    # Critique, Help Quest) funnels through, so it covers all of them.
-    # Plain print(), not logging, since this is meant to show up directly
-    # in the uvicorn --reload terminal during local testing.
-    print("\n" + "=" * 80)
-    print(f"[Gemini call] model: {GEMINI_MODEL}")
-    print(f"[Gemini call] images sent: {len(images)}")
-    print("[Gemini call] prompt sent:\n" + prompt)
-    print("[Gemini call] response_schema sent:\n" + json.dumps(response_schema, indent=2))
-    print("=" * 80)
+    # Every call type (scene analysis, persona, critique, Help Quest)
+    # funnels through here. With DEBUG=true in .env, the whole request and
+    # response print in the uvicorn terminal (config.DEBUG).
+    if DEBUG:
+        _print_request(mock_name, prompt, response_schema, len(images))
 
     try:
         response = model.generate_content(contents)
@@ -79,9 +78,11 @@ def call_gemini_json_with_raw(
 
     raw_text = response.text.strip()
 
-    print("[Gemini call] raw response:\n" + raw_text)
-    _print_token_usage(response)
-    print("=" * 80 + "\n")
+    if DEBUG:
+        print(f"[Gemini {mock_name}] raw response:\n" + raw_text)
+    _print_token_usage(response, mock_name)
+    if DEBUG:
+        print("=" * 80 + "\n")
 
     text = raw_text
     if text.startswith("```"):
@@ -92,7 +93,18 @@ def call_gemini_json_with_raw(
     return json.loads(text), raw_text
 
 
-def _print_token_usage(response) -> None:
+def _print_request(name: str, prompt: str, response_schema: dict, image_count: int, mock: bool = False) -> None:
+    """DEBUG only: the full request, as sent. Plain print(), not logging,
+    so it shows up directly in the uvicorn --reload terminal."""
+    print("\n" + "=" * 80)
+    print(f"[Gemini {name}] model: {'mock' if mock else GEMINI_MODEL}")
+    print(f"[Gemini {name}] images sent: {image_count}")
+    print(f"[Gemini {name}] prompt sent:\n" + prompt)
+    print(f"[Gemini {name}] response_schema sent:\n" + json.dumps(response_schema, indent=2))
+    print("=" * 80)
+
+
+def _print_token_usage(response, name: str = "call") -> None:
     """
     Actual token counts Gemini billed for this call (images included), from
     the response's usage_metadata. `cached` is the part of the prompt Gemini
@@ -101,7 +113,7 @@ def _print_token_usage(response) -> None:
     """
     usage = getattr(response, "usage_metadata", None)
     if usage is None:
-        print("[Gemini call] token usage: not reported")
+        print(f"[Gemini {name}] token usage: not reported")
         return
 
     def field(name):
@@ -109,7 +121,7 @@ def _print_token_usage(response) -> None:
         return "n/a" if value is None else value
 
     print(
-        "[Gemini call] token usage: "
+        f"[Gemini {name}] token usage: "
         f"prompt={field('prompt_token_count')} "
         f"(cached={field('cached_content_token_count')}), "
         f"response={field('candidates_token_count')}, "

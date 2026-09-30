@@ -5,6 +5,7 @@ import Footer from '../components/common/Footer'
 import SketchCard from '../components/common/SketchCard'
 import { useAuth } from '../components/common/AuthContext'
 import { api } from '../lib/api'
+import { useSketchesVersion } from '../lib/sketchEvents'
 import { distanceKm } from '../lib/geo'
 import Button from '../components/common/Button'
 
@@ -60,6 +61,8 @@ export default function SearchPage() {
   const [placeSearching, setPlaceSearching] = useState(false)
   const [placeError, setPlaceError] = useState(null)
   const [place, setPlace] = useState(null) // { label, lat, lon } | null
+  // Goes up when a modal on top creates, edits or deletes a sketch.
+  const sketchesVersion = useSketchesVersion()
 
   // Base list: your own sketches when signed in, otherwise the public
   // recent feed. Re-fetched (with lat/lon) whenever a place is picked
@@ -72,7 +75,7 @@ export default function SearchPage() {
       ? { lat: place.lat, lon: place.lon, radius_km: DEFAULT_RADIUS_KM, limit: LOCATION_SEARCH_LIMIT }
       : undefined
     api.get(endpoint, { params: reqParams }).then(({ data }) => setSketches(data)).finally(() => setLoading(false))
-  }, [user, place])
+  }, [user, place, sketchesVersion])
 
   const results = useMemo(() => {
     let list = sketches

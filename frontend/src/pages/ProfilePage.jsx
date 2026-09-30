@@ -4,6 +4,7 @@ import SketchCard from '../components/common/SketchCard'
 import { useAuth } from '../components/common/AuthContext'
 import { Link, useLocation } from 'react-router-dom'
 import { api } from '../lib/api'
+import { useSketchesVersion } from '../lib/sketchEvents'
 
 // Profile / journey screen: avatar + name, "Sketches" feed — matches the
 // Figma "Later in the evening" flow. Feedback Summary is the same data
@@ -12,6 +13,8 @@ export default function ProfilePage() {
   const { profile, displayName } = useAuth()
   const location = useLocation()
   const [sketches, setSketches] = useState([])
+  // Goes up when a modal on top creates, edits or deletes a sketch.
+  const sketchesVersion = useSketchesVersion()
   const [loading, setLoading] = useState(true)
 
   // Depends on location.key, not []. This page stays mounted underneath
@@ -27,7 +30,7 @@ export default function ProfilePage() {
   useEffect(() => {
     setLoading(true)
     api.get('/api/sketches').then(({ data }) => setSketches(data)).finally(() => setLoading(false))
-  }, [location.key])
+  }, [location.key, sketchesVersion])
 
   return (
     <div>

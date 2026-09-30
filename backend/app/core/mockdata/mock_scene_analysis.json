@@ -1,43 +1,73 @@
 {
+  "scene_summary": "A narrow European street lined with tall shuttered townhouses in warm ochre and cream tones, leading toward a small stone bridge in the distance.",
   "scene_type": "architectural",
   "mixed_dominant_region": "null",
-  "scene_summary": "A narrow European street lined with tall shuttered townhouses in warm ochre and cream tones, leading toward a small stone bridge in the distance.",
   "suggested_title": "Shuttered Street Toward the Stone Bridge",
   "focal_regions": [
     {
       "label": "corner building facade",
+      "sketcher_marked": true,
+      "reason": "Its warm ochre wall is the brightest shape in the frame.",
       "contour_points": [120, 300, 180, 260, 340, 270, 360, 420, 300, 460, 140, 440]
     },
     {
       "label": "stone bridge arch",
+      "sketcher_marked": false,
+      "reason": "The dark arch opening stands out against the pale stone.",
       "contour_points": [560, 520, 640, 500, 700, 540, 690, 600, 600, 610, 550, 570]
     },
     {
       "label": "row of shuttered windows",
+      "sketcher_marked": false,
+      "reason": "The repeated shutters make a strong rhythm across the facade.",
       "contour_points": [220, 180, 410, 170, 415, 260, 225, 270]
     }
   ],
-  "perspective_lines": [100, 650, 520, 400, 900, 700, 540, 420],
-  "prepared_prompts": [
-    {
-      "key": "perspective_lines",
-      "question": "Want to see the perspective lines running toward the bridge?",
-      "options": ["Show the vanishing lines", "Just note the strongest angle", "Skip perspective for now"]
+  "perspective": {
+    "eye_level_y": 400,
+    "kind": "one_point",
+    "vanishing_points": [
+      {
+        "x": 530,
+        "y": 400,
+        "edges": [100, 650, 440, 460, 900, 700, 650, 497, 120, 300, 450, 380]
+      }
+    ]
+  },
+  "proportions": {
+    "unit": {
+      "label": "corner building height",
+      "line": [150, 270, 150, 450]
     },
+    "comparisons": [
+      {
+        "label": "corner building width",
+        "line": [120, 440, 360, 440]
+      },
+      {
+        "label": "bridge arch width",
+        "line": [555, 560, 700, 560]
+      }
+    ]
+  },
+  "prepared_prompts": [
     {
       "key": "proportion_check",
       "question": "Should we check the proportions of the corner building before you commit to line weight?",
-      "options": ["Check proportions first", "Eyeball it and adjust as you go", "Skip proportion check"]
+      "options": [
+        "Check proportions first",
+        "Eyeball it and adjust as you go",
+        "Skip proportion check"
+      ]
     },
     {
       "key": "focal_building",
       "question": "Which building should anchor your composition -- the corner facade or the one near the bridge?",
-      "options": ["Anchor on the corner facade", "Let the bridge lead instead", "Decide as you sketch"]
-    },
-    {
-      "key": "show_focal_areas",
-      "question": "Want to see which areas of this street stood out most to the AI?",
-      "options": ["Show all of them", "Just the strongest one", "Decide on my own"]
+      "options": [
+        "Anchor on the corner facade",
+        "Let the bridge lead instead",
+        "Decide as you sketch"
+      ]
     }
   ]
 }

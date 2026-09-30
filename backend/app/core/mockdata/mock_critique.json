@@ -1,16 +1,36 @@
 {
-  "prior_review_summary": "First review for this sketch.",
+  "prior_review_summary": "First review for this sketch. Strong emphasis on the marked building; eye level placed late.",
   "decision_trace": {
-    "carried_through": [
-      "Kept the focal point on the main building, as marked during framing."
+    "habits": [
+      {
+        "observation": "Kept the marked building as the clear focal point from framing through to the finished sketch.",
+        "principle": "emphasis",
+        "evidence": "plan"
+      },
+      {
+        "observation": "Blocked in the big shapes before any line detail.",
+        "principle": "shape",
+        "evidence": "instinct"
+      },
+      {
+        "observation": "Left the foreground light, so the darkest values sit at the focal point.",
+        "principle": "value",
+        "evidence": "instinct"
+      }
     ],
-    "shifted": [
-      "Chose a looser line than the guided answers suggested."
-    ],
-    "instinct_only": [
-      "Added figures in the foreground without asking for help."
+    "opportunities": [
+      {
+        "observation": "Try placing eye level before the vertical features, so the rooflines have a line to converge on.",
+        "principle": "space",
+        "evidence": "plan"
+      },
+      {
+        "observation": "Try measuring one unit, such as a column's height, before committing to the widths around it.",
+        "principle": "proportion",
+        "evidence": "instinct"
+      }
     ]
   },
-  "critique": "[MOCK] Your framing held up well. The building you marked stays the clear focal point, and the lighter foreground lets it breathe. Look at how the value contrast is strongest where you chose to focus. That is emphasis working for you.",
+  "critique": "[MOCK] Your framing held up well. The building you marked stays the clear focal point, and the lighter foreground lets it breathe. Notice how the strongest value contrast sits right where you chose to focus. That is emphasis working for you. What would change if eye level went down first, before the rooflines?",
   "final_sketch_provided": true
 }

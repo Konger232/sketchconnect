@@ -17,6 +17,9 @@ export default function ImagePanel({
   // image silently never loads (onLoad never fires, box stays null, and
   // ImagePanel renders it at 1px/opacity:0 below).
   crossOrigin,
+  // Extra class on the <img> only, e.g. 'photo-bw' for the Marks step's
+  // black-and-white toggle. The SVG overlay on top is not affected.
+  imageClassName = '',
   zoom = 1,
   offset = { x: 0, y: 0 },
   box,
@@ -29,6 +32,15 @@ export default function ImagePanel({
   onWheel,
   onImageLoad,
   onClick,
+  // Crop step: draw the crop frame (white border, thirds, corner handles)
+  // and show the photo outside the frame, dimmed (.crop-frame, index.css).
+  cropFrame = false,
+  // Crop step: the frame while a corner is being dragged ({ x, y, width,
+  // height } in px, relative to the photo box). Null means the full box.
+  cropRect = null,
+  // Crop step: corner drag handlers { down(corner, e), move(e), up(e) }.
+  // corner is 'tl' | 'tr' | 'bl' | 'br'.
+  cornerHandlers,
   // --- New props for self-contained uploading ---
   fileInputRef,
   onFileChange,
@@ -42,7 +54,7 @@ export default function ImagePanel({
       ref={containerRef}
       // touch-none while a gesture handler is attached (pan/zoom, drawing),
       // so a finger on the photo doesn't scroll the page instead.
-      className={`relative flex w-full select-none items-center justify-center overflow-hidden bg-black p-3 md:p-4 ${onPointerDown ? 'touch-none' : ''} ${heightClass}`}
+      className={`relative flex w-full select-none items-center justify-center overflow-hidden bg-sc-modal p-3 md:p-[var(--stage-inset)] ${onPointerDown ? 'touch-none' : ''} ${heightClass}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -76,8 +88,7 @@ export default function ImagePanel({
         position: 'relative',
         width: `${boxSize.width || 0}px`,
         height: `${boxSize.height || 0}px`,
-        overflow: 'hidden',
-        // border: '0.5px solid grey',
+        overflow: cropFrame ? 'visible' : 'hidden',
         }}
         >
         <img
@@ -85,6 +96,7 @@ export default function ImagePanel({
         src={imageUrl}
         alt=""
         crossOrigin={crossOrigin}
+        className={imageClassName}
         draggable={false}
         onLoad={onImageLoad}
         style={
@@ -112,14 +124,30 @@ export default function ImagePanel({
             className="absolute inset-0 h-full w-full"
             viewBox="0 0 1000 1000"
             preserveAspectRatio="none"
-            style={{
-            border: '0.5px solid grey',
-            // transform: `translate(${offset.x * boxSize.width}px, ${offset.y * boxSize.height}px) scale(${zoom})`,
-            // transformOrigin: '0 0',
-            }}
         >
             {children}
         </svg>
+        )}
+        {box && cropFrame && (
+          <div
+            className="crop-frame"
+            style={cropRect ? { inset: 'auto', left: cropRect.x, top: cropRect.y, width: cropRect.width, height: cropRect.height } : undefined}
+          >
+            <span className="crop-frame__third crop-frame__third--v" style={{ left: '33.333%' }} />
+            <span className="crop-frame__third crop-frame__third--v" style={{ left: '66.667%' }} />
+            <span className="crop-frame__third crop-frame__third--h" style={{ top: '33.333%' }} />
+            <span className="crop-frame__third crop-frame__third--h" style={{ top: '66.667%' }} />
+            {['tl', 'tr', 'bl', 'br'].map((corner) => (
+              <span
+                key={corner}
+                className={`crop-frame__corner crop-frame__corner--${corner}`}
+                onPointerDown={cornerHandlers ? (e) => cornerHandlers.down(corner, e) : undefined}
+                onPointerMove={cornerHandlers?.move}
+                onPointerUp={cornerHandlers?.up}
+                onPointerCancel={cornerHandlers?.up}
+              />
+            ))}
+          </div>
         )}
     </div>
     )}

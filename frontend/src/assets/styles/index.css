@@ -108,17 +108,244 @@
   .panel-label   { @apply text-xs font-semibold uppercase tracking-wide text-white/50; }
   .panel-input   { @apply mt-1 w-full rounded-lg border border-white/15 bg-gray-800 px-4 py-2.5
                           text-sm text-white/80 transition-colors focus:border-white/40; }
+
+  /* Create / Edit sketch modal (design handoff: SketchModal.jsx,
+     GuideStage.jsx, CreateSketch.jsx, EditSketch.jsx). Colours come from
+     the sc-* Tailwind colours, which point at the tokens in :root. */
+  .sc-panel       { @apply flex min-h-0 w-full shrink-0 flex-col border-sc-divider bg-sc-panel text-sc-text
+                           md:w-[var(--panel-w-ipad)] md:border-l lg:w-[var(--panel-w-desktop)]; }
+  .sc-panel-body  { @apply flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6 [&>*]:shrink-0; }
+  .sc-footer      { @apply flex shrink-0 items-center justify-end gap-2.5 border-t border-sc-divider px-4 py-2.5; }
+  .sc-heading     { @apply font-heading text-title font-semibold text-white; }
+  .sc-body        { @apply text-base text-sc-text3; }
+  .sc-field-label { @apply text-sm font-semibold text-sc-text3; }
+  .sc-field       { @apply w-full rounded-xl border-[1.5px] border-sc-strong bg-sc-raised px-3.5 py-3 text-lg font-medium
+                           text-white placeholder:text-sc-muted focus:border-sc-guide focus:outline-none; }
+  .sc-chip        { @apply flex h-9 shrink-0 items-center whitespace-nowrap rounded-full border-[1.5px] border-sc-border
+                           bg-sc-raised px-3.5 text-base font-semibold text-white; }
+
+  /* Guide / Details / Feedback tabs: active = white text and a red
+     underline as wide as the label. */
+  .sc-tabs        { @apply flex shrink-0 justify-center gap-8 border-b border-sc-divider px-3 pt-1.5; }
+  .sc-tab         { @apply -mb-px flex h-[46px] flex-col items-stretch justify-end gap-2.5 px-1.5 text-md font-semibold text-sc-text3; }
+  .sc-tab::after  { content: ''; display: block; height: var(--tab-underline); border-radius: 2px; background: transparent; }
+  .sc-tab[aria-selected='true']        { @apply text-white; }
+  .sc-tab[aria-selected='true']::after { background: var(--tab-active); }
+
+  /* New Sketch progress: five segments, done / current / to do. */
+  .sc-progress        { @apply flex gap-1; }
+  .sc-progress > span { @apply block h-[3px] flex-1 rounded-sm; background: var(--progress-todo); }
+  .sc-progress > span[data-state='done']    { background: var(--progress-done); }
+  .sc-progress > span[data-state='current'] { background: var(--progress-current); }
+
+  /* Progress steps (scene analysis, feedback): a 22px circle, filled
+     blue with a check when done, a blue ring when current. */
+  .sc-steps       { @apply flex flex-col gap-3; }
+  .sc-step        { @apply flex items-center gap-3 text-md font-medium text-sc-muted; }
+  .sc-step-dot    { @apply flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border-2 border-sc-strong
+                           text-2xs font-extrabold text-sc-guide-ink; }
+  .sc-step[data-state='done'],
+  .sc-step[data-state='current'] { @apply text-white; }
+  .sc-step[data-state='done'] .sc-step-dot    { @apply border-sc-guide bg-sc-guide; }
+  .sc-step[data-state='current'] .sc-step-dot { @apply border-sc-guide; border-top-color: transparent;
+                                                  animation: progress-spin var(--progress-spin-duration) linear infinite; }
+  .sc-step[data-state='done'] .sc-step-dot    { animation: progress-pop 300ms ease-out; }
+
+  /* Photo drop zone (reference photo, final sketch). */
+  .sc-dropzone    { @apply flex min-h-0 flex-1 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed
+                           border-sc-strong p-6 text-center; }
+
+  /* Habits and opportunities (JourneyTrace.jsx). --trace-accent is set
+     per section from the two accent tokens. */
+  .trace-row      { @apply flex flex-col gap-1.5 rounded-[12px] px-3.5 py-3;
+                    background: var(--trace-row-bg); border-left: 3px solid var(--trace-accent); }
+  .trace-icon     { @apply flex h-[26px] w-[26px] items-center justify-center rounded-full;
+                    color: var(--trace-accent); background: var(--trace-icon-bg); }
+  .trace-tag      { @apply rounded-full px-2.5 py-0.5 text-sm font-semibold;
+                    background: var(--trace-tag-bg); color: var(--trace-tag-ink); }
+
+  /* Floating guide rail (GuideStage.jsx). */
+  .rail           { @apply flex gap-1 rounded-[var(--rail-radius)] border-[1.5px] border-sc-rail-border bg-sc-rail p-1; }
+  .rail-group     { @apply relative flex h-[var(--rail-button)] w-[var(--rail-button)] flex-col items-center justify-center gap-0.5
+                           rounded-xl text-2xs font-bold text-sc-text; }
+  .rail-count     { @apply absolute flex items-center justify-center rounded-full font-bold leading-none;
+                    top: var(--rail-count-offset); right: var(--rail-count-offset);
+                    min-width: var(--rail-count-size); height: var(--rail-count-size); padding: 0 4px;
+                    font-size: var(--rail-count-font-size);
+                    background: var(--rail-count-bg); color: var(--rail-count-ink); }
+  .rail-group[aria-pressed='true'] { @apply bg-sc-guide text-sc-guide-ink; }
+  .rail-tool      { @apply whitespace-nowrap rounded-[10px] text-left font-bold text-sc-text;
+                    height: var(--rail-tool-height); min-width: var(--rail-tool-min-width);
+                    padding: 0 var(--rail-tool-padding-x); font-size: var(--rail-tool-font-size); }
+  .rail-tool[aria-pressed='true']  { @apply bg-sc-guide text-sc-guide-ink; }
+  .rail-toggle    { @apply flex h-[var(--rail-toggle)] w-[var(--rail-toggle)] flex-col items-center justify-center gap-0.5
+                           rounded-[18px] border-[1.5px] border-sc-rail-border bg-sc-rail text-xs font-bold text-white; }
 }
 
 /*
  * Focal-area marking design tokens (sketcher-marked vs. Gemini-suggested
  */
 :root {
-  --focal-accent-user: #FF073A;   /* sketcher's own marked anchor */
+  --focal-accent-user: #60a5fa;   /* sketcher's own focal point (handoff blue) */
   --focal-accent-ai: #39ff14;     /* Gemini-suggested anchor, before adoption */
   --focal-reticle-stroke-width: 2px;
   --focal-reticle-stroke-opacity: 1;
   --focal-reticle-fill-opacity: 0.4;
+
+  /* AI-suggested focal point (AISuggestedReticle.jsx): the reticle in
+     --focal-accent-ai over a radial-gradient glow of the same colour. */
+  --focal-ai-glow-opacity: 0.55;       /* glow strength at its centre */
+  --focal-ai-fade-in: 900ms;           /* reticle + glow fade in */
+  --focal-ai-fade-out: 500ms;          /* fade out, before the next one */
+  --focal-ai-scale-from: 0.85;         /* glow blooms up from this size */
+  --focal-ai-easing: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Proportions overlay (ProportionOverlay.jsx): the unit and the spans
+     measured against it. */
+  --proportion-color: #ff3b30;
+  --proportion-stroke-width: 1px;
+
+  /* Show / hide fade for every photo guide (Fade.jsx). */
+  --guide-fade-in: 350ms;
+  --guide-fade-out: 250ms;
+
+  /* Focal shapes (ShapeOutlineOverlay.jsx): the AI's traced contours. */
+  --focal-shape-color: #f87171;
+  --focal-shape-stroke-width: 2px;
+  --focal-shape-dash: none;              /* dash, gap, or none */
+  --focal-shape-opacity: 1;
+  --focal-shape-fill: #f87171;           /* colour inside the contour */
+  --focal-shape-fill-opacity: 0.30;      /* 0 = no fill */
+
+  /* Perspective (PerspectiveLinesOverlay.jsx): edges extended to their
+     vanishing points, the vanishing point ring, and eye level. */
+  --perspective-edge-color: #60a5fa;
+  --perspective-edge-width: 2.5px;
+  --perspective-edge-opacity: 1;
+  --perspective-vp-radius: 8px;          /* ring on a vanishing point in frame */
+  --perspective-vp-width: 2px;
+  --perspective-eye-color: #ffffff;
+  --perspective-eye-width: 2px;
+  --perspective-eye-dash: 10 8;          /* dash, gap */
+  --perspective-eye-opacity: 1;
+
+  /* Square grid for the grid method (SquareGridOverlay.jsx), used in
+     place of the rule-of-thirds grid for the realistic style. */
+  --grid-cell-mm: 10;                        /* cell size on screen, in mm */
+  --grid-line-color: rgba(255, 255, 255, 0.45);
+  --grid-line-width: 1px;
+
+
+  /* Focal points (Reticle in FocalSpotPicker.jsx). While placing, each is
+     a numbered disc; on the guide stage, a ring with a white halo. */
+  --focal-point-size: 36px;              /* numbered disc diameter */
+  --focal-point-ring: #ffffff;           /* white ring around the disc */
+  --focal-point-ring-width: 3px;
+  --focal-point-number: #0b1220;         /* number inside the disc */
+  --focal-ring-radius: 15px;             /* guide-stage ring */
+  --focal-ring-width: 3px;               /* blue ring */
+  --focal-ring-halo: 5px;                /* white halo under the ring */
+
+  /* Marks (Marks.jsx): every new mark uses this colour. Line sizes are
+     the three choices in the Marks panel, on screen, in mm. The button
+     label is the number, so "0.5mm" shows as "0.5". */
+  --mark-color: #fde68a;
+  --mark-size-fine: 0.5mm;
+  --mark-size-medium: 1mm;               /* the default */
+  --mark-size-bold: 2mm;
+  /* Black-and-white photo while marking (the B&W toggle). Marks keep
+     their colour; only the photo changes. */
+  --mark-bw-filter: grayscale(1) contrast(1.1);
+  /* Selected marks (the Select tool): a halo under the line, in the
+     sketcher's focal blue. Width is added on each side of the mark. While
+     any mark is selected, the others fade to --mark-dim-opacity. */
+  --mark-select-halo: var(--focal-accent-user);
+  --mark-select-halo-width: 3px;
+  --mark-select-halo-opacity: 1;
+  --mark-dim-opacity: 0.65;
+
+  /* Crop frame (ImagePanel.jsx, crop step). */
+  /* Waiting screens (ProgressSteps.jsx, .sc-scan): scene analysis and
+     the critique. */
+  --progress-spin-duration: 0.9s;        /* current step's ring, one turn */
+  --progress-bar-duration: 1.6s;         /* moving bar, one sweep */
+  --progress-bar-height: 4px;
+  --progress-bar-color: #60a5fa;
+  --progress-bar-track: #374151;
+  --progress-scan-duration: 2.6s;        /* scan line over the image, top to bottom */
+  --progress-scan-color: rgba(96, 165, 250, 0.45);
+  --progress-scan-height: 22%;           /* the scan band's height, share of the image */
+
+  --crop-frame-color: #ffffff;
+  --crop-frame-width: 2px;
+  --crop-corner-size: 22px;
+  --crop-corner-width: 5px;
+  --crop-corner-hit: 14px;               /* extra grab area around each corner, for fingers */
+  --crop-thirds-color: rgba(255, 255, 255, 0.55);
+  --crop-dim: rgba(0, 0, 0, 0.6);        /* photo outside the frame */
+
+  /* Create / Edit sketch modal (SketchModal.jsx, design handoff). */
+  --modal-scrim: rgba(0, 0, 0, 0.6);
+  --modal-bg: #000000;                   /* modal and photo stage */
+  --modal-max-w: 1200px;                 /* desktop; iPad fills the screen */
+  --modal-max-h: 780px;
+  --modal-radius: 0px;
+  --stage-inset: 24px;                   /* photo inset on the stage */
+
+  /* Habits and opportunities under the feedback (JourneyTrace.jsx). */
+  --trace-habit-accent: #60a5fa;          /* Habits: guide blue */
+  --trace-opportunity-accent: #fbbf24;    /* Opportunities: warm amber */
+  --trace-row-bg: #1f2937;
+  --trace-icon-bg: rgba(255, 255, 255, 0.08);
+  --trace-tag-bg: #374151;                /* the principle tag, e.g. "Emphasis" */
+  --trace-tag-ink: #e5e7eb;
+
+  /* Photo stage strip (StageStrip.jsx): Reference photo, Plan, Final
+     sketch, scrolling sideways. */
+  --strip-gap: 12px;                     /* space between panels and at the ends */
+  --strip-panel-width: calc(100% - 56px); /* narrower than the stage so the next panel peeks in */
+  --panel-w-ipad: 340px;                 /* right panel, >= 768px */
+  --panel-w-desktop: 380px;              /* right panel, >= 1024px */
+  --panel-bg: #111827;
+  --panel-raised: #1f2937;               /* fields, cards, answer buttons */
+  --panel-divider: #1f2937;
+  --panel-border: #374151;
+  --panel-border-strong: #4b5563;
+  --text-primary: #f9fafb;
+  --text-secondary: #e5e7eb;
+  --text-tertiary: #d1d5db;
+  --text-muted: #9ca3af;                 /* lightest allowed, outdoor contrast */
+
+  /* Accents. Guide blue marks guides and selection. Red marks the active
+     tab and the current step. Amber is the one primary action per screen
+     (Next, Save, Get feedback, Take photo). */
+  --accent-guide: #60a5fa;
+  --accent-guide-ink: #0b1220;           /* text on guide blue */
+  --tab-active: rgb(255, 0, 0);
+  --tab-underline: 3px;
+  --progress-done: #ffffff;
+  --progress-current: rgb(255, 0, 0);
+  --progress-todo: #374151;
+  --action-bg: #fbbf24;
+  --action-fg: #111827;
+
+  /* Guide rail (GuideStage.jsx). */
+  --rail-bg: rgba(17, 24, 39, 0.94);
+  --rail-border: #4b5563;
+  --rail-radius: 16px;
+  --rail-button: 48px;                   /* group button, square */
+  --rail-toggle: 60px;                   /* collapsed Guides button */
+  /* Tool buttons in an open group (Focal areas, Proportions, ...). */
+  --rail-tool-height: 36px;              /* each tool button's height */
+  --rail-tool-font-size: var(--text-sm); /* label size (14px); try 1rem for 16px */
+  --rail-tool-padding-x: 14px;           /* space left and right of the label */
+  --rail-tool-min-width: 0px;            /* raise to make every tool the same width */
+  /* Count badge on a group button: how many of its tools are on. */
+  --rail-count-size: 14px;
+  --rail-count-font-size: 8px;
+  --rail-count-offset: 3px;              /* distance from the button's top-right corner */
+  --rail-count-bg: #60a5fa;
+  --rail-count-ink: #111827;
 
   /* Master knob: scales all text, not spacing. 1 = the sizes below. */
   --font-scale: 1;
@@ -129,8 +356,11 @@
   --text-xs:   calc(0.75rem    * var(--font-scale)); /* 12px */
   --text-sm:   calc(0.8125rem  * var(--font-scale)); /* 13px, was 14 */
   --text-base: calc(0.875rem   * var(--font-scale)); /* 14px, was 16 */
+  --text-md:   calc(0.9375rem  * var(--font-scale)); /* 15px, buttons, strong labels */
   --text-lg:   calc(1rem       * var(--font-scale)); /* 16px, was 18 */
+  --text-title: calc(1.0625rem * var(--font-scale)); /* 17px, modal and state headings */
   --text-xl:   calc(1.125rem   * var(--font-scale)); /* 18px, was 20 */
+  --text-question: calc(1.1875rem * var(--font-scale)); /* 19px, guide question */
   --text-2xl:  calc(1.25rem    * var(--font-scale)); /* 20px, was 24 */
   --text-4xl:  calc(1.875rem   * var(--font-scale)); /* 30px, was 36 */
 
@@ -140,3 +370,153 @@
   --leading-normal: 1.5;
   
 }
+
+/*
+ * AI-suggested focal point: gradient fade in and out (AISuggestedReticle.jsx).
+ * The whole reticle fades; the glow also blooms from --focal-ai-scale-from.
+ * Tune with the --focal-ai-* tokens in :root above.
+ */
+.focal-ai,
+.focal-ai-glow {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.focal-ai--in {
+  animation: focal-ai-fade-in var(--focal-ai-fade-in) var(--focal-ai-easing) both;
+}
+.focal-ai--in .focal-ai-glow {
+  animation: focal-ai-glow-in var(--focal-ai-fade-in) var(--focal-ai-easing) both;
+}
+.focal-ai--out {
+  animation: focal-ai-fade-out var(--focal-ai-fade-out) ease-in both;
+}
+@keyframes focal-ai-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes focal-ai-glow-in {
+  from { transform: scale(var(--focal-ai-scale-from)); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+@keyframes focal-ai-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+/* Reduced motion: near-instant, but still fires animationend so the next
+   suggestion swaps in. */
+@media (prefers-reduced-motion: reduce) {
+  .focal-ai--in,
+  .focal-ai--in .focal-ai-glow,
+  .focal-ai--out {
+    animation-duration: 1ms;
+  }
+}
+
+/* Photo guides fade in and out when toggled (Fade.jsx). */
+.guide-fade--in {
+  animation: guide-fade-in var(--guide-fade-in) ease-out both;
+}
+.guide-fade--out {
+  animation: guide-fade-out var(--guide-fade-out) ease-in both;
+}
+/* Waiting screens: spinning step ring, moving bar, scan line over the
+   image being read. Tokens: --progress-* in :root. */
+@keyframes progress-spin { to { transform: rotate(360deg); } }
+@keyframes progress-pop { 0% { transform: scale(0.6); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
+@keyframes progress-bar { 0% { left: -40%; } 100% { left: 100%; } }
+@keyframes progress-scan { 0% { top: calc(-1 * var(--progress-scan-height)); } 100% { top: 100%; } }
+.sc-progress-bar {
+  position: relative;
+  height: var(--progress-bar-height);
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--progress-bar-track);
+}
+.sc-progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  border-radius: 999px;
+  background: var(--progress-bar-color);
+  animation: progress-bar var(--progress-bar-duration) ease-in-out infinite;
+}
+/* Put on a relative, overflow-hidden box around the image being read. */
+.sc-scan::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--progress-scan-height);
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--progress-scan-color) 85%, transparent);
+  border-bottom: 2px solid var(--progress-bar-color);
+  animation: progress-scan var(--progress-scan-duration) linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sc-progress-bar::after, .sc-scan::after,
+  .sc-step[data-state='current'] .sc-step-dot { animation-duration: 0s; animation-iteration-count: 1; }
+  .sc-scan::after { display: none; }
+}
+
+@keyframes guide-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes guide-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-fade--in,
+  .guide-fade--out {
+    animation-duration: 1ms;
+  }
+}
+
+/* Selected mark halo, and the fade on the other marks (Marks.jsx MarksLayer). */
+.mark-select-halo {
+  stroke: var(--mark-select-halo);
+  stroke-opacity: var(--mark-select-halo-opacity);
+}
+.mark-dim {
+  opacity: var(--mark-dim-opacity);
+  transition: opacity var(--guide-fade-in) ease;
+}
+
+/* B&W toggle in the Marks step (Marks.jsx): the photo only, not the marks. */
+.photo-bw {
+  filter: var(--mark-bw-filter);
+}
+
+/* Crop frame (ImagePanel.jsx, crop step): white border, rule-of-thirds
+   lines, corner handles, and the photo outside the frame dimmed. */
+.crop-frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: var(--crop-frame-width) solid var(--crop-frame-color);
+  box-shadow: 0 0 0 9999px var(--crop-dim);
+}
+.crop-frame__third {
+  position: absolute;
+  background: var(--crop-thirds-color);
+}
+.crop-frame__third--v { top: 0; bottom: 0; width: 1px; }
+.crop-frame__third--h { left: 0; right: 0; height: 1px; }
+.crop-frame__corner {
+  position: absolute;
+  pointer-events: auto;                  /* the frame itself lets drags through to pan */
+  touch-action: none;
+  width: var(--crop-corner-size);
+  height: var(--crop-corner-size);
+  border: 0 solid var(--crop-frame-color);
+}
+.crop-frame__corner--tl { top: -5px; left: -5px; border-top-width: var(--crop-corner-width); border-left-width: var(--crop-corner-width); }
+.crop-frame__corner--tr { top: -5px; right: -5px; border-top-width: var(--crop-corner-width); border-right-width: var(--crop-corner-width); }
+.crop-frame__corner--bl { bottom: -5px; left: -5px; border-bottom-width: var(--crop-corner-width); border-left-width: var(--crop-corner-width); }
+.crop-frame__corner--br { bottom: -5px; right: -5px; border-bottom-width: var(--crop-corner-width); border-right-width: var(--crop-corner-width); }
+.crop-frame__corner::after { content: ''; position: absolute; inset: calc(-1 * var(--crop-corner-hit)); }
+.crop-frame__corner--tl, .crop-frame__corner--br { cursor: nwse-resize; }
+.crop-frame__corner--tr, .crop-frame__corner--bl { cursor: nesw-resize; }

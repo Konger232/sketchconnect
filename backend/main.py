@@ -18,7 +18,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from config import ALLOWED_ORIGINS, ALLOWED_ORIGIN_REGEX
+from config import ALLOWED_ORIGINS, ALLOWED_ORIGIN_REGEX, DEBUG
+from app.core.debug import DebugTrafficMiddleware
 # One folder per feature under app/features/ (router, service, schemas,
 # prompts); shared code in app/core/.
 from app.features.scene_analysis import router as scene_analysis
@@ -38,6 +39,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# DEBUG=true in .env: print every browser request and every response in
+# the terminal (app/core/debug.py). Added last, so it sits outermost.
+if DEBUG:
+    app.add_middleware(DebugTrafficMiddleware)
 
 UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)

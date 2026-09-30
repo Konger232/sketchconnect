@@ -30,3 +30,6 @@ _to_delete*/
 /SketchConnect.zip
 /SketchConnect_ClaudeDesign/
 backend/legacy/
+
+# Debug output (DEBUG=true): complete marks per Gemini call
+backend/debug_out/

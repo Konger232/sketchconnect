@@ -30,7 +30,8 @@ function FitToMarkers({ markers, zoom }) {
   return null
 }
 
-export default function LocationMap({ lat, lon, label, points, zoom = 13, editable = false, onLocationChange, height = 'h-72' }) {
+// hint: the line under an editable map. Off where the page explains it.
+export default function LocationMap({ lat, lon, label, points, zoom = 13, editable = false, onLocationChange, height = 'h-72', hint = true }) {
   const markers = points?.length ? points : (lat != null && lon != null ? [{ lat, lon, label }] : [])
 
   if (markers.length === 0 && !editable) {
@@ -77,7 +78,7 @@ export default function LocationMap({ lat, lon, label, points, zoom = 13, editab
           </Marker>
         ))}
       </MapContainer>
-      {editable && (
+      {editable && hint && (
         <p className="mt-1 text-xs text-ink/50">
           {markers.length > 0 ? 'Click the map or drag the pin to adjust the location.' : "Click the map to set this sketch's location."}
         </p>

@@ -9,6 +9,7 @@ layer, so this is a placeholder, not a documented decision).
 """
 import io
 import json
+import re
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -24,12 +25,16 @@ from geoalchemy2.functions import ST_Distance, ST_DWithin
 from app.core.database import get_db
 from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
 from app.core.models import Sketch, CritiqueResponse, Profile
-from app.features.sketches.schemas import SketchUpdateRequest, SketcherFocalPointInput
-from app.core.schemas import FocalRegion, SessionChoice
+from app.features.sketches.schemas import (
+    AdoptMarkRequest, MarkSelectionRequest, SketchUpdateRequest, SketcherFocalPointInput,
+)
+from app.core.schemas import FocalRegion, SessionChoice, region_points
 from app.core.exif_utils import extract_location_and_time
-from app.features.sketches.focal_pairing import pair_focal_points
+from app.features.sketches.focal_pairing import pair_focal_points, region_anchor
+from app.features.scene_analysis import question_bank
 from app.core.value_study import compute_value_study
 from app.core.paths import UPLOAD_DIR
+from config import MAX_MARKS, MAX_POINTS_PER_MARK
 from app.features.critique_agent.router import start_critique
 from app.features.geocode.service import reverse_geocode
 
@@ -69,7 +74,14 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
         # -- previously only surfaced during the original capture flow,
         # never persisted back out to the frontend after the fact.
         "focal_regions": (s.cached_scene_analysis or {}).get("focal_regions", []),
-        "perspective_lines": (s.cached_scene_analysis or {}).get("perspective_lines", []),
+        # Eye level + vanishing points (scene_analysis/schemas.py Perspective),
+        # or None. Older cached results only had perspective_lines, which
+        # nothing reads any more; they show no overlay until re-analysed.
+        "perspective": (s.cached_scene_analysis or {}).get("perspective"),
+        # Unit + measured spans for the proportions overlay, or None.
+        "proportions": (s.cached_scene_analysis or {}).get("proportions"),
+        # Which grid to offer: "grid" (square) or "rule_of_thirds", by style.
+        "grid": question_bank.grid_action(s.style),
         "created_at": s.created_at,
         # The latest critique's text, if any -- this is what
         # SketchCard.jsx's feed view shows as the sketch's description,
@@ -81,16 +93,24 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
     }
 
 
-MAX_MARKS = 200
-MAX_POINTS_PER_MARK = 5000
+_MARK_ID = re.compile(r"^m\d{1,5}$")
+_MAX_MS = 24 * 60 * 60 * 1000  # a day, in ms: anything longer is not a real stroke time
+
+
+def _ms(v) -> int | None:
+    return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and 0 <= v <= _MAX_MS else None
 
 
 def _clean_marks(raw: str) -> list[dict]:
     """
-    Validate the client's marks JSON into
-    [{color: '#rrggbb', width: float, points: [[x, y], ...]}], x/y clamped
-    to the 0-1000 frame. Malformed individual marks are dropped rather than
-    failing the whole save; a payload that isn't a JSON list is a 400.
+    Validate the client's marks JSON (Marks.jsx) into
+    [{id: 'm7', source?: 'own' | 'prompted', color: '#rrggbb', width: float,
+    size_mm?: float, points: [[x, y], ...], started_ms?, duration_ms?,
+    erased?, erased_ms?, selected?, from_focal_point?}], x/y clamped to the 0-1000 frame, in stroke order.
+    Malformed individual marks are dropped rather than failing the whole
+    save; a payload that isn't a JSON list is a 400. A missing or repeated
+    id gets a new one, so every stored mark has a unique id. Over
+    MAX_MARKS, the oldest erased marks go first.
     """
     try:
         data = json.loads(raw)
@@ -99,10 +119,16 @@ def _clean_marks(raw: str) -> list[dict]:
     if not isinstance(data, list):
         raise HTTPException(400, "marks must be a JSON array")
 
+    data = [m for m in data if isinstance(m, dict)]
+    while len(data) > MAX_MARKS:
+        erased = next((i for i, m in enumerate(data) if m.get("erased") is True), None)
+        if erased is None:
+            data = data[:MAX_MARKS]
+            break
+        del data[erased]
+
     cleaned = []
-    for m in data[:MAX_MARKS]:
-        if not isinstance(m, dict):
-            continue
+    for m in data:
         color = m.get("color")
         width = m.get("width")
         points = m.get("points")
@@ -119,8 +145,46 @@ def _clean_marks(raw: str) -> list[dict]:
                 and all(isinstance(v, (int, float)) for v in p)
             ):
                 pts.append([round(min(1000, max(0, p[0])), 1), round(min(1000, max(0, p[1])), 1)])
-        if pts:
-            cleaned.append({"color": color.lower(), "width": float(width), "points": pts})
+        if not pts:
+            continue
+        mark = {"id": m.get("id"), "color": color.lower(), "width": float(width), "points": pts}
+        # The line size the sketcher picked (Marks.jsx, 0.5 / 1 / 2 mm).
+        # Older marks have none.
+        size_mm = m.get("size_mm")
+        if isinstance(size_mm, (int, float)) and 0 < size_mm <= 10:
+            mark["size_mm"] = float(size_mm)
+        for key in ("started_ms", "duration_ms", "erased_ms"):
+            v = _ms(m.get(key))
+            if v is not None:
+                mark[key] = v
+        for key in ("erased", "selected"):
+            if m.get(key) is True:
+                mark[key] = True
+        # "prompted": added from an AI suggestion ("Yes, add it"). Evidence,
+        # item 15. Missing means the sketcher's own mark.
+        if m.get("source") in ("own", "prompted"):
+            mark["source"] = m["source"]
+        # The focal area a prompted mark was adopted from (item 17).
+        if isinstance(m.get("adopted_region"), int) and not isinstance(m.get("adopted_region"), bool):
+            mark["adopted_region"] = m["adopted_region"]
+        # A focal point this mark was converted from (item 17), kept whole.
+        if isinstance(m.get("from_focal_point"), dict):
+            mark["from_focal_point"] = m["from_focal_point"]
+        if mark.get("erased"):
+            mark.pop("selected", None)  # an erased mark can't be the focus
+        else:
+            mark.pop("erased_ms", None)
+        cleaned.append(mark)
+
+    # Every mark gets a unique id; bad or repeated ones get the next free number.
+    used = {c["id"] for c in cleaned if isinstance(c["id"], str) and _MARK_ID.match(c["id"])}
+    next_n = max((int(i[1:]) for i in used), default=0) + 1
+    seen = set()
+    for c in cleaned:
+        if not (isinstance(c["id"], str) and _MARK_ID.match(c["id"])) or c["id"] in seen:
+            c["id"] = f"m{next_n}"
+            next_n += 1
+        seen.add(c["id"])
     return cleaned
 
 
@@ -313,7 +377,7 @@ async def save_focal_frame(
     common case and shouldn't cost a re-encode or a re-upload). When
     present: the new photo replaces reference_image_url (the old one is
     deleted unless it's also original_image_url), crop_transform is
-    updated, and -- since focal_regions/perspective_lines were computed
+    updated, and -- since focal_regions/perspective were computed
     against the frame that just changed -- cached_scene_analysis is
     cleared so SketchFlowPage's next load re-runs Gemini against the new
     framing rather than serving a now-mismatched cached result (the same
@@ -413,9 +477,104 @@ async def add_session_choice(
     if sketch is None:
         raise HTTPException(404, "Sketch not found")
     # Assign a new list. SQLAlchemy doesn't detect in-place edits to a JSON column.
-    sketch.session_choices = [*(sketch.session_choices or []), body.model_dump()]
+    sketch.session_choices = [*(sketch.session_choices or []), body.model_dump(exclude_none=True)]
     db.commit()
     return {"count": len(sketch.session_choices)}
+
+
+@router.put("/sketches/{sketch_id}/marks/selection")
+async def set_mark_selection(
+    sketch_id: str,
+    body: MarkSelectionRequest,
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """
+    Sets which marks are selected, from Edit's Plan photo (GuideStage's
+    Select marks tool). The selection is part of the plan, so it is part
+    of the scene analysis fingerprint: the next guidance run re-analyses.
+    Returns the saved marks.
+    """
+    sketch = db.query(Sketch).filter(
+        Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
+    ).first()
+    if sketch is None:
+        raise HTTPException(404, "Sketch not found")
+
+    wanted = set(body.selected_ids)
+    marks = []
+    for i, m in enumerate(sketch.marks or []):
+        m = dict(m)
+        # Marks saved before ids existed: the same m1, m2, ... fallback as
+        # mark_geometry.mark_id, now stored.
+        m.setdefault("id", f"m{i + 1}")
+        if m.get("id") in wanted and not m.get("erased"):
+            m["selected"] = True
+        else:
+            m.pop("selected", None)
+        marks.append(m)
+    # A new list, so SQLAlchemy sees the JSON column change.
+    sketch.marks = marks
+    db.commit()
+    return {"marks": marks}
+
+
+@router.post("/sketches/{sketch_id}/marks/adopt")
+async def adopt_focal_area(
+    sketch_id: str,
+    body: AdoptMarkRequest,
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """
+    "Yes, add it" to "There is the ... here" during AI guidance (design
+    doc, items 13 and 17). The missed focal area becomes a mark along its
+    traced outline, closed, with source "prompted" and adopted_region set
+    to region_ref. It looks like any other mark; the critique reads it as
+    prompted evidence (item 15). Adopting the same area twice is a no-op.
+    Prompted marks are left out of the scene analysis fingerprint, so this
+    keeps the cached analysis. Returns the saved marks.
+    """
+    sketch = db.query(Sketch).filter(
+        Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
+    ).first()
+    if sketch is None:
+        raise HTTPException(404, "Sketch not found")
+
+    cached = sketch.cached_scene_analysis or {}
+    regions = cached.get("focal_regions") or []
+    if not 0 <= body.region_ref < len(regions):
+        raise HTTPException(400, "No such focal area in this sketch's analysis")
+
+    marks = [dict(m) for m in (sketch.marks or [])]
+    if any(m.get("adopted_region") == body.region_ref and not m.get("erased") for m in marks):
+        return {"marks": marks}
+
+    pts = [[round(min(1000, max(0, x)), 1), round(min(1000, max(0, y)), 1)]
+           for x, y in region_points(regions[body.region_ref])]
+    if len(pts) < 3:
+        raise HTTPException(400, "This focal area's outline is unreadable")
+    pts.append(list(pts[0]))  # close the outline
+
+    color = body.color.lower() if re.fullmatch(r"#[0-9a-fA-F]{6}", body.color or "") else "#fde68a"
+    for k, m in enumerate(marks):  # marks saved before ids existed
+        m.setdefault("id", f"m{k + 1}")
+    used = [int(m["id"][1:]) for m in marks if re.fullmatch(r"m\d+", str(m["id"]))]
+    mark = {
+        "id": f"m{max(used, default=0) + 1}",
+        "source": "prompted",
+        "color": color,
+        "width": float(body.width),
+        "points": pts,
+        "adopted_region": body.region_ref,
+    }
+    if body.size_mm:
+        mark["size_mm"] = float(body.size_mm)
+    marks.append(mark)
+    # A new list, so SQLAlchemy sees the JSON column change.
+    sketch.marks = marks
+    db.commit()
+    return {"marks": marks}
 
 
 @router.post("/sketches/{sketch_id}/final-sketch")

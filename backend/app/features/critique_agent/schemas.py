@@ -21,10 +21,24 @@ class CritiqueRequest(BaseModel):
     prior_review_summary: Optional[str] = None
 
 
+# Scenarios per value: design doc, Section 11, item 15, "Evidence".
+Evidence = Literal["plan", "prompted", "instinct", "stages"]
+
+
+class TraceItem(BaseModel):
+    """One habit or opportunity (design doc, Section 11, item 15)."""
+    observation: str
+    principle: str  # a name from question_bank.json "principles"
+    evidence: Evidence
+
+
 class DecisionTrace(BaseModel):
-    carried_through: list[str] = Field(default_factory=list)
-    shifted: list[str] = Field(default_factory=list)
-    instinct_only: list[str] = Field(default_factory=list)
+    """
+    Persona-free process record. Rows stored before item 15 have the old
+    shape instead: carried_through, shifted, instinct_only (lists of text).
+    """
+    habits: list[TraceItem] = Field(default_factory=list)          # up to 3
+    opportunities: list[TraceItem] = Field(default_factory=list)   # 1 or 2
 
 
 class CritiqueResponseOut(BaseModel):

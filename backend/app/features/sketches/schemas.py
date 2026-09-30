@@ -70,3 +70,27 @@ class PairedFocalPoint(SketcherFocalPointInput):
     # boundary. 0 for "region_ref"/"contains" (already inside or already
     # known); set for "nearest"; None for "unmatched".
     pairing_distance: Optional[float] = None
+
+
+class AdoptMarkRequest(BaseModel):
+    """
+    A "Yes, add it" to "There is the ... here" (design doc, items 13 and
+    17): the missed focal area becomes a mark along its traced outline,
+    with source "prompted". The colour, width and size come from the
+    browser, since they are CSS tokens (--mark-color, --mark-size-*).
+    """
+    # Index into the sketch's cached focal_regions, as sent in
+    # SceneAnalysisResponse.focal_suggestions[].region_ref.
+    region_ref: int
+    color: str = "#fde68a"
+    width: float = Field(6.5, gt=0, le=50)
+    size_mm: Optional[float] = Field(None, gt=0, le=10)
+
+
+class MarkSelectionRequest(BaseModel):
+    """
+    The ids of the marks the sketcher has selected (the Select tool on
+    Edit's Plan photo). Every other mark is unselected. Unknown and erased
+    ids are ignored.
+    """
+    selected_ids: list[str] = Field(default_factory=list, max_length=200)
