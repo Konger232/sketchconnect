@@ -1,7 +1,8 @@
 """
 Loads and checks question_bank.json, the guided question bank for the
 scene analysis call (design doc, Section 11, items 12 and 13), including
-the focal_suggestion template the app fills in for each missed focal area.
+the focal_suggestion template the app fills in for each missed focal area,
+and the relationship kinds Gemini picks from (design doc, item 17).
 
 The bank is data, so it lives in JSON. The prompt prose lives in
 prompts/*.md. This file only loads, checks and formats the bank.
@@ -69,6 +70,29 @@ def _check(bank: dict) -> None:
             problems.append("mark_meaning: the last option must have the action 'describe'")
         if meaning.get("principle") not in principles:
             problems.append("mark_meaning: principle is not in 'principles'")
+
+    rel = bank.get("relationship")
+    if not isinstance(rel, dict):
+        problems.append("relationship is missing")
+    else:
+        if not isinstance(rel.get("question"), str) or not rel["question"].strip():
+            problems.append("relationship: missing question text")
+        problems += _option_problems("relationship", rel.get("options"), actions, 2, 3)
+        if rel.get("principle") not in principles:
+            problems.append("relationship: principle is not in 'principles'")
+        kinds = rel.get("kinds")
+        if not isinstance(kinds, dict) or not kinds:
+            problems.append("relationship: needs at least one entry in 'kinds'")
+        else:
+            for name, k in kinds.items():
+                if not isinstance(k, dict):
+                    problems.append(f"relationship.kinds.{name}: must be an object")
+                    continue
+                if k.get("principle") not in principles:
+                    problems.append(f"relationship.kinds.{name}: principle {k.get('principle')!r} is not in 'principles'")
+                for field in ("looks_for", "example"):
+                    if not isinstance(k.get(field), str) or not k[field].strip():
+                        problems.append(f"relationship.kinds.{name}: missing {field}")
 
     for key, q in questions.items():
         if q.get("principle") not in principles:
@@ -185,6 +209,11 @@ def attach_option_actions(
     bank = load_bank()
     out = []
     for p in prompts:
+        if p.get("key") == "relationship":
+            # Fixed yes/no options from the bank, so a bank edit applies to cached results too.
+            t = bank["relationship"]["options"]
+            out.append({**p, "options": [o["label"] for o in t], "option_actions": [o.get("action") for o in t]})
+            continue
         if p.get("suggestion") or p.get("key") == "mark_meaning":  # filled from their own templates
             out.append(p)
             continue
@@ -251,6 +280,45 @@ def mark_meaning_prompt(question: str, options: list[str], mark_ids: list[str]) 
         "option_actions": [None] * len(options) + [fixed.get("action")],
         "mark_ids": list(mark_ids),
     }
+
+
+def relationship_kinds() -> list[str]:
+    """Every relationship kind. Used as the enum in the response schema."""
+    return list(load_bank()["relationship"]["kinds"])
+
+
+def relationship_prompt(question: str, kind: str,
+                        subjects: list[str], mark_ids: list[str], focus: str) -> dict:
+    """
+    The one question about how two or more marked subjects connect
+    (design doc, item 17). Gemini wrote the question, a yes/no check; the
+    options are the template's fixed Yes and No. The kind
+    and its principle travel with the question, so the saved answer
+    carries them to the critique.
+    """
+    t = load_bank()["relationship"]
+    return {
+        "key": "relationship",
+        "focus": focus,
+        "question": re.sub(r"\s{2,}", " ", question).strip() or t["question"],
+        "options": [o["label"] for o in t["options"]],
+        "option_actions": [o.get("action") for o in t["options"]],
+        "mark_ids": list(mark_ids),
+        "relationship": {
+            "kind": kind,
+            "principle": t["kinds"][kind]["principle"],
+            "subjects": [s.strip() for s in subjects if s.strip()],
+        },
+    }
+
+
+def render_relationship_kinds() -> str:
+    """The relationship kinds as prompt text, one line each."""
+    kinds = load_bank()["relationship"]["kinds"]
+    return "\n".join(
+        f'- {name} ({k["principle"]}): {k["looks_for"]}. Example: {k["example"]}.'
+        for name, k in kinds.items()
+    )
 
 
 def render_guide() -> str:

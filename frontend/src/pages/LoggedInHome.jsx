@@ -7,22 +7,7 @@ import { api } from '../lib/api'
 import { useSketchesVersion } from '../lib/sketchEvents'
 
 /**
- * Home for a signed-in sketcher — matches the Claude Design "Home - Login
- * User" canvas: avatar + name, tabs, the sketch feed, and a Map View of
- * every sketch you've logged. (The inline search bar this canvas used to
- * show here now lives on its own page -- see the header's search icon and
- * SearchPage.jsx.)
- *
- * The "Preference" tab in that canvas isn't specified anywhere beyond its
- * label, so rather than invent content for it, it links through to the
- * existing Settings page (admired-artist-per-style) — flagged for you to
- * confirm that's what it should be.
- *
- * The sketch-grid + "Map View" block below used to be its own
- * RecentSketchesSection.jsx, shared with LoggedOutHome.jsx -- folded back
- * in here since the two pages' versions of it had drifted apart enough
- * (different grid caps, different map source) that sharing it wasn't
- * actually saving anything.
+ * Home for a signed-in sketcher 
  */
 export default function LoggedInHome() {
   const { profile, displayName } = useAuth()
@@ -44,7 +29,8 @@ export default function LoggedInHome() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-16">
-      <div className="mt-4 flex items-center gap-3">
+      {/* Profile + Avator */}
+      <div className="mt-4 mb-4 flex items-center gap-3">
         <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full bg-black/10">
           {profile?.avatar_url && (
             <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
@@ -54,7 +40,9 @@ export default function LoggedInHome() {
       </div>
 
       <div className="mb-4 flex border-b border-black/10">
-        <span className="border-b-2 border-accent pb-2 text-sm font-semibold">Sketches</span>
+        <span className="border-b-2 border-accent pb-2 text-sm font-semibold">
+          Sketches
+        </span>
         <Link to="/settings" className="ml-6 pb-2 text-sm font-semibold text-ink/50 hover:text-ink">
           Preference
         </Link>

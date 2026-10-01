@@ -74,6 +74,9 @@ export default function EditSketch() {
   // the sketcher marked on their lines while it shows (design doc, item 17).
   const [guideQuestion, setGuideQuestion] = useState(null)
   const [sketcherSpot, setSketcherSpot] = useState(null)
+  // The last tap on the Plan while a question's options are tied to lines:
+  // { id, n } (id null for a miss). AIGuidance picks the matching option.
+  const [markTap, setMarkTap] = useState(null)
   const guides = useGuides()
   const valueStudy = useValueStudy(sketchId, analysis)
 
@@ -213,6 +216,13 @@ export default function EditSketch() {
     const [sx, sy] = squareScale(aspect)
     const same = sketcherSpot && Math.hypot((sketcherSpot.x - spot.x) * sx, (sketcherSpot.y - spot.y) * sy) < 12
     setSketcherSpot(same ? null : spot)
+  }
+
+  // Pick an answer by its lines: a tap on the Plan while the question's
+  // options are tied to marks.
+  function handlePickAt(p, aspect = 1) {
+    const hit = markAtPoint(marks, p, aspect)
+    setMarkTap((prev) => ({ id: hit?.id ?? null, n: (prev?.n || 0) + 1 }))
   }
 
   // Select marks on the Plan photo (GuideStage): same tap cycle as the
@@ -394,6 +404,7 @@ export default function EditSketch() {
         aiSuggestion={tab === 'guide' ? aiSuggestion : null}
         highlightMarkIds={tab === 'guide' ? highlightIds : []}
         onSpotAt={isOwner && tab === 'guide' && guideQuestion ? handleSpotAt : undefined}
+        onPickAt={isOwner && tab === 'guide' && guideQuestion?.option_mark_ids?.some((ids) => ids?.length) ? handlePickAt : undefined}
         spot={tab === 'guide' && guideQuestion ? sketcherSpot : null}
         // Its Guides rail sits inside this panel, so it scrolls away with it.
         showRail={isOwner}
@@ -448,10 +459,7 @@ export default function EditSketch() {
           onPromptChange={setGuideQuestion}
           spot={sketcherSpot}
           onSpotClear={() => setSketcherSpot(null)}
-          onSpotModeRequest={marks.length > 0 ? () => {
-            guides.setTool('mark_spot', true)
-            stripRef.current?.show('plan') // spots are marked on the Plan
-          } : undefined}
+          markTap={markTap}
           onHighlight={(ids) => {
             setHighlightIds(ids)
             if (ids.length) stripRef.current?.show('plan') // the marks are drawn on the Plan
@@ -651,6 +659,8 @@ export default function EditSketch() {
     // No sketch yet.
     feedbackBody = (
       <>
+      <Button className="w-full h-full flex flex-1 p-0 block reset-button-styles"
+        onClick={() => cameraInputRef.current?.click()}>
         <div className="sc-dropzone min-h-[260px]">
           <img src={cameraWhite} alt="camera" className="h-16 w-16 text-white" />
           <p className="font-heading text-xl font-semibold leading-snug">Photograph your finished sketch</p>
@@ -661,6 +671,7 @@ export default function EditSketch() {
           {marks.length === 1 ? '1 mark' : `${marks.length} marks`}
           {styleLabel && `, ${styleLabel}`}.
         </p>
+        </Button>
       </>
     )
     feedbackFooter = (

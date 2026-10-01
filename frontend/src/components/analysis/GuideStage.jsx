@@ -130,6 +130,10 @@ export default function GuideStage({
   onSpotAt,
   // The sketcher's spot, { x, y, mark_ids }, drawn as their own reticle.
   spot = null,
+  // Answer by lines (owner only, while a question's options are tied to
+  // marks): called with a 0-1000 frame point and the frame's aspect when
+  // the sketcher taps the photo and neither tap tool above is on.
+  onPickAt,
 }) {
   const [imgRef, rect] = usePaintedRect()
   const { on } = guides
@@ -161,6 +165,8 @@ export default function GuideStage({
   }, [valueStudy?.error])
 
   const show = (tool) => !!on[tool] && available[tool]
+  // The photo takes taps for Select marks, Mark a spot, or answering by lines.
+  const tappable = show('select_marks') || show('mark_spot') || !!onPickAt
 
   return (
     <div className="relative min-h-[55vh] flex-1 overflow-hidden bg-sc-modal md:min-h-0">
@@ -187,15 +193,16 @@ export default function GuideStage({
               preserveAspectRatio="none"
               overflow="visible"
               // Select marks: this layer takes taps (its parent ignores them).
-              className={`absolute inset-0 h-full w-full ${show('select_marks') || show('mark_spot') ? 'pointer-events-auto cursor-pointer' : ''}`}
-              onClick={show('select_marks') || show('mark_spot') ? (e) => {
+              className={`absolute inset-0 h-full w-full ${tappable ? 'pointer-events-auto cursor-pointer' : ''}`}
+              onClick={tappable ? (e) => {
                 const r = e.currentTarget.getBoundingClientRect()
                 if (!r.width || !r.height) return
                 const p = [((e.clientX - r.left) / r.width) * 1000, ((e.clientY - r.top) / r.height) * 1000]
                 // The overlay covers the framed photo, so its shape is the frame's.
                 const aspect = r.width / r.height
                 if (show('select_marks')) onSelectAt(p, aspect)
-                else onSpotAt(p, aspect)
+                else if (show('mark_spot')) onSpotAt(p, aspect)
+                else onPickAt(p, aspect)
               } : undefined}
             >
               <Fade show={show('grid')}>

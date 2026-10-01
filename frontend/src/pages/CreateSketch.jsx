@@ -553,13 +553,16 @@ export default function CreateSketch() {
       <div className="relative flex min-h-[55vh] flex-1 flex-col bg-sc-modal md:min-h-0">
         {step === 'photo' && !preview && (
           <div className="flex flex-1 p-5 md:p-[var(--stage-inset)]">
-            <div className="sc-dropzone">
-               <img src={cameraWhite} alt="camera" className="h-16 w-16 text-white" />
-              <p className="font-heading text-xl font-semibold leading-snug">Photograph the scene you'll draw</p>
-              <p className="max-w-[270px] text-base text-sc-text3">
-                Stand where you'll sketch from. Location and a title come from this photo.
-              </p>
-            </div>
+            <Button className="w-full h-full flex flex-1 p-0 block reset-button-styles"
+              onClick={() => cameraInputRef.current?.click()}>
+              <div className="sc-dropzone">
+                <img src={cameraWhite} alt="camera" className="h-16 w-16 text-white" />
+                <p className="font-heading text-xl font-semibold leading-snug">Photograph the scene you'll draw</p>
+                <p className="max-w-[270px] text-base text-sc-text3">
+                  Stand where you'll sketch from. Location and a title come from this photo.
+                </p>
+              </div>
+            </Button>
           </div>
         )}
 

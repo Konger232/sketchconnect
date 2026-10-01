@@ -5,7 +5,7 @@ from typing import Optional, Literal
 
 from pydantic import BaseModel, Field
 
-from app.core.schemas import FocalRegion, SceneType, Spot, Style
+from app.core.schemas import FocalRegion, Relationship, SceneType, Spot, Style
 
 
 class FocalSuggestion(BaseModel):
@@ -46,6 +46,10 @@ class PreparedPrompt(BaseModel):
     # None. From question_bank.json, matched by position (design doc,
     # Section 11, item 14).
     option_actions: list[Optional[str]] = Field(default_factory=list)
+    # Parallel to options: the sketcher's marks each option refers to
+    # (empty when it names none). Picking an option highlights its marks,
+    # and tapping one of those marks on the photo picks the option.
+    option_mark_ids: list[list[str]] = Field(default_factory=list)
     # Set only on "There is the ... here" questions (key
     # "focal_suggestion"). The first option adds it as a focal point.
     suggestion: Optional[FocalSuggestion] = None
@@ -60,6 +64,9 @@ class PreparedPrompt(BaseModel):
     # A spot where the sketcher's lines meet, shown with a reticle while
     # the question shows. None when the question points at no spot.
     spot: Optional[Spot] = None
+    # Set only on the relationship question (key "relationship"): how the
+    # marked subjects connect. Saved with the answer for the critique.
+    relationship: Optional[Relationship] = None
 
 
 class VanishingPoint(BaseModel):

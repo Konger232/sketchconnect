@@ -38,7 +38,7 @@ PROMPTS = Path(__file__).parent / "prompts"
 # as proportions. It is part of the cache fingerprint, so a sketch analysed
 # under an older version runs the call once more instead of reusing a
 # result that is missing the new field.
-ANALYSIS_VERSION = 7  # 7: mark_meanings, focus and mark_ids on questions (design doc, item 17)
+ANALYSIS_VERSION = 9  # 9: option_mark_ids; 8: relationship between marked subjects; 7: mark_meanings, focus and mark_ids (design doc, item 17)
 
 PERSPECTIVE_KINDS = ["one_point", "two_point", "three_point", "none"]
 # Eye level and vanishing points may sit outside the frame (0-1000).
@@ -173,8 +173,13 @@ def response_schema() -> dict:
                         "spot": {"type": "string", "description": "a spot id from the plan, such as x1, or empty"},
                         "question": {"type": "string"},
                         "options": {"type": "array", "items": {"type": "string"}},
+                        # One list per option: the marks that option refers to.
+                        "option_mark_ids": {
+                            "type": "array",
+                            "items": {"type": "array", "items": {"type": "string"}},
+                        },
                     },
-                    "required": ["key", "focus", "mark_ids", "question", "options"],
+                    "required": ["key", "focus", "mark_ids", "question", "options", "option_mark_ids"],
                 },
             },
             # One per selected shape, when the plan lists any (item 17).
@@ -191,6 +196,18 @@ def response_schema() -> dict:
                     },
                     "required": ["shape", "question", "options"],
                 },
+            },
+            # How two or more marked subjects connect (item 17). At most
+            # one. Not required: most plans mark a single subject.
+            "relationship": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string", "enum": question_bank.relationship_kinds()},
+                    "subjects": {"type": "array", "items": {"type": "string"}},
+                    "mark_ids": {"type": "array", "items": {"type": "string"}},
+                    "question": {"type": "string"},
+                },
+                "required": ["kind", "subjects", "mark_ids", "question"],
             },
         },
         "required": [
@@ -264,6 +281,7 @@ def build_plan(sketch, framed_image: Image.Image | None = None) -> Plan:
         marks_table=mark_geometry.marks_table(geo) if marks else "none drawn",
         selected_shapes=_describe_selected_shapes(selected_shapes),
         spots=mark_geometry.spots_text(spot_list),
+        links=mark_geometry.groups_text(geo) if marks else "none",
     )
     # Image 2 carries each mark's id at its start, so Gemini can tie what
     # it sees to the ids in the prompt. The sketcher never sees ids.
@@ -349,6 +367,7 @@ def build_prompt(style: str, crop_transform: dict | None = None, plan: Plan | No
         style=style,
         plan=plan.text,
         prompt_guide=question_bank.render_guide(),
+        relationship_kinds=question_bank.render_relationship_kinds(),
     )
     if crop_transform:
         # The sketcher's own pan/zoom/aspect-ratio choice, persisted as
@@ -708,8 +727,9 @@ def build_focal_suggestions(
 def with_suggestion_prompts(result: dict, focal_points: list[dict] | None, marks: list[dict] | None = None) -> dict:
     """
     Puts the questions in the order of design doc items 15 and 17:
-      1. selected: "What do you see these marks as?" (mark_meaning), then
-         bank questions about the selected marks
+      1. selected: how the marked subjects connect (relationship), "What
+         do you see these marks as?" (mark_meaning), then bank questions
+         about the selected marks
       2. unseen: one "There is the ... here" question per missed focal area. An
          area the sketcher already adopted (a stored point with that
          region_ref) is skipped, so reopening the guidance on a cached
@@ -724,9 +744,10 @@ def with_suggestion_prompts(result: dict, focal_points: list[dict] | None, marks
         if m.get("adopted_region") is not None and not m.get("erased")
     }
     base = [p for p in result.get("prepared_prompts", []) if not p.get("suggestion")]
-    meaning = [p for p in base if p.get("key") == "mark_meaning"]
-    selected = [p for p in base if p.get("key") != "mark_meaning" and p.get("focus") == "selected"]
-    other = [p for p in base if p.get("key") != "mark_meaning" and p.get("focus") != "selected"]
+    first_keys = ("relationship", "mark_meaning")
+    meaning = [p for k in first_keys for p in base if p.get("key") == k]
+    selected = [p for p in base if p.get("key") not in first_keys and p.get("focus") == "selected"]
+    other = [p for p in base if p.get("key") not in first_keys and p.get("focus") != "selected"]
     suggestion_prompts = [
         {**question_bank.focal_suggestion_prompt(sg["label"], sg.get("reason")), "suggestion": sg, "focus": "unseen"}
         for sg in result.get("focal_suggestions", [])
@@ -759,6 +780,48 @@ def refresh_suggestions(
     )
     refreshed["grid"] = question_bank.grid_action(style)
     return refreshed
+
+
+def _option_mark_ids(p: dict, visible_ids: set[str]) -> list[list[str]]:
+    """
+    One list of visible mark ids per option, in order, each mark under at
+    most one option (the first that names it), so a tap on the photo picks
+    one answer. [] when no option names a mark, or the lists don't line up
+    with the options.
+    """
+    raw = p.get("option_mark_ids") or []
+    options = p.get("options") or []
+    if len(raw) != len(options):
+        return []
+    taken, out = set(), []
+    for ids in raw:
+        keep = [i for i in (ids or []) if isinstance(i, str) and i in visible_ids and i not in taken]
+        taken.update(keep)
+        out.append(keep)
+    return out if any(out) else []
+
+
+# ---------- Relationship between marked subjects ----------
+
+def _clean_relationship(r, visible_ids: set[str], selected_ids: set[str]) -> dict | None:
+    """
+    Gemini's relationship as a guided question, or None when it is missing
+    or unusable: an unknown kind, fewer than two subjects, no visible marks
+    on them, or a missing question.
+    """
+    if not isinstance(r, dict):
+        return None
+    kind = r.get("kind")
+    subjects = [s for s in (r.get("subjects") or []) if isinstance(s, str) and s.strip()][:3]
+    mark_ids = [i for i in (r.get("mark_ids") or []) if i in visible_ids]
+    question = (r.get("question") or "").strip()
+    if kind not in question_bank.relationship_kinds() or len(subjects) < 2 or not mark_ids \
+            or not question:
+        if DEBUG:
+            print(f"[scene_analysis] relationship dropped: {json.dumps(r)}")
+        return None
+    focus = "selected" if set(mark_ids) & selected_ids else "other"
+    return question_bank.relationship_prompt(question, kind, subjects, mark_ids, focus)
 
 
 # ---------- The call ----------
@@ -796,6 +859,7 @@ def analyze(
             # least one selected mark, or the question is "other".
             p["mark_ids"] = [i for i in (p.get("mark_ids") or []) if i in visible_ids]
             p["focus"] = "selected" if p.get("focus") == "selected" and set(p["mark_ids"]) & selected_ids else "other"
+            p["option_mark_ids"] = _option_mark_ids(p, visible_ids)
             _attach_spot(p, spot_by_id)
             prompts.append(p)
 
@@ -814,8 +878,15 @@ def analyze(
             {**question_bank.mark_meaning_prompt(m["question"], opts, shape["mark_ids"]), "spot": m.get("spot")},
             spot_by_id,
         )
+    # How the marked subjects connect: at most one, asked first. A selected
+    # shape whose marks the relationship covers gets no mark_meaning, so
+    # the sketcher answers one question instead of two about the same marks.
+    relationship = _clean_relationship(result.pop("relationship", None), visible_ids, selected_ids)
+    if relationship:
+        covered = set(relationship["mark_ids"])
+        by_shape = {k: v for k, v in by_shape.items() if not covered & set(shapes[k]["mark_ids"])}
     meanings = [by_shape[s] for s in order if s in by_shape]
-    result["prepared_prompts"] = meanings + prompts
+    result["prepared_prompts"] = ([relationship] if relationship else []) + meanings + prompts
 
     # focal_regions: cap at 3 and drop malformed contours. schemas.py's
     # FocalRegion needs at least 3 (x, y) points; dropping bad ones here
@@ -867,6 +938,8 @@ def analyze(
     print(f"perspective (checked): {json.dumps(result['perspective'])}")
     print(f"proportions (raw):     {json.dumps(raw_proportions)}")
     print(f"proportions (measured): {json.dumps(result['proportions'])}")
+    rel = next((p["relationship"] for p in result["prepared_prompts"] if p.get("key") == "relationship"), None)
+    print(f"relationship: {json.dumps(rel) if rel else 'none'}")
     print("prepared_prompts delivered to sketcher:")
     for p in result["prepared_prompts"]:
         print(f"  [{p['key']} / {p.get('focus')} / marks {p.get('mark_ids') or []}] {p['question']}")

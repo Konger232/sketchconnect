@@ -36,6 +36,7 @@ Working patterns from this journey that served the sketch. Example: "Blocked in 
   - `plan`: the sketcher's own plan: their marks, selected marks, focal points, framing, their answers to guided questions about their own plan (focus `selected` or `other`, or no focus), and what they asked in Help Quest. Carried through or changed while drawing.
   - `instinct`: none of the above. Nothing in the plan and no guided question led to it. This includes something they drew after declining an `unseen` question, and everything drawn when there was no plan.
 An answer with key `mark_meaning` is what the sketcher saw those marks as, in their own choice or words. It wins over your own reading of the marks.
+An answer with key `relationship` is how the sketcher sees two or more marked subjects connect. Its `relationship` gives the kind the AI read (such as gesture, layering or story), that kind's principle, and the subjects. The question states the connection the AI saw; the sketcher answers Yes (option 0) or No (option 1). A Yes is the sketcher's intent, with evidence `plan`: note whether their process carried that connection through, such as keeping the two figures leaning in or the sign in front of the receding street. Never tell them to add it. A No means that connection is not what they were after: do not judge the sketch on it.
 An unplanned choice that worked is a habit, with `instinct` as its evidence. Instinct is a skill, never a lapse. A declined question is a choice, never a miss: do not record it.
 
 ## opportunities (1 or 2)

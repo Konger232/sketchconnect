@@ -1,13 +1,17 @@
+import { Icon } from './Icon'
 
 // Modal buttons from the design handoff (Create / Edit sketch): 44px tall,
 // 10px radius, 15px bold. Colours are the sc-* tokens (index.css).
 //   action           amber, the one primary action per screen
 //   secondaryOnDark  outlined, next to an action
 //   quietOnDark      text only (Skip)
-//   choice           an answer to a guide question, full width, left aligned
+//   choice           an answer to a guide question, full width, left aligned.
+//                    onNext adds a round amber ">" inside it on the right,
+//                    set up like the close buttons: a 44px tap area with a
+//                    small circle inside (nextLabel names it)
 const MODAL_VARIANTS = ['action', 'secondaryOnDark', 'quietOnDark', 'choice']
 
-export default function Button({ variant = 'primary', size = 'md', active = false, className = '', ...props }) {
+export default function Button({ variant = 'primary', size = 'md', active = false, className = '', onNext, nextLabel = 'Continue', ...props }) {
   const isLink = variant === 'link' || variant === 'linkOnDark'
   const isPill = variant === 'pill' || variant === 'pillOnLight'
   const isModal = MODAL_VARIANTS.includes(variant)
@@ -46,5 +50,28 @@ export default function Button({ variant = 'primary', size = 'md', active = fals
 
   const spacing = isLink ? '' : isPill ? 'px-3 py-1.5 text-2xs' : isModal ? `min-h-11 text-md ${variant === 'choice' ? '' : 'whitespace-nowrap'}` : sizes[size]
 
-  return <button type={isModal ? 'button' : undefined} className={`${base} ${spacing} ${variants[variant]} ${className}`} {...props} />
+  const button = (
+    <button
+      type={isModal ? 'button' : undefined}
+      className={`${base} ${spacing} ${variants[variant]} ${variant === 'choice' && onNext ? 'pr-12' : ''} ${className}`}
+      {...props}
+    />
+  )
+  if (variant !== 'choice' || !onNext) return button
+  return (
+    <div className="relative w-full">
+      {button}
+      <button
+        type="button"
+        onClick={onNext}
+        aria-label={nextLabel}
+        // Same set-up as the close buttons: a 44px tap area, only the mark inside shows.
+        className="group absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center"
+      >
+        <span className="flex h-7 w-7 animate-fade-in-scale items-center justify-center rounded-full bg-sc-action text-sc-action-ink group-hover:brightness-105">
+          <Icon name="chevron-right" size={13} />
+        </span>
+      </button>
+    </div>
+  )
 }

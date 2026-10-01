@@ -152,9 +152,9 @@ class DebugTrafficMiddleware:
     WATCH = [
         (m, re.compile(r)) for m, r in [
             ("PUT",  r"^/api/sketches/[^/]+$"),                      # marks saved
-            ("PUT",  r"^/api/sketches/[^/]+/marks/selection$"),      # marks selected
-            ("POST", r"^/api/sketches/[^/]+/marks/adopt$"),          # "Add it to your plan"
-            ("POST", r"^/api/sketches/[^/]+/session-choices$"),      # guided answers
+            # ("PUT",  r"^/api/sketches/[^/]+/marks/selection$"),      # marks selected
+            # ("POST", r"^/api/sketches/[^/]+/marks/adopt$"),          # "Add it to your plan"
+            # ("POST", r"^/api/sketches/[^/]+/session-choices$"),      # guided answers
             ("POST", r"^/api/scene-analysis$"),                      # guided questions
             ("POST", r"^/api/critique$"),                            # art coach
             ("POST", r"^/api/help-quest$"),                          # help quest

@@ -205,6 +205,13 @@ const ICONS = {
     content: <path d="M4 20l4-1 11-11-3-3L5 16l-1 4Z" />,
   },
 
+  // Chevron pointing right, for the next button inside a picked choice.
+  'chevron-right': {
+    viewBox: '0 0 20 20',
+    draw: { ...STROKE, strokeWidth: 1.8 },
+    content: <path d="M7.5 5 12.5 10l-5 5" />,
+  },
+
   // Chevron pointing down (chevron-up, flipped).
   'chevron-down': {
     viewBox: '0 0 20 20',

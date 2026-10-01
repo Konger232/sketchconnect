@@ -1,5 +1,5 @@
 {
-  "about": "Guided question bank for the scene analysis call. scene_types decides which questions each scene type may use. The AI adapts the wording of question and options to the photo, but cannot add a question that is not listed here. Checked by question_bank.py on every load. By convention the last option is the skip or do-it-differently choice. focal_suggestion is not chosen by the AI: the app asks it once for each focal area the sketcher did not mark, pointing at it with a reticle, filling in $label and $reason from the scene analysis. Its first option adds the area to the plan as a mark along its outline (source 'prompted', design doc item 17). The others are only recorded: one for an area the sketcher already had in mind, one for declining. Each option is a label plus an optional action. An action names an overlay the app shows when the sketcher picks that option; the valid names and what each shows are listed in 'actions'. style_actions swaps an action for one style, e.g. realistic shows the square grid wherever the rule-of-thirds grid would show.",
+  "about": "Guided question bank for the scene analysis call. scene_types decides which questions each scene type may use. The AI adapts the wording of question and options to the photo, but cannot add a question that is not listed here. Checked by question_bank.py on every load. By convention the last option is the skip or do-it-differently choice. focal_suggestion is not chosen by the AI: the app asks it once for each focal area the sketcher did not mark, pointing at it with a reticle, filling in $label and $reason from the scene analysis. Its first option adds the area to the plan as a mark along its outline (source 'prompted', design doc item 17). The others are only recorded: one for an area the sketcher already had in mind, one for declining. relationship is not chosen from the list either: Gemini writes it when the sketcher's marks take in two or more subjects that connect, naming one of its 'kinds'. Each option is a label plus an optional action. An action names an overlay the app shows when the sketcher picks that option; the valid names and what each shows are listed in 'actions'. style_actions swaps an action for one style, e.g. realistic shows the square grid wherever the rule-of-thirds grid would show.",
   "principles": [
     "line",
     "shape",
@@ -63,6 +63,61 @@
         "action": "describe"
       }
     ]
+  },
+  "relationship": {
+    "about": "Asked first, at most once, when the sketcher's marks take in two or more subjects and Gemini sees a connection between them (design doc, item 17). Gemini names the subjects, picks one kind from 'kinds' and writes the question: what visibly connects the subjects, then whether that is what drew the sketcher. It is a yes/no check, so the options are fixed here, not written by Gemini: either answer is saved and the guide moves on. A selected shape the relationship covers gets no separate mark_meaning question. The answer is saved with the kind, and the critique treats a yes as the sketcher's intent. Each kind's principle must be in 'principles'.",
+    "principle": "unity",
+    "question": "What connects these subjects for you?",
+    "options": [
+      {
+        "label": "Yes"
+      },
+      {
+        "label": "No"
+      }
+    ],
+    "kinds": {
+      "gesture": {
+        "principle": "movement",
+        "looks_for": "Figures or animals facing, reaching toward, leaning in to, or turning away from each other",
+        "example": "the two diners leaning toward each other across the table"
+      },
+      "echo": {
+        "principle": "rhythm",
+        "looks_for": "Repeated shapes or colours in different subjects",
+        "example": "round lanterns echoing a round window"
+      },
+      "contrast": {
+        "principle": "contrast",
+        "looks_for": "Opposites side by side: old and new, big and small, rigid and organic, warm and cool",
+        "example": "a glass tower beside a wooden shophouse"
+      },
+      "scale": {
+        "principle": "proportion",
+        "looks_for": "A small subject set against a much larger one",
+        "example": "a lone cyclist under a flyover"
+      },
+      "framing": {
+        "principle": "space",
+        "looks_for": "One subject seen through or inside another",
+        "example": "a street seen through an archway"
+      },
+      "layering": {
+        "principle": "space",
+        "looks_for": "One subject in front of another, with depth between them",
+        "example": "a signpost standing against a receding street"
+      },
+      "leading": {
+        "principle": "movement",
+        "looks_for": "Lines that carry the eye from one subject to the other",
+        "example": "tram rails running toward a clock tower"
+      },
+      "story": {
+        "principle": "emphasis",
+        "looks_for": "The meaning of one subject comments on the other. State only the visible facts and let the sketcher name the meaning",
+        "example": "a stop sign in front of a dead-end street, both saying stop"
+      }
+    }
   },
   "questions": {
     "proportion_check": {

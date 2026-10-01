@@ -146,19 +146,20 @@ export function MarksLayer({ marks = [], live = null, highlight = [] }) {
   const gRef = useRef(null)
   const scale = useSvgScale(gRef)
   const visible = (live ? [...marks, live] : marks).filter(isVisibleMark)
-  // While a guided question points at marks (highlight), every other mark
-  // fades. Otherwise, while any mark is selected, the others fade
-  // (--mark-dim-opacity).
+  // While a guided question points at marks (highlight), those marks get
+  // the selection halo and every other mark fades. Otherwise, while any
+  // mark is selected, the others fade (--mark-dim-opacity).
   const anySelected = visible.some((m) => m.selected)
   const lit = new Set(highlight)
   const dimmed = (m) => (lit.size ? !lit.has(m.id) : anySelected && !m.selected)
+  const haloed = (m) => (lit.size ? lit.has(m.id) : m.selected)
 
   return (
     <g ref={gRef} className="pointer-events-none">
       {/* Halos first, so every mark draws on top of every halo. Colour,
           width and opacity come from the --mark-select-* tokens, and the
           fade of unselected marks from --mark-dim-opacity. */}
-      {visible.filter((m) => m.selected).map((m, i) => (
+      {visible.filter(haloed).map((m, i) => (
         <polyline
           key={`halo-${m.id ?? i}`}
           className="mark-select-halo"

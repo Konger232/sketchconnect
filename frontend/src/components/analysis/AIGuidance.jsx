@@ -6,7 +6,8 @@ import { api } from '../../lib/api'
 /**
  * Guide questions and Help Quest, for the Guide tab of EditSketch.jsx.
  *
- * Questions come in the order of design doc items 15 and 17: "What do you
+ * Questions come in the order of design doc items 15 and 17: how the
+ * marked subjects connect (relationship), "What do you
  * see these marks as?" (mark_meaning), other questions about the selected
  * marks, "There is the ... here" (focal_suggestion, with a `suggestion`),
  * then the rest.
@@ -17,9 +18,14 @@ import { api } from '../../lib/api'
  * "Yes, add it" adds the area to the plan as a mark along its outline
  * (source "prompted"), and onMarksChange(marks) passes the saved list up.
  *
- * The sketcher can mark a spot on their own lines while a question shows
- * ("Point at a spot", or Guides, Plan, Mark a spot). `spot` is that spot;
- * it is saved with the answer, then onSpotClear() clears it.
+ * Options tied to the sketcher's lines (prompt.option_mark_ids, one list
+ * of mark ids per option): picking a tied option, or tapping one of its
+ * lines on the photo (markTap from the page), selects it and highlights
+ * its lines (halo; the rest fade); its ">" button saves it. Options with no
+ * lines save at once.
+ *
+ * The sketcher can mark a spot from Guides, Plan, Mark a spot. `spot` is
+ * that spot; it is saved with the answer, then onSpotClear() clears it.
  *
  * An option can carry an overlay (prompt.option_actions, from
  * question_bank.json): picking it calls onAction(name), and the page turns
@@ -42,11 +48,12 @@ export default function AIGuidance({
   // Called with the question on screen, or null, so the page knows when
   // the sketcher can mark a spot.
   onPromptChange,
-  // The sketcher's spot ({ x, y, mark_ids }) or null, its clear, and the
-  // request to turn on Mark a spot on the photo.
+  // The sketcher's spot ({ x, y, mark_ids }) or null, and its clear.
   spot = null,
   onSpotClear,
-  onSpotModeRequest,
+  // The last tap on the photo while a question with tied options shows:
+  // { id, n }, id the mark tapped (or null for a miss), n a counter.
+  markTap = null,
 }) {
 
   const [promptIndex, setPromptIndex] = useState(0)
@@ -62,6 +69,11 @@ export default function AIGuidance({
   const [describing, setDescribing] = useState(null)
   const [describeText, setDescribeText] = useState('')
 
+  // A tied option the sketcher picked (button or tap on its lines),
+  // waiting for Continue; else null. tapMiss: the last tap hit no tied line.
+  const [chosen, setChosen] = useState(null)
+  const [tapMiss, setTapMiss] = useState(false)
+
   // A fresh analysis (first-ever run, or a resume-flow re-run) always
   // starts this flow from a clean slate.
   useEffect(() => {
@@ -70,7 +82,13 @@ export default function AIGuidance({
     setHelpQuestAnswer(null)
     setDescribing(null)
     setDescribeText('')
+    setChosen(null)
+    setTapMiss(false)
   }, [analysis])
+  useEffect(() => {
+    setChosen(null)
+    setTapMiss(false)
+  }, [promptIndex])
 
   function currentPrompt() {
     return analysis?.prepared_prompts?.[promptIndex] || null
@@ -97,12 +115,39 @@ export default function AIGuidance({
   useEffect(() => () => onPromptChange?.(null), []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onSuggestionChange?.(null), []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Highlight the question's marks while it shows (design doc, item 17).
-  const currentMarkIds = (currentPrompt()?.mark_ids || []).join(',')
+  // Options tied to the sketcher's lines.
+  const optionMarks = shown?.option_mark_ids || []
+  const linked = optionMarks.some((ids) => ids?.length)
+
+  // Highlight the question's marks while it shows (design doc, item 17):
+  // the picked option's lines; none while a tied question waits for a
+  // pick (all lines plain); else prompt.mark_ids.
+  const highlightKey = (
+    chosen !== null && optionMarks[chosen]?.length ? optionMarks[chosen]
+      : linked ? []
+        : shown?.mark_ids || []
+  ).join(',')
   useEffect(() => {
-    onHighlight?.(currentMarkIds ? currentMarkIds.split(',') : [])
+    onHighlight?.(highlightKey ? highlightKey.split(',') : [])
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMarkIds])
+  }, [highlightKey])
+
+  // Pick a tied option: highlight its lines and show its overlay.
+  function chooseOption(index) {
+    setChosen(index)
+    setTapMiss(false)
+    const action = currentPrompt()?.option_actions?.[index]
+    if (action && action !== 'describe') onAction?.(action)
+  }
+
+  // A tap on the photo picks the option whose lines it hit.
+  useEffect(() => {
+    if (!markTap || !linked || describing !== null || helpQuestOpen) return
+    const index = optionMarks.findIndex((ids) => ids?.includes(markTap.id))
+    if (index >= 0) chooseOption(index)
+    else setTapMiss(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markTap?.n])
   useEffect(() => () => onHighlight?.([]), []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function advancePrompt() {
@@ -121,6 +166,11 @@ export default function AIGuidance({
     if (action === 'describe') {
       setDescribing(index)
       setDescribeText('')
+      return
+    }
+    // Tied to lines: select it and wait for Continue.
+    if (optionMarks[index]?.length) {
+      chooseOption(index)
       return
     }
     saveAnswer(prompt, option, index)
@@ -165,8 +215,18 @@ export default function AIGuidance({
       // The spot the question pointed at, and the one the sketcher marked.
       ai_spot: prompt.spot || undefined,
       spot: spot || undefined,
+      // The relationship question's kind, principle and subjects, so the
+      // critique knows which connection the sketcher was answering about.
+      relationship: prompt.relationship || undefined,
     }).catch((err) => console.warn('Could not save session choice', err))
     onSpotClear?.()
+  }
+
+  // Continue: save the picked tied option, then the next question.
+  function handleChosenContinue() {
+    const prompt = currentPrompt()
+    saveAnswer(prompt, prompt.options[chosen], chosen)
+    advancePrompt()
   }
 
   async function handleHelpQuestSend() {
@@ -204,7 +264,8 @@ export default function AIGuidance({
               <p className="font-heading text-question font-bold text-white">{prompt.question}</p>
               {prompt.principle && prompt.principle_text && (
                 <p className="text-base text-sc-text3">
-                  <span className="font-bold capitalize text-sc-guide">{prompt.principle}:</span> {prompt.principle_text}
+                  <span className="font-bold capitalize text-sc-guide">{prompt.principle}:</span> 
+                  {prompt.principle_text}
                 </p>
               )}
               {describing !== null ? (
@@ -227,27 +288,26 @@ export default function AIGuidance({
               ) : (
                 <div className="mt-1 flex flex-col gap-2">
                   {(prompt.options || []).map((opt, i) => (
-                    <Button key={opt} variant="choice" onClick={() => handlePromptSelect(opt, i)}>
+                    <Button
+                      key={opt}
+                      variant="choice"
+                      active={chosen === i}
+                      aria-pressed={optionMarks[i]?.length ? chosen === i : undefined}
+                      onClick={() => handlePromptSelect(opt, i)}
+                      // A picked option tied to lines: ">" saves it and moves on.
+                      onNext={chosen === i ? handleChosenContinue : undefined}
+                    >
                       {opt}
                     </Button>
                   ))}
+                  {tapMiss && (
+                    <p className="text-base text-sc-text3" aria-live="polite">
+                      Tap one of the lines you drew for these answers.
+                    </p>
+                  )}
                   <Button variant="choice" onClick={() => setHelpQuestOpen(true)}>
                     Ask me something else
                   </Button>
-                  {onSpotModeRequest && (
-                    <p className="flex items-center gap-2 text-base text-sc-text3">
-                      {spot ? (
-                        <>
-                          Spot marked on your lines.
-                          <button type="button" className="font-semibold text-white underline" onClick={() => onSpotClear?.()}>Clear</button>
-                        </>
-                      ) : (
-                        <button type="button" className="font-semibold text-white underline" onClick={onSpotModeRequest}>
-                          Point at a spot on your lines
-                        </button>
-                      )}
-                    </p>
-                  )}
                 </div>
               )}
             </div>

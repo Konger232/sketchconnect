@@ -59,6 +59,15 @@ class Spot(BaseModel):
     mark_ids: list[str] = Field(default_factory=list)
 
 
+class Relationship(BaseModel):
+    """How two or more marked subjects connect (design doc, item 17). kind
+    is one of question_bank.json relationship.kinds; principle is that
+    kind's principle; subjects are short noun phrases, e.g. "stop sign"."""
+    kind: str
+    principle: Optional[str] = None
+    subjects: list[str] = Field(default_factory=list)
+
+
 class SessionChoice(BaseModel):
     """
     One guided-question answer. key, focus and mark_ids are optional so
@@ -77,3 +86,6 @@ class SessionChoice(BaseModel):
     # marked while answering (spot), if any.
     ai_spot: Optional[Spot] = None
     spot: Optional[Spot] = None
+    # Set on the answer to the relationship question: the connection the
+    # AI read, which the sketcher confirmed, changed or put in their words.
+    relationship: Optional[Relationship] = None
