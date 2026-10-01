@@ -14,7 +14,8 @@ Variables:
   $marks                 summary from core/composite.py
   $revisions             erased marks, from core/composite.py
   $session_choices       JSON list of guided-question answers (focus, key,
-                         option_index, mark_ids when saved)
+                         option_index, mark_ids, answered_at when saved;
+                         one per question, the latest)
   $help_quest_log        JSON list of Help Quest questions and answers
   $prior_review_summary  latest earlier critique, or a "none" note
 -->
@@ -63,6 +64,6 @@ Images: $images
 Focal points the sketcher marked: $focal_points
 Marks: $marks
 Marks erased while planning (revisions, never mistakes): $revisions
-Guided-question answers: $session_choices
+Guided-question answers (one per question, the sketcher's latest choice; `mark_ids` are the lines that answer refers to): $session_choices
 Help Quest history: $help_quest_log
 Prior review summary: $prior_review_summary

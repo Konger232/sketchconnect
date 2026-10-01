@@ -11,6 +11,7 @@ import io
 import json
 import re
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -25,6 +26,7 @@ from geoalchemy2.functions import ST_Distance, ST_DWithin
 from app.core.database import get_db
 from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
 from app.core.models import Sketch, CritiqueResponse, Profile
+from app.core.debug import DEBUG_DIR
 from app.features.sketches.schemas import (
     AdoptMarkRequest, MarkSelectionRequest, SketchUpdateRequest, SketcherFocalPointInput,
 )
@@ -83,6 +85,7 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
         # Which grid to offer: "grid" (square) or "rule_of_thirds", by style.
         "grid": question_bank.grid_action(s.style),
         "created_at": s.created_at,
+        "is_draft": bool(s.is_draft),
         # The latest critique's text, if any -- this is what
         # SketchCard.jsx's feed view shows as the sketch's description,
         # with a Read more/Show less toggle once it runs long. None (not
@@ -266,6 +269,7 @@ async def create_sketch(
 
     sketch = Sketch(
         sketcher_id=sketcher_id,
+        is_draft=True,  # until Start Sketching (confirm_sketch)
         title=title,
         field_notes=field_notes,
         reference_image_url=reference_image_url,
@@ -283,9 +287,45 @@ async def create_sketch(
         except (TypeError, ValueError):
             pass  # malformed client payload -- don't fail the upload over metadata
     db.add(sketch)
+    _delete_stale_drafts(db, sketcher_id)
     db.commit()
     db.refresh(sketch)
     return _sketch_to_dict(sketch)
+
+
+# A draft (New Sketch never reached Start Sketching) older than this is
+# treated as abandoned: deleted the next time the same sketcher starts one.
+DRAFT_TTL = timedelta(days=1)
+
+
+def _delete_stale_drafts(db: Session, sketcher_id: str) -> None:
+    """Delete this sketcher's abandoned drafts, files and all. Caller commits."""
+    cutoff = datetime.utcnow() - DRAFT_TTL
+    for old in db.query(Sketch).filter(
+        Sketch.sketcher_id == sketcher_id, Sketch.is_draft.is_(True), Sketch.created_at < cutoff
+    ).all():
+        _delete_sketch_files(old)
+        db.delete(old)
+
+
+@router.post("/sketches/{sketch_id}/confirm")
+async def confirm_sketch(
+    sketch_id: str,
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """
+    Start Sketching: the end of New Sketch. The sketch stops being a draft,
+    shows in the feeds, and its guided answers are final.
+    """
+    sketch = db.query(Sketch).filter(
+        Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
+    ).first()
+    if sketch is None:
+        raise HTTPException(404, "Sketch not found")
+    sketch.is_draft = False
+    db.commit()
+    return {"is_draft": False}
 
 
 @router.put("/sketches/{sketch_id}")
@@ -463,6 +503,11 @@ async def save_focal_frame(
     return _sketch_to_dict(sketch)
 
 
+# Guided-question keys asked more than once per sketch (one per selected
+# shape, or per missed focal area). Matched with AIGuidance.jsx.
+REPEATED_KEYS = {"mark_meaning", "focal_suggestion"}
+
+
 @router.post("/sketches/{sketch_id}/session-choices")
 async def add_session_choice(
     sketch_id: str,
@@ -470,14 +515,30 @@ async def add_session_choice(
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
-    """Append one guided-question answer. Read later by the critique call."""
+    """
+    Save one guided-question answer. Read later by the critique call. One
+    answer per question: a new answer to the same key (or, for answers
+    without a key, the same question text) replaces the earlier one, so
+    the critique only sees the sketcher's latest choice.
+    """
     sketch = db.query(Sketch).filter(
         Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
     ).first()
     if sketch is None:
         raise HTTPException(404, "Sketch not found")
+    if not sketch.is_draft:
+        raise HTTPException(409, "Guided answers can't change once the sketch is created")
+    choice = {**body.model_dump(exclude_none=True), "answered_at": datetime.now(timezone.utc).isoformat()}
+
+    def same_question(old: dict) -> bool:
+        # These keys are asked once per shape or area, so the question text
+        # tells them apart.
+        if choice.get("key") and choice["key"] not in REPEATED_KEYS:
+            return old.get("key") == choice["key"]
+        return old.get("key") == choice.get("key") and old.get("prompt") == choice["prompt"]
+
     # Assign a new list. SQLAlchemy doesn't detect in-place edits to a JSON column.
-    sketch.session_choices = [*(sketch.session_choices or []), body.model_dump(exclude_none=True)]
+    sketch.session_choices = [c for c in (sketch.session_choices or []) if not same_question(c)] + [choice]
     db.commit()
     return {"count": len(sketch.session_choices)}
 
@@ -653,6 +714,14 @@ async def sketch_value_study(
     return compute_value_study(pil_image, levels)
 
 
+def _delete_sketch_files(sketch: Sketch) -> None:
+    """A sketch's images in uploads/, and its dev-only mark dumps (core/debug.py)."""
+    for url in {sketch.original_image_url, sketch.reference_image_url, sketch.final_sketch_url}:
+        _delete_upload_file(url)
+    for path in DEBUG_DIR.glob(f"marks_{sketch.id}_*.json") if DEBUG_DIR.exists() else []:
+        path.unlink(missing_ok=True)
+
+
 def _delete_upload_file(url: str | None) -> None:
     """
     Best-effort delete of one uploaded file, given its stored URL
@@ -694,9 +763,7 @@ async def delete_sketch(
     if sketch is None:
         raise HTTPException(404, "Sketch not found")
 
-    for url in {sketch.original_image_url, sketch.reference_image_url, sketch.final_sketch_url}:
-        _delete_upload_file(url)
-
+    _delete_sketch_files(sketch)
     db.delete(sketch)
     db.commit()
     return {"deleted": True}
@@ -710,7 +777,7 @@ async def list_sketches(
     """Feed for the profile 'Sketches' tab, newest first."""
     rows = (
         db.query(Sketch)
-        .filter(Sketch.sketcher_id == sketcher_id)
+        .filter(Sketch.sketcher_id == sketcher_id, Sketch.is_draft.is_(False))
         .order_by(Sketch.created_at.desc())
         .all()
     )
@@ -746,6 +813,7 @@ async def list_recent_sketches(
         point = WKTElement(f"POINT({lon} {lat})", srid=4326)
         nearby = (
             db.query(Sketch)
+            .filter(Sketch.is_draft.is_(False))
             .filter(Sketch.location.isnot(None))
             .filter(ST_DWithin(Sketch.location, point, radius_km * 1000))
             .order_by(ST_Distance(Sketch.location, point))
@@ -755,7 +823,7 @@ async def list_recent_sketches(
         if nearby:
             return [_sketch_to_dict(s) for s in nearby]
 
-    rows = db.query(Sketch).order_by(Sketch.created_at.desc()).limit(limit).all()
+    rows = db.query(Sketch).filter(Sketch.is_draft.is_(False)).order_by(Sketch.created_at.desc()).limit(limit).all()
     return [_sketch_to_dict(s) for s in rows]
 
 
@@ -782,6 +850,9 @@ async def get_sketch(
         raise HTTPException(404, "Sketch not found")
 
     is_owner = sketcher_id is not None and sketcher_id == sketch.sketcher_id
+    # A draft is the owner's alone until Start Sketching.
+    if sketch.is_draft and not is_owner:
+        raise HTTPException(404, "Sketch not found")
 
     # The sketch owner's public name and avatar, shown at the top of the
     # sketch's right panel. Public, like the profile itself.
@@ -815,5 +886,7 @@ async def get_sketch(
     ]
     data["owner"] = owner
     data["critique_status"] = sketch.critique_status
+    # The sketcher's guided answers, so the Guide tab can show their picks.
+    data["session_choices"] = sketch.session_choices or []
     data["is_owner"] = True
     return data

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import Button from '../components/common/Button'
 import Icon from '../components/common/Icon'
@@ -26,8 +26,8 @@ import cameraWhite from '../assets/images/ico_camera_w.png'
 const NOTE_LIMIT = 500
 
 const TABS = [
-  { key: 'guide', label: 'Guide' },
   { key: 'details', label: 'Details' },
+  { key: 'guide', label: 'Guide' },
   { key: 'feedback', label: 'Feedback' },
 ]
 
@@ -49,17 +49,27 @@ function locationText(location) {
  * scene analysis (router state: mode 'create' and the analysis). In create
  * mode the title is the AI's suggestion, so Details says so.
  *
+ * Create mode is the end of New Sketch: the sketch only counts as created
+ * at Start Sketching. Closing before that asks "Discard this sketch?", and
+ * Discard deletes it. Edit mode opens on Details (or on Feedback once there
+ * is a final sketch); closing with unsaved Details or an un-sent final
+ * sketch photo asks "Discard changes?".
+ *
  * Someone else's sketch opens read-only: the photo and its details.
  */
 export default function EditSketch() {
   const { sketchId } = useParams()
   const navigate = useNavigate()
   const routerLocation = useLocation()
-  const mode = routerLocation.state?.mode === 'create' ? 'create' : 'edit'
-
   const [sketch, setSketch] = useState(null)
   const [loadError, setLoadError] = useState(null)
-  const [tab, setTab] = useState('guide')
+  // Create mode: straight from New Sketch, or a draft (never confirmed
+  // with Start Sketching) opened again.
+  const mode = routerLocation.state?.mode === 'create' || sketch?.is_draft ? 'create' : 'edit'
+  const [tab, setTab] = useState(mode === 'create' ? 'guide' : 'details')
+  // The close dialog: 'sketch' (create mode: delete the sketch) or
+  // 'changes' (edit mode: drop unsaved edits), or null.
+  const [confirmingClose, setConfirmingClose] = useState(null)
   // The photo stage strip (StageStrip): show('plan' | 'photo' | 'final').
   const stripRef = useRef(null)
 
@@ -78,6 +88,12 @@ export default function EditSketch() {
   // { id, n } (id null for a miss). AIGuidance picks the matching option.
   const [markTap, setMarkTap] = useState(null)
   const guides = useGuides()
+  // A created sketch's Guide tab (review): no questions, only the scene
+  // type for Help Quest. Kept stable so AIGuidance doesn't reset.
+  const reviewAnalysis = useMemo(
+    () => ({ scene_type: sketch?.scene_type, prepared_prompts: [] }),
+    [sketch?.scene_type],
+  )
   const valueStudy = useValueStudy(sketchId, analysis)
 
   // ===== STATE: DETAILS =====
@@ -113,8 +129,10 @@ export default function EditSketch() {
       try {
         const { data } = await api.get(`/api/sketches/${sketchId}`)
         setSketch(data)
-        // A sketch with a final sketch opens on its feedback.
-        if (routerLocation.state?.mode !== 'create' && data.final_sketch_url) setTab('feedback')
+        // A draft continues New Sketch on Guide; a sketch with a final
+        // sketch opens on its feedback.
+        if (data.is_draft) setTab('guide')
+        else if (routerLocation.state?.mode !== 'create' && data.final_sketch_url) setTab('feedback')
       } catch (err) {
         setLoadError(err.response?.status === 404 ? 'not_found' : 'error')
       }
@@ -140,7 +158,9 @@ export default function EditSketch() {
   useEffect(() => {
     // No style yet (New Sketch left before "Analyze scene"): the Guide
     // tab shows the style cards first (handlePickStyle).
-    if (!sketch || !isOwner || analysis || analyzing || !sketch.style) return
+    // Only New Sketch asks questions. A created sketch's Guide tab lists its
+    // saved answers, and its overlays come with the sketch itself.
+    if (!sketch || !isOwner || mode !== 'create' || analysis || analyzing || !sketch.style) return
     async function run() {
       setAnalyzing(true)
       setGuidanceError(null)
@@ -170,7 +190,7 @@ export default function EditSketch() {
     }
     run()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sketch?.id, isOwner, sketch?.style])
+  }, [sketch?.id, isOwner, sketch?.style, mode])
 
   // Guide tab, sketch without a style: save the pick, which starts the
   // scene analysis above.
@@ -199,8 +219,37 @@ export default function EditSketch() {
     return () => clearInterval(timer)
   }, [sketch?.critique_status, sketchId])
 
+  // Unsaved Details (title, field notes, location).
+  function detailsDirty() {
+    return (
+      title !== (sketch.title || '') ||
+      fieldNotes !== (sketch.field_notes || '') ||
+      JSON.stringify(sketchLocation) !== JSON.stringify(sketch.location || null)
+    )
+  }
+
+  // The close button: asks first when there is something to lose.
+  function requestClose() {
+    if (!sketch || !isOwner) return closeModal()
+    if (mode === 'create') return setConfirmingClose('sketch')
+    if (detailsDirty() || finalFile) return setConfirmingClose('changes')
+    closeModal()
+  }
+
+  // Create mode's Discard: the sketch was never confirmed, so delete it
+  // and everything saved with it.
+  async function discardSketch() {
+    setConfirmingClose(null)
+    try {
+      await api.delete(`/api/sketches/${sketchId}`)
+    } catch {
+      // Best-effort cleanup
+    }
+    closeModal()
+  }
+
   // Opened as an overlay: go back. Direct visit: go to the home feed.
-  function handleClose() {
+  function closeModal() {
     // The list underneath refetches: this modal may have created, titled
     // or restyled the sketch (lib/sketchEvents.js).
     notifySketchesChanged()
@@ -242,21 +291,28 @@ export default function EditSketch() {
     })
   }
 
-  // Start Sketching: save any unsaved Details first, then close.
+  // Start Sketching (create mode): confirms the new sketch, so it leaves
+  // draft, shows in the feeds, and its answers are final. Saves any
+  // unsaved Details first, then closes.
+  const [confirmError, setConfirmError] = useState(null)
   async function handleStartSketching() {
-    const dirty =
-      title !== (sketch.title || '') ||
-      fieldNotes !== (sketch.field_notes || '') ||
-      JSON.stringify(sketchLocation) !== JSON.stringify(sketch.location || null)
-    if (dirty && !(await handleSave())) {
+    if (detailsDirty() && !(await handleSave())) {
       setTab('details') // show the save error instead of closing
       return
     }
-    handleClose()
+    setConfirmError(null)
+    try {
+      await api.post(`/api/sketches/${sketchId}/confirm`)
+    } catch (err) {
+      setConfirmError(err.response?.data?.detail || 'Could not create this sketch. Try again.')
+      return
+    }
+    closeModal()
   }
 
   // ===== DETAILS: SAVE AND DELETE =====
 
+  // Returns whether it saved, for Start Sketching.
   async function handleSave() {
     setSaving(true)
     setSaveError(null)
@@ -270,8 +326,10 @@ export default function EditSketch() {
       setSketch((prev) => ({ ...prev, ...data }))
       setSavedJustNow(true)
       setTimeout(() => setSavedJustNow(false), 2000)
+      return true
     } catch (err) {
       setSaveError(err.response?.data?.detail || 'Could not save these changes.')
+      return false
     } finally {
       setSaving(false)
     }
@@ -354,9 +412,11 @@ export default function EditSketch() {
 
   if (loadError || !sketch) {
     return (
-      <SketchModal title={modalTitle} onClose={handleClose}>
+      <SketchModal title={modalTitle} onClose={closeModal}>
         <div className="flex flex-1 items-center justify-center px-6 text-center text-md text-sc-text3">
-          {!loadError ? 'Loading…' : loadError === 'not_found' ? "This sketch doesn't exist (or was deleted)." : 'Could not load this sketch right now.'}
+          {!loadError ? 'Loading…' 
+            : loadError === 'not_found' ? "This sketch doesn't exist (or was deleted)." 
+            : 'Could not load this sketch right now.'}
         </div>
       </SketchModal>
     )
@@ -449,8 +509,10 @@ export default function EditSketch() {
           sketchId={sketchId}
           referenceImageUrl={referenceImageUrl}
           style={sketch.style}
-          analysis={analysis}
-          onStartSketching={handleStartSketching}
+          // A created sketch only needs the scene type, for Help Quest.
+          analysis={mode === 'create' ? analysis : reviewAnalysis}
+          review={mode !== 'create'}
+          savedChoices={sketch.session_choices || []}
           onSuggestionChange={(suggestion) => {
             setAiSuggestion(suggestion)
             if (suggestion) stripRef.current?.show('plan') // the suggestion is drawn on the Plan
@@ -471,6 +533,20 @@ export default function EditSketch() {
         />
       )}
     </div>
+  )
+  // Create mode: Start Sketching confirms the new sketch.
+  const guideTab = (
+    <>
+      {guidePanel}
+      {mode === 'create' && (
+        <div className="sc-footer">
+          {confirmError && <span className="mr-auto text-base text-accent">{confirmError}</span>}
+          <Button variant="action" className="ml-auto" onClick={handleStartSketching} disabled={saving}>
+            Start Sketching
+          </Button>
+        </div>
+      )}
+    </>
   )
 
   const detailsPanel = (
@@ -553,9 +629,6 @@ export default function EditSketch() {
       </div>
       <div className="sc-footer">
         {savedJustNow && <span className="mr-auto text-base text-sc-text3">Saved</span>}
-        <button type="button" onClick={() => setConfirmingDelete(true)} className="self-start text-base font-semibold text-sc-text3 hover:text-white">
-          <Icon name="delete" className="h-6 w-6 text-white/80 m-2" alt="Delete Sketch"/>
-        </button>
         <Button variant="secondaryOnDark" className="ml-auto" onClick={() => setTab('feedback')}>See feedback</Button>
         <Button variant="action" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
       </div>
@@ -666,12 +739,13 @@ export default function EditSketch() {
           <p className="font-heading text-xl font-semibold leading-snug">Photograph your finished sketch</p>
           <p className="max-w-[280px] text-md text-sc-text3">Feedback compares it with your photo and the plan you made in Guide.</p>
         </div>
-        <p className="text-base text-sc-text2">
+        
+        </Button>
+        <p className="text-sm text-sc-text2">
           <b className="text-white">Your plan:</b>{' '}
           {marks.length === 1 ? '1 mark' : `${marks.length} marks`}
           {styleLabel && `, ${styleLabel}`}.
         </p>
-        </Button>
       </>
     )
     feedbackFooter = (
@@ -717,7 +791,27 @@ export default function EditSketch() {
   // ===== RENDER =====
 
   return (
-    <SketchModal title={modalTitle} onClose={handleClose}>
+    <SketchModal title={modalTitle} 
+      onClose={requestClose}
+      onDelete={mode === 'edit' && isOwner ? () => setConfirmingDelete(true) : undefined}>
+      <ConfirmDialog
+        open={confirmingClose === 'sketch'}
+        title="Discard this sketch?"
+        message="Closing now deletes this sketch: the photo, the framing, your marks, the scene analysis and your answers."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        onConfirm={discardSketch}
+        onCancel={() => setConfirmingClose(null)}
+      />
+      <ConfirmDialog
+        open={confirmingClose === 'changes'}
+        title="Discard changes?"
+        message="Your unsaved changes to this sketch will be lost."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        onConfirm={() => { setConfirmingClose(null); closeModal() }}
+        onCancel={() => setConfirmingClose(null)}
+      />
       <ConfirmDialog
         open={confirmingDelete}
         title="Delete this sketch?"
@@ -746,7 +840,7 @@ export default function EditSketch() {
             </div>
             {/* The Guide panel stays mounted so the question in progress
                 survives a trip to another tab. */}
-            <div className={tab === 'guide' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>{guidePanel}</div>
+            <div className={tab === 'guide' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>{guideTab}</div>
             {tab === 'details' && detailsPanel}
             {tab === 'feedback' && feedbackPanel}
           </>

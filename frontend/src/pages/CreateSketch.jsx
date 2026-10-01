@@ -143,28 +143,55 @@ export default function CreateSketch() {
 
   // ===== CLOSE =====
 
-  // Leaving during setup discards the half-made sketch, so the close
-  // button asks first once a photo is uploaded (confirmingClose). Before
-  // that there is nothing to lose. While the analysis runs, the sketch is
-  // kept, so it closes without asking.
+  // The sketch only counts as created at Start Sketching (EditSketch,
+  // create mode). Until then, closing asks first once a photo is uploaded
+  // (confirmingClose), including while the analysis runs: Discard deletes
+  // the sketch and everything saved with it. Before the upload there is
+  // nothing to lose.
   const [confirmingClose, setConfirmingClose] = useState(false)
+  const confirmingCloseRef = useRef(false)
+  // The running analysis: its abort, and its result when it finished
+  // while the dialog was open (shown once the sketcher keeps editing).
+  const analysisAbortRef = useRef(null)
+  const discardedRef = useRef(false)
+  const finishedAnalysisRef = useRef(null)
 
-  function requestClose() {
-    if (sketchId && step !== 'analyzing') setConfirmingClose(true)
-    else closeWizard()
+  function setConfirming(open) {
+    confirmingCloseRef.current = open
+    setConfirmingClose(open)
   }
 
-  async function closeWizard() {
-    setConfirmingClose(false)
-    if (sketchId && step !== 'analyzing') {
-      try {
-        await api.delete(`/api/sketches/${sketchId}`)
-      } catch {
-        // Best-effort cleanup
-      }
-    }
+  function requestClose() {
+    if (sketchId) setConfirming(true)
+    else leave()
+  }
+
+  function leave() {
     notifySketchesChanged()
     navigate(backgroundLocation || '/profile')
+  }
+
+  // Keep editing: back to the step, or on to the guided questions if the
+  // analysis finished meanwhile.
+  function keepEditing() {
+    setConfirming(false)
+    const data = finishedAnalysisRef.current
+    if (data) {
+      finishedAnalysisRef.current = null
+      openGuidedQuestions(data)
+    }
+  }
+
+  async function discardAndClose() {
+    setConfirming(false)
+    discardedRef.current = true
+    analysisAbortRef.current?.abort()
+    try {
+      await api.delete(`/api/sketches/${sketchId}`)
+    } catch {
+      // Best-effort cleanup
+    }
+    leave()
   }
 
   // ===== STEP 1: REFERENCE PHOTO =====
@@ -473,15 +500,27 @@ export default function CreateSketch() {
       const form = new FormData()
       form.append('sketch_id', sketchId)
       form.append('style', style)
-      const { data } = await api.post('/api/scene-analysis', form)
-      navigate(`/sketches/${sketchId}`, {
-        replace: true,
-        state: { backgroundLocation, mode: 'create', analysis: data },
-      })
+      const abort = new AbortController()
+      analysisAbortRef.current = abort
+      const { data } = await api.post('/api/scene-analysis', form, { signal: abort.signal })
+      if (discardedRef.current) return
+      // Finished while "Discard this sketch?" is open: wait for the answer.
+      if (confirmingCloseRef.current) finishedAnalysisRef.current = data
+      else openGuidedQuestions(data)
     } catch (err) {
+      if (discardedRef.current) return
       setError(err.response?.data?.detail || 'Scene analysis failed. Try again.')
       setStep('style')
+    } finally {
+      analysisAbortRef.current = null
     }
+  }
+
+  function openGuidedQuestions(data) {
+    navigate(`/sketches/${sketchId}`, {
+      replace: true,
+      state: { backgroundLocation, mode: 'create', analysis: data },
+    })
   }
 
   // ===== RENDER =====
@@ -526,11 +565,11 @@ export default function CreateSketch() {
       <ConfirmDialog
         open={confirmingClose}
         title="Discard this sketch?"
-        message="Closing now deletes this sketch: the photo, the framing and any marks."
-        confirmLabel="Discard sketch"
-        cancelLabel="Keep working"
-        onConfirm={closeWizard}
-        onCancel={() => setConfirmingClose(false)}
+        message="Closing now deletes this sketch: the photo, the framing, your marks and the scene analysis."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        onConfirm={discardAndClose}
+        onCancel={keepEditing}
       />
       <ConfirmDialog
         open={!!replaceWith}

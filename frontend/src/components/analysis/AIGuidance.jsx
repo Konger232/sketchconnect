@@ -3,6 +3,25 @@ import Icon from '../common/Icon'
 import Button from '../common/Button'
 import { api } from '../../lib/api'
 
+// Asked once per selected shape or missed area, so the question text tells
+// them apart. Matched with REPEATED_KEYS in backend sketches/router.py.
+const REPEATED_KEYS = ['mark_meaning', 'focal_suggestion']
+
+function sameQuestion(choice, prompt) {
+  if (!choice || !prompt || choice.key !== prompt.key) return false
+  return !REPEATED_KEYS.includes(prompt.key) || choice.prompt === prompt.question
+}
+
+// The option a saved answer picked, or null: by its text, else (for an
+// answer in the sketcher's own words) the "describe" option it came from.
+function savedIndex(choice, prompt) {
+  if (!choice) return null
+  const i = (prompt.options || []).indexOf(choice.response)
+  if (i >= 0) return i
+  const j = choice.option_index
+  return Number.isInteger(j) && prompt.option_actions?.[j] === 'describe' ? j : null
+}
+
 /**
  * Guide questions and Help Quest, for the Guide tab of EditSketch.jsx.
  *
@@ -24,6 +43,18 @@ import { api } from '../../lib/api'
  * its lines (halo; the rest fade); its ">" button saves it. Options with no
  * lines save at once.
  *
+ * review: the sketch is created, so its answers are final. The panel lists
+ * each question with the saved answer; tapping an answer highlights the
+ * lines it refers to. "Ask me something else" follows the list.
+ *
+ * "Ask me something else" (Help Quest) only shows after the last question,
+ * never as one of a question's options.
+ *
+ * Saved answers (savedChoices, the sketch's session_choices) come back
+ * picked: a question already answered opens with that option selected,
+ * and its ">" moves on without saving again. Picking another option
+ * replaces the answer (the server keeps one per question).
+ *
  * The sketcher can mark a spot from Guides, Plan, Mark a spot. `spot` is
  * that spot; it is saved with the answer, then onSpotClear() clears it.
  *
@@ -40,7 +71,12 @@ export default function AIGuidance({
   onFinished,
   onSuggestionChange,
   onMarksChange,
+  // Optional: a "Start Sketching" button after the last question.
   onStartSketching,
+  // The sketch's saved answers (session_choices), to show the picks.
+  savedChoices = [],
+  // Read-only list of the saved answers (the sketch is created).
+  review = false,
   onAction,
   // Called with the marks the current question is about (prompt.mark_ids),
   // or [] when none, so the page can highlight them on the photo.
@@ -73,6 +109,10 @@ export default function AIGuidance({
   // waiting for Continue; else null. tapMiss: the last tap hit no tied line.
   const [chosen, setChosen] = useState(null)
   const [tapMiss, setTapMiss] = useState(false)
+  // Answers saved so far, kept up to date as the sketcher answers.
+  const [choices, setChoices] = useState(savedChoices)
+  // review: the answer whose lines are highlighted, or null.
+  const [reviewing, setReviewing] = useState(null)
 
   // A fresh analysis (first-ever run, or a resume-flow re-run) always
   // starts this flow from a clean slate.
@@ -85,10 +125,14 @@ export default function AIGuidance({
     setChosen(null)
     setTapMiss(false)
   }, [analysis])
+  // Each question opens with its saved pick, if any. No overlay is turned
+  // on for it: that waits for the sketcher to pick.
   useEffect(() => {
-    setChosen(null)
+    const p = analysis?.prepared_prompts?.[promptIndex]
+    setChosen(p ? savedIndex(choices.find((c) => sameQuestion(c, p)), p) : null)
     setTapMiss(false)
-  }, [promptIndex])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promptIndex, analysis])
 
   function currentPrompt() {
     return analysis?.prepared_prompts?.[promptIndex] || null
@@ -123,7 +167,8 @@ export default function AIGuidance({
   // the picked option's lines; none while a tied question waits for a
   // pick (all lines plain); else prompt.mark_ids.
   const highlightKey = (
-    chosen !== null && optionMarks[chosen]?.length ? optionMarks[chosen]
+    review ? (reviewing !== null ? choices[reviewing]?.mark_ids || [] : [])
+      : chosen !== null && optionMarks[chosen]?.length ? optionMarks[chosen]
       : linked ? []
         : shown?.mark_ids || []
   ).join(',')
@@ -202,6 +247,10 @@ export default function AIGuidance({
   }
 
   function saveAnswer(prompt, response, index) {
+    setChoices((prev) => [
+      ...prev.filter((c) => !sameQuestion(c, prompt)),
+      { key: prompt.key, prompt: prompt.question, response, option_index: index },
+    ])
     api.post(`/api/sketches/${sketchId}/session-choices`, {
       prompt: prompt.question,
       response,
@@ -222,10 +271,12 @@ export default function AIGuidance({
     onSpotClear?.()
   }
 
-  // Continue: save the picked tied option, then the next question.
+  // ">": save the pick, then the next question. The saved pick, unchanged,
+  // just moves on (re-saving would lose words typed for "Something else").
   function handleChosenContinue() {
     const prompt = currentPrompt()
-    saveAnswer(prompt, prompt.options[chosen], chosen)
+    const saved = savedIndex(choices.find((c) => sameQuestion(c, prompt)), prompt)
+    if (chosen !== saved) saveAnswer(prompt, prompt.options[chosen], chosen)
     advancePrompt()
   }
 
@@ -259,7 +310,38 @@ export default function AIGuidance({
         <p className="sc-body">Preparing your questions…</p>
       ) : (
         <>
-          {prompt && !helpQuestOpen && (
+          {review && !helpQuestOpen && (
+            <div className="flex animate-fade-in-up flex-col gap-4">
+              <p className="font-heading text-question font-bold text-white">Your answers</p>
+              {choices.length === 0 && <p className="sc-body">No guided answers were saved for this sketch.</p>}
+              {choices.map((c, i) => (
+                <div key={`${c.key}-${i}`} className="flex flex-col gap-2">
+                  <p className="text-md font-semibold text-white">{c.prompt}</p>
+                  {c.mark_ids?.length ? (
+                    // Tap to see the lines this answer refers to.
+                    <Button
+                      variant="choice"
+                      active
+                      aria-pressed={reviewing === i}
+                      className={reviewing === i ? '' : 'opacity-80'}
+                      onClick={() => setReviewing((cur) => (cur === i ? null : i))}
+                    >
+                      {c.response}
+                    </Button>
+                  ) : (
+                    <p className="flex min-h-[50px] items-center rounded-[10px] border-[1.5px] border-sc-border bg-sc-raised px-3.5 py-2 text-md font-semibold text-white">
+                      {c.response}
+                    </p>
+                  )}
+                </div>
+              ))}
+              <Button variant="choice" onClick={() => setHelpQuestOpen(true)}>
+                Ask me something else
+              </Button>
+            </div>
+          )}
+
+          {!review && prompt && !helpQuestOpen && (
             <div key={promptIndex} className="flex animate-fade-in-up flex-col gap-3.5">
               <p className="font-heading text-question font-bold text-white">{prompt.question}</p>
               {prompt.principle && prompt.principle_text && (
@@ -305,24 +387,28 @@ export default function AIGuidance({
                       Tap one of the lines you drew for these answers.
                     </p>
                   )}
-                  <Button variant="choice" onClick={() => setHelpQuestOpen(true)}>
-                    Ask me something else
-                  </Button>
                 </div>
               )}
             </div>
           )}
 
-          {!prompt && !helpQuestOpen && (
+          {!review && !prompt && !helpQuestOpen && (
             <div className="flex animate-fade-in-up flex-col gap-3">
               <p className="font-heading text-question font-bold text-white">That's all for now.</p>
               <p className="sc-body">Open Guides on the photo any time. Ask a question whenever you get stuck.</p>
+              {analysis.prepared_prompts.length > 0 && (
+                <Button variant="choice" onClick={() => setPromptIndex(0)}>
+                  Go through the questions again
+                </Button>
+              )}
               <Button variant="choice" onClick={() => setHelpQuestOpen(true)}>
                 Ask me something else
               </Button>
-              <Button variant="action" className="self-start" onClick={onStartSketching}>
-                Start Sketching
-              </Button>
+              {onStartSketching && (
+                <Button variant="action" className="self-start" onClick={onStartSketching}>
+                  Start Sketching
+                </Button>
+              )}
             </div>
           )}
 

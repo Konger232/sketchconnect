@@ -89,3 +89,6 @@ class SessionChoice(BaseModel):
     # Set on the answer to the relationship question: the connection the
     # AI read, which the sketcher confirmed, changed or put in their words.
     relationship: Optional[Relationship] = None
+    # When it was answered (UTC, ISO 8601), set by the server. One answer
+    # per question key: answering again replaces the earlier one.
+    answered_at: Optional[str] = None

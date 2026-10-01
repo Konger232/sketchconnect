@@ -98,6 +98,11 @@ class Sketch(Base):
     # Guided-question answers, one {prompt, response} per pick, appended
     # by POST /api/sketches/{id}/session-choices. Read by the critique call.
     session_choices = Column(JSON, nullable=True)
+    # True from the upload until Start Sketching (POST .../confirm). Drafts
+    # are left out of every feed, and a draft left behind is deleted after
+    # DRAFT_TTL (sketches/router.py). Guided answers can only change while
+    # the sketch is a draft.
+    is_draft = Column(Boolean, nullable=False, default=False, server_default="false")
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

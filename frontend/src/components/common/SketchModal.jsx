@@ -13,7 +13,7 @@ import Icon from './Icon'
  * iPad: full screen. Desktop: at most --modal-max-w x --modal-max-h,
  * centred over the --modal-scrim. Page scroll behind it is off while open.
  */
-export default function SketchModal({ title, onClose, children }) {
+export default function SketchModal({ title, onClose, onDelete, children }) {
   useEffect(() => {
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = '' }
@@ -40,6 +40,14 @@ export default function SketchModal({ title, onClose, children }) {
           <span className="pointer-events-none absolute inset-x-0 text-center font-heading text-title font-bold">
             {title}
           </span>
+          { onDelete && (
+            <button type="button" 
+              onClick={onDelete}
+              aria-label="Delete Sketch" 
+              className="absolute right-3 z-10 flex h-11 w-11 items-center justify-center text-sc-text3 hover:text-white">
+              <Icon name="delete" className="h-6 w-6 text-white/80 m-2" alt="Delete Sketch"/>
+            </button>
+          )}
         </div>
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden">
           {children}
