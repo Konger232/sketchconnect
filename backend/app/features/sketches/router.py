@@ -30,7 +30,10 @@ from app.core.debug import DEBUG_DIR
 from app.features.sketches.schemas import (
     AdoptMarkRequest, MarkSelectionRequest, SketchUpdateRequest, SketcherFocalPointInput,
 )
-from app.core.schemas import FocalRegion, SessionChoice, region_points
+from app.core.schemas import FocalRegion, SessionChoice, normalize_source, region_points
+from app.core import design_fundamentals
+from app.features.marks_analysis import question_bank as marks_bank
+from app.features.marks_analysis.service import chosen_principles, intents_from_choices
 from app.core.exif_utils import extract_location_and_time
 from app.features.sketches.focal_pairing import pair_focal_points, region_anchor
 from app.features.scene_analysis import question_bank
@@ -164,9 +167,11 @@ def _clean_marks(raw: str) -> list[dict]:
             if m.get(key) is True:
                 mark[key] = True
         # "prompted": added from an AI suggestion ("Yes, add it"). Evidence,
-        # item 15. Missing means the sketcher's own mark.
-        if m.get("source") in ("own", "prompted"):
-            mark["source"] = m["source"]
+        # item 15. "intended" (was "own") or missing: the sketcher's own
+        # mark. Old values load as the new ones (item 20).
+        source = normalize_source(m.get("source"))
+        if source in ("intended", "prompted"):
+            mark["source"] = source
         # The focal area a prompted mark was adopted from (item 17).
         if isinstance(m.get("adopted_region"), int) and not isinstance(m.get("adopted_region"), bool):
             mark["adopted_region"] = m["adopted_region"]
@@ -504,8 +509,11 @@ async def save_focal_frame(
 
 
 # Guided-question keys asked more than once per sketch (one per selected
-# shape, or per missed focal area). Matched with AIGuidance.jsx.
-REPEATED_KEYS = {"mark_meaning", "focal_suggestion"}
+# shape, or per missed focal area). Matched with AIGuidance.jsx. The marks
+# analysis bank adds its per-shape keys (principle_intent, the seed
+# questions) and unseen.
+def _repeated_keys() -> set[str]:
+    return {"mark_meaning", "focal_suggestion"} | marks_bank.repeated_keys()
 
 
 @router.post("/sketches/{sketch_id}/session-choices")
@@ -529,13 +537,33 @@ async def add_session_choice(
     if not sketch.is_draft:
         raise HTTPException(409, "Guided answers can't change once the sketch is created")
     choice = {**body.model_dump(exclude_none=True), "answered_at": datetime.now(timezone.utc).isoformat()}
+    repeated = _repeated_keys()
 
     def same_question(old: dict) -> bool:
         # These keys are asked once per shape or area, so the question text
         # tells them apart.
-        if choice.get("key") and choice["key"] not in REPEATED_KEYS:
+        if choice.get("key") and choice["key"] not in repeated:
             return old.get("key") == choice["key"]
         return old.get("key") == choice.get("key") and old.get("prompt") == choice["prompt"]
+
+    # "What do you want these marks to do?" (item 20): known principles
+    # only, and at most max_principles across the whole plan, counting the
+    # other answers' intents. "Not sure yet" clears the picks.
+    if choice.get("key") == "principle_intent":
+        if choice.get("undecided_principle"):
+            choice["principles"] = []
+        known = set(design_fundamentals.principle_keys())
+        picked = list(dict.fromkeys(p for p in choice.get("principles") or [] if p in known))
+        if len(picked) != len(choice.get("principles") or []):
+            raise HTTPException(400, "Unknown principle")
+        others = [c for c in (sketch.session_choices or []) if not same_question(c)]
+        total = set(chosen_principles(intents_from_choices(others))) | set(picked)
+        cap = marks_bank.max_principles()
+        if len(total) > cap:
+            raise HTTPException(422, f"{cap} is the most for one plan")
+        choice["principles"] = picked
+        if not picked and not choice.get("undecided_principle"):
+            raise HTTPException(400, "Pick a principle or Not sure yet")
 
     # Assign a new list. SQLAlchemy doesn't detect in-place edits to a JSON column.
     sketch.session_choices = [c for c in (sketch.session_choices or []) if not same_question(c)] + [choice]

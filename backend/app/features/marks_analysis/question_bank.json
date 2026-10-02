@@ -1,0 +1,282 @@
+{
+  "about": "Guided question bank for the marks analysis call. Element and principle keys come from app/core/design_fundamentals.json. The AI adapts the wording of each question and its options to the photo and the marks, but cannot add a question that is not listed here. The last option is the skip or do-it-differently choice. focal_suggestion and unseen are the 'unseen' questions: about something no mark sits on. At least one is asked, counted on its own, so 3 principle intents never crowd it out.",
+  "actions": {
+    "proportions": "Proportion check: one unit the AI traced and 2-3 spans measured against it.",
+    "perspective": "Eye level and vanishing points.",
+    "focal_shapes": "The AI's traced outlines of the strongest focal areas.",
+    "value_study": "Dominant values: the photo simplified into a few flat value shapes, light to dark (OpenCV).",
+    "grayscale": "The Plan photo in black and white, until turned off in Guides, Value.",
+    "grid": "A square grid for the grid method.",
+    "describe": "Not an overlay. A short text field so the sketcher can answer in words. For naming what marks are.",
+    "mark": "Not an overlay. The sketcher answers by selecting marks on the Plan photo, in the guided questions of New Sketch only. The tap snaps to a point on the mark. The answer saves mark_ids and that point. For where and which answers."
+  },
+  "focal_suggestion": {
+    "about": "Not chosen by the AI. The app asks it once for each focal area from the scene analysis call that no mark sits on, pointing at it with a reticle, and fills in $label and $reason. The first option adds the area as a mark along its outline (source 'prompted', adopted_region set). The others are only recorded.",
+    "element": null,
+    "principle": "emphasis",
+    "question": "There is the $label here. $reason Add it to your plan?",
+    "fixed_options": [
+      {
+        "label": "Yes, add it"
+      },
+      {
+        "label": "Already in my plan"
+      },
+      {
+        "label": "No thanks"
+      }
+    ]
+  },
+  "mark_meaning": {
+    "about": "Seeing as. Asked first, once per selected shape. The AI writes the first two options. The third is fixed. The sketcher's answer overrides the AI's reading.",
+    "question": "What do you see these marks as?",
+    "options": [
+      {
+        "label": "The AI's best reading of the marks"
+      },
+      {
+        "label": "The next most likely reading"
+      }
+    ],
+    "fixed_options": [
+      {
+        "label": "Something else",
+        "action": "describe"
+      }
+    ]
+  },
+  "principle_intent": {
+    "about": "Seeing that. Asked after mark_meaning. The AI offers 2 or 3 principles the selected marks lean toward, from the matrix row of the element it read. The sketcher picks up to max_principles across the whole plan. Each pick is saved with its mark ids and a source.",
+    "max_principles": 3,
+    "multi_select": true,
+    "question": "What do you want these marks to do?",
+    "fixed_options": [
+      {
+        "label": "Not sure yet",
+        "undecided_principle": true
+      }
+    ]
+  },
+  "relationship": {
+    "about": "Asked at most once, when the marks take in two or more subjects that connect. The AI picks one type and writes the question. A yes saves the type's principle as an intent with source 'prompted' and answer_to 'relationship'.",
+    "question": "What connects these subjects for you?",
+    "fixed_options": [
+      {
+        "label": "Yes"
+      },
+      {
+        "label": "No"
+      }
+    ],
+    "types": {
+      "gesture": {
+        "element": "form",
+        "principle": "movement",
+        "looks_for": "Figures or animals facing, reaching toward, leaning in to, or turning away from each other",
+        "example": "the two diners leaning toward each other across the table"
+      },
+      "echo": {
+        "element": "shape",
+        "principle": "rhythm",
+        "looks_for": "Repeated shapes or colours in different subjects",
+        "example": "round lanterns echoing a round window"
+      },
+      "contrast": {
+        "element": "shape",
+        "principle": "variety",
+        "looks_for": "Opposites side by side: old and new, big and small, rigid and organic",
+        "example": "a glass tower beside a wooden shophouse"
+      },
+      "scale": {
+        "element": "shape",
+        "principle": "proportion",
+        "looks_for": "A small subject set against a much larger one",
+        "example": "a lone cyclist under a flyover"
+      },
+      "framing": {
+        "element": "space",
+        "principle": "emphasis",
+        "looks_for": "One subject seen through or inside another",
+        "example": "a street seen through an archway"
+      },
+      "layering": {
+        "element": "space",
+        "principle": "unity",
+        "looks_for": "One subject in front of another, with depth between them",
+        "example": "a signpost standing against a receding street"
+      },
+      "leading": {
+        "element": "line",
+        "principle": "movement",
+        "looks_for": "Lines that carry the eye from one subject to the other",
+        "example": "tram rails running toward a clock tower"
+      },
+      "story": {
+        "element": null,
+        "principle": "emphasis",
+        "looks_for": "The meaning of one subject comments on the other. State only the visible facts",
+        "example": "a stop sign in front of a dead-end street"
+      }
+    }
+  },
+  "mark_questions": {
+    "shape_balance": {
+      "element": "shape",
+      "principle": "balance",
+      "min_marks": 2,
+      "question": "How do these shapes weigh against each other?",
+      "options": [
+        {
+          "label": "One side feels heavier"
+        },
+        {
+          "label": "They feel even"
+        },
+        {
+          "label": "Show me what balances it",
+          "action": "mark"
+        }
+      ]
+    },
+    "space_emphasis": {
+      "element": "space",
+      "principle": "emphasis",
+      "min_marks": 1,
+      "question": "What sets this subject apart from the rest?",
+      "options": [
+        {
+          "label": "The empty space around it"
+        },
+        {
+          "label": "Its light or dark",
+          "action": "value_study"
+        },
+        {
+          "label": "Something else",
+          "action": "describe"
+        }
+      ]
+    },
+    "line_movement": {
+      "element": "line",
+      "principle": "movement",
+      "min_marks": 1,
+      "question": "Where does this line lead the eye?",
+      "options": [
+        {
+          "label": "To the main subject"
+        },
+        {
+          "label": "Out of the frame"
+        },
+        {
+          "label": "Show me on the photo",
+          "action": "mark"
+        }
+      ]
+    },
+    "shape_pattern": {
+      "element": "shape",
+      "principle": "pattern",
+      "min_marks": 1,
+      "question": "Does this shape repeat elsewhere in the scene?",
+      "options": [
+        {
+          "label": "Yes, I'll show you where",
+          "action": "mark"
+        },
+        {
+          "label": "Only here"
+        },
+        {
+          "label": "Skip"
+        }
+      ]
+    },
+    "form_rhythm": {
+      "element": "form",
+      "principle": "rhythm",
+      "min_marks": 2,
+      "question": "These forms get smaller as they recede. How many will you draw?",
+      "options": [
+        {
+          "label": "All of them"
+        },
+        {
+          "label": "A few, to suggest the row"
+        },
+        {
+          "label": "Skip"
+        }
+      ]
+    },
+    "line_proportion": {
+      "element": "line",
+      "principle": "proportion",
+      "min_marks": 1,
+      "question": "What will you measure this line against?",
+      "options": [
+        {
+          "label": "Check proportions for me",
+          "action": "proportions"
+        },
+        {
+          "label": "Show me on the photo",
+          "action": "mark"
+        },
+        {
+          "label": "Skip"
+        }
+      ]
+    },
+    "shape_variety": {
+      "element": "shape",
+      "principle": "variety",
+      "min_marks": 2,
+      "question": "Some of these shapes have hard edges and some are soft. Keep both?",
+      "options": [
+        {
+          "label": "Keep both"
+        },
+        {
+          "label": "Simplify to one kind"
+        },
+        {
+          "label": "Not sure yet"
+        }
+      ]
+    },
+    "line_unity": {
+      "element": "line",
+      "principle": "unity",
+      "min_marks": 1,
+      "question": "This line ties two parts of the scene together. How will you use it?",
+      "options": [
+        {
+          "label": "Draw it in"
+        },
+        {
+          "label": "Keep it as a guide only"
+        },
+        {
+          "label": "Skip"
+        }
+      ]
+    }
+  },
+  "unseen": {
+    "about": "Asked only when no focal_suggestion is left. Gemini writes one question from a form_relationships entry that no mark sits on, and names the entry's element and principle. The options are fixed. The app shows a reticle on the first form.",
+    "question": "Your marks leave out how these parts of the scene relate. Do you see it?",
+    "fixed_options": [
+      {
+        "label": "I see it now"
+      },
+      {
+        "label": "Already had it in mind"
+      },
+      {
+        "label": "Not for this sketch"
+      }
+    ]
+  }
+}

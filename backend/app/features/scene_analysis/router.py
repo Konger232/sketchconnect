@@ -8,7 +8,7 @@ stored sketch, never sent from the browser. The Gemini call itself (schema, prom
 features/scene_analysis/service.py; the prompt text is in prompts/scene_analysis*.md.
 """
 import io
-from config import DEBUG
+from config import DEBUG, GUIDE_SOURCE
 from datetime import datetime
 from pathlib import Path
 
@@ -77,7 +77,8 @@ async def scene_analysis(
             db.commit()
         # Recompute the "There is the ... here" questions against the sketch's
         # current points and marks, dropping areas adopted since.
-        return scene_analysis_service.refresh_suggestions(cached, sketch.focal_points, sketch.marks, style)
+        refreshed = scene_analysis_service.refresh_suggestions(cached, sketch.focal_points, sketch.marks, style)
+        return {**refreshed, "guide_source": GUIDE_SOURCE}
 
     if image is not None:
         contents = await image.read()
@@ -138,4 +139,4 @@ async def scene_analysis(
         sketch.captured_at = captured_at
     db.commit()
 
-    return result
+    return {**result, "guide_source": GUIDE_SOURCE}

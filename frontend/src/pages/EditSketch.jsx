@@ -18,6 +18,7 @@ import { snapSpot, squareScale } from '../lib/markGeometry'
 import { usePaintedRect } from '../lib/usePaintedRect'
 import { useValueStudy } from '../lib/useValueStudy'
 import { api } from '../lib/api'
+import { withGuideQuestions } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
 import { previewUrl } from '../lib/previewUrl'
 import { STYLES, sceneTypeLabel } from '../data/styles'
@@ -168,7 +169,8 @@ export default function EditSketch() {
         const form = new FormData()
         form.append('sketch_id', sketchId)
         form.append('style', sketch.style)
-        const { data } = await api.post('/api/scene-analysis', form)
+        const { data: sceneData } = await api.post('/api/scene-analysis', form)
+        const data = await withGuideQuestions(sceneData, sketchId)
         setAnalysis(data)
         // The backend fills a missing title from the AI's suggestion.
         const suggested = (data.suggested_title || '').trim().slice(0, 150)

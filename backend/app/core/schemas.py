@@ -6,7 +6,7 @@ sync with gemini_call_schemas.md.
 from datetime import datetime
 from typing import Optional, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 Style = Literal["ink_and_wash", "realistic", "minimalist", "reportage"]
@@ -60,12 +60,34 @@ class Spot(BaseModel):
 
 
 class Relationship(BaseModel):
-    """How two or more marked subjects connect (design doc, item 17). kind
-    is one of question_bank.json relationship.kinds; principle is that
-    kind's principle; subjects are short noun phrases, e.g. "stop sign"."""
-    kind: str
+    """How two or more marked subjects connect (design doc, items 17 and
+    20). type is one of a question bank's relationship types; element and
+    principle are that type's cell in the matrix; subjects are short noun
+    phrases, e.g. "stop sign". Older answers have kind (the old name for
+    type); both load, and kind is filled from type."""
+    type: Optional[str] = None
+    kind: Optional[str] = None
+    element: Optional[str] = None
     principle: Optional[str] = None
     subjects: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _type_or_kind(self):
+        self.type = self.type or self.kind
+        self.kind = self.kind or self.type
+        return self
+
+
+# What started an item (design doc, item 20): "intended" when the sketcher
+# started it with no guide question, "prompted" when a guide question did.
+# Used for marks, principle intents and relationship answers. Old values
+# load through normalize_source: own -> intended, adopted -> prompted.
+Source = Literal["intended", "prompted"]
+_OLD_SOURCE = {"own": "intended", "adopted": "prompted"}
+
+
+def normalize_source(value: str | None) -> str | None:
+    return _OLD_SOURCE.get(value, value) if value else value
 
 
 class SessionChoice(BaseModel):
@@ -92,3 +114,15 @@ class SessionChoice(BaseModel):
     # When it was answered (UTC, ISO 8601), set by the server. One answer
     # per question key: answering again replaces the earlier one.
     answered_at: Optional[str] = None
+    # Marks analysis answers (design doc, item 20). shape_id: the shape
+    # (s1, s2, ...) a per-shape question was about. element and principle:
+    # the question's cell in the matrix.
+    shape_id: Optional[str] = None
+    element: Optional[str] = None
+    principle: Optional[str] = None
+    # principle_intent only ("What do you want these marks to do?"): the
+    # principles picked, at most max_principles across the whole plan, or
+    # undecided_principle for "Not sure yet". Each pick is an intent on
+    # this answer's mark_ids, with source "intended".
+    principles: list[str] = Field(default_factory=list)
+    undecided_principle: Optional[bool] = None

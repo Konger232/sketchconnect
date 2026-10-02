@@ -1,0 +1,52 @@
+{
+  "marks": [
+    {"mark_id": "m1", "traces": "left roof line of the main temple", "element": "line", "role": "contour", "fit": "close"},
+    {"mark_id": "m2", "traces": "center column of the temple", "element": "line", "role": "perspective_guide", "fit": "loose"},
+    {"mark_id": "m3", "traces": "outer contour of the temple roof", "element": "shape", "role": "big_shape", "fit": "loose"},
+    {"mark_id": "m4", "traces": "lower roof edge of the right tier", "element": "line", "role": "contour", "fit": "close"},
+    {"mark_id": "m5", "traces": "ridge of the right temple roof", "element": "line", "role": "contour", "fit": "close"},
+    {"mark_id": "m6", "traces": "row of hanging red lanterns", "element": "line", "role": "gesture", "fit": "loose"},
+    {"mark_id": "m7", "traces": "left pillar of the entrance", "element": "form", "role": "contour", "fit": "close"},
+    {"mark_id": "m8", "traces": "beam over the entrance", "element": "line", "role": "alignment", "fit": "close"},
+    {"mark_id": "m9", "traces": "roof of the small stone kiosk", "element": "shape", "role": "big_shape", "fit": "loose"},
+    {"mark_id": "m10", "traces": "walls of the small stone kiosk", "element": "line", "role": "contour", "fit": "close"},
+    {"mark_id": "m11", "traces": "balcony line of the side building", "element": "line", "role": "perspective_guide", "fit": "loose"},
+    {"mark_id": "m12", "traces": "wall edge on the right", "element": "line", "role": "contour", "fit": "close"},
+    {"mark_id": "m13", "traces": "nothing in the scene", "element": "space", "role": "measurement", "fit": "not_applicable"},
+    {"mark_id": "m14", "traces": "street ground line", "element": "line", "role": "ground_line", "fit": "close"}
+  ],
+  "shapes": [
+    {"shape_id": "s2", "element": "shape", "question": "You drew a wide loop around the top of the temple. What do you see it as?",
+     "readings": ["The sweep of the main roof", "The roof and the wires above it"],
+     "intent_question": "What do you want the loop around the roof to do?",
+     "principles": ["emphasis", "balance", "unity"]},
+    {"shape_id": "s4", "element": "line", "question": "You drew a line along the left eave. What do you see it as?",
+     "readings": ["The row of red lanterns", "The edge of the eave"],
+     "intent_question": "What do you want the line of lanterns to do?",
+     "principles": ["movement", "pattern"]}
+  ],
+  "mark_questions": [
+    {"key": "line_movement", "shape_id": "s4", "question": "Where does the row of lanterns lead the eye?",
+     "options": ["Into the temple entrance", "Out past the left edge", "Show me on the photo"]},
+    {"key": "shape_pattern", "shape_id": "s2", "question": "Does the roof's curve repeat elsewhere in the scene?",
+     "options": ["Yes, I'll show you where", "Only on this roof", "Skip"]}
+  ],
+  "relationship": {
+    "type": "scale",
+    "subjects": ["small stone kiosk", "temple entrance"],
+    "mark_ids": ["m7", "m9", "m10"],
+    "question": "Your marks take in the small stone kiosk in front of the tall temple entrance. Is that difference in size what drew you here?"
+  },
+  "mark_relationships": [
+    {"mark_ids": ["m4", "m5"], "element": "line", "principle": "pattern", "observation": "The two right roof edges repeat the same upward curve."},
+    {"mark_ids": ["m6", "m8"], "element": "line", "principle": "movement", "observation": "The lantern row and the entrance beam both carry the eye toward the doorway."}
+  ],
+  "form_relationships": [
+    {"forms": [{"label": "main temple roof", "x": 380, "y": 480}, {"label": "right temple tower", "x": 720, "y": 440}],
+     "mark_ids": ["m1", "m4", "m5"], "element": "space", "principle": "unity", "observation": "The main roof overlaps the right tower in depth."},
+    {"forms": [{"label": "crowd at the gate", "x": 450, "y": 860}, {"label": "temple doorway", "x": 300, "y": 700}],
+     "mark_ids": [], "element": "space", "principle": "emphasis", "observation": "The crowd gathers in the open space in front of the doorway."}
+  ],
+  "unseen": {"form_ref": 1, "question": "The crowd gathers in the open space in front of the doorway. Do you see how that space sets the doorway apart?"},
+  "stroke_order_note": "The roof and its big shapes came first, then the entrance, then the street line."
+}

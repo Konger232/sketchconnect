@@ -4,12 +4,55 @@ import Button from '../common/Button'
 import { api } from '../../lib/api'
 
 // Asked once per selected shape or missed area, so the question text tells
-// them apart. Matched with REPEATED_KEYS in backend sketches/router.py.
-const REPEATED_KEYS = ['mark_meaning', 'focal_suggestion']
+// them apart. Matched with _repeated_keys in backend sketches/router.py.
+// Marks analysis questions about one shape (shape_id) or gated on a
+// principle (requires_principle) repeat the same way.
+const REPEATED_KEYS = ['mark_meaning', 'focal_suggestion', 'principle_intent', 'unseen']
+
+function isRepeated(prompt) {
+  return REPEATED_KEYS.includes(prompt.key) || Boolean(prompt.shape_id || prompt.requires_principle)
+}
 
 function sameQuestion(choice, prompt) {
   if (!choice || !prompt || choice.key !== prompt.key) return false
-  return !REPEATED_KEYS.includes(prompt.key) || choice.prompt === prompt.question
+  return !isRepeated(prompt) || choice.prompt === prompt.question
+}
+
+// Not overlays: "describe" opens a text field, "mark" (answer by selecting a
+// mark, design doc item 21) is not built yet, so it only saves the answer.
+const NOT_OVERLAYS = ['describe', 'mark']
+
+// The principles the sketcher works toward (design doc, item 20), from the
+// saved answers: principle_intent picks, and a Yes to the relationship.
+// Mirrors intents_from_choices in backend marks_analysis/service.py.
+function intentsFrom(choices) {
+  const out = []
+  for (const c of choices) {
+    if (c.key === 'principle_intent' && !c.undecided_principle) {
+      for (const p of c.principles || []) out.push({ principle: p, mark_ids: c.mark_ids || [] })
+    }
+    if (c.key === 'relationship' && c.option_index === 0 && c.relationship?.principle) {
+      out.push({ principle: c.relationship.principle, mark_ids: c.mark_ids || [] })
+    }
+  }
+  return out
+}
+
+// A seed question (requires_principle) is asked only when the sketcher
+// chose its principle for at least one of its marks.
+function isAsked(prompt, choices) {
+  if (!prompt?.requires_principle) return true
+  const marks = new Set(prompt.mark_ids || [])
+  return intentsFrom(choices).some(
+    (i) => i.principle === prompt.requires_principle && i.mark_ids.some((id) => marks.has(id)),
+  )
+}
+
+// The first question at or after `from` that is asked, or the list length.
+function nextAsked(prompts, from, choices) {
+  let i = from
+  while (i < prompts.length && !isAsked(prompts[i], choices)) i += 1
+  return i
 }
 
 // The option a saved answer picked, or null: by its text, else (for an
@@ -113,11 +156,15 @@ export default function AIGuidance({
   const [choices, setChoices] = useState(savedChoices)
   // review: the answer whose lines are highlighted, or null.
   const [reviewing, setReviewing] = useState(null)
+  // principle_intent (multi-select): the picked option indexes, and whether
+  // the last pick hit the cap ("3 is the most for one plan").
+  const [picks, setPicks] = useState([])
+  const [atCap, setAtCap] = useState(false)
 
   // A fresh analysis (first-ever run, or a resume-flow re-run) always
   // starts this flow from a clean slate.
   useEffect(() => {
-    setPromptIndex(0)
+    setPromptIndex(nextAsked(analysis?.prepared_prompts || [], 0, choices))
     setHelpQuestOpen(false)
     setHelpQuestAnswer(null)
     setDescribing(null)
@@ -131,6 +178,8 @@ export default function AIGuidance({
     const p = analysis?.prepared_prompts?.[promptIndex]
     setChosen(p ? savedIndex(choices.find((c) => sameQuestion(c, p)), p) : null)
     setTapMiss(false)
+    setPicks(p?.multi_select ? initialPicks(p) : [])
+    setAtCap(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [promptIndex, analysis])
 
@@ -182,7 +231,7 @@ export default function AIGuidance({
     setChosen(index)
     setTapMiss(false)
     const action = currentPrompt()?.option_actions?.[index]
-    if (action && action !== 'describe') onAction?.(action)
+    if (action && !NOT_OVERLAYS.includes(action)) onAction?.(action)
   }
 
   // A tap on the photo picks the option whose lines it hit.
@@ -195,8 +244,58 @@ export default function AIGuidance({
   }, [markTap?.n])
   useEffect(() => () => onHighlight?.([]), []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function advancePrompt() {
-    const next = promptIndex + 1
+  // principle_intent opens with its saved picks, else with the principles
+  // already chosen for these marks (a Yes to the relationship shows as picked).
+  function initialPicks(p) {
+    const saved = choices.find((c) => sameQuestion(c, p))
+    if (saved?.undecided_principle) return [p.undecided_option]
+    const marks = new Set(p.mark_ids || [])
+    const already = saved
+      ? saved.principles || []
+      : intentsFrom(choices).filter((i) => i.mark_ids.some((id) => marks.has(id))).map((i) => i.principle)
+    return (p.option_principles || []).flatMap((name, i) => (name && already.includes(name) ? [i] : []))
+  }
+
+  // Principles chosen elsewhere in the plan (not by this question).
+  function otherPrinciples(p) {
+    const others = choices.filter((c) => !sameQuestion(c, p))
+    return new Set(intentsFrom(others).map((i) => i.principle))
+  }
+
+  function togglePick(index) {
+    const p = currentPrompt()
+    setAtCap(false)
+    if (index === p.undecided_option) {
+      setPicks((cur) => (cur.includes(index) ? [] : [index]))
+      return
+    }
+    const cur = picks.filter((i) => i !== p.undecided_option)
+    if (cur.includes(index)) {
+      setPicks(cur.filter((i) => i !== index))
+      return
+    }
+    const total = new Set([...otherPrinciples(p), ...[...cur, index].map((i) => p.option_principles[i])])
+    if (total.size > (p.max_principles || 3)) {
+      setAtCap(true)
+      return
+    }
+    setPicks([...cur, index])
+  }
+
+  function handlePicksDone() {
+    const p = currentPrompt()
+    if (!picks.length) return
+    const undecided = picks.includes(p.undecided_option)
+    const ordered = [...picks].sort((a, b) => a - b)
+    const next = saveAnswer(p, ordered.map((i) => p.options[i]).join(', '), ordered[0], {
+      principles: undecided ? [] : ordered.map((i) => p.option_principles[i]).filter(Boolean),
+      undecided_principle: undecided || undefined,
+    })
+    advancePrompt(next)
+  }
+
+  function advancePrompt(latest = choices) {
+    const next = nextAsked(analysis?.prepared_prompts || [], promptIndex + 1, latest)
     // Past the last question, the panel shows its closing note.
     setPromptIndex(next)
     if (!analysis || next >= analysis.prepared_prompts.length) onFinished?.()
@@ -218,8 +317,8 @@ export default function AIGuidance({
       chooseOption(index)
       return
     }
-    saveAnswer(prompt, option, index)
-    if (action) onAction?.(action)
+    const latest = saveAnswer(prompt, option, index)
+    if (action && !NOT_OVERLAYS.includes(action)) onAction?.(action)
     // "Yes, add it" to "There is the ... here": the first option. The
     // area becomes a mark along its outline, in the normal mark colour.
     if (prompt.suggestion && index === 0) {
@@ -232,7 +331,7 @@ export default function AIGuidance({
         .then(({ data }) => onMarksChange?.(data.marks))
         .catch((err) => console.warn('Could not add the area to the plan', err))
     }
-    advancePrompt()
+    advancePrompt(latest)
   }
 
   // The sketcher's own words for "Something else". Saved as the answer,
@@ -240,17 +339,24 @@ export default function AIGuidance({
   function handleDescribeSubmit() {
     const text = describeText.trim()
     if (!text) return
-    saveAnswer(currentPrompt(), text, describing)
+    const latest = saveAnswer(currentPrompt(), text, describing)
     setDescribing(null)
     setDescribeText('')
-    advancePrompt()
+    advancePrompt(latest)
   }
 
-  function saveAnswer(prompt, response, index) {
-    setChoices((prev) => [
-      ...prev.filter((c) => !sameQuestion(c, prompt)),
-      { key: prompt.key, prompt: prompt.question, response, option_index: index },
-    ])
+  // Returns the answers with this one in, so the next question can be
+  // picked before the state updates (a seed question may now be asked).
+  function saveAnswer(prompt, response, index, extra = {}) {
+    const markIds = prompt.option_mark_ids?.[index] || prompt.mark_ids || []
+    const latest = [
+      ...choices.filter((c) => !sameQuestion(c, prompt)),
+      {
+        key: prompt.key, prompt: prompt.question, response, option_index: index,
+        mark_ids: markIds, relationship: prompt.relationship || undefined, ...extra,
+      },
+    ]
+    setChoices(latest)
     api.post(`/api/sketches/${sketchId}/session-choices`, {
       prompt: prompt.question,
       response,
@@ -260,15 +366,26 @@ export default function AIGuidance({
       // a focus on every question. A yes to one is "prompted" evidence.
       focus: prompt.focus || (prompt.suggestion ? 'unseen' : undefined),
       option_index: index,
-      mark_ids: prompt.option_mark_ids?.[index] || prompt.mark_ids || [],
+      mark_ids: markIds,
       // The spot the question pointed at, and the one the sketcher marked.
       ai_spot: prompt.spot || undefined,
       spot: spot || undefined,
       // The relationship question's kind, principle and subjects, so the
       // critique knows which connection the sketcher was answering about.
       relationship: prompt.relationship || undefined,
-    }).catch((err) => console.warn('Could not save session choice', err))
+      // Marks analysis (item 20): the shape, the question's matrix cell,
+      // and for principle_intent the picks or "Not sure yet".
+      shape_id: prompt.shape_id || undefined,
+      element: prompt.element || undefined,
+      principle: prompt.principle || undefined,
+      ...extra,
+    }).catch((err) => {
+      console.warn('Could not save session choice', err)
+      // The server enforces the cap too ("3 is the most for one plan").
+      if (err.response?.status === 422) setAtCap(true)
+    })
     onSpotClear?.()
+    return latest
   }
 
   // ">": save the pick, then the next question. The saved pick, unchanged,
@@ -276,8 +393,8 @@ export default function AIGuidance({
   function handleChosenContinue() {
     const prompt = currentPrompt()
     const saved = savedIndex(choices.find((c) => sameQuestion(c, prompt)), prompt)
-    if (chosen !== saved) saveAnswer(prompt, prompt.options[chosen], chosen)
-    advancePrompt()
+    const latest = chosen !== saved ? saveAnswer(prompt, prompt.options[chosen], chosen) : choices
+    advancePrompt(latest)
   }
 
   async function handleHelpQuestSend() {
@@ -350,7 +467,34 @@ export default function AIGuidance({
                   {prompt.principle_text}
                 </p>
               )}
-              {describing !== null ? (
+              {prompt.multi_select ? (
+                // "What do you want these marks to do?" Pick up to
+                // max_principles across the plan, or "Not sure yet". Done saves.
+                <div className="mt-1 flex flex-col gap-2">
+                  {(prompt.options || []).map((opt, i) => (
+                    <Button
+                      key={opt}
+                      variant="choice"
+                      active={picks.includes(i)}
+                      aria-pressed={picks.includes(i)}
+                      onClick={() => togglePick(i)}
+                    >
+                      <span className="block">{opt}</span>
+                      {prompt.option_hints?.[i] && (
+                        <span className="block text-base font-normal text-sc-text3">{prompt.option_hints[i]}</span>
+                      )}
+                    </Button>
+                  ))}
+                  {atCap && (
+                    <p className="text-base text-sc-text3" aria-live="polite">
+                      {prompt.max_principles || 3} is the most for one plan.
+                    </p>
+                  )}
+                  <Button variant="action" className="self-end" onClick={handlePicksDone} disabled={!picks.length}>
+                    Done
+                  </Button>
+                </div>
+              ) : describing !== null ? (
                 <div className="mt-1 flex flex-col gap-2">
                   <input
                     autoFocus
@@ -397,7 +541,7 @@ export default function AIGuidance({
               <p className="font-heading text-question font-bold text-white">That's all for now.</p>
               <p className="sc-body">Open Guides on the photo any time. Ask a question whenever you get stuck.</p>
               {analysis.prepared_prompts.length > 0 && (
-                <Button variant="choice" onClick={() => setPromptIndex(0)}>
+                <Button variant="choice" onClick={() => setPromptIndex(nextAsked(analysis.prepared_prompts, 0, choices))}>
                   Go through the questions again
                 </Button>
               )}

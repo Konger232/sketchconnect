@@ -118,3 +118,12 @@ MAX_MARKS_FOR_AI = 24
 # asked first (design doc, item 17). A design decision, kept low so the
 # guidance doesn't open with a quiz.
 MAX_MARK_MEANING_QUESTIONS = 2
+
+# Which call drives the guided questions during the parallel run (design
+# doc, item 20): "scene_analysis" (the default) or "marks_analysis". Both
+# calls fire when it is "marks_analysis": scene analysis first, for the
+# scene facts and overlays, then marks analysis for the questions. Set
+# GUIDE_SOURCE=marks_analysis in backend/.env to compare on the same sketches.
+GUIDE_SOURCE = _os.environ.get("GUIDE_SOURCE", "scene_analysis").strip().lower()
+if GUIDE_SOURCE not in ("scene_analysis", "marks_analysis"):
+    GUIDE_SOURCE = "scene_analysis"

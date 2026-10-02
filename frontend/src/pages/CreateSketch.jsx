@@ -11,6 +11,7 @@ import ConfirmDialog from '../components/common/ConfirmDialog'
 import SketchModal from '../components/common/SketchModal'
 
 import { api } from '../lib/api'
+import { withGuideQuestions } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
 import { previewUrl } from '../lib/previewUrl'
 import { useStagedProgress } from '../lib/useStagedProgress'
@@ -502,7 +503,8 @@ export default function CreateSketch() {
       form.append('style', style)
       const abort = new AbortController()
       analysisAbortRef.current = abort
-      const { data } = await api.post('/api/scene-analysis', form, { signal: abort.signal })
+      const { data: sceneData } = await api.post('/api/scene-analysis', form, { signal: abort.signal })
+      const data = await withGuideQuestions(sceneData, sketchId, abort.signal)
       if (discardedRef.current) return
       // Finished while "Discard this sketch?" is open: wait for the answer.
       if (confirmingCloseRef.current) finishedAnalysisRef.current = data

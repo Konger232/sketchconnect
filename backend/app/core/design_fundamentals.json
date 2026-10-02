@@ -1,0 +1,216 @@
+{
+  "about": "Elements and principles from the UC Berkeley design guide (guides.lib.berkeley.edu/design). Shared by the marks analysis call and the critique agent call. matrix[element][principle] lists the pairs a sketcher can work with through marks. A pair left out is skipped. Strong pairs get seed questions in question_bank.json. Weak pairs are used only when the AI sees them clearly.",
+  "elements": {
+    "line": {
+      "definition": "A straight or curved mark that connects two points or is the path of a moving point.",
+      "from_marks": true
+    },
+    "shape": {
+      "definition": "A two-dimensional enclosed area, geometric (hard edge) or organic (soft edge).",
+      "from_marks": true
+    },
+    "form": {
+      "definition": "A three-dimensional shape with height, width and depth.",
+      "from_marks": true
+    },
+    "space": {
+      "definition": "The distances and areas around, between and within components of a design.",
+      "from_marks": true
+    },
+    "value": {
+      "definition": "The degree of lightness or darkness in a color.",
+      "from_marks": true
+    },
+    "color": {
+      "definition": "The perception of light reflected from the surface of a shape or form.",
+      "from_marks": false
+    },
+    "texture": {
+      "definition": "The surface quality of an object that we can sense through touch.",
+      "from_marks": false
+    }
+  },
+  "principles": {
+    "balance": {
+      "definition": "The distribution of objects, colors, texture and space."
+    },
+    "emphasis": {
+      "definition": "The part of the design that catches the viewer's attention."
+    },
+    "movement": {
+      "definition": "The path the viewer's eye takes through the work."
+    },
+    "pattern": {
+      "label": "Pattern & Repetition",
+      "definition": "The repeating of an element all over the work."
+    },
+    "rhythm": {
+      "definition": "One or more elements used repeatedly to create a feeling of organized movement."
+    },
+    "proportion": {
+      "definition": "The relative size and scale of the various elements within a design."
+    },
+    "variety": {
+      "definition": "The use of several elements of design to hold the viewer's attention."
+    },
+    "unity": {
+      "definition": "The feeling of harmony between all parts of the design, which creates a sense of completeness."
+    }
+  },
+  "matrix": {
+    "line": {
+      "balance": {
+        "strength": "weak",
+        "looks_for": "Line weight spread across both sides."
+      },
+      "emphasis": {
+        "strength": "strong",
+        "looks_for": "Lines converge on one spot."
+      },
+      "movement": {
+        "strength": "strong",
+        "looks_for": "Where the line takes the eye."
+      },
+      "pattern": {
+        "strength": "strong",
+        "looks_for": "Repeated lines, such as railings or mullions."
+      },
+      "rhythm": {
+        "strength": "weak",
+        "looks_for": "Repeated lines at a changing interval."
+      },
+      "proportion": {
+        "strength": "strong",
+        "looks_for": "A measuring line compares lengths."
+      },
+      "variety": {
+        "strength": "weak",
+        "looks_for": "Straight and curved, thick and thin."
+      },
+      "unity": {
+        "strength": "strong",
+        "looks_for": "One line ties separate parts together."
+      }
+    },
+    "shape": {
+      "balance": {
+        "strength": "strong",
+        "looks_for": "A big shape against several small ones."
+      },
+      "emphasis": {
+        "strength": "strong",
+        "looks_for": "One shape differs in size or edge."
+      },
+      "movement": {
+        "strength": "weak",
+        "looks_for": "Shapes stepping in sequence."
+      },
+      "pattern": {
+        "strength": "strong",
+        "looks_for": "The same shape repeated."
+      },
+      "rhythm": {
+        "strength": "strong",
+        "looks_for": "Repeated shapes at a changing size."
+      },
+      "proportion": {
+        "strength": "strong",
+        "looks_for": "One shape's size against another."
+      },
+      "variety": {
+        "strength": "strong",
+        "looks_for": "Geometric and organic shapes."
+      },
+      "unity": {
+        "strength": "strong",
+        "looks_for": "Shapes share an edge or form one silhouette."
+      }
+    },
+    "form": {
+      "balance": {
+        "strength": "weak",
+        "looks_for": "A solid mass against an open area."
+      },
+      "emphasis": {
+        "strength": "weak",
+        "looks_for": "The form with the clearest depth."
+      },
+      "movement": {
+        "strength": "weak",
+        "looks_for": "Forms receding into depth."
+      },
+      "pattern": {
+        "strength": "weak",
+        "looks_for": "Repeated forms, such as columns or cars."
+      },
+      "rhythm": {
+        "strength": "strong",
+        "looks_for": "Repeated forms shrinking with distance."
+      },
+      "proportion": {
+        "strength": "strong",
+        "looks_for": "The scale of near and far."
+      },
+      "unity": {
+        "strength": "weak",
+        "looks_for": "Overlapping forms read as one group."
+      }
+    },
+    "space": {
+      "balance": {
+        "strength": "strong",
+        "looks_for": "An empty side against a busy side."
+      },
+      "emphasis": {
+        "strength": "strong",
+        "looks_for": "Space isolates a subject."
+      },
+      "movement": {
+        "strength": "strong",
+        "looks_for": "A gap or road the eye travels."
+      },
+      "rhythm": {
+        "strength": "strong",
+        "looks_for": "The intervals between objects."
+      },
+      "proportion": {
+        "strength": "strong",
+        "looks_for": "Sky to ground, or subject to space."
+      },
+      "unity": {
+        "strength": "weak",
+        "looks_for": "Consistent layers from front to back."
+      }
+    },
+    "value": {
+      "balance": {
+        "strength": "strong",
+        "looks_for": "Dark masses against light masses."
+      },
+      "emphasis": {
+        "strength": "strong",
+        "looks_for": "The strongest light-dark at the focus."
+      },
+      "movement": {
+        "strength": "weak",
+        "looks_for": "A path of lights or darks."
+      },
+      "pattern": {
+        "strength": "weak",
+        "looks_for": "Repeating shadows."
+      },
+      "proportion": {
+        "strength": "weak",
+        "looks_for": "How much is dark against light."
+      },
+      "variety": {
+        "strength": "weak",
+        "looks_for": "A full range of values or only a few."
+      },
+      "unity": {
+        "strength": "strong",
+        "looks_for": "Three values hold the page together."
+      }
+    }
+  }
+}

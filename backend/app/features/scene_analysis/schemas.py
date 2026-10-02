@@ -94,6 +94,10 @@ class SceneAnalysisRequest(BaseModel):
 
 
 class SceneAnalysisResponse(BaseModel):
+    # Which call drives the guided questions (config.GUIDE_SOURCE, design
+    # doc item 20). "marks_analysis": the app calls /api/marks-analysis next
+    # and shows its prepared_prompts instead of these.
+    guide_source: Literal["scene_analysis", "marks_analysis"] = "scene_analysis"
     scene_type: SceneType
     mixed_dominant_region: Optional[Literal["architectural", "figure"]] = None
     scene_summary: str
