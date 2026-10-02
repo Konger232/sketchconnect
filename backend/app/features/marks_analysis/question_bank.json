@@ -1,7 +1,6 @@
 {
   "about": "Guided question bank for the marks analysis call. Element and principle keys come from app/core/design_fundamentals.json. The AI adapts the wording of each question and its options to the photo and the marks, but cannot add a question that is not listed here. The last option is the skip or do-it-differently choice. focal_suggestion and unseen are the 'unseen' questions: about something no mark sits on. At least one is asked, counted on its own, so 3 principle intents never crowd it out.",
   "actions": {
-    "focal_shapes": "The AI's traced outlines of the strongest focal areas.",
     "value_study": "Dominant values: the photo simplified into a few flat value shapes, light to dark (OpenCV).",
     "grayscale": "The Plan photo in black and white, until turned off in Guides, Value.",
     "grid": "A square grid for the grid method.",
@@ -9,10 +8,10 @@
     "mark": "Not an overlay. The sketcher answers by selecting marks on the Plan photo, in the guided questions of New Sketch only. The tap snaps to a point on the mark. The answer saves mark_ids and that point. For where and which answers."
   },
   "focal_suggestion": {
-    "about": "Not chosen by the AI. The app asks it once for each focal area from the scene analysis call that no mark sits on, pointing at it with a reticle, and fills in $label and $reason. The first option adds the area as a mark along its outline (source 'prompted', adopted_region set). The others are only recorded.",
+    "about": "Not chosen by the AI. Focal areas from the scene analysis are kept for comparing with the marks, never shown all at once. When no mark overlaps a focal area, the app asks this once for it, filling in $label (and $reason, if the wording uses it). While it shows, the app draws only that one area's outline, with a reticle. The first option adds the area as a mark along its outline (source 'prompted', adopted_region set). The others are only recorded.",
     "element": null,
     "principle": "emphasis",
-    "question": "There is the $label here. $reason Add it to your plan?",
+    "question": "Have you considered capturing the $label in your sketch?",
     "fixed_options": [
       {
         "label": "Yes, add it"

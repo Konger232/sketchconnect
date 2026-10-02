@@ -35,12 +35,14 @@ export const GUIDE_GROUPS = [
   // a spot on the lines replaces the focal point.
   { key: 'plan', label: 'Plan', icon: 'guide-plan', tools: [['marks', 'Marks'], ['select_marks', 'Select marks'], ['mark_spot', 'Mark a spot']] },
   { key: 'space', label: 'Space', icon: 'guide-space', tools: [['perspective', 'Perspective'], ['rule_of_thirds', 'Rule of thirds'], ['grid', 'Grid']] },
-  { key: 'shape', label: 'Shape', icon: 'guide-shape', tools: [['focal_areas', 'Focal areas'], ['proportions', 'Proportions']] },
+  // Focal areas are not a guide (design doc, item 20): they are kept for
+  // comparing with the marks. One shows only while its question asks about it.
+  { key: 'shape', label: 'Shape', icon: 'guide-shape', tools: [['proportions', 'Proportions']] },
   { key: 'value', label: 'Value', icon: 'guide-value', tools: [['values', 'Values']] },
 ]
 
 // question_bank.json action names that differ from the tool names here.
-const ACTION_TOOL = { focal_shapes: 'focal_areas', value_study: 'values' }
+const ACTION_TOOL = { value_study: 'values' }
 
 function groupOf(tool) {
   return GUIDE_GROUPS.find((g) => g.tools.some(([t]) => t === tool))?.key || null
@@ -51,8 +53,7 @@ function groupOf(tool) {
  * and the rail collapsed.
  *   applyAction(name)  an answer's overlay (prepared_prompts option_actions):
  *                      opens the rail at that tool's group and turns it on
- * Proportions and focal areas crowd each other, so turning one on turns
- * the other off. The same goes for the two grids.
+ * The two grids crowd each other, so turning one on turns the other off.
  */
 export function useGuides() {
   // set which tools auto display on the plan image
@@ -61,7 +62,6 @@ export function useGuides() {
   const [openGroup, setOpenGroup] = useState(null)
 
   const EXCLUSIVE = {
-    proportions: 'focal_areas', focal_areas: 'proportions',
     grid: 'rule_of_thirds', rule_of_thirds: 'grid',
     // Both take taps on the photo, so only one at a time.
     select_marks: 'mark_spot', mark_spot: 'select_marks',
@@ -146,7 +146,6 @@ export default function GuideStage({
     perspective: hasPerspective(perspective),
     rule_of_thirds: true,
     grid: true,
-    focal_areas: focalRegions.length > 0,
     proportions: !!proportions?.unit,
     values: !!valueStudy,
   }
@@ -165,6 +164,15 @@ export default function GuideStage({
   }, [valueStudy?.error])
 
   const show = (tool) => !!on[tool] && available[tool]
+
+  // "Have you considered capturing the ...?" points at one focal area
+  // (aiSuggestion.region_ref, an index into focalRegions). Only that area's
+  // outline shows. The last one is kept while it fades out.
+  const suggestedRegion = Number.isInteger(aiSuggestion?.region_ref) ? focalRegions[aiSuggestion.region_ref] || null : null
+  const [shownRegion, setShownRegion] = useState(suggestedRegion)
+  useEffect(() => {
+    if (suggestedRegion) setShownRegion(suggestedRegion)
+  }, [suggestedRegion])
   // The photo takes taps for Select marks, Mark a spot, or answering by lines.
   const tappable = show('select_marks') || show('mark_spot') || !!onPickAt
 
@@ -182,8 +190,9 @@ export default function GuideStage({
             <Fade as="div" show={show('rule_of_thirds')}>
               <RuleOfThirdsGrid />
             </Fade>
-            <Fade as="div" show={show('focal_areas')}>
-              <ShapeOutlineOverlay focalRegions={focalRegions} />
+            {/* The one focal area the current question asks about. */}
+            <Fade as="div" show={!!suggestedRegion}>
+              {shownRegion && <ShapeOutlineOverlay focalRegions={[shownRegion]} />}
             </Fade>
             <Fade as="div" show={show('perspective')}>
               <PerspectiveLinesOverlay perspective={perspective} />

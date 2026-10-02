@@ -85,9 +85,8 @@ def _check(bank: dict) -> None:
     if not isinstance(fs, dict):
         problems.append("focal_suggestion is missing")
     else:
-        for var in ("$label", "$reason"):
-            if var not in (fs.get("question") or ""):
-                problems.append(f"focal_suggestion: question must contain {var}")
+        if "$label" not in (fs.get("question") or ""):
+            problems.append("focal_suggestion: question must contain $label")
         element_ok("focal_suggestion", fs.get("element"))
         principle_ok("focal_suggestion", fs.get("principle"))
         opts("focal_suggestion", fs.get("fixed_options"), 2, 3)

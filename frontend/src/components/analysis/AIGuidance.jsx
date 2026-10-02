@@ -103,7 +103,7 @@ function savedIndex(choice, prompt) {
  *
  * An option can carry an overlay (prompt.option_actions, from
  * question_bank.json): picking it calls onAction(name), and the page turns
- * that overlay on. Names: proportions, perspective, focal_shapes,
+ * that overlay on. Names: proportions, perspective,
  * value_study, rule_of_thirds, grid.
  */
 export default function AIGuidance({
