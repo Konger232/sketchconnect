@@ -1,8 +1,6 @@
 {
   "about": "Guided question bank for the marks analysis call. Element and principle keys come from app/core/design_fundamentals.json. The AI adapts the wording of each question and its options to the photo and the marks, but cannot add a question that is not listed here. The last option is the skip or do-it-differently choice. focal_suggestion and unseen are the 'unseen' questions: about something no mark sits on. At least one is asked, counted on its own, so 3 principle intents never crowd it out.",
   "actions": {
-    "proportions": "Proportion check: one unit the AI traced and 2-3 spans measured against it.",
-    "perspective": "Eye level and vanishing points.",
     "focal_shapes": "The AI's traced outlines of the strongest focal areas.",
     "value_study": "Dominant values: the photo simplified into a few flat value shapes, light to dark (OpenCV).",
     "grayscale": "The Plan photo in black and white, until turned off in Guides, Value.",
@@ -217,12 +215,11 @@
       "question": "What will you measure this line against?",
       "options": [
         {
-          "label": "Check proportions for me",
-          "action": "proportions"
-        },
-        {
           "label": "Show me on the photo",
           "action": "mark"
+        },
+        {
+          "label": "I'll compare by eye"
         },
         {
           "label": "Skip"

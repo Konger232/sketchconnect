@@ -6,8 +6,10 @@ sketcher's marks through the Elements × Principles matrix
 Runs after the scene analysis call, beside it, during the parallel run.
 config.GUIDE_SOURCE picks which of the two drives the guided questions.
 Scene analysis still supplies the scene facts (scene type, summary, focal
-areas, perspective and proportions overlays); this call reads them from
-the sketch's cached scene analysis as text.
+areas); this call reads them from the sketch's cached scene analysis as
+text. Perspective and proportions are not offered by any guided question
+(decided October 2, 2026): measuring is read as the proportion principle
+through the sketcher's own marks.
 
 Images sent, in order:
   1. the clean framed reference photo. Every coordinate comes from this one.
