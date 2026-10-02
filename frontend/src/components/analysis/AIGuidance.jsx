@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Icon from '../common/Icon'
 import Button from '../common/Button'
 import { api } from '../../lib/api'
@@ -142,6 +143,9 @@ export default function AIGuidance({
   // The last tap on the photo while a question with tied options shows:
   // { id, n }, id the mark tapped (or null for a miss), n a counter.
   markTap = null,
+  // review: the page's footer element. Back and Next render there, at the
+  // bottom of the panel. Without it they render under the options.
+  footerEl = null,
 }) {
 
   const [promptIndex, setPromptIndex] = useState(0)
@@ -474,12 +478,6 @@ export default function AIGuidance({
                 const last = reviewIndex >= reviewed.length - 1
                 return (
                   <>
-                    {reviewIndex > 0 && (
-                      <Button variant="quietOnDark" className="-ml-3 flex items-center gap-1 self-start" onClick={() => setReviewIndex((i) => i - 1)}>
-                        <Icon name="chevron-left" size={14} />
-                        Back
-                      </Button>
-                    )}
                     <p className="text-base text-sc-text3">Question {reviewIndex + 1} of {reviewed.length}</p>
                     <p className="font-heading text-question font-bold text-white">{c.prompt}</p>
                     <div className="mt-1 flex flex-col gap-2">
@@ -504,16 +502,33 @@ export default function AIGuidance({
                         <p className="rounded-xl bg-sc-raised p-3.5 text-md leading-normal text-sc-text">{c.response}</p>
                       )}
                     </div>
-                    {!last ? (
-                      <Button variant="secondaryOnDark" className="flex items-center gap-1 self-end" onClick={() => setReviewIndex((i) => i + 1)}>
-                        Next
-                        <Icon name="chevron-right" size={14} />
-                      </Button>
-                    ) : (
+                    {last && (
                       <Button variant="choice" onClick={() => setHelpQuestOpen(true)}>
                         Ask me something else
                       </Button>
                     )}
+                    {/* Back and Next on one row, anchored at the bottom right
+                        of the panel (footerEl), so the question sits up top. */}
+                    {(() => {
+                      const nav = (reviewIndex > 0 || !last) ? (
+                        <>
+                          {reviewIndex > 0 ? (
+                            <Button variant="quietOnDark" className="flex items-center gap-1" onClick={() => setReviewIndex((i) => i - 1)}>
+                              <Icon name="chevron-left" size={14} />
+                              Back
+                            </Button>
+                          ) : <span />}
+                          {!last && (
+                            <Button variant="secondaryOnDark" className="flex items-center gap-1" onClick={() => setReviewIndex((i) => i + 1)}>
+                              Next
+                              <Icon name="chevron-right" size={14} />
+                            </Button>
+                          )}
+                        </>
+                      ) : null
+                      if (!nav) return null
+                      return footerEl ? createPortal(nav, footerEl) : <div className="flex items-center justify-between">{nav}</div>
+                    })()}
                   </>
                 )
               })()}

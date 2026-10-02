@@ -91,6 +91,9 @@ export default function EditSketch() {
   const guides = useGuides()
   // A created sketch's Guide tab (review): no questions, only the scene
   // type for Help Quest. Kept stable so AIGuidance doesn't reset.
+  // The footer slot for the Guide tab's Back / Next in review, so they sit
+  // at the bottom right of the panel, like Start Sketching in create mode.
+  const [guideFooterEl, setGuideFooterEl] = useState(null)
   const reviewAnalysis = useMemo(
     () => ({ scene_type: sketch?.scene_type, prepared_prompts: [] }),
     [sketch?.scene_type],
@@ -514,6 +517,7 @@ export default function EditSketch() {
           // A created sketch only needs the scene type, for Help Quest.
           analysis={mode === 'create' ? analysis : reviewAnalysis}
           review={mode !== 'create'}
+          footerEl={guideFooterEl}
           savedChoices={sketch.session_choices || []}
           onSuggestionChange={(suggestion) => {
             setAiSuggestion(suggestion)
@@ -548,6 +552,8 @@ export default function EditSketch() {
           </Button>
         </div>
       )}
+      {/* Review: AIGuidance puts Back and Next here. Hidden while empty. */}
+      {mode !== 'create' && <div ref={setGuideFooterEl} className="sc-footer justify-between empty:hidden" />}
     </>
   )
 
