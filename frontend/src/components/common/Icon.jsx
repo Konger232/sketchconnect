@@ -212,6 +212,13 @@ const ICONS = {
     content: <path d="M7.5 5 12.5 10l-5 5" />,
   },
 
+  // Chevron pointing left, for Back to the previous guide question.
+  'chevron-left': {
+    viewBox: '0 0 20 20',
+    draw: { ...STROKE, strokeWidth: 1.8 },
+    content: <path d="M12.5 5 7.5 10l5 5" />,
+  },
+
   // Chevron pointing down (chevron-up, flipped).
   'chevron-down': {
     viewBox: '0 0 20 20',

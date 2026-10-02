@@ -112,8 +112,8 @@ def _check(bank: dict) -> None:
         mp = pi.get("max_principles")
         if not isinstance(mp, int) or isinstance(mp, bool) or not 1 <= mp <= 3:
             problems.append("principle_intent: max_principles must be between 1 and 3")
-        if pi.get("multi_select") is not True:
-            problems.append("principle_intent: multi_select must be true")
+        if not isinstance(pi.get("multi_select"), bool):
+            problems.append("principle_intent: multi_select must be true or false")
         opts("principle_intent", pi.get("fixed_options"), 1, 1)
         if undecided.get("principle_intent") != 1:
             problems.append("principle_intent: its fixed option must be the one undecided_principle option")
@@ -318,8 +318,9 @@ def mark_meaning_prompt(question: str, readings: list[str], shape_id: str, mark_
 def principle_intent_prompt(question: str, element: str, principles: list[str],
                             shape_id: str, mark_ids: list[str], focus: str) -> dict:
     """
-    "What do you want these marks to do?" Multi-select: one option per
-    offered principle, then the fixed "Not sure yet". option_principles is
+    "What do you want these marks to do?" One option per offered principle,
+    then the fixed "Not sure yet". One tap picks one and moves on
+    (multi_select false in the bank). option_principles is
     parallel to options (None for "Not sure yet"); option_hints gives each
     principle's "what to look for" from the matrix cell.
     """
@@ -337,7 +338,7 @@ def principle_intent_prompt(question: str, element: str, principles: list[str],
         "option_principles": list(principles) + [None] * len(labels),
         "option_hints": [df.cell(element, p)["looks_for"] for p in principles] + [None] * len(labels),
         "undecided_option": len(principles) + undecided,
-        "multi_select": True,
+        "multi_select": t["multi_select"],
         "max_principles": t["max_principles"],
         "mark_ids": list(mark_ids),
     }

@@ -43,9 +43,9 @@
     ]
   },
   "principle_intent": {
-    "about": "Seeing that. Asked after mark_meaning. The AI offers 2 or 3 principles the selected marks lean toward, from the matrix row of the element it read. The sketcher picks up to max_principles across the whole plan. Each pick is saved with its mark ids and a source.",
+    "about": "Seeing that. Asked after mark_meaning, once per shape. The AI offers 2 or 3 principles the selected marks lean toward, from the matrix row of the element it read. One tap picks one principle, or 'Not sure yet', and moves on. Up to max_principles across the whole plan. Each pick is saved with its mark ids and a source.",
     "max_principles": 3,
-    "multi_select": true,
+    "multi_select": false,
     "question": "What do you want these marks to do?",
     "fixed_options": [
       {
