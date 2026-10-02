@@ -675,6 +675,38 @@ async def adopt_focal_area(
     return {"marks": marks}
 
 
+@router.delete("/sketches/{sketch_id}/marks/adopt/{region_ref}")
+async def unadopt_focal_area(
+    sketch_id: str,
+    region_ref: int,
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """
+    Undo "Yes, add it": the sketcher went Back and changed the answer to
+    "Already in my plan" or "No thanks" (design doc, item 20). The mark
+    added from that focal area is removed outright, not erased: it was
+    never the sketcher's own stroke, so it is not a revision. Only while
+    the sketch is a draft, since answers are final once it is created.
+    Removing a mark that is not there is a no-op. Returns the saved marks.
+    """
+    sketch = db.query(Sketch).filter(
+        Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
+    ).first()
+    if sketch is None:
+        raise HTTPException(404, "Sketch not found")
+    if not sketch.is_draft:
+        raise HTTPException(409, "Guided answers can't change once the sketch is created")
+    marks = [
+        dict(m) for m in (sketch.marks or [])
+        if not (m.get("adopted_region") == region_ref and m.get("source") == "prompted")
+    ]
+    if len(marks) != len(sketch.marks or []):
+        sketch.marks = marks  # a new list, so SQLAlchemy sees the change
+        db.commit()
+    return {"marks": marks}
+
+
 @router.post("/sketches/{sketch_id}/final-sketch")
 async def upload_final_sketch(
     sketch_id: str,

@@ -315,8 +315,15 @@ export default function AIGuidance({
       chooseOption(index)
       return
     }
+    const before = savedIndex(choices.find((c) => sameQuestion(c, prompt)), prompt)
     const latest = saveAnswer(prompt, option, index)
     if (action && !NOT_OVERLAYS.includes(action)) onAction?.(action)
+    // Back, then away from "Yes, add it": the mark it added comes off the plan.
+    if (prompt.suggestion && before === 0 && index !== 0) {
+      api.delete(`/api/sketches/${sketchId}/marks/adopt/${prompt.suggestion.region_ref}`)
+        .then(({ data }) => onMarksChange?.(data.marks))
+        .catch((err) => console.warn('Could not remove the area from the plan', err))
+    }
     // "Yes, add it" to "There is the ... here": the first option. The
     // area becomes a mark along its outline, in the normal mark colour.
     if (prompt.suggestion && index === 0) {
