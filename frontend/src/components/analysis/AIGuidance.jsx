@@ -48,6 +48,13 @@ function isAsked(prompt, choices) {
   )
 }
 
+// A changed answer can drop a principle. The answers to seed questions
+// that principle opened no longer apply, so they are dropped too. Mirrors
+// the server (sketches/router.py, add_session_choice).
+function withoutStaleSeeds(choices) {
+  return choices.filter((c) => !c.requires_principle || isAsked(c, choices))
+}
+
 // The first question at or after `from` that is asked, or the list length.
 function nextAsked(prompts, from, choices) {
   let i = from
@@ -340,13 +347,14 @@ export default function AIGuidance({
   // picked before the state updates (a seed question may now be asked).
   function saveAnswer(prompt, response, index, extra = {}) {
     const markIds = prompt.option_mark_ids?.[index] || prompt.mark_ids || []
-    const latest = [
+    const latest = withoutStaleSeeds([
       ...choices.filter((c) => !sameQuestion(c, prompt)),
       {
         key: prompt.key, prompt: prompt.question, response, option_index: index,
-        mark_ids: markIds, relationship: prompt.relationship || undefined, ...extra,
+        mark_ids: markIds, relationship: prompt.relationship || undefined,
+        requires_principle: prompt.requires_principle || undefined, ...extra,
       },
-    ]
+    ])
     setChoices(latest)
     api.post(`/api/sketches/${sketchId}/session-choices`, {
       prompt: prompt.question,
@@ -369,6 +377,7 @@ export default function AIGuidance({
       shape_id: prompt.shape_id || undefined,
       element: prompt.element || undefined,
       principle: prompt.principle || undefined,
+      requires_principle: prompt.requires_principle || undefined,
       ...extra,
     }).catch((err) => {
       console.warn('Could not save session choice', err)

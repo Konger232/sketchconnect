@@ -126,3 +126,7 @@ class SessionChoice(BaseModel):
     # this answer's mark_ids, with source "intended".
     principles: list[str] = Field(default_factory=list)
     undecided_principle: Optional[bool] = None
+    # Seed questions only: the principle that opened the question. When a
+    # changed answer drops that principle from these marks, the server
+    # drops this answer too.
+    requires_principle: Optional[str] = None

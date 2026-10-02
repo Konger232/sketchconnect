@@ -565,8 +565,17 @@ async def add_session_choice(
         if not picked and not choice.get("undecided_principle"):
             raise HTTPException(400, "Pick a principle or Not sure yet")
 
+    # A changed answer (Back, then a new pick) can drop a principle. The
+    # answers to seed questions it opened no longer apply (item 20).
+    kept = [c for c in (sketch.session_choices or []) if not same_question(c)] + [choice]
+    intents = intents_from_choices(kept)
+
+    def still_asked(c: dict) -> bool:
+        p = c.get("requires_principle")
+        return not p or any(i["principle"] == p and set(i["mark_ids"]) & set(c.get("mark_ids") or []) for i in intents)
+
     # Assign a new list. SQLAlchemy doesn't detect in-place edits to a JSON column.
-    sketch.session_choices = [c for c in (sketch.session_choices or []) if not same_question(c)] + [choice]
+    sketch.session_choices = [c for c in kept if still_asked(c)]
     db.commit()
     return {"count": len(sketch.session_choices)}
 
