@@ -617,6 +617,41 @@ async def set_mark_selection(
     return {"marks": marks}
 
 
+def _with_options(sketch) -> list[dict]:
+    """
+    The saved answers, each with the options its question offered, so Edit
+    Sketch can show every option with the pick highlighted. Answers saved
+    since October 2, 2026 carry their own options. Older ones get them from
+    the cached analysis, matched by question text: the marks analysis
+    questions, else the scene analysis ones. An answer with no match keeps
+    only its pick. Read only: nothing is written back.
+    """
+    choices = [dict(c) for c in (sketch.session_choices or [])]
+    if all(c.get("options") for c in choices):
+        return choices
+    scene = sketch.cached_scene_analysis or {}
+    asked = list(scene.get("prepared_prompts") or [])
+    cleaned = (scene.get("marks_analysis") or {}).get("cleaned")
+    if cleaned:
+        try:
+            from app.features.marks_analysis.service import assemble
+            asked = assemble(cleaned, sketch, scene, set())["prepared_prompts"] + asked
+        except Exception as exc:  # an old or malformed cache: show the picks only
+            print(f"[sketches] could not rebuild the guide questions: {exc}")
+    by_text = {}
+    for position, p in enumerate(asked):
+        by_text.setdefault(p.get("question"), (position, p))
+    for c in choices:
+        if c.get("options") or c.get("prompt") not in by_text:
+            continue
+        position, p = by_text[c["prompt"]]
+        c["options"] = p.get("options") or []
+        c["option_hints"] = p.get("option_hints") or []
+        c["option_actions"] = p.get("option_actions") or []
+        c.setdefault("position", position)
+    return choices
+
+
 @router.post("/sketches/{sketch_id}/marks/adopt")
 async def adopt_focal_area(
     sketch_id: str,
@@ -956,6 +991,6 @@ async def get_sketch(
     data["owner"] = owner
     data["critique_status"] = sketch.critique_status
     # The sketcher's guided answers, so the Guide tab can show their picks.
-    data["session_choices"] = sketch.session_choices or []
+    data["session_choices"] = _with_options(sketch)
     data["is_owner"] = True
     return data
