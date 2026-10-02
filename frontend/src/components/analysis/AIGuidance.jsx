@@ -93,9 +93,11 @@ function savedIndex(choice, prompt) {
  * its lines (halo; the rest fade); its ">" button saves it. Options with no
  * lines save at once.
  *
- * review: the sketch is created, so its answers are final. The panel lists
- * each question with the saved answer; tapping an answer highlights the
- * lines it refers to. "Ask me something else" follows the list.
+ * review: the sketch is created, so its answers are final. The panel shows
+ * each question as it was asked, one at a time with Back and Next: every
+ * option, the pick highlighted. Answers saved before the options were kept
+ * show only the pick. The answer's lines are highlighted while it shows.
+ * "Ask me something else" follows the last one.
  *
  * "Ask me something else" (Help Quest) only shows after the last question,
  * never as one of a question's options.
@@ -161,8 +163,8 @@ export default function AIGuidance({
   const [tapMiss, setTapMiss] = useState(false)
   // Answers saved so far, kept up to date as the sketcher answers.
   const [choices, setChoices] = useState(savedChoices)
-  // review: the answer whose lines are highlighted, or null.
-  const [reviewing, setReviewing] = useState(null)
+  // review: which saved answer is on screen.
+  const [reviewIndex, setReviewIndex] = useState(0)
   // principle_intent: the last pick would go over the cap ("3 is the most
   // for one plan").
   const [atCap, setAtCap] = useState(false)
@@ -213,6 +215,12 @@ export default function AIGuidance({
   useEffect(() => () => onPromptChange?.(null), []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onSuggestionChange?.(null), []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // review: the saved answers in the order the questions were asked
+  // (position), each shown the way it was asked.
+  const reviewed = review
+    ? choices.map((c, i) => ({ ...c, _i: i })).sort((a, b) => (a.position ?? a._i) - (b.position ?? b._i))
+    : []
+
   // Options tied to the sketcher's lines.
   const optionMarks = shown?.option_mark_ids || []
   const linked = optionMarks.some((ids) => ids?.length)
@@ -221,7 +229,7 @@ export default function AIGuidance({
   // the picked option's lines; none while a tied question waits for a
   // pick (all lines plain); else prompt.mark_ids.
   const highlightKey = (
-    review ? (reviewing !== null ? choices[reviewing]?.mark_ids || [] : [])
+    review ? reviewed[reviewIndex]?.mark_ids || []
       : chosen !== null && optionMarks[chosen]?.length ? optionMarks[chosen]
       : linked ? []
         : shown?.mark_ids || []
@@ -359,7 +367,8 @@ export default function AIGuidance({
       {
         key: prompt.key, prompt: prompt.question, response, option_index: index,
         mark_ids: markIds, relationship: prompt.relationship || undefined,
-        requires_principle: prompt.requires_principle || undefined, ...extra,
+        requires_principle: prompt.requires_principle || undefined,
+        options: prompt.options, option_hints: prompt.option_hints, position: promptIndex, ...extra,
       },
     ])
     setChoices(latest)
@@ -385,6 +394,12 @@ export default function AIGuidance({
       element: prompt.element || undefined,
       principle: prompt.principle || undefined,
       requires_principle: prompt.requires_principle || undefined,
+      // The whole question as asked, so Edit Sketch can show every option
+      // with the pick highlighted, not only the pick.
+      options: prompt.options || [],
+      option_hints: prompt.option_hints?.length ? prompt.option_hints : undefined,
+      option_actions: prompt.option_actions?.length ? prompt.option_actions : undefined,
+      position: promptIndex,
       ...extra,
     }).catch((err) => {
       console.warn('Could not save session choice', err)
@@ -443,33 +458,68 @@ export default function AIGuidance({
       ) : (
         <>
           {review && !helpQuestOpen && (
-            <div className="flex animate-fade-in-up flex-col gap-4">
-              <p className="font-heading text-question font-bold text-white">Your answers</p>
-              {choices.length === 0 && <p className="sc-body">No guided answers were saved for this sketch.</p>}
-              {choices.map((c, i) => (
-                <div key={`${c.key}-${i}`} className="flex flex-col gap-2">
-                  <p className="text-md font-semibold text-white">{c.prompt}</p>
-                  {c.mark_ids?.length ? (
-                    // Tap to see the lines this answer refers to.
-                    <Button
-                      variant="choice"
-                      active
-                      aria-pressed={reviewing === i}
-                      className={reviewing === i ? '' : 'opacity-80'}
-                      onClick={() => setReviewing((cur) => (cur === i ? null : i))}
-                    >
-                      {c.response}
-                    </Button>
-                  ) : (
-                    <p className="flex min-h-[50px] items-center rounded-[10px] border-[1.5px] border-sc-border bg-sc-raised px-3.5 py-2 text-md font-semibold text-white">
-                      {c.response}
-                    </p>
-                  )}
-                </div>
-              ))}
-              <Button variant="choice" onClick={() => setHelpQuestOpen(true)}>
-                Ask me something else
-              </Button>
+            // Read only, one question at a time, the way it was asked: every
+            // option shows, the sketcher's pick highlighted, so the other
+            // choices stay visible to learn from. Back and Next step through.
+            <div key={reviewIndex} className="flex animate-fade-in-up flex-col gap-3.5">
+              {reviewed.length === 0 ? (
+                <p className="sc-body">No guided answers were saved for this sketch.</p>
+              ) : (() => {
+                const c = reviewed[Math.min(reviewIndex, reviewed.length - 1)]
+                // Answers saved before options were kept show only the pick.
+                const options = c.options?.length ? c.options : [c.response]
+                const at = options.indexOf(c.response)
+                const picked = at >= 0 ? at : Number.isInteger(c.option_index) ? c.option_index : 0
+                const ownWords = options[picked] !== c.response
+                const last = reviewIndex >= reviewed.length - 1
+                return (
+                  <>
+                    {reviewIndex > 0 && (
+                      <Button variant="quietOnDark" className="-ml-3 flex items-center gap-1 self-start" onClick={() => setReviewIndex((i) => i - 1)}>
+                        <Icon name="chevron-left" size={14} />
+                        Back
+                      </Button>
+                    )}
+                    <p className="text-base text-sc-text3">Question {reviewIndex + 1} of {reviewed.length}</p>
+                    <p className="font-heading text-question font-bold text-white">{c.prompt}</p>
+                    <div className="mt-1 flex flex-col gap-2">
+                      {options.map((opt, i) => (
+                        <Button
+                          key={`${opt}-${i}`}
+                          variant="choice"
+                          active={i === picked}
+                          aria-current={i === picked ? 'true' : undefined}
+                          className={`pointer-events-none ${i === picked ? '' : 'opacity-60'}`}
+                          tabIndex={-1}
+                        >
+                          <span className="block">{opt}</span>
+                          {c.option_hints?.[i] && (
+                            <span className="block text-base font-normal text-sc-text3">{c.option_hints[i]}</span>
+                          )}
+                        </Button>
+                      ))}
+                      {ownWords && (
+                        <p className="rounded-xl bg-sc-raised p-3.5 text-md leading-normal text-sc-text">{c.response}</p>
+                      )}
+                    </div>
+                    {!last ? (
+                      <Button variant="secondaryOnDark" className="flex items-center gap-1 self-end" onClick={() => setReviewIndex((i) => i + 1)}>
+                        Next
+                        <Icon name="chevron-right" size={14} />
+                      </Button>
+                    ) : (
+                      <Button variant="choice" onClick={() => setHelpQuestOpen(true)}>
+                        Ask me something else
+                      </Button>
+                    )}
+                  </>
+                )
+              })()}
+              {reviewed.length === 0 && (
+                <Button variant="choice" onClick={() => setHelpQuestOpen(true)}>
+                  Ask me something else
+                </Button>
+              )}
             </div>
           )}
 

@@ -130,3 +130,10 @@ class SessionChoice(BaseModel):
     # changed answer drops that principle from these marks, the server
     # drops this answer too.
     requires_principle: Optional[str] = None
+    # The question as it was asked, so Edit Sketch can show every option
+    # with the pick highlighted (design doc, item 20). position is its
+    # place in the guide, for showing answers in that order.
+    options: list[str] = Field(default_factory=list)
+    option_hints: list[Optional[str]] = Field(default_factory=list)
+    option_actions: list[Optional[str]] = Field(default_factory=list)
+    position: Optional[int] = None
