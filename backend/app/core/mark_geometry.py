@@ -369,6 +369,30 @@ def analyse(marks: list[dict] | None, aspect: float | None = 1.0) -> dict:
     return {"marks": facts, "links": links, "groups": groups, "aspect": aspect or 1.0}
 
 
+# ---------- points against marks ----------
+
+def distance_to_marks(point, marks: list[dict] | None, aspect: float | None = 1.0) -> float:
+    """
+    How far a frame point (0-1000) is from the nearest visible mark, in
+    square units: 0 when it sits inside a shape the mark outlines. A large
+    number when there are no marks. Used to tell whether an area the AI
+    points at is one no mark sits on (marks_analysis, the unseen question).
+    An outline is often left open, like a U around a tower, so any curved
+    mark longer than 150 units is closed end to end for the inside test.
+    """
+    sx, sy = square_scale(aspect)
+    p = (point[0] * sx, point[1] * sy)
+    best = float("inf")
+    for m in visible_marks(marks):
+        pts = [(q[0] * sx, q[1] * sy) for q in m["points"]]
+        outline = kind(m) == "closed shape" or (
+            kind(m) == "freehand line" and len(pts) >= 3 and _length(m["points"]) > 150)
+        if outline and _inside(p, pts):
+            return 0.0
+        best = min(best, float(_dist_to_line([p], pts)[0]))
+    return best
+
+
 # ---------- spots ----------
 
 # At most this many spots are listed for Gemini (spots()).

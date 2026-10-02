@@ -49,7 +49,7 @@ from app.features.scene_analysis import service as scene_service
 PROMPTS = Path(__file__).parent / "prompts"
 
 # Bump when the cleaned result changes shape. Part of the cache fingerprint.
-ANALYSIS_VERSION = 2  # 2: line_proportion options changed (no proportions overlay)
+ANALYSIS_VERSION = 3  # 3: unseen reticle on the form no mark sits on
 
 ROLES = ["contour", "big_shape", "eye_level", "ground_line", "perspective_guide",
          "measurement", "alignment", "gesture", "unclear"]
@@ -58,6 +58,9 @@ MAX_OFFERED_PRINCIPLES = 3
 MIN_OFFERED_PRINCIPLES = 2
 MAX_MARK_RELATIONSHIPS = 5
 MAX_FORM_RELATIONSHIPS = 4
+# A form point closer than this to a mark (square units, frame long side
+# 1000) counts as marked, so the unseen question never points at it.
+UNSEEN_MIN_DISTANCE = 40
 # An id written into text the sketcher reads (m3, s1). Ids are never shown.
 _ID_IN_TEXT = re.compile(r"\b[ms]\d+\b", re.IGNORECASE)
 
@@ -432,8 +435,15 @@ def clean(raw: dict, plan: MarksPlan, intents: list[dict]) -> dict:
         ref = u.get("form_ref")
         fr = form_relationships[ref] if isinstance(ref, int) and 0 <= ref < len(form_relationships) else None
         if fr and not fr["mark_ids"] and _no_ids(_text(u.get("question"))):
-            unseen = {"question": _text(u["question"]), "element": fr["element"], "principle": fr["principle"],
-                      "x": fr["forms"][0]["x"], "y": fr["forms"][0]["y"]}
+            # Point the reticle at the form no mark sits on, measured
+            # against the marks, not at whichever form Gemini listed first.
+            # When every form has a mark on or near it, nothing is unseen.
+            far = max(fr["forms"], key=lambda f: mark_geometry.distance_to_marks((f["x"], f["y"]), plan.marks, plan.aspect))
+            if mark_geometry.distance_to_marks((far["x"], far["y"]), plan.marks, plan.aspect) >= UNSEEN_MIN_DISTANCE:
+                unseen = {"question": _text(u["question"]), "element": fr["element"], "principle": fr["principle"],
+                          "x": far["x"], "y": far["y"], "label": far["label"]}
+            elif DEBUG:
+                print(f"[marks_analysis] unseen dropped: every form in {json.dumps(fr['forms'])} has a mark on it")
 
     return {
         "marks": readings,

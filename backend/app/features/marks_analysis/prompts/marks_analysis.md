@@ -85,7 +85,7 @@ How forms in the scene relate, whether or not the sketcher marked them.
 - Include at least one entry that no mark sits on, when the scene has one.
 
 ### `unseen`
-One question about a `form_relationships` entry with empty `mark_ids`. Set `form_ref` to its index and write `question`: what you see there, stated as a fact, then ask if the sketcher sees it. Never tell them to draw it. Leave `form_ref` at -1 when every entry has marks.
+One question about a `form_relationships` entry with empty `mark_ids`. Set `form_ref` to its index and write `question`: what you see there, stated as a fact, then ask if the sketcher sees it. Name the part no mark sits on, and say where it is in the frame. Never tell them to draw it. Each form's point must sit on that form in Image 1: the app points at the form no mark sits on. Leave `form_ref` at -1 when every entry has marks.
 
 ### `stroke_order_note`
 One sentence on the order the marks were drawn, such as big shapes first and details after. Describe it. Never judge it.
