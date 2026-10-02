@@ -489,7 +489,9 @@ export default function AIGuidance({
                           variant="choice"
                           active={i === picked}
                           aria-current={i === picked ? 'true' : undefined}
-                          className={`pointer-events-none ${i === picked ? '' : 'opacity-60'}`}
+                          // Read only: the pick is highlighted, the rest disabled.
+                          disabled={i !== picked}
+                          className="pointer-events-none"
                           tabIndex={-1}
                         >
                           <span className="block">{opt}</span>
