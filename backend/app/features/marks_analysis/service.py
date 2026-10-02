@@ -49,7 +49,7 @@ from app.features.scene_analysis import service as scene_service
 PROMPTS = Path(__file__).parent / "prompts"
 
 # Bump when the cleaned result changes shape. Part of the cache fingerprint.
-ANALYSIS_VERSION = 1
+ANALYSIS_VERSION = 2  # 2: line_proportion options changed (no proportions overlay)
 
 ROLES = ["contour", "big_shape", "eye_level", "ground_line", "perspective_guide",
          "measurement", "alignment", "gesture", "unclear"]
