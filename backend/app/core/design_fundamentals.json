@@ -1,8 +1,8 @@
 {
-  "about": "Elements and principles from the UC Berkeley design guide (guides.lib.berkeley.edu/design). Shared by the marks analysis call and the critique agent call. matrix[element][principle] lists the pairs a sketcher can work with through marks. A pair left out is skipped. Strong pairs get seed questions in question_bank.json. Weak pairs are used only when the AI sees them clearly.",
+  "about": "Elements and principles from the UC Berkeley design guide (guides.lib.berkeley.edu/design), with SketchConnect's readings (Elements x Principles Matrix doc, October 3, 2026). Shared by the marks analysis call and the critique agent call. A mark points at a part of the scene; the element is read from the photo under it, so from_marks is true for all seven. matrix[element][principle] lists the pairs a sketcher can work with. A pair left out is skipped. Weak pairs are used only when the AI sees them clearly. The color and texture rows are the October 3 proposal, built for the prototype and still to review.",
   "elements": {
     "line": {
-      "definition": "A straight or curved mark that connects two points or is the path of a moving point.",
+      "definition": "A straight or curved mark that connects two points or is the path of a moving point. Also a path for the viewer to follow, or a boundary, such as the division between sky and ground.",
       "from_marks": true
     },
     "shape": {
@@ -14,25 +14,25 @@
       "from_marks": true
     },
     "space": {
-      "definition": "The distances and areas around, between and within components of a design.",
+      "definition": "The distances and areas around, between and within components of a design. Negative space is the filler between regions of positive space. Positive space attracts attention.",
       "from_marks": true
     },
     "value": {
-      "definition": "The degree of lightness or darkness in a color.",
+      "definition": "The degree of lightness or darkness in a color. Contrast of value.",
       "from_marks": true
     },
     "color": {
-      "definition": "The perception of light reflected from the surface of a shape or form.",
-      "from_marks": false
+      "definition": "The perception of light reflected from the surface of a shape or form. Warm colors (red, orange, yellow) are active and jump to the front. Cold colors (green, blue, violet) are calmer. A warm and cold contrast makes an eye-catching focal point. One or two dominant colors give a unified message.",
+      "from_marks": true
     },
     "texture": {
-      "definition": "The surface quality of an object that we can sense through touch.",
-      "from_marks": false
+      "definition": "The surface quality of an object that we can sense through touch. Texture can fill any shape.",
+      "from_marks": true
     }
   },
   "principles": {
     "balance": {
-      "definition": "The distribution of objects, colors, texture and space."
+      "definition": "The distribution of objects, colors, texture and space. Read as weight: compare the weight on the left and right sides, or the top and bottom."
     },
     "emphasis": {
       "definition": "The part of the design that catches the viewer's attention."
@@ -210,6 +210,38 @@
       "unity": {
         "strength": "strong",
         "looks_for": "Three values hold the page together."
+      }
+    },
+    "color": {
+      "emphasis": {
+        "strength": "strong",
+        "looks_for": "A warm area against a cold one."
+      },
+      "unity": {
+        "strength": "strong",
+        "looks_for": "One or two dominant colors across the scene."
+      },
+      "movement": {
+        "strength": "weak",
+        "looks_for": "Warm colors that feel active."
+      },
+      "balance": {
+        "strength": "weak",
+        "looks_for": "A small warm area against a large cold one."
+      }
+    },
+    "texture": {
+      "variety": {
+        "strength": "strong",
+        "looks_for": "Rough against smooth."
+      },
+      "emphasis": {
+        "strength": "weak",
+        "looks_for": "The one textured area."
+      },
+      "unity": {
+        "strength": "weak",
+        "looks_for": "One texture across several shapes."
       }
     }
   }

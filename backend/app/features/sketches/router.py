@@ -540,11 +540,19 @@ async def add_session_choice(
     repeated = _repeated_keys()
 
     def same_question(old: dict) -> bool:
-        # These keys are asked once per shape or area, so the question text
-        # tells them apart.
+        if old.get("key") != choice.get("key"):
+            return False
+        # Marks analysis: a question about one object or one pair is told
+        # apart by its object or pair, since its wording changes with the
+        # sketcher's names.
+        if choice.get("refs"):
+            return sorted(old.get("refs") or []) == sorted(choice["refs"])
+        if choice.get("shape_id") and choice.get("key") == "mark_meaning":
+            return old.get("shape_id") == choice["shape_id"]
+        # Other keys asked once per shape or area: the question text.
         if choice.get("key") and choice["key"] not in repeated:
-            return old.get("key") == choice["key"]
-        return old.get("key") == choice.get("key") and old.get("prompt") == choice["prompt"]
+            return True
+        return old.get("prompt") == choice["prompt"]
 
     # "What do you want these marks to do?" (item 20): known principles
     # only, and at most max_principles across the whole plan, counting the
@@ -568,6 +576,15 @@ async def add_session_choice(
     # A changed answer (Back, then a new pick) can drop a principle. The
     # answers to seed questions it opened no longer apply (item 20).
     kept = [c for c in (sketch.session_choices or []) if not same_question(c)] + [choice]
+    # A new relationship pick for a pair drops the principle answer that
+    # followed a different relationship type for that pair.
+    if choice.get("key") == "relationship" and choice.get("refs"):
+        new_type = (choice.get("relationship") or {}).get("type")
+        kept = [
+            c for c in kept
+            if not (c.get("key") == "principle_intent" and sorted(c.get("refs") or []) == sorted(choice["refs"])
+                    and c.get("relationship_type") != new_type)
+        ]
     intents = intents_from_choices(kept)
 
     def still_asked(c: dict) -> bool:

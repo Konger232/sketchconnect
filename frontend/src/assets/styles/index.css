@@ -121,6 +121,18 @@
   .sc-field-label { @apply text-sm font-semibold text-sc-text3; }
   .sc-field       { @apply w-full rounded-xl border-[1.5px] border-sc-strong bg-sc-raised px-3.5 py-3 text-lg font-medium
                            text-white placeholder:text-sc-muted focus:border-sc-guide focus:outline-none; }
+  /* Guide answers (AIGuidance.jsx). The own-words row: a pencil, a text
+     field and the ">" button, the same size and border as a choice
+     (Button.jsx). Active while the sketcher types or after a tap on empty
+     space. The tag after an option text shows only in debug mode. */
+  .sc-own-words   { @apply flex min-h-[50px] w-full items-center gap-2.5 rounded-[10px] border-[1.5px] border-sc-border
+                           bg-sc-raised pl-3.5 pr-1 text-white focus-within:border-sc-strong; }
+  .sc-own-words[data-active='true'] { @apply border-sc-guide; }
+  .sc-own-words input { @apply min-w-0 flex-1 bg-transparent py-2 text-md font-semibold text-white
+                               placeholder:font-normal placeholder:text-sc-muted focus:outline-none; }
+  .sc-option-tag  { @apply ml-1.5 text-sm font-normal text-sc-text3; }
+  .sc-option-note { @apply block text-base font-normal text-sc-text3; }
+
   .sc-chip        { @apply flex h-9 shrink-0 items-center whitespace-nowrap rounded-full border-[1.5px] border-sc-border
                            bg-sc-raised px-3.5 text-base font-semibold text-white; }
 
@@ -216,6 +228,16 @@
   --focal-shape-opacity: 1;
   --focal-shape-fill: #f87171;           /* colour inside the contour */
   --focal-shape-fill-opacity: 0.30;      /* 0 = no fill */
+
+  /* Answer outlines (ShapeOutlineOverlay.jsx, variant "answer"): a part of
+     the scene the sketcher picked by tapping the photo while answering a
+     guide question. Dashed, in the sketcher's blue. */
+  --answer-outline-color: var(--focal-accent-user);
+  --answer-outline-width: 2.5px;
+  --answer-outline-dash: 6 5;            /* dash, gap, or none */
+  --answer-outline-opacity: 1;
+  --answer-outline-fill: var(--focal-accent-user);
+  --answer-outline-fill-opacity: 0.12;   /* 0 = no fill */
 
   /* Perspective (PerspectiveLinesOverlay.jsx): edges extended to their
      vanishing points, the vanishing point ring, and eye level. */

@@ -23,23 +23,37 @@ class MarkReading(BaseModel):
     fit: Fit
 
 
-class ShapeReading(BaseModel):
-    """One shape the guide asks about: the sketcher's selected shapes first,
-    else the shapes the AI picked. Its element sets the matrix row the
-    principle options come from."""
+class Reading(BaseModel):
+    """One AI reading of what an object's marks point at (seeing as)."""
+    text: str                        # the option the sketcher sees
+    name: str                        # short noun phrase, fills {A} or {B} later
+    element: str
+
+
+class GuideObject(BaseModel):
+    """One object the guide asks about: a shape of the sketcher's marks."""
     shape_id: str
     mark_ids: list[str]
+    name: str
+    description: str = ""
     element: str
-    readings: list[str]              # the AI's best and next reading
-    principles: list[str]            # offered in principle_intent, from the element's row
+    weight: Optional[Literal["light", "medium", "heavy"]] = None
+    readings: list[Reading] = Field(default_factory=list)
     selected: bool = False           # the sketcher selected these marks
 
 
-class MarkRelationship(BaseModel):
-    mark_ids: list[str]
+class SceneObject(BaseModel):
+    """A part of the scene a tap on the photo can pick, marked or not."""
+    id: str                          # o1, o2, ...
+    label: str
+    description: str
     element: str
-    principle: str
-    observation: str
+    points: list[list[int]]          # outline, [[x, y], ...] in 0-1000
+
+
+class Balance(BaseModel):
+    heavier: Literal["left", "right", "top", "bottom", "even"]
+    reason: str = ""
 
 
 class FormPoint(BaseModel):
@@ -66,12 +80,20 @@ class Intent(BaseModel):
     answer_to: Optional[str] = None
 
 
+class PrincipleVariant(BaseModel):
+    """What to bring out, for one relationship type (or "other")."""
+    question: str
+    options: list[str]
+    option_principles: list[str]
+    option_elements: list[str] = Field(default_factory=list)
+
+
 class MarksPrompt(BaseModel):
     """
     One guided question. The fields AIGuidance.jsx already reads (key,
-    question, options, option_actions, focus, mark_ids, spot, suggestion,
-    relationship) keep their scene analysis meaning, so the panel shows
-    either call's questions.
+    question, options, option_actions, focus, mark_ids, spot, suggestion)
+    keep their scene analysis meaning, so the panel shows either call's
+    questions.
     """
     key: str
     question: str
@@ -83,29 +105,45 @@ class MarksPrompt(BaseModel):
     spot: Optional[Spot] = None
     suggestion: Optional[FocalSuggestion] = None
     relationship: Optional[Relationship] = None
-    # The question's cell in the matrix.
+    # The question's cell in the matrix (unseen questions).
     element: Optional[str] = None
     principle: Optional[str] = None
-    # Per-shape questions: the shape they are about.
-    shape_id: Optional[str] = None
-    # principle_intent: multi-select principles, then "Not sure yet".
-    multi_select: bool = False
-    max_principles: Optional[int] = None
+    # Per option: its element, short name (mark_meaning), relationship type
+    # and principle. Shown as tags only in debug mode.
+    option_elements: list[Optional[str]] = Field(default_factory=list)
+    option_names: list[str] = Field(default_factory=list)
+    option_types: list[str] = Field(default_factory=list)
     option_principles: list[Optional[str]] = Field(default_factory=list)
-    option_hints: list[Optional[str]] = Field(default_factory=list)
-    undecided_option: Optional[int] = None
-    # mark_questions: asked only when the sketcher picked this principle
-    # for this shape (principle_intent) or said Yes to a relationship of
-    # that principle on these marks. The app skips it otherwise.
-    requires_principle: Optional[str] = None
+    # mark_meaning: the object it asks about.
+    shape_id: Optional[str] = None
+    # relationship and principle_intent: {"A": shape_id, "B": shape_id}. The
+    # app fills {A} and {B} with the sketcher's own names from mark_meaning,
+    # else default_names.
+    name_refs: dict[str, str] = Field(default_factory=dict)
+    default_names: dict[str, str] = Field(default_factory=dict)
+    # principle_intent: asked after the relationship question with these
+    # refs, as the variant for the type the sketcher picked ("other" for a
+    # tap or their own words).
+    after_relationship: list[str] = Field(default_factory=list)
+    variants: dict[str, PrincipleVariant] = Field(default_factory=dict)
+    max_principles: Optional[int] = None
+    # Answer by a tap on the photo, or in the sketcher's own words.
+    tap_answer: bool = False
+    own_words: bool = False
+    own_words_placeholder: Optional[str] = None
+    spot_placeholder: Optional[str] = None
+    own_words_max: Optional[int] = None
 
 
 class MarksAnalysisResponse(BaseModel):
     guide_source: Literal["marks_analysis"] = "marks_analysis"
+    # DEBUG=true in backend/.env: the panel shows each option's tags.
+    debug: bool = False
     scene_type: Optional[SceneType] = None
     marks: list[MarkReading] = Field(default_factory=list)
-    shapes: list[ShapeReading] = Field(default_factory=list)
-    mark_relationships: list[MarkRelationship] = Field(default_factory=list)
+    objects: list[GuideObject] = Field(default_factory=list)
+    scene_objects: list[SceneObject] = Field(default_factory=list)
+    balance: Optional[Balance] = None
     form_relationships: list[FormRelationship] = Field(default_factory=list)
     stroke_order_note: Optional[str] = None
     # Intents saved so far (from the sketch's answers), at most max_principles.

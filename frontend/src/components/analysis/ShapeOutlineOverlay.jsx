@@ -16,7 +16,29 @@
  * cluster boundary -- rather than just a box, so this renders the actual
  * traced polygon instead of the rectangle this used to draw.
  */
-export default function ShapeOutlineOverlay({ focalRegions = [] }) {
+// variant "focal": the AI's focal areas (--focal-shape-* tokens).
+// variant "answer": parts of the scene picked by a tap while answering a
+// guide question (--answer-outline-* tokens). Both in index.css.
+const STYLES = {
+  focal: {
+    fill: 'var(--focal-shape-fill)',
+    fillOpacity: 'var(--focal-shape-fill-opacity)',
+    stroke: 'var(--focal-shape-color)',
+    strokeWidth: 'var(--focal-shape-stroke-width)',
+    strokeDasharray: 'var(--focal-shape-dash)',
+    opacity: 'var(--focal-shape-opacity)',
+  },
+  answer: {
+    fill: 'var(--answer-outline-fill)',
+    fillOpacity: 'var(--answer-outline-fill-opacity)',
+    stroke: 'var(--answer-outline-color)',
+    strokeWidth: 'var(--answer-outline-width)',
+    strokeDasharray: 'var(--answer-outline-dash)',
+    opacity: 'var(--answer-outline-opacity)',
+  },
+}
+
+export default function ShapeOutlineOverlay({ focalRegions = [], variant = 'focal' }) {
   return (
     <svg
       viewBox="0 0 1000 1000"
@@ -36,14 +58,7 @@ export default function ShapeOutlineOverlay({ focalRegions = [] }) {
           <polygon
             key={region.id || i}
             points={points.join(' ')}
-            style={{
-              fill: 'var(--focal-shape-fill)',
-              fillOpacity: 'var(--focal-shape-fill-opacity)',
-              stroke: 'var(--focal-shape-color)',
-              strokeWidth: 'var(--focal-shape-stroke-width)',
-              strokeDasharray: 'var(--focal-shape-dash)',
-              opacity: 'var(--focal-shape-opacity)',
-            }}
+            style={STYLES[variant] || STYLES.focal}
             vectorEffect="non-scaling-stroke"
           />
         )

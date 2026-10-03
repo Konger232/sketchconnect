@@ -1,11 +1,17 @@
 {
-  "about": "Guided question bank for the marks analysis call. Element and principle keys come from app/core/design_fundamentals.json. The AI adapts the wording of each question and its options to the photo and the marks, but cannot add a question that is not listed here. The last option is the skip or do-it-differently choice. focal_suggestion and unseen are the 'unseen' questions: about something no mark sits on. At least one is asked, counted on its own, so 3 principle intents never crowd it out.",
+  "about": "Guided question bank for the marks analysis call (Elements x Principles Matrix doc, Guide sequence, October 3, 2026). Element and principle keys come from app/core/design_fundamentals.json. Three steps: mark_meaning (seeing as), relationship (seeing that), principle_intent (what to bring out). The AI picks one of each step's question versions and fits it to the scene. It cannot add a step or a relationship type that is not listed here. Every step also takes a tap on the photo or the sketcher's own words (own_words). focal_suggestion and unseen ask about something no mark sits on.",
   "actions": {
     "value_study": "Dominant values: the photo simplified into a few flat value shapes, light to dark (OpenCV).",
     "grayscale": "The Plan photo in black and white, until turned off in Guides, Value.",
     "grid": "A square grid for the grid method.",
     "describe": "Not an overlay. A short text field so the sketcher can answer in words. For naming what marks are.",
     "mark": "Not an overlay. The sketcher answers by selecting marks on the Plan photo, in the guided questions of New Sketch only. The tap snaps to a point on the mark. The answer saves mark_ids and that point. For where and which answers."
+  },
+  "own_words": {
+    "about": "The pencil row under every step's options. The sketcher types straight into it. A tap on empty space changes its placeholder to spot_placeholder.",
+    "placeholder": "Something else",
+    "spot_placeholder": "What is here?",
+    "max_length": 200
   },
   "focal_suggestion": {
     "about": "Not chosen by the AI. Focal areas from the scene analysis are kept for comparing with the marks, never shown all at once. When no mark overlaps a focal area, the app asks this once for it, filling in $label (and $reason, if the wording uses it). While it shows, the app draws only that one area's outline, with a reticle. The first option adds the area as a mark along its outline (source 'prompted', adopted_region set). The others are only recorded.",
@@ -25,96 +31,117 @@
     ]
   },
   "mark_meaning": {
-    "about": "Seeing as. Asked first, once per selected shape. The AI writes the first two options. The third is fixed. The sketcher's answer overrides the AI's reading.",
-    "question": "What do you see these marks as?",
-    "options": [
-      {
-        "label": "The AI's best reading of the marks"
-      },
-      {
-        "label": "The next most likely reading"
-      }
-    ],
-    "fixed_options": [
-      {
-        "label": "Something else",
-        "action": "describe"
-      }
-    ]
-  },
-  "principle_intent": {
-    "about": "Seeing that. Asked after mark_meaning, once per shape. The AI offers 2 or 3 principles the selected marks lean toward, from the matrix row of the element it read. One tap picks one principle, or 'Not sure yet', and moves on. Up to max_principles across the whole plan. Each pick is saved with its mark ids and a source.",
-    "max_principles": 3,
-    "multi_select": false,
-    "question": "What do you want these marks to do?",
-    "fixed_options": [
-      {
-        "label": "Not sure yet",
-        "undecided_principle": true
-      }
+    "about": "Seeing as. Once per object the guide asks about. The AI writes two readings, each tied to an element, and a short name for each (used as {A} or {B} in the next step).",
+    "questions": [
+      "What do you see it as?",
+      "What caught your eye there?",
+      "What are you following?"
     ]
   },
   "relationship": {
-    "about": "Asked at most once, when the marks take in two or more subjects that connect. The AI picks one type and writes the question. A yes saves the type's principle as an intent with source 'prompted' and answer_to 'relationship'.",
-    "question": "What connects these subjects for you?",
-    "fixed_options": [
-      {
-        "label": "Yes"
-      },
-      {
-        "label": "No"
-      }
+    "about": "Seeing that. Once per pair of objects, or once for a lone object. The AI offers 2 or 3 types that fit, in the wording of 'option' (two objects) or 'option_one' (one object), fitted to the scene. {A} and {B} are filled with the sketcher's own names from mark_meaning. Only types with option_one can be offered for one object.",
+    "questions_two": [
+      "How do {A} and {B} connect for you?",
+      "What links {A} and {B}?",
+      "What do you see between {A} and {B}?"
+    ],
+    "questions_one": [
+      "What does {A} do in the scene?",
+      "Why does {A} hold your eye?"
     ],
     "types": {
       "gesture": {
-        "element": "form",
+        "element": "line",
         "principle": "movement",
-        "looks_for": "Figures or animals facing, reaching toward, leaning in to, or turning away from each other",
-        "example": "the two diners leaning toward each other across the table"
+        "looks_for": "Figures or animals facing, reaching toward, or turning away from each other. A gaze or a lean is an implied line.",
+        "example": "the two diners leaning toward each other across the table",
+        "option": "{A} turns toward {B}"
       },
       "echo": {
         "element": "shape",
         "principle": "rhythm",
         "looks_for": "Repeated shapes or colours in different subjects",
-        "example": "round lanterns echoing a round window"
+        "example": "round lanterns echoing a round window",
+        "option": "{A} repeats the shape of {B}"
       },
       "contrast": {
         "element": "shape",
         "principle": "variety",
         "looks_for": "Opposites side by side: old and new, big and small, rigid and organic",
-        "example": "a glass tower beside a wooden shophouse"
+        "example": "a glass tower beside a wooden shophouse",
+        "option": "{A} and {B} are opposites side by side"
       },
       "scale": {
         "element": "shape",
         "principle": "proportion",
         "looks_for": "A small subject set against a much larger one",
-        "example": "a lone cyclist under a flyover"
+        "example": "a lone cyclist under a flyover",
+        "option": "{A} looks small beside {B}"
       },
       "framing": {
         "element": "space",
         "principle": "emphasis",
         "looks_for": "One subject seen through or inside another",
-        "example": "a street seen through an archway"
-      },
-      "layering": {
-        "element": "space",
-        "principle": "unity",
-        "looks_for": "One subject in front of another, with depth between them",
-        "example": "a signpost standing against a receding street"
+        "example": "a street seen through an archway",
+        "option": "{A} frames {B}"
       },
       "leading": {
         "element": "line",
         "principle": "movement",
         "looks_for": "Lines that carry the eye from one subject to the other",
-        "example": "tram rails running toward a clock tower"
+        "example": "tram rails running toward a clock tower",
+        "option": "{A} leads my eye to {B}"
       },
-      "story": {
-        "element": null,
+      "temperature": {
+        "element": "color",
         "principle": "emphasis",
-        "looks_for": "The meaning of one subject comments on the other. State only the visible facts",
-        "example": "a stop sign in front of a dead-end street"
+        "looks_for": "A warm area against a cold one. The warm one comes forward.",
+        "example": "a red lantern against a blue-grey wall",
+        "option": "The warm {A} stands out from the cool {B}",
+        "option_one": "It is the warm spot in a cool scene"
+      },
+      "palette": {
+        "element": "color",
+        "principle": "unity",
+        "looks_for": "The scene held by one or two dominant colors",
+        "example": "a street all in ochre and terracotta",
+        "option": "{A} and {B} share the same few colors",
+        "option_one": "Its colors run through the whole scene"
+      },
+      "weight": {
+        "element": "space",
+        "principle": "balance",
+        "looks_for": "The weight on one side against the other: size, value, warm color, detail, isolation and distance from the center",
+        "example": "a large tree on the left against a small red boat on the right",
+        "option": "{A} on one side holds up {B} on the other",
+        "option_one": "It balances the other side"
       }
     }
+  },
+  "principle_intent": {
+    "about": "What to bring out. Asked after the relationship, with the options for the type the sketcher picked: that type's principle first, then one or two more from the same element's matrix row. Each option is a plain goal for this scene, never a principle name. A pick saves the principle as an intent (source intended). Up to max_principles across the plan.",
+    "max_principles": 3,
+    "multi_select": false,
+    "questions": [
+      "What do you want to bring out?",
+      "How will you show it?",
+      "What matters most here?"
+    ]
+  },
+  "unseen": {
+    "about": "Asked only when no focal_suggestion is left. Gemini writes one question from a form_relationships entry that no mark sits on, and names the entry's element and principle. The options are fixed. The app shows a reticle on the first form.",
+    "question": "Your marks leave out how these parts of the scene relate. Do you see it?",
+    "fixed_options": [
+      {
+        "label": "I see it now"
+      },
+      {
+        "label": "Already had it in mind"
+      },
+      {
+        "label": "Not for this sketch"
+      }
+    ]
   },
   "mark_questions": {
     "shape_balance": {
@@ -259,20 +286,5 @@
         }
       ]
     }
-  },
-  "unseen": {
-    "about": "Asked only when no focal_suggestion is left. Gemini writes one question from a form_relationships entry that no mark sits on, and names the entry's element and principle. The options are fixed. The app shows a reticle on the first form.",
-    "question": "Your marks leave out how these parts of the scene relate. Do you see it?",
-    "fixed_options": [
-      {
-        "label": "I see it now"
-      },
-      {
-        "label": "Already had it in mind"
-      },
-      {
-        "label": "Not for this sketch"
-      }
-    ]
   }
 }

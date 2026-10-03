@@ -1,22 +1,25 @@
 """
 Loads and checks question_bank.json, the guided question bank for the
-marks analysis call (design doc, Section 11, item 20). Element and
-principle keys come from app/core/design_fundamentals.json.
+marks analysis call (design doc, Section 11, item 20; Elements x Principles
+Matrix doc, "Guide sequence", October 3, 2026). Element and principle keys
+come from app/core/design_fundamentals.json.
+
+The guide has three steps, each with 2 or 3 versions of its question:
+  mark_meaning      seeing as: what a mark points at
+  relationship      seeing that: how two objects connect, or what one does
+  principle_intent  what the sketcher wants to bring out
+plus focal_suggestion and unseen, about something no mark sits on. Every
+step also takes a tap on the photo or the sketcher's own words (own_words).
 
 The bank is data, so it lives in JSON. The prompt prose lives in
-prompts/*.md. This file only loads, checks and formats the bank. The
-scene analysis call keeps its own bank (features/scene_analysis/) during
-the parallel run.
-
-Like the other banks, the file is re-read whenever it changes on disk,
-and every load is checked against the rules in the "Elements × Principles
-Matrix" doc:
+prompts/*.md. This file only loads, checks and formats the bank. Every
+load is checked against the rules in the matrix doc:
   - Every element and principle key exists in design_fundamentals.json.
   - Every mark_questions key is <element>_<principle>, and the pair is a
     matrix cell.
   - A mark_questions element has from_marks: true.
-  - Every relationship type's principle is a principle. Its element is an
-    element or null.
+  - Every relationship type's principle is a principle, its element is an
+    element, and the pair is a matrix cell.
   - max_principles is between 1 and 3.
   - Each option action is listed in actions.
   - At most one undecided_principle option, and only in principle_intent.
@@ -55,13 +58,19 @@ def _options(where: str, opts, actions: set[str], lo: int, hi: int) -> tuple[lis
     return problems, undecided
 
 
+def _versions(where: str, qs, lo: int = 1, hi: int = 3) -> list[str]:
+    if not isinstance(qs, list) or not (lo <= len(qs) <= hi) or not all(_text(q) for q in qs):
+        return [f"{where}: needs {lo}-{hi} question versions"]
+    return []
+
+
 def _check(bank: dict) -> None:
     problems = []
     elements = set(df.element_keys())
     mark_elements = set(df.element_keys(from_marks=True))
     principles = set(df.principle_keys())
     actions = set(bank.get("actions") or {})
-    undecided = {}  # section -> count of undecided_principle options
+    undecided = {}
 
     def opts(where, lst, lo, hi):
         p, u = _options(where, lst, actions, lo, hi)
@@ -81,6 +90,12 @@ def _check(bank: dict) -> None:
     if not actions:
         problems.append("actions is missing")
 
+    ow = bank.get("own_words")
+    if not isinstance(ow, dict) or not _text(ow.get("placeholder")) or not _text(ow.get("spot_placeholder")):
+        problems.append("own_words: needs placeholder and spot_placeholder")
+    elif not isinstance(ow.get("max_length"), int) or not 1 <= ow["max_length"] <= 500:
+        problems.append("own_words: max_length must be a whole number from 1 to 500")
+
     fs = bank.get("focal_suggestion")
     if not isinstance(fs, dict):
         problems.append("focal_suggestion is missing")
@@ -95,39 +110,17 @@ def _check(bank: dict) -> None:
     if not isinstance(mm, dict):
         problems.append("mark_meaning is missing")
     else:
-        if not _text(mm.get("question")):
-            problems.append("mark_meaning: missing question text")
-        opts("mark_meaning", mm.get("options"), 2, 2)
-        opts("mark_meaning.fixed_options", mm.get("fixed_options"), 1, 1)
-        fixed = (mm.get("fixed_options") or [{}])[-1]
-        if isinstance(fixed, dict) and fixed.get("action") != "describe":
-            problems.append("mark_meaning: the fixed option must have the action 'describe'")
-
-    pi = bank.get("principle_intent")
-    if not isinstance(pi, dict):
-        problems.append("principle_intent is missing")
-    else:
-        if not _text(pi.get("question")):
-            problems.append("principle_intent: missing question text")
-        mp = pi.get("max_principles")
-        if not isinstance(mp, int) or isinstance(mp, bool) or not 1 <= mp <= 3:
-            problems.append("principle_intent: max_principles must be between 1 and 3")
-        if not isinstance(pi.get("multi_select"), bool):
-            problems.append("principle_intent: multi_select must be true or false")
-        opts("principle_intent", pi.get("fixed_options"), 1, 1)
-        if undecided.get("principle_intent") != 1:
-            problems.append("principle_intent: its fixed option must be the one undecided_principle option")
+        problems += _versions("mark_meaning.questions", mm.get("questions"))
 
     rel = bank.get("relationship")
     if not isinstance(rel, dict):
         problems.append("relationship is missing")
     else:
-        if not _text(rel.get("question")):
-            problems.append("relationship: missing question text")
-        opts("relationship", rel.get("fixed_options"), 2, 2)
-        types = rel.get("types")
+        problems += _versions("relationship.questions_two", rel.get("questions_two"))
+        problems += _versions("relationship.questions_one", rel.get("questions_one"))
         if "kinds" in rel:
             problems.append("relationship: 'kinds' is renamed 'types'")
+        types = rel.get("types")
         if not isinstance(types, dict) or not types:
             problems.append("relationship: needs at least one entry in 'types'")
         else:
@@ -136,15 +129,35 @@ def _check(bank: dict) -> None:
                 if not isinstance(t, dict):
                     problems.append(f"{where}: must be an object")
                     continue
-                element_ok(where, t.get("element"))
+                element_ok(where, t.get("element"), allow_null=False)
                 principle_ok(where, t.get("principle"))
-                for field in ("looks_for", "example"):
+                if t.get("element") in elements and t.get("principle") in principles \
+                        and df.cell(t["element"], t["principle"]) is None:
+                    problems.append(f"{where}: {t['element']} > {t['principle']} is not a matrix cell")
+                for field in ("looks_for", "example", "option"):
                     if not _text(t.get(field)):
                         problems.append(f"{where}: missing {field}")
+                if "option_one" in t and not _text(t["option_one"]):
+                    problems.append(f"{where}: option_one must be text when present")
 
-    mq = bank.get("mark_questions")
-    if not isinstance(mq, dict) or not mq:
-        problems.append("mark_questions is missing")
+    pi = bank.get("principle_intent")
+    if not isinstance(pi, dict):
+        problems.append("principle_intent is missing")
+    else:
+        problems += _versions("principle_intent.questions", pi.get("questions"))
+        mp = pi.get("max_principles")
+        if not isinstance(mp, int) or isinstance(mp, bool) or not 1 <= mp <= 3:
+            problems.append("principle_intent: max_principles must be between 1 and 3")
+        if not isinstance(pi.get("multi_select"), bool):
+            problems.append("principle_intent: multi_select must be true or false")
+        if "fixed_options" in pi:
+            opts("principle_intent", pi.get("fixed_options"), 1, 1)
+            if undecided.get("principle_intent", 0) > 1:
+                problems.append("principle_intent: at most one undecided_principle option")
+
+    mq = bank.get("mark_questions") or {}
+    if not isinstance(mq, dict):
+        problems.append("mark_questions must be an object")
         mq = {}
     for key, q in mq.items():
         where = f"mark_questions.{key}"
@@ -182,13 +195,6 @@ def _check(bank: dict) -> None:
     if problems:
         raise ValueError("marks_analysis/question_bank.json is invalid:\n  " + "\n  ".join(problems))
 
-    seeded = {q["principle"] for q in mq.values()}
-    for p in sorted(principles - seeded):
-        print(f"[marks question_bank] note: principle {p!r} has no seed question")
-    for key, q in mq.items():
-        if df.cell(q["element"], q["principle"])["strength"] != "strong":
-            print(f"[marks question_bank] note: {key} is on a weak pair")
-
 
 def load_bank() -> dict:
     global _cache
@@ -207,50 +213,51 @@ def max_principles() -> int:
     return load_bank()["principle_intent"]["max_principles"]
 
 
+def own_words() -> dict:
+    return load_bank()["own_words"]
+
+
 def relationship_types() -> list[str]:
     return list(load_bank()["relationship"]["types"])
 
 
+def one_object_types() -> list[str]:
+    return [k for k, t in load_bank()["relationship"]["types"].items() if t.get("option_one")]
+
+
+def type_info(rtype: str) -> dict:
+    return load_bank()["relationship"]["types"][rtype]
+
+
 def mark_question_keys() -> list[str]:
-    return list(load_bank()["mark_questions"])
-
-
-def seeds_for(principle: str) -> list[str]:
-    """mark_questions keys for a principle, in bank order."""
-    return [k for k, q in load_bank()["mark_questions"].items() if q["principle"] == principle]
+    return list(load_bank().get("mark_questions") or {})
 
 
 def repeated_keys() -> set[str]:
-    """Keys asked more than once per sketch (per shape, area or form), so
+    """Keys asked more than once per sketch (per object, pair or area), so
     the question text tells their answers apart (sketches/router.py)."""
-    return {"mark_meaning", "principle_intent", "focal_suggestion", "unseen", *mark_question_keys()}
+    return {"mark_meaning", "relationship", "principle_intent", "focal_suggestion", "unseen", *mark_question_keys()}
 
 
 # ---------- prompt text ----------
 
 def render_bank() -> str:
-    """The bank sections Gemini writes for, as prompt text. Static between edits."""
+    """The three steps and the relationship types as prompt text. Static between edits."""
     bank = load_bank()
-    lines = ["Seed questions (mark_questions), one per key. Keep the option count and order:"]
-    for key, q in bank["mark_questions"].items():
-        labels = [o["label"] for o in q["options"]]
-        shows = [f'option {i} {o["action"]}' for i, o in enumerate(q["options"], 1) if o.get("action")]
-        lines.append(
-            f'- {key} (needs {q["min_marks"]}+ marks): "{q["question"]}" options: {json.dumps(labels)}'
-            + (f' ({"; ".join(shows)})' if shows else "")
-        )
-    lines.append(f'Seeing as (mark_meaning): "{bank["mark_meaning"]["question"]}"')
-    lines.append(f'Seeing that (principle_intent): "{bank["principle_intent"]["question"]}"')
-    lines.append(f'Unseen: "{bank["unseen"]["question"]}"')
+    rel = bank["relationship"]
+    lines = [
+        "Seeing as (mark_meaning) question versions: " + json.dumps(bank["mark_meaning"]["questions"]),
+        "Seeing that (relationship), two objects: " + json.dumps(rel["questions_two"]),
+        "Seeing that (relationship), one object: " + json.dumps(rel["questions_one"]),
+        "What to bring out (principle_intent): " + json.dumps(bank["principle_intent"]["questions"]),
+        "",
+        "Relationship types (type: element > principle. What to look for. Option wording.):",
+    ]
+    for name, t in rel["types"].items():
+        one = f' One object: "{t["option_one"]}".' if t.get("option_one") else " Two objects only."
+        lines.append(f'- {name}: {t["element"]} > {t["principle"]}. {t["looks_for"].rstrip(".")}. '
+                     f'Example: {t["example"]}. Two objects: "{t["option"]}".{one}')
     return "\n".join(lines)
-
-
-def render_relationship_types() -> str:
-    types = load_bank()["relationship"]["types"]
-    return "\n".join(
-        f'- {name} ({t["element"] or "no element"} > {t["principle"]}): {t["looks_for"]}. Example: {t["example"]}.'
-        for name, t in types.items()
-    )
 
 
 # ---------- prepared prompts ----------
@@ -262,6 +269,15 @@ def _clean(text: str) -> str:
 def _fixed(section: dict) -> tuple[list[str], list]:
     fixed = section.get("fixed_options") or []
     return [o["label"] for o in fixed], [o.get("action") for o in fixed]
+
+
+def _answer_by_tap(prompt: dict) -> dict:
+    """Every guide step can be answered by a tap on the photo or in the
+    sketcher's own words (the pencil row)."""
+    ow = own_words()
+    return {**prompt, "tap_answer": True, "own_words": True,
+            "own_words_placeholder": ow["placeholder"], "spot_placeholder": ow["spot_placeholder"],
+            "own_words_max": ow["max_length"]}
 
 
 def focal_suggestion_prompt(label: str, reason: str | None) -> dict:
@@ -281,92 +297,76 @@ def focal_suggestion_prompt(label: str, reason: str | None) -> dict:
     }
 
 
-def relationship_prompt(question: str, rtype: str, subjects: list[str], mark_ids: list[str], focus: str) -> dict:
-    t = load_bank()["relationship"]
-    labels, actions = _fixed(t)
-    info = t["types"][rtype]
-    return {
-        "key": "relationship",
-        "focus": focus,
-        "element": info["element"],
-        "principle": info["principle"],
-        "question": _clean(question) or t["question"],
-        "options": labels,
-        "option_actions": actions,
-        "mark_ids": list(mark_ids),
-        # "kind" is kept beside "type" while scene analysis and the
-        # critique prompt still read it (parallel run).
-        "relationship": {"type": rtype, "kind": rtype, "element": info["element"],
-                         "principle": info["principle"], "subjects": subjects},
-    }
-
-
-def mark_meaning_prompt(question: str, readings: list[str], shape_id: str, mark_ids: list[str], focus: str) -> dict:
-    t = load_bank()["mark_meaning"]
-    labels, actions = _fixed(t)
-    return {
+def mark_meaning_prompt(question: str, readings: list[dict], obj: dict, focus: str) -> dict:
+    """Seeing as, for one object: the AI's two readings, each with its
+    element and a short name (used as {A} or {B} later)."""
+    return _answer_by_tap({
         "key": "mark_meaning",
         "focus": focus,
-        "shape_id": shape_id,
-        "question": _clean(question) or t["question"],
-        "options": [r.strip() for r in readings] + labels,
-        "option_actions": [None] * len(readings) + actions,
-        "mark_ids": list(mark_ids),
-    }
+        "shape_id": obj["shape_id"],
+        "question": _clean(question) or load_bank()["mark_meaning"]["questions"][0],
+        "options": [r["text"] for r in readings],
+        "option_elements": [r["element"] for r in readings],
+        "option_names": [r["name"] for r in readings],
+        "option_actions": [None] * len(readings),
+        "mark_ids": list(obj["mark_ids"]),
+    })
 
 
-def principle_intent_prompt(question: str, element: str, principles: list[str],
-                            shape_id: str, mark_ids: list[str], focus: str) -> dict:
+def relationship_prompt(conn: dict, objects: dict, focus: str) -> dict:
     """
-    "What do you want these marks to do?" One option per offered principle,
-    then the fixed "Not sure yet". One tap picks one and moves on
-    (multi_select false in the bank). option_principles is
-    parallel to options (None for "Not sure yet"); option_hints gives each
-    principle's "what to look for" from the matrix cell.
+    Seeing that, for one pair (or one lone object). Options are relationship
+    types in the AI's wording, with {A} and {B} left in: the app fills them
+    with the sketcher's own names from mark_meaning (name_refs).
     """
-    t = load_bank()["principle_intent"]
-    labels, actions = _fixed(t)
-    undecided = next(i for i, o in enumerate(t["fixed_options"]) if o.get("undecided_principle"))
-    return {
+    refs = conn["refs"]
+    types = [o["type"] for o in conn["options"]]
+    names = {k: objects[sid]["name"] for k, sid in zip("AB", refs)}
+    mark_ids = [m for sid in refs for m in objects[sid]["mark_ids"]]
+    return _answer_by_tap({
+        "key": "relationship",
+        "focus": focus,
+        "question": _clean(conn["question"]),
+        "options": [o["text"] for o in conn["options"]],
+        "option_types": types,
+        "option_elements": [type_info(t)["element"] for t in types],
+        "option_principles": [type_info(t)["principle"] for t in types],
+        "option_actions": [None] * len(types),
+        "name_refs": dict(zip("AB", refs)),
+        "default_names": names,
+        "mark_ids": mark_ids,
+    })
+
+
+def principle_prompt(conn: dict, objects: dict, focus: str) -> dict:
+    """
+    What to bring out, after one relationship question. One variant per type
+    offered there, plus "other" for an answer by tap or in the sketcher's own
+    words. The app shows the variant for the type the sketcher picked
+    (after_relationship points at the relationship question by its refs).
+    """
+    refs = conn["refs"]
+    variants = {}
+    for vtype, step in conn["principle_steps"].items():
+        element = type_info(vtype)["element"] if vtype != "other" else step["element"]
+        variants[vtype] = {
+            "question": _clean(step["question"]),
+            "options": [o["text"] for o in step["options"]],
+            "option_principles": [o["principle"] for o in step["options"]],
+            "option_elements": [element] * len(step["options"]),
+        }
+    return _answer_by_tap({
         "key": "principle_intent",
         "focus": focus,
-        "element": element,
-        "shape_id": shape_id,
-        "question": _clean(question) or t["question"],
-        "options": [df.principle_label(p) for p in principles] + labels,
-        "option_actions": [None] * len(principles) + actions,
-        "option_principles": list(principles) + [None] * len(labels),
-        "option_hints": [df.cell(element, p)["looks_for"] for p in principles] + [None] * len(labels),
-        "undecided_option": len(principles) + undecided,
-        "multi_select": t["multi_select"],
-        "max_principles": t["max_principles"],
-        "mark_ids": list(mark_ids),
-    }
-
-
-def mark_question_prompt(key: str, question: str, options: list[str], shape_id: str | None,
-                         mark_ids: list[str], focus: str) -> dict:
-    """
-    A seed question for one chosen principle. Asked only when the sketcher
-    picked that principle for these marks (requires_principle): the app
-    skips it otherwise. Gemini's option wording is used only when it kept
-    the bank's option count, so each option keeps its action.
-    """
-    q = load_bank()["mark_questions"][key]
-    bank_labels = [o["label"] for o in q["options"]]
-    labels = [o.strip() for o in options] if len(options) == len(bank_labels) and all(_text(o) for o in options) else bank_labels
-    return {
-        "key": key,
-        "focus": focus,
-        "element": q["element"],
-        "principle": q["principle"],
-        "requires_principle": q["principle"],
-        "shape_id": shape_id,
-        "question": _clean(question) or q["question"],
-        "options": labels,
-        "option_actions": [o.get("action") for o in q["options"]],
-        "mark_ids": list(mark_ids),
-    }
+        "question": "",
+        "options": [],
+        "after_relationship": list(refs),
+        "variants": variants,
+        "name_refs": dict(zip("AB", refs)),
+        "default_names": {k: objects[sid]["name"] for k, sid in zip("AB", refs)},
+        "max_principles": max_principles(),
+        "mark_ids": [m for sid in refs for m in objects[sid]["mark_ids"]],
+    })
 
 
 def unseen_prompt(question: str, element: str | None, principle: str) -> dict:

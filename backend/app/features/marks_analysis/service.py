@@ -15,18 +15,20 @@ Images sent, in order:
   1. the clean framed reference photo. Every coordinate comes from this one.
   2. the planning image with each mark's id at its start (core/composite.py).
 
-Guide order (item 20):
-  1. relationship: at most once. A Yes saves the type's principle as an
-     intent (source "prompted", answer_to "relationship").
-  2. mark_meaning: seeing as, once per shape the relationship does not cover.
-  3. principle_intent: seeing that, once per shape. Multi-select, plus
-     "Not sure yet". Up to max_principles across the whole plan.
-  4. mark_questions: one seed per offered principle per shape. The app
-     asks one only when the sketcher picked its principle
-     (requires_principle), so a change of intent needs no new call.
-  5. unseen: focal areas no mark sits on (focal_suggestion), else one
-     question about a form relationship with no marks (unseen). Counted
-     on its own, so intents never crowd it out.
+Guide order (Elements x Principles Matrix doc, "Guide sequence", Oct 3, 2026):
+  1. mark_meaning: seeing as, once per object (a shape of marks). Two AI
+     readings, each tied to an element, with a short name for later.
+  2. relationship: seeing that, once per pair of objects or for a lone
+     object. 2 or 3 relationship types in the AI's wording; {A} and {B}
+     are filled in the app with the sketcher's own names from step 1.
+  3. principle_intent: what to bring out, right after its relationship
+     question. One variant per type offered there, plus "other"; the app
+     shows the variant for the sketcher's pick. A pick saves the principle
+     as an intent. Up to max_principles across the plan.
+  4. unseen: focal areas no mark sits on (focal_suggestion), else one
+     question about a form relationship with no marks (unseen).
+Every step except unseen can be answered by a tap on the photo (a mark,
+or a scene object the AI traced) or in the sketcher's own words.
 
 The HTTP route, caching and database writes are in router.py.
 """
@@ -49,15 +51,18 @@ from app.features.scene_analysis import service as scene_service
 PROMPTS = Path(__file__).parent / "prompts"
 
 # Bump when the cleaned result changes shape. Part of the cache fingerprint.
-ANALYSIS_VERSION = 3  # 3: unseen reticle on the form no mark sits on
+ANALYSIS_VERSION = 4  # 4: three-step guide (objects, relationships, principle steps); 3: unseen reticle
 
 ROLES = ["contour", "big_shape", "eye_level", "ground_line", "perspective_guide",
          "measurement", "alignment", "gesture", "unclear"]
 FITS = ["close", "loose", "not_applicable"]
-MAX_OFFERED_PRINCIPLES = 3
-MIN_OFFERED_PRINCIPLES = 2
-MAX_MARK_RELATIONSHIPS = 5
+MAX_STEP_OPTIONS = 3
+MIN_STEP_OPTIONS = 2
+MAX_RELATIONSHIP_QUESTIONS = 2
+MAX_SCENE_OBJECTS = 6
 MAX_FORM_RELATIONSHIPS = 4
+WEIGHTS = ["light", "medium", "heavy"]
+SIDES = ["left", "right", "top", "bottom", "even"]
 # A form point closer than this to a mark (square units, frame long side
 # 1000) counts as marked, so the unseen question never points at it.
 UNSEEN_MIN_DISTANCE = 40
@@ -70,8 +75,9 @@ _ID_IN_TEXT = re.compile(r"\b[ms]\d+\b", re.IGNORECASE)
 def intents_from_choices(choices: list[dict] | None) -> list[dict]:
     """
     The principles the sketcher works toward, from their saved answers:
-    principle_intent picks (source "intended") and a Yes to the
-    relationship question (source "prompted", answer_to "relationship").
+    principle_intent picks (source "intended"), and on answers saved before
+    October 3, 2026 a Yes to the old relationship question (source
+    "prompted", answer_to "relationship").
     "Not sure yet" adds none. In answer order, one per principle and mark set.
     """
     out, seen = [], set()
@@ -89,8 +95,11 @@ def intents_from_choices(choices: list[dict] | None) -> list[dict]:
         if c.get("key") == "principle_intent" and not c.get("undecided_principle"):
             for p in c.get("principles") or []:
                 add(p, c.get("mark_ids"), "intended")
+        # Answers saved before October 3, 2026: a Yes to the old yes/no
+        # relationship question was an intent. The new relationship step
+        # only names the connection; its principle step records the intent.
         rel = c.get("relationship") or {}
-        if c.get("key") == "relationship" and c.get("option_index") == 0 and rel.get("principle"):
+        if c.get("key") == "relationship" and c.get("response") == "Yes" and rel.get("principle"):
             add(rel["principle"], c.get("mark_ids"), "prompted", "relationship")
     return out
 
@@ -172,8 +181,7 @@ def build_prompt(style: str, plan: MarksPlan, cached_scene: dict | None, sketch,
         PROMPTS / "marks_analysis.md",
         fundamentals=df.render_text(),
         bank=question_bank.render_bank(),
-        relationship_types=question_bank.render_relationship_types(),
-        max_shapes=MAX_MARK_MEANING_QUESTIONS,
+        max_objects=MAX_MARK_MEANING_QUESTIONS,
         style=style,
         scene_facts=scene_facts(cached_scene, sketch),
         marks_table=mark_geometry.marks_table(plan.geo),
@@ -187,8 +195,9 @@ def fingerprint(sketch, cached_scene: dict | None) -> str:
     """
     Changes when anything the call reads changes: the scene analysis it
     builds on, the style, or the marks (selection included). Prompted marks
-    ("Yes, add it") come from this guide, so they are left out. Intents are
-    left out too: every offered principle already has its question.
+    ("Yes, add it") come from this guide, so they are left out. Answers are
+    left out too: every relationship type offered already has its principle
+    step.
     """
     payload = {
         "version": ANALYSIS_VERSION,
@@ -206,6 +215,7 @@ def response_schema() -> dict:
     ids = {"type": "array", "items": {"type": "string"}}
     element = {"type": "string", "enum": df.element_keys(from_marks=True)}
     principle = {"type": "string", "enum": df.principle_keys()}
+    rtype = {"type": "string", "enum": question_bank.relationship_types()}
     point = {
         "type": "object",
         "properties": {"label": {"type": "string"}, "x": {"type": "integer"}, "y": {"type": "integer"}},
@@ -228,52 +238,84 @@ def response_schema() -> dict:
                     "required": ["mark_id", "traces", "element", "role", "fit"],
                 },
             },
-            "shapes": {
+            "objects": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "properties": {
                         "shape_id": {"type": "string"},
+                        "name": {"type": "string"},
+                        "description": {"type": "string"},
                         "element": element,
+                        "weight": {"type": "string", "enum": WEIGHTS},
                         "question": {"type": "string"},
-                        "readings": {"type": "array", "items": {"type": "string"}},
-                        "intent_question": {"type": "string"},
-                        "principles": {"type": "array", "items": principle},
+                        "readings": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {"text": {"type": "string"}, "name": {"type": "string"}, "element": element},
+                                "required": ["text", "name", "element"],
+                            },
+                        },
                     },
-                    "required": ["shape_id", "element", "question", "readings", "intent_question", "principles"],
+                    "required": ["shape_id", "name", "description", "element", "weight", "question", "readings"],
                 },
             },
-            "mark_questions": {
+            "scene_objects": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "key": {"type": "string", "enum": question_bank.mark_question_keys()},
-                        "shape_id": {"type": "string"},
-                        "question": {"type": "string"},
-                        "options": {"type": "array", "items": {"type": "string"}},
+                        "label": {"type": "string"},
+                        "description": {"type": "string"},
+                        "element": element,
+                        "contour_points": {"type": "array", "items": {"type": "integer"}},
                     },
-                    "required": ["key", "shape_id", "question", "options"],
+                    "required": ["label", "description", "element", "contour_points"],
                 },
             },
-            "relationship": {
-                "type": "object",
-                "properties": {
-                    "type": {"type": "string", "enum": question_bank.relationship_types()},
-                    "subjects": {"type": "array", "items": {"type": "string"}},
-                    "mark_ids": ids,
-                    "question": {"type": "string"},
-                },
-                "required": ["type", "subjects", "mark_ids", "question"],
-            },
-            "mark_relationships": {
+            "relationships": {
                 "type": "array",
                 "items": {
                     "type": "object",
-                    "properties": {"mark_ids": ids, "element": element, "principle": principle,
-                                   "observation": {"type": "string"}},
-                    "required": ["mark_ids", "element", "principle", "observation"],
+                    "properties": {
+                        "refs": ids,
+                        "question": {"type": "string"},
+                        "options": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {"type": rtype, "text": {"type": "string"}},
+                                "required": ["type", "text"],
+                            },
+                        },
+                        "principle_steps": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "type": {"type": "string", "enum": question_bank.relationship_types() + ["other"]},
+                                    "question": {"type": "string"},
+                                    "options": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {"principle": principle, "text": {"type": "string"}},
+                                            "required": ["principle", "text"],
+                                        },
+                                    },
+                                },
+                                "required": ["type", "question", "options"],
+                            },
+                        },
+                    },
+                    "required": ["refs", "question", "options", "principle_steps"],
                 },
+            },
+            "balance": {
+                "type": "object",
+                "properties": {"heavier": {"type": "string", "enum": SIDES}, "reason": {"type": "string"}},
+                "required": ["heavier", "reason"],
             },
             "form_relationships": {
                 "type": "array",
@@ -292,7 +334,7 @@ def response_schema() -> dict:
             },
             "stroke_order_note": {"type": "string"},
         },
-        "required": ["marks", "shapes", "mark_questions", "mark_relationships",
+        "required": ["marks", "objects", "scene_objects", "relationships", "balance",
                      "form_relationships", "stroke_order_note"],
     }
 
@@ -307,114 +349,156 @@ def _no_ids(text: str) -> bool:
     return bool(text) and not _ID_IN_TEXT.search(text)
 
 
-def _offered(element: str, raw: list, keep: list[str]) -> list[str]:
-    """2-3 principles from the element's matrix row: the sketcher's earlier
-    picks on these marks first, then Gemini's, then strong pairs to fill."""
+def _safe(text) -> str:
+    """Text the sketcher will read, or "" when it is empty or names an id."""
+    t = _text(text)
+    return t if _no_ids(t) else ""
+
+
+def _contour(flat) -> list[list[int]] | None:
+    """Flat [x1, y1, ...] in 0-1000 as [[x, y], ...], at least 3 points, at most 14."""
+    if not isinstance(flat, list):
+        return None
+    nums = [max(0, min(1000, int(v))) for v in flat if isinstance(v, (int, float))][:28]
+    pts = [[nums[k], nums[k + 1]] for k in range(0, len(nums) - 1, 2)]
+    return pts if len(pts) >= 3 else None
+
+
+def _fallback_options(element: str, first: str | None = None) -> list[dict]:
+    """Principle options from an element's matrix row, in the bank's own
+    words (the cell's looks_for), when Gemini left a step out."""
     row = df.row(element)
-    out = []
-    for p in list(keep) + list(raw or []) + [p for p in row if df.cell(element, p)["strength"] == "strong"]:
-        if p in row and p not in out:
-            out.append(p)
-        if len(out) >= MAX_OFFERED_PRINCIPLES:
-            break
-    return out if len(out) >= MIN_OFFERED_PRINCIPLES else []
+    order = ([first] if first in row else []) + [p for p in row if p != first]
+    return [{"principle": p, "text": df.cell(element, p)["looks_for"].rstrip(".")} for p in order[:MAX_STEP_OPTIONS]]
+
+
+def _principle_step(raw: dict | None, element: str, first: str | None, fallback_question: str) -> dict:
+    """
+    One what-to-bring-out step: 2 or 3 options from the element's matrix row,
+    with `first` (the relationship type's own principle) first. Gemini's
+    wording when it fits the matrix, the bank's otherwise.
+    """
+    raw = raw or {}
+    row = df.row(element)
+    opts, seen = [], set()
+    for o in raw.get("options") or []:
+        p, t = o.get("principle"), _safe(o.get("text"))
+        if p in row and p not in seen and t:
+            seen.add(p)
+            opts.append({"principle": p, "text": t})
+    if first and first not in seen:
+        cell = df.cell(element, first)
+        if cell:
+            opts.insert(0, {"principle": first, "text": cell["looks_for"].rstrip(".")})
+    elif first:
+        opts.sort(key=lambda o: o["principle"] != first)
+    opts = opts[:MAX_STEP_OPTIONS]
+    if len(opts) < MIN_STEP_OPTIONS:
+        opts = _fallback_options(element, first)
+    return {"question": _safe(raw.get("question")) or fallback_question, "options": opts, "element": element}
 
 
 def clean(raw: dict, plan: MarksPlan, intents: list[dict]) -> dict:
     """Gemini's answer, checked against the marks, the matrix and the bank."""
     visible = plan.visible_ids
-    mark_elements = set(df.element_keys(from_marks=True))
+    elements = set(df.element_keys(from_marks=True))
     principles = set(df.principle_keys())
-    by_id = {f["id"]: f for f in plan.geo["marks"]}
+    bank = question_bank.load_bank()
 
     readings = []
     for m in raw.get("marks") or []:
-        if m.get("mark_id") in visible and m.get("element") in mark_elements \
-                and m.get("role") in ROLES and m.get("fit") in FITS:
-            if m["mark_id"] not in {r["mark_id"] for r in readings}:
-                readings.append({k: m[k] for k in ("mark_id", "traces", "element", "role", "fit")})
+        if m.get("mark_id") in visible and m.get("element") in elements \
+                and m.get("role") in ROLES and m.get("fit") in FITS \
+                and m["mark_id"] not in {r["mark_id"] for r in readings}:
+            readings.append({k: m[k] for k in ("mark_id", "traces", "element", "role", "fit")})
+            readings[-1]["traces"] = _safe(readings[-1]["traces"]) or "a mark"
     element_of = {r["mark_id"]: r["element"] for r in readings}
 
-    # Shapes: the sketcher's selection wins. Otherwise Gemini's picks.
+    # Objects (step 1): the sketcher's selection wins. Otherwise Gemini's picks.
     selected = {s["id"]: s["mark_ids"] for s in plan.selected_shapes}
-    raw_shapes = {s.get("shape_id"): s for s in raw.get("shapes") or [] if isinstance(s, dict)}
-    order = list(selected) if selected else [k for k in raw_shapes if plan.shape(k)]
-    shapes = []
+    raw_objects = {o.get("shape_id"): o for o in raw.get("objects") or [] if isinstance(o, dict)}
+    order = list(selected) if selected else [k for k in raw_objects if plan.shape(k)]
+    objects = []
     for sid in order[:MAX_MARK_MEANING_QUESTIONS]:
         g = plan.shape(sid)
         if g is None:
             continue
         mark_ids = selected.get(sid) or list(g["mark_ids"])
-        r = raw_shapes.get(sid) or {}
-        element = r.get("element")
-        if element not in mark_elements:
+        o = raw_objects.get(sid) or {}
+        element = o.get("element")
+        if element not in elements:
             found = [element_of[i] for i in mark_ids if i in element_of]
             element = max(set(found), key=found.count) if found else "shape"
-        keep = [i["principle"] for i in intents if set(i["mark_ids"]) & set(mark_ids)]
-        offered = _offered(element, r.get("principles"), keep)
-        texts = [_text(x) for x in (r.get("readings") or [])][:2]
-        shapes.append({
+        rs = []
+        for r in (o.get("readings") or [])[:2]:
+            t, n = _safe(r.get("text")), _safe(r.get("name"))
+            if t and n and r.get("element") in elements:
+                rs.append({"text": t, "name": n, "element": r["element"]})
+        objects.append({
             "shape_id": sid,
             "mark_ids": mark_ids,
-            "element": element,
             "selected": sid in selected,
-            "readings": texts if len(texts) == 2 and all(_no_ids(t) for t in texts) else [],
-            "principles": offered,
-            "question": _text(r.get("question")) if _no_ids(_text(r.get("question"))) else "",
-            "intent_question": _text(r.get("intent_question")) if _no_ids(_text(r.get("intent_question"))) else "",
+            "name": _safe(o.get("name")) or (rs[0]["name"] if rs else "this part"),
+            "description": _safe(o.get("description")),
+            "element": element,
+            "weight": o.get("weight") if o.get("weight") in WEIGHTS else None,
+            "question": _safe(o.get("question")),
+            "readings": rs if len(rs) == 2 else [],
         })
+    by_id = {o["shape_id"]: o for o in objects}
 
-    # Seed questions, one per shape and offered principle.
-    bank_q = question_bank.load_bank()["mark_questions"]
-    mark_questions = []
-    taken = set()
-    for q in raw.get("mark_questions") or []:
-        key, sid = q.get("key"), q.get("shape_id")
-        shape = next((s for s in shapes if s["shape_id"] == sid), None)
-        if key not in bank_q or shape is None:
+    # Scene objects: what a tap on the photo can pick.
+    scene_objects = []
+    for o in raw.get("scene_objects") or []:
+        pts = _contour(o.get("contour_points"))
+        label = _safe(o.get("label"))
+        if pts and label and o.get("element") in elements:
+            scene_objects.append({"id": f"o{len(scene_objects) + 1}", "label": label,
+                                  "description": _safe(o.get("description")) or label,
+                                  "element": o["element"], "points": pts})
+        if len(scene_objects) >= MAX_SCENE_OBJECTS:
+            break
+
+    # Relationships (step 2) and their principle steps (step 3).
+    one_types = set(question_bank.one_object_types())
+    q_two = bank["relationship"]["questions_two"][0]
+    q_one = bank["relationship"]["questions_one"][0]
+    q_bring = bank["principle_intent"]["questions"][0]
+    relationships, pairs = [], set()
+    for r in raw.get("relationships") or []:
+        refs = list(dict.fromkeys(x for x in (r.get("refs") or []) if x in by_id))[:2]
+        if not refs or tuple(sorted(refs)) in pairs:
             continue
-        p = bank_q[key]["principle"]
-        if p not in shape["principles"] or (sid, p) in taken or len(shape["mark_ids"]) < bank_q[key]["min_marks"]:
+        allowed = set(question_bank.relationship_types()) if len(refs) == 2 else one_types
+        opts, seen = [], set()
+        for o in r.get("options") or []:
+            t, text = o.get("type"), _safe(o.get("text"))
+            if t in allowed and t not in seen and text:
+                if len(refs) == 1 and "{B}" in text:
+                    continue
+                seen.add(t)
+                opts.append({"type": t, "text": text})
+        opts = opts[:MAX_STEP_OPTIONS]
+        if len(opts) < MIN_STEP_OPTIONS:
+            if DEBUG:
+                print(f"[marks_analysis] relationship dropped (too few usable options): {json.dumps(r)}")
             continue
-        options = [_text(o) for o in (q.get("options") or [])]
-        if not all(_no_ids(o) for o in options):
-            options = []
-        taken.add((sid, p))
-        mark_questions.append({"key": key, "shape_id": sid, "mark_ids": shape["mark_ids"],
-                               "question": _text(q.get("question")) if _no_ids(_text(q.get("question"))) else "",
-                               "options": options})
-    # Fill an offered principle Gemini skipped with the bank's own wording,
-    # when a seed on the shape's own element fits. A seed on another
-    # element reads wrong unadapted ("This line..." about a shape).
-    for s in shapes:
-        for p in s["principles"]:
-            if (s["shape_id"], p) in taken:
-                continue
-            seed = next((k for k in question_bank.seeds_for(p)
-                         if bank_q[k]["element"] == s["element"] and len(s["mark_ids"]) >= bank_q[k]["min_marks"]), None)
-            if seed:
-                taken.add((s["shape_id"], p))
-                mark_questions.append({"key": seed, "shape_id": s["shape_id"], "mark_ids": s["mark_ids"],
-                                       "question": "", "options": []})
+        raw_steps = {st.get("type"): st for st in r.get("principle_steps") or [] if isinstance(st, dict)}
+        steps = {}
+        for o in opts:
+            info = question_bank.type_info(o["type"])
+            steps[o["type"]] = _principle_step(raw_steps.get(o["type"]), info["element"], info["principle"], q_bring)
+        steps["other"] = _principle_step(raw_steps.get("other"), by_id[refs[0]]["element"], None, q_bring)
+        question = _safe(r.get("question")) or (q_two if len(refs) == 2 else q_one)
+        if len(refs) == 1:
+            question = question.replace("{B}", "").strip()
+        pairs.add(tuple(sorted(refs)))
+        relationships.append({"refs": refs, "question": question, "options": opts, "principle_steps": steps})
+        if len(relationships) >= MAX_RELATIONSHIP_QUESTIONS:
+            break
 
-    relationship = None
-    r = raw.get("relationship")
-    if isinstance(r, dict):
-        subjects = [_text(x) for x in (r.get("subjects") or []) if _text(x)][:3]
-        mark_ids = [i for i in (r.get("mark_ids") or []) if i in visible]
-        question = _text(r.get("question"))
-        if r.get("type") in question_bank.relationship_types() and len(subjects) >= 2 and mark_ids and _no_ids(question):
-            relationship = {"type": r["type"], "subjects": subjects, "mark_ids": mark_ids, "question": question}
-        elif DEBUG:
-            print(f"[marks_analysis] relationship dropped: {json.dumps(r)}")
-
-    mark_relationships = []
-    for x in raw.get("mark_relationships") or []:
-        ids = [i for i in (x.get("mark_ids") or []) if i in visible]
-        if len(ids) >= 2 and df.cell(x.get("element"), x.get("principle")) and _no_ids(_text(x.get("observation"))):
-            mark_relationships.append({"mark_ids": ids, "element": x["element"], "principle": x["principle"],
-                                       "observation": _text(x["observation"])})
-    mark_relationships = mark_relationships[:MAX_MARK_RELATIONSHIPS]
+    b = raw.get("balance") if isinstance(raw.get("balance"), dict) else {}
+    balance = {"heavier": b["heavier"], "reason": _safe(b.get("reason"))} if b.get("heavier") in SIDES else None
 
     form_relationships = []
     for x in raw.get("form_relationships") or []:
@@ -447,13 +531,13 @@ def clean(raw: dict, plan: MarksPlan, intents: list[dict]) -> dict:
 
     return {
         "marks": readings,
-        "shapes": shapes,
-        "mark_questions": mark_questions,
-        "relationship": relationship,
-        "mark_relationships": mark_relationships,
+        "objects": objects,
+        "scene_objects": scene_objects,
+        "relationships": relationships,
+        "balance": balance,
         "form_relationships": [f for f in form_relationships if f],
         "unseen": unseen,
-        "stroke_order_note": _text(raw.get("stroke_order_note")) or None,
+        "stroke_order_note": _safe(raw.get("stroke_order_note")) or None,
     }
 
 
@@ -475,35 +559,20 @@ def assemble(cleaned: dict, sketch, cached_scene: dict | None, selected_ids: set
     sketch's current marks (an adopted area is not asked again)."""
     intents = intents_from_choices(sketch.session_choices)
     focus = lambda ids: "selected" if set(ids) & selected_ids else "other"
+    objects = {o["shape_id"]: o for o in cleaned.get("objects") or []}
     prompts = []
 
-    rel = cleaned.get("relationship")
-    if rel:
-        prompts.append(question_bank.relationship_prompt(
-            rel["question"], rel["type"], rel["subjects"], rel["mark_ids"], focus(rel["mark_ids"])))
-    covered = set(rel["mark_ids"]) if rel else set()
-
-    shapes = cleaned.get("shapes") or []
-    for s in shapes:
-        if s["readings"] and not covered & set(s["mark_ids"]):
-            prompts.append(question_bank.mark_meaning_prompt(
-                s["question"], s["readings"], s["shape_id"], s["mark_ids"], focus(s["mark_ids"])))
-    for s in shapes:
-        if s["principles"]:
-            prompts.append(question_bank.principle_intent_prompt(
-                s["intent_question"], s["element"], s["principles"], s["shape_id"], s["mark_ids"], focus(s["mark_ids"])))
-    for q in cleaned.get("mark_questions") or []:
-        prompts.append(question_bank.mark_question_prompt(
-            q["key"], q["question"], q["options"], q["shape_id"], q["mark_ids"], focus(q["mark_ids"])))
-    # A Yes to the relationship is an intent too. Give its principle a seed
-    # on the relationship's marks, unless a shape question already covers it.
-    if rel:
-        principle = question_bank.load_bank()["relationship"]["types"][rel["type"]]["principle"]
-        asked = any(q["principle"] == principle and covered & set(q["mark_ids"])
-                    for q in prompts if q.get("requires_principle"))
-        seed = next(iter(question_bank.seeds_for(principle)), None)
-        if seed and not asked and len(rel["mark_ids"]) >= question_bank.load_bank()["mark_questions"][seed]["min_marks"]:
-            prompts.append(question_bank.mark_question_prompt(seed, "", [], None, rel["mark_ids"], focus(rel["mark_ids"])))
+    # 1. Seeing as, one per object.
+    for o in objects.values():
+        if o["readings"]:
+            prompts.append(question_bank.mark_meaning_prompt(o["question"], o["readings"], o, focus(o["mark_ids"])))
+    # 2 and 3. Seeing that, each followed by what to bring out.
+    for conn in cleaned.get("relationships") or []:
+        if not all(r in objects for r in conn["refs"]):
+            continue
+        ids = [m for r in conn["refs"] for m in objects[r]["mark_ids"]]
+        prompts.append(question_bank.relationship_prompt(conn, objects, focus(ids)))
+        prompts.append(question_bank.principle_prompt(conn, objects, focus(ids)))
 
     # Unseen: focal areas no mark sits on, from the scene analysis.
     scene = cached_scene or {}
@@ -522,11 +591,13 @@ def assemble(cleaned: dict, sketch, cached_scene: dict | None, selected_ids: set
 
     return {
         "guide_source": "marks_analysis",
+        "debug": DEBUG,
         "scene_type": scene.get("scene_type"),
         "marks": cleaned.get("marks") or [],
-        "shapes": [{k: s[k] for k in ("shape_id", "mark_ids", "element", "readings", "principles", "selected")}
-                   for s in shapes],
-        "mark_relationships": cleaned.get("mark_relationships") or [],
+        "objects": [{k: o[k] for k in ("shape_id", "mark_ids", "name", "description", "element", "weight", "readings", "selected")}
+                    for o in objects.values()],
+        "scene_objects": cleaned.get("scene_objects") or [],
+        "balance": cleaned.get("balance"),
         "form_relationships": cleaned.get("form_relationships") or [],
         "stroke_order_note": cleaned.get("stroke_order_note"),
         "intents": intents,
@@ -558,10 +629,15 @@ def analyze(pil_image: Image.Image, sketch, cached_scene: dict | None, style: st
         print("\n--- Marks Analysis decision ---")
         for m in cleaned["marks"]:
             print(f"  {m['mark_id']}: {m['traces']} ({m['element']}, {m['role']}, fit {m['fit']})")
-        for s in cleaned["shapes"]:
-            print(f"  shape {s['shape_id']} {s['mark_ids']} as {s['element']}: readings {s['readings']} principles {s['principles']}")
-        print(f"  relationship: {json.dumps(cleaned['relationship'])}")
-        print(f"  mark_questions: {[(q['shape_id'], q['key']) for q in cleaned['mark_questions']]}")
+        for o in cleaned["objects"]:
+            print(f"  object {o['shape_id']} {o['mark_ids']} '{o['name']}' ({o['element']}, {o['weight']}): "
+                  f"{[(r['text'], r['element']) for r in o['readings']]}")
+        print(f"  scene objects: {[(o['label'], o['element']) for o in cleaned['scene_objects']]}")
+        for r in cleaned["relationships"]:
+            print(f"  relationship {r['refs']}: {r['question']} {[(o['type'], o['text']) for o in r['options']]}")
+            for t, st in r["principle_steps"].items():
+                print(f"    {t}: {[(o['principle'], o['text']) for o in st['options']]}")
+        print(f"  balance: {json.dumps(cleaned['balance'])}")
         print(f"  unseen: {json.dumps(cleaned['unseen'])}")
         print("--- end Marks Analysis decision ---\n")
     return cleaned, raw_text

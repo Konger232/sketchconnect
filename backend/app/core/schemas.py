@@ -99,7 +99,9 @@ class SessionChoice(BaseModel):
     to an unseen question is "prompted" evidence (design doc, item 15).
     """
     prompt: str
-    response: str
+    # The picked option's text, or the sketcher's own words (own_words
+    # max_length in the marks analysis bank: 200).
+    response: str = Field(..., max_length=200)
     key: Optional[str] = None
     focus: Optional[Literal["selected", "unseen", "other"]] = None
     option_index: Optional[int] = None
@@ -137,3 +139,16 @@ class SessionChoice(BaseModel):
     option_hints: list[Optional[str]] = Field(default_factory=list)
     option_actions: list[Optional[str]] = Field(default_factory=list)
     position: Optional[int] = None
+    # Marks analysis, October 3, 2026 (Elements x Principles Matrix doc,
+    # "Guide sequence"). refs: the objects (shape ids) a relationship or
+    # principle answer is about; it identifies the question, since its
+    # wording changes with the sketcher's names. name: the short name a
+    # mark_meaning answer gives its object ({A} or {B} later).
+    # relationship_type: the type a principle answer followed.
+    # object_ids: scene objects picked by a tap on the photo (o1, o2, ...).
+    # own_words: the response is the sketcher's own words.
+    refs: list[str] = Field(default_factory=list)
+    name: Optional[str] = Field(None, max_length=200)
+    relationship_type: Optional[str] = None
+    object_ids: list[str] = Field(default_factory=list)
+    own_words: Optional[bool] = None

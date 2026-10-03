@@ -302,3 +302,19 @@ export function snapSpot(marks, p, aspect = 1) {
   }
   return one
 }
+
+
+/**
+ * Whether a frame point (0-1000) is inside an outline ([[x, y], ...], same
+ * units). Ray casting. Used to find which scene object a tap lands on.
+ */
+export function pointInOutline(p, pts) {
+  if (!pts || pts.length < 3) return false
+  let inside = false
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i]
+    const [xj, yj] = pts[j]
+    if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}

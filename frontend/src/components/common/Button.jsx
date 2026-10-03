@@ -61,17 +61,25 @@ export default function Button({ variant = 'primary', size = 'md', active = fals
   return (
     <div className="relative w-full">
       {button}
-      <button
-        type="button"
-        onClick={onNext}
-        aria-label={nextLabel}
-        // Same set-up as the close buttons: a 44px tap area, only the mark inside shows.
-        className="group absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center"
-      >
-        <span className="flex h-7 w-7 animate-fade-in-scale items-center justify-center rounded-full bg-sc-action text-sc-action-ink group-hover:brightness-105">
-          <Icon name="chevron-right" size={13} />
-        </span>
-      </button>
+      <NextButton onClick={onNext} label={nextLabel} className="absolute right-1 top-1/2 -translate-y-1/2" />
     </div>
+  )
+}
+
+// The round amber ">" inside a picked choice, also used by the guide's
+// own-words row (AIGuidance.jsx). Same set-up as the close buttons: a 44px
+// tap area, only the mark inside shows.
+export function NextButton({ onClick, label = 'Continue', className = '' }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className={`group flex h-11 w-11 shrink-0 items-center justify-center ${className}`}
+    >
+      <span className="flex h-7 w-7 animate-fade-in-scale items-center justify-center rounded-full bg-sc-action text-sc-action-ink group-hover:brightness-105">
+        <Icon name="chevron-right" size={13} />
+      </span>
+    </button>
   )
 }

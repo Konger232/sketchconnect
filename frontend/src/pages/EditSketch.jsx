@@ -14,7 +14,7 @@ import JourneyTrace from '../components/analysis/JourneyTrace'
 import ProgressSteps from '../components/common/ProgressSteps'
 import { useStagedProgress } from '../lib/useStagedProgress'
 import { MarksLayer, cycleSelection, markAtPoint } from '../components/analysis/Marks'
-import { snapSpot, squareScale } from '../lib/markGeometry'
+import { pointInOutline, snapSpot, squareScale } from '../lib/markGeometry'
 import { usePaintedRect } from '../lib/usePaintedRect'
 import { useValueStudy } from '../lib/useValueStudy'
 import { api } from '../lib/api'
@@ -88,6 +88,8 @@ export default function EditSketch() {
   // The last tap on the Plan while a question's options are tied to lines:
   // { id, n } (id null for a miss). AIGuidance picks the matching option.
   const [markTap, setMarkTap] = useState(null)
+  // Parts of the scene picked by a tap as a guide answer ([{ id, points }]).
+  const [answerOutlines, setAnswerOutlines] = useState([])
   const guides = useGuides()
   // A created sketch's Guide tab (review): no questions, only the scene
   // type for Help Quest. Kept stable so AIGuidance doesn't reset.
@@ -274,8 +276,20 @@ export default function EditSketch() {
 
   // Pick an answer by its lines: a tap on the Plan while the question's
   // options are tied to marks.
+  // A question that takes a tap as its answer (marks analysis,
+  // tap_answer): a mark, else a scene object the AI traced, else a spot on
+  // empty space. The spot shows with the sketcher's reticle. AIGuidance
+  // adds or removes the row.
   function handlePickAt(p, aspect = 1) {
     const hit = markAtPoint(marks, p, aspect)
+    if (guideQuestion?.tap_answer) {
+      const objects = analysis?.marks_analysis?.scene_objects || []
+      const obj = hit ? null : objects.find((o) => pointInOutline(p, o.points))
+      const tap = hit ? { kind: 'mark', id: hit.id } : obj ? { kind: 'object', id: obj.id } : { kind: 'spot', id: null }
+      setSketcherSpot(tap.kind === 'spot' ? { x: Math.round(p[0]), y: Math.round(p[1]), mark_ids: [] } : null)
+      setMarkTap((prev) => ({ ...tap, point: { x: Math.round(p[0]), y: Math.round(p[1]) }, n: (prev?.n || 0) + 1 }))
+      return
+    }
     setMarkTap((prev) => ({ id: hit?.id ?? null, n: (prev?.n || 0) + 1 }))
   }
 
@@ -469,7 +483,8 @@ export default function EditSketch() {
         aiSuggestion={tab === 'guide' ? aiSuggestion : null}
         highlightMarkIds={tab === 'guide' ? highlightIds : []}
         onSpotAt={isOwner && tab === 'guide' && guideQuestion ? handleSpotAt : undefined}
-        onPickAt={isOwner && tab === 'guide' && guideQuestion?.option_mark_ids?.some((ids) => ids?.length) ? handlePickAt : undefined}
+        onPickAt={isOwner && tab === 'guide' && (guideQuestion?.tap_answer || guideQuestion?.option_mark_ids?.some((ids) => ids?.length)) ? handlePickAt : undefined}
+        answerOutlines={tab === 'guide' ? answerOutlines : []}
         spot={tab === 'guide' && guideQuestion ? sketcherSpot : null}
         // Its Guides rail sits inside this panel, so it scrolls away with it.
         showRail={isOwner}
@@ -528,6 +543,7 @@ export default function EditSketch() {
           spot={sketcherSpot}
           onSpotClear={() => setSketcherSpot(null)}
           markTap={markTap}
+          onAnswerObjects={setAnswerOutlines}
           onHighlight={(ids) => {
             setHighlightIds(ids)
             if (ids.length) stripRef.current?.show('plan') // the marks are drawn on the Plan

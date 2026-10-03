@@ -131,9 +131,13 @@ export default function GuideStage({
   // The sketcher's spot, { x, y, mark_ids }, drawn as their own reticle.
   spot = null,
   // Answer by lines (owner only, while a question's options are tied to
-  // marks): called with a 0-1000 frame point and the frame's aspect when
-  // the sketcher taps the photo and neither tap tool above is on.
+  // marks, or the question takes a tap as its answer): called with a 0-1000
+  // frame point and the frame's aspect when the sketcher taps the photo
+  // and neither tap tool above is on.
   onPickAt,
+  // Parts of the scene picked by a tap while answering ([{ id, points }]),
+  // drawn dashed (ShapeOutlineOverlay variant "answer").
+  answerOutlines = [],
 }) {
   const [imgRef, rect] = usePaintedRect()
   const { on } = guides
@@ -189,6 +193,10 @@ export default function GuideStage({
             </Fade>
             <Fade as="div" show={show('rule_of_thirds')}>
               <RuleOfThirdsGrid />
+            </Fade>
+            {/* Parts of the scene picked by a tap as the answer. */}
+            <Fade as="div" show={answerOutlines.length > 0}>
+              {answerOutlines.length > 0 && <ShapeOutlineOverlay focalRegions={answerOutlines} variant="answer" />}
             </Fade>
             {/* The one focal area the current question asks about. */}
             <Fade as="div" show={!!suggestedRegion}>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from '../common/Icon'
-import Button from '../common/Button'
+import Button, { NextButton } from '../common/Button'
 import { api } from '../../lib/api'
 
 // Asked once per selected shape or missed area, so the question text tells
@@ -14,9 +14,54 @@ function isRepeated(prompt) {
   return REPEATED_KEYS.includes(prompt.key) || Boolean(prompt.shape_id || prompt.requires_principle)
 }
 
+// Marks analysis questions about objects ({A}, {B}) are told apart by the
+// objects (shape ids), since their wording changes with the sketcher's names.
+function refsOf(prompt) {
+  if (prompt?.after_relationship?.length) return prompt.after_relationship
+  return Object.values(prompt?.name_refs || {})
+}
+
+function sameRefs(a = [], b = []) {
+  return a.length === b.length && [...a].sort().join(',') === [...b].sort().join(',')
+}
+
+// Matched with same_question in backend sketches/router.py.
 function sameQuestion(choice, prompt) {
   if (!choice || !prompt || choice.key !== prompt.key) return false
+  if (prompt.key === 'mark_meaning' && prompt.shape_id) return choice.shape_id === prompt.shape_id
+  const refs = refsOf(prompt)
+  if (refs.length) return sameRefs(choice.refs, refs)
   return !isRepeated(prompt) || choice.prompt === prompt.question
+}
+
+// The relationship answer a principle question follows, or undefined.
+function relationshipFor(prompt, choices) {
+  return choices.find((c) => c.key === 'relationship' && sameRefs(c.refs, prompt.after_relationship))
+}
+
+// The question as the sketcher sees it (Elements x Principles Matrix doc,
+// "Guide sequence"): {A} and {B} filled with the sketcher's own names from
+// "What do you see it as?", and for "What do you want to bring out?" the
+// variant for the relationship they picked ("other" for a tap or their
+// own words).
+function resolvePrompt(prompt, choices) {
+  if (!prompt) return null
+  const names = {}
+  for (const [k, sid] of Object.entries(prompt.name_refs || {})) {
+    const c = choices.find((x) => x.key === 'mark_meaning' && x.shape_id === sid)
+    names[k] = c?.name || prompt.default_names?.[k] || ''
+  }
+  const fill = (t) => (t || '').replace(/\{([AB])\}/g, (_, k) => names[k] || '').replace(/^\s*(\w)/, (m) => m.toUpperCase())
+  let p = prompt
+  if (prompt.variants && Object.keys(prompt.variants).length) {
+    const rel = relationshipFor(prompt, choices)
+    const type = rel?.relationship?.type
+    const v = prompt.variants[type] || prompt.variants.other
+    if (!v) return null
+    p = { ...prompt, ...v, relationship_type: prompt.variants[type] ? type : 'other' }
+  }
+  if (!Object.keys(names).length) return p
+  return { ...p, question: fill(p.question), options: (p.options || []).map(fill), names }
 }
 
 // Not overlays: "describe" opens a text field, "mark" (answer by selecting a
@@ -32,7 +77,10 @@ function intentsFrom(choices) {
     if (c.key === 'principle_intent' && !c.undecided_principle) {
       for (const p of c.principles || []) out.push({ principle: p, mark_ids: c.mark_ids || [] })
     }
-    if (c.key === 'relationship' && c.option_index === 0 && c.relationship?.principle) {
+    // Answers saved before October 3, 2026: a Yes to the old yes/no
+    // relationship question. The new relationship step names a connection;
+    // its principle step records the intent.
+    if (c.key === 'relationship' && c.response === 'Yes' && c.relationship?.principle) {
       out.push({ principle: c.relationship.principle, mark_ids: c.mark_ids || [] })
     }
   }
@@ -42,6 +90,8 @@ function intentsFrom(choices) {
 // A seed question (requires_principle) is asked only when the sketcher
 // chose its principle for at least one of its marks.
 function isAsked(prompt, choices) {
+  // "What do you want to bring out?" follows its relationship question.
+  if (prompt?.after_relationship?.length) return Boolean(relationshipFor(prompt, choices))
   if (!prompt?.requires_principle) return true
   const marks = new Set(prompt.mark_ids || [])
   return intentsFrom(choices).some(
@@ -53,7 +103,16 @@ function isAsked(prompt, choices) {
 // that principle opened no longer apply, so they are dropped too. Mirrors
 // the server (sketches/router.py, add_session_choice).
 function withoutStaleSeeds(choices) {
-  return choices.filter((c) => !c.requires_principle || isAsked(c, choices))
+  return choices.filter((c) => {
+    if (c.requires_principle) return isAsked(c, choices)
+    // A principle answer that followed a relationship type the sketcher
+    // has since changed no longer applies.
+    if (c.key === 'principle_intent' && c.refs?.length && c.relationship_type) {
+      const rel = choices.find((x) => x.key === 'relationship' && sameRefs(x.refs, c.refs))
+      return (rel?.relationship?.type || 'other') === c.relationship_type
+    }
+    return true
+  })
 }
 
 // The first question at or after `from` that is asked, or the list length.
@@ -146,6 +205,9 @@ export default function AIGuidance({
   // review: the page's footer element. Back and Next render there, at the
   // bottom of the panel. Without it they render under the options.
   footerEl = null,
+  // Called with the parts of the scene picked by a tap ([{ id, points }]),
+  // or [], so the page can draw their outlines.
+  onAnswerObjects,
 }) {
 
   const [promptIndex, setPromptIndex] = useState(0)
@@ -172,6 +234,13 @@ export default function AIGuidance({
   // principle_intent: the last pick would go over the cap ("3 is the most
   // for one plan").
   const [atCap, setAtCap] = useState(false)
+  // Answer by tapping the photo (tap_answer): the marks and scene objects
+  // picked so far, in tap order ([{ kind, id }]). A second tap removes one.
+  const [tapped, setTapped] = useState([])
+  // The own-words row: its text, and whether a tap on empty space asked
+  // "What is here?".
+  const [ownText, setOwnText] = useState('')
+  const [spotAsked, setSpotAsked] = useState(false)
 
   // A fresh analysis (first-ever run, or a resume-flow re-run) always
   // starts this flow from a clean slate.
@@ -188,14 +257,36 @@ export default function AIGuidance({
   // on for it: that waits for the sketcher to pick.
   useEffect(() => {
     const p = analysis?.prepared_prompts?.[promptIndex]
-    setChosen(p ? savedIndex(choices.find((c) => sameQuestion(c, p)), p) : null)
+    const rp = resolvePrompt(p, choices)
+    setChosen(rp ? savedIndex(choices.find((c) => sameQuestion(c, rp)), rp) : null)
     setTapMiss(false)
     setAtCap(false)
+    // A saved answer by tap or in the sketcher's own words opens the same way.
+    const saved = rp ? choices.find((c) => sameQuestion(c, rp)) : null
+    setTapped(saved && saved.option_index === -1 && !saved.own_words
+      ? [...(saved.mark_ids || []).map((id) => ({ kind: 'mark', id })), ...(saved.object_ids || []).map((id) => ({ kind: 'object', id }))]
+      : [])
+    setOwnText(saved?.own_words ? saved.response : '')
+    setSpotAsked(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [promptIndex, analysis])
 
   function currentPrompt() {
-    return analysis?.prepared_prompts?.[promptIndex] || null
+    return resolvePrompt(analysis?.prepared_prompts?.[promptIndex], choices)
+  }
+
+  // What a tapped mark or scene object is, from the marks analysis: the
+  // object a mark belongs to, else the mark's own reading.
+  const marksAnalysis = analysis?.marks_analysis
+  function describeTap(t) {
+    if (t.kind === 'object') {
+      const o = (marksAnalysis?.scene_objects || []).find((x) => x.id === t.id)
+      return o ? { label: o.label, description: o.description, element: o.element, points: o.points } : null
+    }
+    const obj = (marksAnalysis?.objects || []).find((x) => x.mark_ids?.includes(t.id))
+    if (obj) return { label: obj.name, description: obj.description || obj.name, element: obj.element }
+    const m = (marksAnalysis?.marks || []).find((x) => x.mark_id === t.id)
+    return m ? { label: m.traces, description: m.traces, element: m.element } : { label: 'your mark', description: 'Your mark', element: null }
   }
 
   // Show the AI's reticle only while its question is on screen: at a
@@ -234,6 +325,7 @@ export default function AIGuidance({
   // pick (all lines plain); else prompt.mark_ids.
   const highlightKey = (
     review ? reviewed[reviewIndex]?.mark_ids || []
+      : tapped.some((t) => t.kind === 'mark') ? tapped.filter((t) => t.kind === 'mark').map((t) => t.id)
       : chosen !== null && optionMarks[chosen]?.length ? optionMarks[chosen]
       : linked ? []
         : shown?.mark_ids || []
@@ -252,8 +344,35 @@ export default function AIGuidance({
   }
 
   // A tap on the photo picks the option whose lines it hit.
+  // A tap on the photo while the question takes a tap as its answer: add
+  // or remove that mark or scene object, or (empty space) ask "What is
+  // here?" in the own-words row.
   useEffect(() => {
-    if (!markTap || !linked || describing !== null || helpQuestOpen) return
+    if (!markTap || !shown?.tap_answer || review || helpQuestOpen) return
+    setChosen(null)
+    setAtCap(false)
+    if (markTap.kind === 'spot') {
+      setTapped([])
+      setSpotAsked(true)
+      return
+    }
+    setSpotAsked(false)
+    setOwnText('')
+    setTapped((cur) => (cur.some((t) => t.id === markTap.id)
+      ? cur.filter((t) => t.id !== markTap.id)
+      : [...cur, { kind: markTap.kind, id: markTap.id }]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [markTap?.n])
+  // The tapped scene objects' outlines, for the page to draw.
+  const outlineKey = tapped.filter((t) => t.kind === 'object').map((t) => t.id).join(',')
+  useEffect(() => {
+    onAnswerObjects?.(tapped.filter((t) => t.kind === 'object').map((t) => ({ id: t.id, points: describeTap(t)?.points || [] })))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outlineKey])
+  useEffect(() => () => onAnswerObjects?.([]), []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!markTap || shown?.tap_answer || !linked || describing !== null || helpQuestOpen) return
     const index = optionMarks.findIndex((ids) => ids?.includes(markTap.id))
     if (index >= 0) chooseOption(index)
     else setTapMiss(true)
@@ -305,7 +424,7 @@ export default function AIGuidance({
     // "What do you want these marks to do?" (principle_intent): one tap picks
     // a principle, or "Not sure yet", and moves on. Up to max_principles
     // across the whole plan.
-    if (prompt.option_principles?.length) {
+    if (prompt.key === 'principle_intent' && prompt.option_principles?.length) {
       const undecided = index === prompt.undecided_option
       const principle = prompt.option_principles[index]
       if (!undecided) {
@@ -318,8 +437,30 @@ export default function AIGuidance({
       const latest = saveAnswer(prompt, option, index, {
         principles: undecided || !principle ? [] : [principle],
         undecided_principle: undecided || undefined,
+        element: prompt.option_elements?.[index] || undefined,
+        principle: principle || undefined,
+        relationship_type: prompt.relationship_type || undefined,
       })
       advancePrompt(latest)
+      return
+    }
+    // Seeing as: the reading's element and short name ({A} or {B} later).
+    // Seeing that: the relationship type, with its element and principle.
+    if (prompt.key === 'mark_meaning' && prompt.option_names?.length) {
+      advancePrompt(saveAnswer(prompt, option, index, {
+        name: prompt.option_names[index], element: prompt.option_elements?.[index] || undefined,
+      }))
+      return
+    }
+    if (prompt.key === 'relationship' && prompt.option_types?.length) {
+      advancePrompt(saveAnswer(prompt, option, index, {
+        relationship: {
+          type: prompt.option_types[index],
+          element: prompt.option_elements?.[index],
+          principle: prompt.option_principles?.[index],
+          subjects: Object.values(prompt.names || {}).filter(Boolean),
+        },
+      }))
       return
     }
     // Tied to lines: select it and wait for Continue.
@@ -351,6 +492,36 @@ export default function AIGuidance({
     advancePrompt(latest)
   }
 
+  // ">" on the tapped rows: the picked marks and scene objects are the
+  // answer. Their labels make its name; the first one's element stands in
+  // for the step's element.
+  function saveTapped() {
+    const prompt = currentPrompt()
+    const rows = tapped.map((t) => ({ ...t, ...describeTap(t) }))
+    if (!rows.length) return
+    const label = rows.map((r) => r.label).join(' and ')
+    const extra = {
+      name: label,
+      element: rows[0].element || prompt.option_elements?.[0] || undefined,
+      object_ids: rows.filter((r) => r.kind === 'object').map((r) => r.id),
+      mark_ids: rows.filter((r) => r.kind === 'mark').map((r) => r.id),
+    }
+    if (prompt.key === 'principle_intent') extra.relationship_type = prompt.relationship_type
+    advancePrompt(saveAnswer(prompt, label.charAt(0).toUpperCase() + label.slice(1), -1, extra))
+  }
+
+  // ">" (or Enter) in the own-words row. In step 1 the words name the
+  // object; their element falls back to the AI's best reading.
+  function saveOwnWords() {
+    const prompt = currentPrompt()
+    const text = ownText.trim()
+    if (!text) return
+    const extra = { own_words: true, element: prompt.option_elements?.[0] || undefined }
+    if (prompt.key === 'mark_meaning') extra.name = text
+    if (prompt.key === 'principle_intent') extra.relationship_type = prompt.relationship_type
+    advancePrompt(saveAnswer(prompt, text, -1, extra))
+  }
+
   // The sketcher's own words for "Something else". Saved as the answer,
   // so the critique reads what they saw in their words (item 17).
   function handleDescribeSubmit() {
@@ -371,7 +542,8 @@ export default function AIGuidance({
       {
         key: prompt.key, prompt: prompt.question, response, option_index: index,
         mark_ids: markIds, relationship: prompt.relationship || undefined,
-        requires_principle: prompt.requires_principle || undefined,
+        requires_principle: prompt.requires_principle || undefined, refs: refsOf(prompt),
+        shape_id: prompt.shape_id || undefined,
         options: prompt.options, option_hints: prompt.option_hints, position: promptIndex, ...extra,
       },
     ])
@@ -404,6 +576,7 @@ export default function AIGuidance({
       option_hints: prompt.option_hints?.length ? prompt.option_hints : undefined,
       option_actions: prompt.option_actions?.length ? prompt.option_actions : undefined,
       position: promptIndex,
+      refs: refsOf(prompt),
       ...extra,
     }).catch((err) => {
       console.warn('Could not save session choice', err)
@@ -442,6 +615,16 @@ export default function AIGuidance({
   }
 
   const prompt = currentPrompt()
+
+  // Debug mode only (DEBUG=true in backend/.env): the option's element, and
+  // its principle when it has one, in line after the text.
+  function debugTag(p, i) {
+    if (!analysis?.marks_analysis?.debug) return null
+    const el = p.option_elements?.[i]
+    const pr = p.option_principles?.[i]
+    const tag = [el, pr].filter(Boolean).join(', ')
+    return tag ? <span className="sc-option-tag">[{tag}]</span> : null
+  }
 
   // Back to the previous question. Hidden on the first one.
   const backButton = !review && previousAsked() >= 0 ? (
@@ -579,12 +762,54 @@ export default function AIGuidance({
                       // A picked option tied to lines: ">" saves it and moves on.
                       onNext={chosen === i ? handleChosenContinue : undefined}
                     >
-                      <span className="block">{opt}</span>
-                      {prompt.option_hints?.[i] && (
-                        <span className="block text-base font-normal text-sc-text3">{prompt.option_hints[i]}</span>
-                      )}
+                      <span className="block">
+                        {opt}
+                        {debugTag(prompt, i)}
+                      </span>
+                      {prompt.option_hints?.[i] && <span className="sc-option-note">{prompt.option_hints[i]}</span>}
                     </Button>
                   ))}
+                  {/* Rows added by tapping the photo: picked at once. A tap on
+                      the row, or on the same mark or object again, removes it.
+                      The last row's ">" saves them as the answer. */}
+                  {tapped.map((t, i) => {
+                    const d = describeTap(t)
+                    return (
+                      <Button
+                        key={`${t.kind}-${t.id}`}
+                        variant="choice"
+                        active
+                        aria-pressed
+                        onClick={() => setTapped((cur) => cur.filter((x) => x.id !== t.id))}
+                        onNext={i === tapped.length - 1 ? saveTapped : undefined}
+                      >
+                        <span className="block">
+                          {d?.description}
+                          {analysis?.marks_analysis?.debug && d?.element && <span className="sc-option-tag">[{d.element}]</span>}
+                        </span>
+                      </Button>
+                    )
+                  })}
+                  {/* The sketcher's own words: always the last row. */}
+                  {prompt.own_words && (
+                    <label className="sc-own-words" data-active={Boolean(ownText.trim() || spotAsked)}>
+                      <Icon name="pen" size={16} className="shrink-0 text-sc-text3" />
+                      <input
+                        value={ownText}
+                        autoFocus={spotAsked}
+                        key={spotAsked ? 'spot' : 'words'}
+                        onChange={(e) => {
+                          setOwnText(e.target.value)
+                          if (e.target.value.trim()) { setTapped([]); setChosen(null) }
+                        }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') saveOwnWords() }}
+                        placeholder={spotAsked ? prompt.spot_placeholder : prompt.own_words_placeholder}
+                        aria-label="Your own words"
+                        maxLength={prompt.own_words_max || 200}
+                      />
+                      {ownText.trim() && <NextButton onClick={saveOwnWords} />}
+                    </label>
+                  )}
                   {atCap && (
                     <p className="text-base text-sc-text3" aria-live="polite">
                       {prompt.max_principles || 3} is the most for one plan.
