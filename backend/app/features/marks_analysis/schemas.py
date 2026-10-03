@@ -34,6 +34,8 @@ class GuideObject(BaseModel):
     """One object the guide asks about: a shape of the sketcher's marks."""
     shape_id: str
     mark_ids: list[str]
+    # What the subject is. People and animals are never read as shapes.
+    kind: Optional[Literal["person", "animal", "vehicle", "building", "object", "plant", "landscape", "sky", "water"]] = None
     name: str
     description: str = ""
     element: str
@@ -45,6 +47,7 @@ class GuideObject(BaseModel):
 class SceneObject(BaseModel):
     """A part of the scene a tap on the photo can pick, marked or not."""
     id: str                          # o1, o2, ...
+    kind: Optional[Literal["person", "animal", "vehicle", "building", "object", "plant", "landscape", "sky", "water"]] = None
     label: str
     description: str
     element: str

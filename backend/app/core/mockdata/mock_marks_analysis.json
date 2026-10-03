@@ -1,60 +1,251 @@
 {
   "marks": [
-    {"mark_id": "m1", "traces": "the stone figure's arms", "element": "form", "role": "big_shape", "fit": "loose"},
-    {"mark_id": "m2", "traces": "the central tower", "element": "shape", "role": "contour", "fit": "loose"},
-    {"mark_id": "m3", "traces": "the right wall's top edge", "element": "line", "role": "contour", "fit": "close"}
+    {
+      "mark_id": "m1",
+      "traces": "the stone figure's arms",
+      "element": "form",
+      "role": "big_shape",
+      "fit": "loose"
+    },
+    {
+      "mark_id": "m2",
+      "traces": "the central tower",
+      "element": "shape",
+      "role": "contour",
+      "fit": "loose"
+    },
+    {
+      "mark_id": "m3",
+      "traces": "the right wall's top edge",
+      "element": "line",
+      "role": "contour",
+      "fit": "close"
+    }
   ],
   "objects": [
-    {"shape_id": "s2", "name": "the tower", "description": "The tall dark tower in the middle", "element": "shape", "weight": "heavy",
-     "question": "You traced around the tall tower in the middle. What do you see it as?",
-     "readings": [
-       {"text": "The tower as one tall shape", "name": "the tower", "element": "shape"},
-       {"text": "The dark stone mass of the tower", "name": "the dark tower", "element": "form"}
-     ]},
-    {"shape_id": "s1", "name": "the stone figure", "description": "The big stone figure across the gate", "element": "form", "weight": "heavy",
-     "question": "You circled the big stone figure over the gate. What caught your eye there?",
-     "readings": [
-       {"text": "The figure's heavy rounded arms", "name": "the stone figure", "element": "form"},
-       {"text": "Its pale stone against the dark wall", "name": "the pale figure", "element": "value"}
-     ]}
+    {
+      "shape_id": "s2",
+      "name": "the tower",
+      "description": "The tall dark tower in the middle",
+      "element": "shape",
+      "weight": "heavy",
+      "question": "You traced around the tall tower in the middle. What do you see it as?",
+      "readings": [
+        {
+          "text": "The tall tower in the middle of the castle",
+          "name": "the tower",
+          "element": "shape"
+        },
+        {
+          "text": "Its dark stone, darker than the pale sky behind it",
+          "name": "the dark tower",
+          "element": "value"
+        }
+      ],
+      "kind": "building"
+    },
+    {
+      "shape_id": "s1",
+      "name": "the stone figure",
+      "description": "The big stone figure across the gate",
+      "element": "form",
+      "weight": "heavy",
+      "question": "You circled the big stone figure over the gate. What caught your eye there?",
+      "readings": [
+        {
+          "text": "The big stone figure over the gate",
+          "name": "the stone figure",
+          "element": "form"
+        },
+        {
+          "text": "Its pale stone against the dark castle wall",
+          "name": "the pale figure",
+          "element": "value"
+        }
+      ],
+      "kind": "object"
+    }
   ],
   "scene_objects": [
-    {"label": "the lantern post", "description": "The lantern on the right, warm orange against grey stone", "element": "color",
-     "contour_points": [800, 450, 860, 450, 860, 520, 840, 540, 840, 900, 820, 900, 820, 540, 800, 520]},
-    {"label": "the red banner", "description": "The red banner on the right wall", "element": "color",
-     "contour_points": [880, 480, 960, 480, 960, 700, 920, 650, 880, 700]},
-    {"label": "the sky", "description": "The pale empty sky above the castle", "element": "space",
-     "contour_points": [0, 0, 1000, 0, 1000, 280, 600, 300, 400, 300, 0, 280]}
+    {
+      "label": "the lantern post",
+      "description": "The lantern on the right, warm orange against grey stone",
+      "element": "color",
+      "contour_points": [
+        800,
+        450,
+        860,
+        450,
+        860,
+        520,
+        840,
+        540,
+        840,
+        900,
+        820,
+        900,
+        820,
+        540,
+        800,
+        520
+      ],
+      "kind": "object"
+    },
+    {
+      "label": "the red banner",
+      "description": "The red banner on the right wall",
+      "element": "color",
+      "contour_points": [
+        880,
+        480,
+        960,
+        480,
+        960,
+        700,
+        920,
+        650,
+        880,
+        700
+      ],
+      "kind": "object"
+    },
+    {
+      "label": "the sky",
+      "description": "The pale empty sky above the castle",
+      "element": "space",
+      "contour_points": [
+        0,
+        0,
+        1000,
+        0,
+        1000,
+        280,
+        600,
+        300,
+        400,
+        300,
+        0,
+        280
+      ],
+      "kind": "sky"
+    }
   ],
   "relationships": [
-    {"refs": ["s2", "s1"], "question": "How do {A} and {B} connect for you?",
-     "options": [
-       {"type": "scale", "text": "{B} looks small beside {A}"},
-       {"type": "contrast", "text": "{A} and {B} are opposites: sharp stone against round forms"},
-       {"type": "leading", "text": "{B} leads my eye up to {A}"}
-     ],
-     "principle_steps": [
-       {"type": "scale", "question": "What do you want to bring out?", "options": [
-         {"principle": "proportion", "text": "How tall {A} is beside {B}"},
-         {"principle": "emphasis", "text": "{B} as the focus under the tall tower"},
-         {"principle": "balance", "text": "The big tower weighed against the figure"}]},
-       {"type": "contrast", "question": "How will you show it?", "options": [
-         {"principle": "variety", "text": "The sharp tower against the round figure"},
-         {"principle": "emphasis", "text": "{B} standing out against {A}"}]},
-       {"type": "leading", "question": "What matters most here?", "options": [
-         {"principle": "movement", "text": "The climb from {B} up to {A}"},
-         {"principle": "emphasis", "text": "The top of {A} as where the eye lands"},
-         {"principle": "unity", "text": "One line tying {B} to {A}"}]},
-       {"type": "other", "question": "What do you want to bring out?", "options": [
-         {"principle": "emphasis", "text": "{A} as the one shape that stands out"},
-         {"principle": "unity", "text": "{A} and {B} reading as one silhouette"}]}
-     ]}
+    {
+      "refs": [
+        "s2",
+        "s1"
+      ],
+      "question": "How do {A} and {B} connect for you?",
+      "options": [
+        {
+          "type": "scale",
+          "text": "{B} looks small beside {A}"
+        },
+        {
+          "type": "contrast",
+          "text": "{A} and {B} are opposites: sharp stone against round forms"
+        },
+        {
+          "type": "leading",
+          "text": "{B} leads my eye up to {A}"
+        }
+      ],
+      "principle_steps": [
+        {
+          "type": "scale",
+          "question": "What do you want to bring out?",
+          "options": [
+            {
+              "principle": "proportion",
+              "text": "How tall {A} is beside {B}"
+            },
+            {
+              "principle": "emphasis",
+              "text": "{B} as the focus under the tall tower"
+            },
+            {
+              "principle": "balance",
+              "text": "The big tower weighed against the figure"
+            }
+          ]
+        },
+        {
+          "type": "contrast",
+          "question": "How will you show it?",
+          "options": [
+            {
+              "principle": "variety",
+              "text": "The sharp tower against the round figure"
+            },
+            {
+              "principle": "emphasis",
+              "text": "{B} standing out against {A}"
+            }
+          ]
+        },
+        {
+          "type": "leading",
+          "question": "What matters most here?",
+          "options": [
+            {
+              "principle": "movement",
+              "text": "The climb from {B} up to {A}"
+            },
+            {
+              "principle": "emphasis",
+              "text": "The top of {A} as where the eye lands"
+            },
+            {
+              "principle": "unity",
+              "text": "One line tying {B} to {A}"
+            }
+          ]
+        },
+        {
+          "type": "other",
+          "question": "What do you want to bring out?",
+          "options": [
+            {
+              "principle": "emphasis",
+              "text": "{A} as the one shape that stands out"
+            },
+            {
+              "principle": "unity",
+              "text": "{A} and {B} reading as one silhouette"
+            }
+          ]
+        }
+      ]
+    }
   ],
-  "balance": {"heavier": "left", "reason": "The big stone figure sits low on the left and outweighs the open right side."},
+  "balance": {
+    "heavier": "left",
+    "reason": "The big stone figure sits low on the left and outweighs the open right side."
+  },
   "form_relationships": [
-    {"forms": [{"label": "the lantern post", "x": 830, "y": 600}, {"label": "the central tower", "x": 500, "y": 350}],
-     "mark_ids": [], "element": "color", "principle": "emphasis", "observation": "The warm lantern stands apart from the grey stone."}
+    {
+      "forms": [
+        {
+          "label": "the lantern post",
+          "x": 830,
+          "y": 600
+        },
+        {
+          "label": "the central tower",
+          "x": 500,
+          "y": 350
+        }
+      ],
+      "mark_ids": [],
+      "element": "color",
+      "principle": "emphasis",
+      "observation": "The warm lantern stands apart from the grey stone."
+    }
   ],
-  "unseen": {"form_ref": 0, "question": "The lantern post on the right glows warm against the grey stone. Do you see it?"},
+  "unseen": {
+    "form_ref": 0,
+    "question": "The lantern post on the right glows warm against the grey stone. Do you see it?"
+  },
   "stroke_order_note": "The big figure came first, then the tower, then the right wall."
 }

@@ -51,7 +51,7 @@ from app.features.scene_analysis import service as scene_service
 PROMPTS = Path(__file__).parent / "prompts"
 
 # Bump when the cleaned result changes shape. Part of the cache fingerprint.
-ANALYSIS_VERSION = 4  # 4: three-step guide (objects, relationships, principle steps); 3: unseen reticle
+ANALYSIS_VERSION = 5  # 5: subject kind, plain readings; 4: three-step guide (objects, relationships, principle steps); 3: unseen reticle
 
 ROLES = ["contour", "big_shape", "eye_level", "ground_line", "perspective_guide",
          "measurement", "alignment", "gesture", "unclear"]
@@ -62,6 +62,7 @@ MAX_RELATIONSHIP_QUESTIONS = 2
 MAX_SCENE_OBJECTS = 6
 MAX_FORM_RELATIONSHIPS = 4
 WEIGHTS = ["light", "medium", "heavy"]
+KINDS = ["person", "animal", "vehicle", "building", "object", "plant", "landscape", "sky", "water"]
 SIDES = ["left", "right", "top", "bottom", "even"]
 # A form point closer than this to a mark (square units, frame long side
 # 1000) counts as marked, so the unseen question never points at it.
@@ -244,6 +245,7 @@ def response_schema() -> dict:
                     "type": "object",
                     "properties": {
                         "shape_id": {"type": "string"},
+                        "kind": {"type": "string", "enum": KINDS},
                         "name": {"type": "string"},
                         "description": {"type": "string"},
                         "element": element,
@@ -258,7 +260,7 @@ def response_schema() -> dict:
                             },
                         },
                     },
-                    "required": ["shape_id", "name", "description", "element", "weight", "question", "readings"],
+                    "required": ["shape_id", "kind", "name", "description", "element", "weight", "question", "readings"],
                 },
             },
             "scene_objects": {
@@ -266,12 +268,13 @@ def response_schema() -> dict:
                 "items": {
                     "type": "object",
                     "properties": {
+                        "kind": {"type": "string", "enum": KINDS},
                         "label": {"type": "string"},
                         "description": {"type": "string"},
                         "element": element,
                         "contour_points": {"type": "array", "items": {"type": "integer"}},
                     },
-                    "required": ["label", "description", "element", "contour_points"],
+                    "required": ["kind", "label", "description", "element", "contour_points"],
                 },
             },
             "relationships": {
@@ -438,6 +441,7 @@ def clean(raw: dict, plan: MarksPlan, intents: list[dict]) -> dict:
             "shape_id": sid,
             "mark_ids": mark_ids,
             "selected": sid in selected,
+            "kind": o.get("kind") if o.get("kind") in KINDS else None,
             "name": _safe(o.get("name")) or (rs[0]["name"] if rs else "this part"),
             "description": _safe(o.get("description")),
             "element": element,
@@ -454,6 +458,7 @@ def clean(raw: dict, plan: MarksPlan, intents: list[dict]) -> dict:
         label = _safe(o.get("label"))
         if pts and label and o.get("element") in elements:
             scene_objects.append({"id": f"o{len(scene_objects) + 1}", "label": label,
+                                  "kind": o.get("kind") if o.get("kind") in KINDS else None,
                                   "description": _safe(o.get("description")) or label,
                                   "element": o["element"], "points": pts})
         if len(scene_objects) >= MAX_SCENE_OBJECTS:
@@ -594,7 +599,7 @@ def assemble(cleaned: dict, sketch, cached_scene: dict | None, selected_ids: set
         "debug": DEBUG,
         "scene_type": scene.get("scene_type"),
         "marks": cleaned.get("marks") or [],
-        "objects": [{k: o[k] for k in ("shape_id", "mark_ids", "name", "description", "element", "weight", "readings", "selected")}
+        "objects": [{k: o[k] for k in ("shape_id", "mark_ids", "kind", "name", "description", "element", "weight", "readings", "selected")}
                     for o in objects.values()],
         "scene_objects": cleaned.get("scene_objects") or [],
         "balance": cleaned.get("balance"),
