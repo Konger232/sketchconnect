@@ -51,7 +51,7 @@ from app.features.scene_analysis import service as scene_service
 PROMPTS = Path(__file__).parent / "prompts"
 
 # Bump when the cleaned result changes shape. Part of the cache fingerprint.
-ANALYSIS_VERSION = 5  # 5: subject kind, plain readings; 4: three-step guide (objects, relationships, principle steps); 3: unseen reticle
+ANALYSIS_VERSION = 6  # 6: word limits; 5: subject kind, plain readings; 4: three-step guide (objects, relationships, principle steps); 3: unseen reticle
 
 ROLES = ["contour", "big_shape", "eye_level", "ground_line", "perspective_guide",
          "measurement", "alignment", "gesture", "unclear"]
@@ -358,6 +358,35 @@ def _safe(text) -> str:
     return t if _no_ids(t) else ""
 
 
+# Word limits from the prompt ("Length"). Not enforced: cutting a line
+# mid-phrase reads worse than a long one. DEBUG logs every overrun so
+# the prompt can be tuned.
+WORD_LIMITS = {"question": 12, "text": 8, "name": 4, "label": 4, "description": 8}
+
+
+def _log_long(cleaned: dict) -> None:
+    def check(field, value):
+        if isinstance(value, str) and len(value.split()) > WORD_LIMITS[field]:
+            print(f"[marks_analysis] long {field} ({len(value.split())} words): {value}")
+    for o in cleaned["objects"]:
+        for f in ("question", "name", "description"):
+            check(f, o.get(f))
+        for r in o["readings"]:
+            check("text", r["text"])
+            check("name", r["name"])
+    for o in cleaned["scene_objects"]:
+        check("label", o["label"])
+        check("description", o["description"])
+    for r in cleaned["relationships"]:
+        check("question", r["question"])
+        for o in r["options"]:
+            check("text", o["text"])
+        for st in r["principle_steps"].values():
+            check("question", st["question"])
+            for o in st["options"]:
+                check("text", o["text"])
+
+
 def _contour(flat) -> list[list[int]] | None:
     """Flat [x1, y1, ...] in 0-1000 as [[x, y], ...], at least 3 points, at most 14."""
     if not isinstance(flat, list):
@@ -631,6 +660,7 @@ def analyze(pil_image: Image.Image, sketch, cached_scene: dict | None, style: st
     )
     cleaned = clean(raw, plan, intents)
     if DEBUG:
+        _log_long(cleaned)
         print("\n--- Marks Analysis decision ---")
         for m in cleaned["marks"]:
             print(f"  {m['mark_id']}: {m['traces']} ({m['element']}, {m['role']}, fit {m['fit']})")

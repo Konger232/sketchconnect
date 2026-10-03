@@ -56,18 +56,18 @@ One entry for every mark id, in order. `traces`: a short noun phrase for what th
 The objects the guide asks about, one per shape. When the session lists selected shapes, use those, in that order. Otherwise pick the shapes that carry a subject.
 - `shape_id`: exactly as listed, such as s1.
 - `kind`: what the subject is: `person`, `animal`, `vehicle`, `building`, `object`, `plant`, `landscape`, `sky` or `water`. People and animals are never objects or shapes.
-- `name`: a short noun phrase that says plainly what it is, such as "the man in the yellow hoodie" or "the lantern". Name people and animals as people and animals. It fills {A} or {B} later.
+- `name`: a short noun phrase that says plainly what it is, such as "the man in yellow" or "the lantern". Name people and animals as people and animals. It fills {A} or {B} later.
 - `description`: one short line on what the marks point at, such as "The lantern on the right, warm orange against grey stone".
 - `element`: the element the marks most likely point at.
 - `weight`: light, medium or heavy. Visual weight comes from size, value (dark is heavier), color (warm and saturated are heavier), texture and detail, isolation, and distance from the center.
 - `question`: one of the seeing-as versions, fitted to the mark. Name the mark by what it is and where it is. Example: "Your dot sits on the lantern on the right. What caught your eye there?"
 - `readings`: exactly two. Each has `text` (one short line), `name` (a short noun phrase for {A} or {B}) and `element`.
-  - **First reading: the subject itself.** Say plainly what it is and where it sits in the frame, the way a person would point it out. Example: "The man in the yellow hoodie in the left foreground". Never describe a person or an animal as a shape or a mass.
-  - **Second reading: one visual quality of that same subject** that could have caught the eye: its color, its light or dark, its texture, or its outline. Name both sides of any comparison with concrete things in the photo. Example: "His yellow hoodie, bright against the dark brick wall behind him". Never compare against something vague such as "dark tones", "the background" or "its surroundings".
+  - **First reading: the subject itself.** Say plainly what it is and where it sits in the frame, the way a person would point it out. Example: "The man in yellow, left foreground". Never describe a person or an animal as a shape or a mass.
+  - **Second reading: one visual quality of that same subject** that could have caught the eye: its color, its light or dark, its texture, or its outline. Name both sides of any comparison with concrete things in the photo. Example: "His yellow hoodie against the dark brick wall". Never compare against something vague such as "dark tones", "the background" or "its surroundings".
   - Plain words a beginner uses. No design terms in the text: not "shape", "form", "tones", "mass", "element" or "composition".
 
 ### `scene_objects` (up to 6)
-The parts of the scene the sketcher might tap, marked or not: people, animals, things, strong colors, textures, spaces. Each has `kind` (as for objects), `label` (a short noun phrase that says plainly what it is, such as "the woman in the lilac top"), `description` (one short line in plain words, naming where it is), `element`, and `contour_points`: a flat list of 8 to 14 (x, y) pairs tracing its visible outline in Image 1. Not a box.
+The parts of the scene the sketcher might tap, marked or not: people, animals, things, strong colors, textures, spaces. Each has `kind` (as for objects), `label` (a short noun phrase that says plainly what it is, such as "the woman in lilac"), `description` (one short line in plain words, naming where it is), `element`, and `contour_points`: a flat list of 8 to 14 (x, y) pairs tracing its visible outline in Image 1. Not a box.
 
 ### `relationships` (1 or 2)
 - `refs`: two object shape ids for a pair, or one for a lone object such as a single dot.
@@ -85,6 +85,14 @@ How forms in the scene relate, marked or not. Include at least one entry no mark
 
 ### `stroke_order_note`
 One sentence on the order the marks were drawn. Describe it. Never judge it.
+
+### Length
+The sketcher reads this on a phone, on location. Keep every line short. Count the words.
+- `question`: 12 words at most.
+- Every option `text` (readings, relationship options, principle options): 8 words at most. One idea per option.
+- `name` and `label`: 4 words at most, such as "the man in yellow".
+- `description`: 8 words at most, such as "The woman in lilac, right of the table".
+Cut adjectives before you cut the subject or where it is.
 
 ### Ids
 Mark ids (m1, ...) and shape ids (s1, ...) are for you only. Never write an id in any text the sketcher reads.
