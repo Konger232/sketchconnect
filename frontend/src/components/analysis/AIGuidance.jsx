@@ -167,13 +167,14 @@ function savedIndex(choice, prompt) {
  * and its ">" moves on without saving again. Picking another option
  * replaces the answer (the server keeps one per question).
  *
- * The sketcher can mark a spot from Guides, Plan, Mark a spot. `spot` is
- * that spot; it is saved with the answer, then onSpotClear() clears it.
+ * A tap on empty space while a question takes a tap as its answer sets a
+ * spot (EditSketch handlePickAt). `spot` is that spot; it is saved with
+ * the answer, then onSpotClear() clears it.
  *
  * An option can carry an overlay (prompt.option_actions, from
  * question_bank.json): picking it calls onAction(name), and the page turns
- * that overlay on. Names: proportions, perspective,
- * value_study, rule_of_thirds, grid.
+ * that overlay on until the question after next. Names: value_study,
+ * grid, proportions, perspective (only value_study is in the bank now).
  */
 export default function AIGuidance({
   sketchId,
@@ -830,7 +831,7 @@ export default function AIGuidance({
             <div className="flex animate-fade-in-up flex-col gap-3">
               {backButton}
               <p className="font-heading text-question font-bold text-white">That's all for now.</p>
-              <p className="sc-body">Open Guides on the photo any time. Ask a question whenever you get stuck.</p>
+              <p className="sc-body">Ask a question whenever you get stuck.</p>
               {analysis.prepared_prompts.length > 0 && (
                 <Button variant="choice" onClick={() => setPromptIndex(nextAsked(analysis.prepared_prompts, 0, choices))}>
                   Go through the questions again

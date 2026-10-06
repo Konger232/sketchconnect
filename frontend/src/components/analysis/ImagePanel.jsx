@@ -17,8 +17,7 @@ export default function ImagePanel({
   // image silently never loads (onLoad never fires, box stays null, and
   // ImagePanel renders it at 1px/opacity:0 below).
   crossOrigin,
-  // Extra class on the <img> only, e.g. 'photo-bw' for the Marks step's
-  // black-and-white toggle. The SVG overlay on top is not affected.
+  // Extra class on the <img> only. The SVG overlay on top is not affected.
   imageClassName = '',
   zoom = 1,
   offset = { x: 0, y: 0 },

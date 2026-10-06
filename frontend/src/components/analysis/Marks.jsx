@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../common/Icon'
-import { markGroups, squareScale } from '../../lib/markGeometry'
+import { squareScale } from '../../lib/markGeometry'
 
 /**
  * Marks: freehand lines the sketcher draws over their framed photo
@@ -24,23 +24,28 @@ import { markGroups, squareScale } from '../../lib/markGeometry'
  *   - erased: the Eraser keeps the mark as data and hides it, so the
  *     critique can see where the sketcher changed their mind. erased_ms is
  *     when. Undo removes a stroke entirely (a slip, not a revision).
- *   - selected: the sketcher's focus. The Select tool sets it.
+ *   - selected: the sketcher's focus. With the Pen, a tap on a line already
+ *     drawn selects it, and a second tap unselects it (no Select tool since
+ *     October 6, 2026). Marks analysis asks about selected marks first.
  *
- * Three pieces:
+ * Four pieces:
  *   - useMarkDrawing: pointer handling + the marks list (CreateSketch).
- *     Tool 'pen' draws, 'select' selects, 'eraser' erases the mark under
- *     the tap.
+ *     Tool 'pen' draws (a tap on a drawn line selects or unselects it),
+ *     'eraser' erases the mark under the tap.
  *   - MarksLayer: an SVG <g> that renders visible marks inside any 0-1000
  *     viewBox overlay (CreateSketch, GuideStage), with a halo under
- *     selected marks
- *   - MarkPanel (default): the Marks step controls: Pen, Select, Eraser,
- *     Undo, line size (0.5 / 1 / 2) and the B&W photo toggle
+ *     highlighted marks
+ *   - MarkPanel (default): the Marks step tools in the right panel, on
+ *     tablet and desktop: Pen, Eraser, Undo, Color, Line
+ *   - MarkRail: the same tools as a floating rail on the photo, on a phone
  */
 
-// Every new mark uses the --mark-color token and one of the --mark-size-*
-// tokens (index.css). The colour is stored as a hex value with the mark
-// (composite.py draws it). The size is stored as size_mm, and the width is
-// converted to frame units when the stroke starts.
+// Every mark uses one of the --mark-color-* tokens and one of the
+// --mark-size-* tokens (index.css). The colour is stored as a hex value
+// with the mark (composite.py draws it). All marks share one colour:
+// picking another redraws every mark (design doc, item 21). The size is
+// stored as size_mm, and the width is converted to frame units when the
+// stroke starts.
 function markToken(name, fallback) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
   return v || fallback
@@ -55,6 +60,32 @@ export const MARK_SIZES = [
 ]
 export const DEFAULT_MARK_SIZE = 'medium'
 
+// The line colours in the Marks tools, in order.
+export const MARK_COLORS = [
+  { key: 'red', label: 'Red', token: '--mark-color-red', fallback: '#f87171' },
+  { key: 'yellow', label: 'Yellow', token: '--mark-color-yellow', fallback: '#fde68a' },
+  { key: 'green', label: 'Green', token: '--mark-color-green', fallback: '#86efac' },
+]
+export const DEFAULT_MARK_COLOR = 'yellow'
+
+// A Pen stroke that stays within this many frame units of where it started
+// is a tap. A tap on a drawn line selects or unselects it; a tap anywhere
+// else leaves a dot.
+const TAP_REACH = 6
+
+// A colour key as the hex value stored with a mark.
+export function markColor(key) {
+  const c = MARK_COLORS.find((m) => m.key === key) || MARK_COLORS[1]
+  return markToken(c.token, c.fallback)
+}
+
+// How to select a mark: shown under the tools (MarkPanel) and, on a phone,
+// in the panel below the photo (CreateSketch).
+export const SELECT_HINT = 'Tap a line you drew to select it. Tap it again to unselect. Selected lines are asked about first.'
+
+// The label for a size button: the token's number, so "0.5mm" shows "0.5".
+const sizeLabel = (s) => markToken(s.token, s.fallback).replace(/mm$/, '')
+
 // A size token in mm (or px), as { mm, px }. CSS has 96 px per inch.
 function sizeFromToken(key) {
   const size = MARK_SIZES.find((s) => s.key === key) || MARK_SIZES[1]
@@ -65,7 +96,8 @@ function sizeFromToken(key) {
   return { mm: Math.round(mm * 100) / 100, px }
 }
 
-// How close (frame units) a tap has to be to a mark for Select and Eraser.
+// How close (frame units) a tap has to be to a mark for the Eraser and for
+// answering a guided question by tapping a line.
 const HIT_REACH = 25
 
 // Minimum distance (frame units) between kept points -- keeps the saved
@@ -80,7 +112,7 @@ export const isVisibleMark = (m) => Boolean(m?.points?.length) && !m.erased
 // The last-drawn visible mark with a point within HIT_REACH of p, or null.
 // p is in frame units; the distance is measured in square units, using the
 // frame's aspect (width / height; lib/markGeometry.js squareScale). Used by
-// Select and Eraser here and by EditSketch.
+// the Eraser here and by EditSketch.
 export function markAtPoint(marks, p, aspect = 1) {
   const [sx, sy] = squareScale(aspect)
   for (let i = marks.length - 1; i >= 0; i--) {
@@ -88,33 +120,6 @@ export function markAtPoint(marks, p, aspect = 1) {
     if (isVisibleMark(m) && m.points.some((q) => Math.hypot((q[0] - p[0]) * sx, (q[1] - p[1]) * sy) <= HIT_REACH)) return m
   }
   return null
-}
-
-/**
- * The Select tool's tap cycle, as a new marks list. An unselected mark ->
- * select it. A selected mark whose shape (markGroups) has other marks not
- * yet selected -> select the whole shape. Otherwise -> clear the whole
- * shape. Shared by the Marks step and Edit's Plan photo (GuideStage).
- */
-export function cycleSelection(marks, hitId, aspect = 1) {
-  const hit = marks.find((m) => m.id === hitId)
-  if (!hit) return marks
-  const shape = markGroups(marks, aspect).get(hit.id) || [hit.id]
-  const byId = new Map(marks.map((m) => [m.id, m]))
-  let ids
-  let value
-  if (!hit.selected) {
-    ids = [hit.id]
-    value = true
-  } else if (shape.length > 1 && shape.some((id) => !byId.get(id)?.selected)) {
-    ids = shape
-    value = true
-  } else {
-    ids = shape
-    value = false
-  }
-  const set = new Set(ids)
-  return marks.map((m) => (set.has(m.id) ? { ...m, selected: value } : m))
 }
 
 // Screen px per frame unit, from the enclosing <svg>'s rendered width.
@@ -204,7 +209,7 @@ function nextIdAfter(marks) {
  * Pointer handlers go on the element that receives the gestures (ImagePanel's
  * container); positions are measured against svgRef, the 0-1000 overlay.
  */
-export function useMarkDrawing(svgRef, { enabled, tool = 'pen', size = DEFAULT_MARK_SIZE }) {
+export function useMarkDrawing(svgRef, { enabled, tool = 'pen', size = DEFAULT_MARK_SIZE, color = DEFAULT_MARK_COLOR }) {
   const [marks, setMarksState] = useState([])
   const [live, setLive] = useState(null)
   const liveRef = useRef(null) // { mark, pointerId }
@@ -254,9 +259,10 @@ export function useMarkDrawing(svgRef, { enabled, tool = 'pen', size = DEFAULT_M
     setHistory((h) => [...h, { type: 'erase', id: hit.id }])
   }
 
-  function selectAt(p) {
-    const hit = markAt(p)
-    if (hit) setMarks((prev) => cycleSelection(prev, hit.id, frameAspect()))
+  // One colour for every mark: picking a colour redraws them all.
+  function recolor(key) {
+    const hex = markColor(key)
+    setMarks((prev) => prev.map((m) => (m.color === hex ? m : { ...m, color: hex })))
   }
 
   function onPointerDown(e) {
@@ -269,10 +275,6 @@ export function useMarkDrawing(svgRef, { enabled, tool = 'pen', size = DEFAULT_M
       eraseAt(p)
       return
     }
-    if (tool === 'select') {
-      selectAt(p)
-      return
-    }
     e.currentTarget.setPointerCapture?.(e.pointerId)
     // The size token is on-screen mm; store the width in frame units (px on
     // a 1000px-wide frame) so the line keeps its weight on any screen, and
@@ -282,7 +284,7 @@ export function useMarkDrawing(svgRef, { enabled, tool = 'pen', size = DEFAULT_M
     const width = round1(px * (1000 / svgWidth))
     const mark = {
       id: `m${nextIdRef.current++}`,
-      color: markToken('--mark-color', '#fde68a'),
+      color: markColor(color),
       width,
       size_mm: mm,
       points: [p.map(round1)],
@@ -316,6 +318,14 @@ export function useMarkDrawing(svgRef, { enabled, tool = 'pen', size = DEFAULT_M
     if (!cur || e.pointerId !== cur.pointerId) return
     liveRef.current = null
     setLive(null)
+    // A tap on a line already drawn: select it, or unselect it. No new mark.
+    const [x0, y0] = cur.mark.points[0]
+    const isTap = cur.mark.points.every(([x, y]) => Math.hypot(x - x0, y - y0) <= TAP_REACH)
+    const hit = isTap ? markAt([x0, y0]) : null
+    if (hit) {
+      setMarks((prev) => prev.map((m) => (m.id === hit.id ? { ...m, selected: !m.selected } : m)))
+      return
+    }
     const mark = { ...cur.mark, duration_ms: Math.max(0, elapsed() - cur.mark.started_ms) }
     setMarks((prev) => [...prev, mark])
     setHistory((h) => [...h, { type: 'draw', id: mark.id }])
@@ -353,23 +363,29 @@ export function useMarkDrawing(svgRef, { enabled, tool = 'pen', size = DEFAULT_M
     count: marks.filter(isVisibleMark).length,
     canUndo: history.length > 0,
     undo,
+    recolor,
     clear,
     handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp },
   }
 }
 
+// The tools' shared props: tool, onToolChange, size, onSizeChange, color,
+// onColorChange, count, canUndo, onUndo, disabled. Picking a size or a
+// colour also picks the Pen.
+
 /**
- * The Marks step controls: Pen, Select, Eraser, Undo on the first row;
- * line size and the B&W photo toggle on the second. Two rows so it fits
- * a phone. The step is optional; Skip lives in the footer.
+ * The Marks step tools in the right panel (tablet and desktop, where
+ * there is room): how to select a mark first, then one tool per row: Pen,
+ * Eraser, Undo, Color and Line. The step is optional; Skip lives in the
+ * footer.
  */
 export default function MarkPanel({
   tool,
   onToolChange,
   size = DEFAULT_MARK_SIZE,
   onSizeChange,
-  blackAndWhite = false,
-  onBlackAndWhiteChange,
+  color = DEFAULT_MARK_COLOR,
+  onColorChange,
   count,
   canUndo,
   onUndo,
@@ -381,50 +397,166 @@ export default function MarkPanel({
     }`
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex flex-wrap items-center gap-1">
-        <button type="button" aria-pressed={tool === 'pen'} className={toolClass(tool === 'pen')} onClick={() => onToolChange('pen')}>
-          <Icon name="pen" size={18} />Pen
-        </button>
-        <button type="button" aria-pressed={tool === 'select'} className={toolClass(tool === 'select')} onClick={() => onToolChange('select')} disabled={disabled || count === 0}>
-          Select
-        </button>
-        <button type="button" aria-pressed={tool === 'eraser'} className={toolClass(tool === 'eraser')} onClick={() => onToolChange('eraser')} disabled={disabled || count === 0}>
-          Eraser
-        </button>
-        <button type="button" className={toolClass(false)} onClick={onUndo} disabled={disabled || !(canUndo ?? count > 0)}>
-          Undo
-        </button>
-        <span className="ml-auto whitespace-nowrap text-sm font-semibold text-sc-text3">Optional</span>
+      <p className="pb-2 text-sm text-sc-text3">{SELECT_HINT}</p>
+      <button type="button" aria-pressed={tool === 'pen'} className={`self-start ${toolClass(tool === 'pen')}`} onClick={() => onToolChange('pen')}>
+        <Icon name="pen" size={18} />Pen
+      </button>
+      <button type="button" aria-pressed={tool === 'eraser'} className={`self-start ${toolClass(tool === 'eraser')}`} onClick={() => onToolChange('eraser')} disabled={disabled || count === 0}>
+        <Icon name="eraser" size={18} />Eraser
+      </button>
+      <button type="button" className={`self-start ${toolClass(false)}`} onClick={onUndo} disabled={disabled || !(canUndo ?? count > 0)}>
+        <Icon name="undo" size={18} />Undo
+      </button>
+      <div className="flex items-center gap-1">
+        <span className="flex w-24 shrink-0 items-center gap-1.5 pl-3 text-base font-semibold text-sc-text2" id="mark-color-label">
+          <Icon name="color" size={18} />Color
+        </span>
+        <div role="group" aria-labelledby="mark-color-label" className="flex items-center gap-1">
+          {MARK_COLORS.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              aria-pressed={color === c.key}
+              aria-label={`${c.label} lines`}
+              className={toolClass(color === c.key)}
+              onClick={() => { onColorChange?.(c.key); onToolChange('pen') }}
+              disabled={disabled}
+            >
+              <span className="h-4 w-4 rounded-full" style={{ background: markColor(c.key) }} />
+            </button>
+          ))}
+        </div>
       </div>
       <div className="flex items-center gap-1">
-        <span className="pr-1 text-sm font-semibold text-sc-text3" id="mark-size-label">Line</span>
+        <span className="flex w-24 shrink-0 items-center gap-1.5 pl-3 text-base font-semibold text-sc-text2" id="mark-size-label">
+          <Icon name="thickness" size={18} />Line
+        </span>
         <div role="group" aria-labelledby="mark-size-label" className="flex items-center gap-1">
-          {MARK_SIZES.map((s) => {
-            const label = markToken(s.token, s.fallback).replace(/mm$/, '')
-            return (
-              <button
-                key={s.key}
-                type="button"
-                aria-pressed={size === s.key}
-                aria-label={`${label} mm line`}
-                className={toolClass(size === s.key)}
-                onClick={() => { onSizeChange?.(s.key); onToolChange('pen') }}
-                disabled={disabled}
-              >
-                {label}
-              </button>
-            )
-          })}
+          {MARK_SIZES.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              aria-pressed={size === s.key}
+              aria-label={`${sizeLabel(s)} mm line`}
+              className={toolClass(size === s.key)}
+              onClick={() => { onSizeChange?.(s.key); onToolChange('pen') }}
+              disabled={disabled}
+            >
+              {sizeLabel(s)}
+            </button>
+          ))}
         </div>
-        <button
-          type="button"
-          aria-pressed={blackAndWhite}
-          className={`ml-auto ${toolClass(blackAndWhite)}`}
-          onClick={() => onBlackAndWhiteChange?.(!blackAndWhite)}
-        >
-          B&amp;W
-        </button>
       </div>
+    </div>
+  )
+}
+
+/**
+ * The Marks step tools as a floating rail on the photo, for a phone, where
+ * the right panel sits below the photo. Same look as the old Guides rail
+ * (the .rail classes in index.css).
+ *
+ *   collapsed   one "Marks" button, bottom right
+ *   open        Pen, Color, Eraser, Line, Undo, and a close button. Color
+ *               and Line slide their choices out to the left, level with
+ *               the button: red, yellow, green; 0.5, 1, 2.
+ */
+export function MarkRail({
+  tool,
+  onToolChange,
+  size = DEFAULT_MARK_SIZE,
+  onSizeChange,
+  color = DEFAULT_MARK_COLOR,
+  onColorChange,
+  count,
+  canUndo,
+  onUndo,
+  disabled,
+}) {
+  const [open, setOpen] = useState(false)
+  const [sub, setSub] = useState(null) // 'color' | 'line' | null
+
+  if (!open) {
+    return (
+      <button type="button" className="rail-toggle" aria-expanded="false" onClick={() => setOpen(true)}>
+        <Icon name="pen" size={22} />
+        Marks
+      </button>
+    )
+  }
+
+  const pick = (t) => { setSub(null); onToolChange(t) }
+  const button = (key, label, icon, props) => (
+    <button key={key} type="button" className="rail-group" disabled={disabled} {...props}>
+      <Icon name={icon} size={18} />
+      {label}
+    </button>
+  )
+  const subRail = (label, items) => (
+    <div className="rail absolute right-full top-1/2 mr-3.5 -translate-y-1/2 flex-col animate-fade-in-scale" role="group" aria-label={label}>
+      {items}
+    </div>
+  )
+
+  return (
+    <div className="rail flex-col" role="toolbar" aria-label="Marks" aria-orientation="vertical">
+      {button('pen', 'Pen', 'pen', { 'aria-pressed': tool === 'pen' && !sub, onClick: () => pick('pen') })}
+      <div className="relative">
+        {button('color', 'Color', 'color', {
+          'aria-pressed': sub === 'color',
+          'aria-expanded': sub === 'color',
+          style: { color: sub === 'color' ? undefined : markColor(color) },
+          onClick: () => setSub((cur) => (cur === 'color' ? null : 'color')),
+        })}
+        {sub === 'color' && subRail('Color', MARK_COLORS.map((c) => (
+          <button
+            key={c.key}
+            type="button"
+            className="rail-tool flex items-center gap-2"
+            aria-pressed={color === c.key}
+            onClick={() => { onColorChange?.(c.key); pick('pen') }}
+          >
+            <span className="h-3.5 w-3.5 rounded-full" style={{ background: markColor(c.key) }} />
+            {c.label}
+          </button>
+        )))}
+      </div>
+      {button('eraser', 'Eraser', 'eraser', {
+        'aria-pressed': tool === 'eraser' && !sub,
+        disabled: disabled || count === 0,
+        onClick: () => pick('eraser'),
+      })}
+      <div className="relative">
+        {button('line', 'Line', 'thickness', {
+          'aria-pressed': sub === 'line',
+          'aria-expanded': sub === 'line',
+          onClick: () => setSub((cur) => (cur === 'line' ? null : 'line')),
+        })}
+        {sub === 'line' && subRail('Line thickness', MARK_SIZES.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            className="rail-tool"
+            aria-pressed={size === s.key}
+            aria-label={`${sizeLabel(s)} mm line`}
+            onClick={() => { onSizeChange?.(s.key); pick('pen') }}
+          >
+            {sizeLabel(s)}
+          </button>
+        )))}
+      </div>
+      {button('undo', 'Undo', 'undo', {
+        disabled: disabled || !(canUndo ?? count > 0),
+        onClick: () => { setSub(null); onUndo() },
+      })}
+      <button
+        type="button"
+        aria-label="Close marks tools"
+        className="flex h-11 w-[var(--rail-button)] items-center justify-center rounded-xl text-sc-muted hover:text-white"
+        onClick={() => { setSub(null); setOpen(false) }}
+      >
+        <Icon name="close" size={14} />
+      </button>
     </div>
   )
 }

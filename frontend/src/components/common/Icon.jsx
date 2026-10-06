@@ -205,6 +205,46 @@ const ICONS = {
     content: <path d="M4 20l4-1 11-11-3-3L5 16l-1 4Z" />,
   },
 
+  // Marks tools (Marks.jsx MarkPanel and MarkRail): Color, Eraser, Line
+  // thickness and Undo, beside Pen above.
+  color: {
+    viewBox: '0 0 24 24',
+    draw: STROKE,
+    content: <path d="M12 3c3.5 4.2 6 7.6 6 10.5a6 6 0 0 1-12 0C6 10.6 8.5 7.2 12 3Z" />,
+  },
+  eraser: {
+    viewBox: '0 0 24 24',
+    draw: STROKE,
+    content: (
+      <>
+        <path d="M4.5 15.5 14 6a2 2 0 0 1 2.8 0l2.7 2.7a2 2 0 0 1 0 2.8L12 19H8l-3.5-3.5Z" />
+        <path d="m9.5 10.5 5 5" />
+        <path d="M12 19h8" />
+      </>
+    ),
+  },
+  thickness: {
+    viewBox: '0 0 24 24',
+    draw: STROKE,
+    content: (
+      <>
+        <path d="M4 6h16" strokeWidth="1" />
+        <path d="M4 12h16" strokeWidth="2" />
+        <path d="M4 18h16" strokeWidth="3.5" />
+      </>
+    ),
+  },
+  undo: {
+    viewBox: '0 0 24 24',
+    draw: STROKE,
+    content: (
+      <>
+        <path d="M9 14 4 9l5-5" />
+        <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+      </>
+    ),
+  },
+
   // Chevron pointing right, for the next button inside a picked choice.
   'chevron-right': {
     viewBox: '0 0 20 20',

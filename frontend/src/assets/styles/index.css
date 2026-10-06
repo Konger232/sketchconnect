@@ -176,16 +176,12 @@
   .trace-tag      { @apply rounded-full px-2.5 py-0.5 text-sm font-semibold;
                     background: var(--trace-tag-bg); color: var(--trace-tag-ink); }
 
-  /* Floating guide rail (GuideStage.jsx). */
+  /* Floating Marks rail (Marks.jsx MarkRail), on a phone in the Marks step. */
   .rail           { @apply flex gap-1 rounded-[var(--rail-radius)] border-[1.5px] border-sc-rail-border bg-sc-rail p-1; }
   .rail-group     { @apply relative flex h-[var(--rail-button)] w-[var(--rail-button)] flex-col items-center justify-center gap-0.5
                            rounded-xl text-2xs font-bold text-sc-text; }
-  .rail-count     { @apply absolute flex items-center justify-center rounded-full font-bold leading-none;
-                    top: var(--rail-count-offset); right: var(--rail-count-offset);
-                    min-width: var(--rail-count-size); height: var(--rail-count-size); padding: 0 4px;
-                    font-size: var(--rail-count-font-size);
-                    background: var(--rail-count-bg); color: var(--rail-count-ink); }
   .rail-group[aria-pressed='true'] { @apply bg-sc-guide text-sc-guide-ink; }
+  .rail-group:disabled { @apply opacity-40; }
   .rail-tool      { @apply whitespace-nowrap rounded-[10px] text-left font-bold text-sc-text;
                     height: var(--rail-tool-height); min-width: var(--rail-tool-min-width);
                     padding: 0 var(--rail-tool-padding-x); font-size: var(--rail-tool-font-size); }
@@ -268,17 +264,20 @@
   --focal-ring-width: 3px;               /* blue ring */
   --focal-ring-halo: 5px;                /* white halo under the ring */
 
-  /* Marks (Marks.jsx): every new mark uses this colour. Line sizes are
-     the three choices in the Marks panel, on screen, in mm. The button
+  /* Marks (Marks.jsx): the three line colours in the Marks tools. All
+     marks share one colour; picking another redraws every mark in it.
+     --mark-color is the colour a new sketch starts with. Line sizes are
+     the three choices in the Marks tools, on screen, in mm. The button
      label is the number, so "0.5mm" shows as "0.5". */
-  --mark-color: #fde68a;
+  --mark-color-red: #f87171;
+  --mark-color-yellow: #fde68a;
+  --mark-color-green: #86efac;
+  --mark-color: var(--mark-color-yellow);
   --mark-size-fine: 0.5mm;
   --mark-size-medium: 1mm;               /* the default */
   --mark-size-bold: 2mm;
-  /* Black-and-white photo while marking (the B&W toggle). Marks keep
-     their colour; only the photo changes. */
-  --mark-bw-filter: grayscale(1) contrast(1.1);
-  /* Selected marks (the Select tool): a halo under the line, in the
+  /* Highlighted marks (a guided question about them, or marks selected
+     before October 6, 2026): a halo under the line, in the
      sketcher's focal blue. Width is added on each side of the mark. While
      any mark is selected, the others fade to --mark-dim-opacity. */
   --mark-select-halo: var(--focal-accent-user);
@@ -351,23 +350,17 @@
   --action-bg: #fbbf24;
   --action-fg: #111827;
 
-  /* Guide rail (GuideStage.jsx). */
-  --rail-bg: rgba(17, 24, 39, 0.94);
+  /* Marks rail (Marks.jsx MarkRail). */
+  --rail-bg: rgba(17, 24, 39, 0.7);       /* both levels of the rail, and the hint over the photo */
   --rail-border: #4b5563;
   --rail-radius: 16px;
   --rail-button: 48px;                   /* group button, square */
-  --rail-toggle: 60px;                   /* collapsed Guides button */
-  /* Tool buttons in an open group (Focal areas, Proportions, ...). */
+  --rail-toggle: 60px;                   /* collapsed Marks button */
+  /* Choices beside an open button (Color: red, yellow, green; Line: 0.5, 1, 2). */
   --rail-tool-height: 36px;              /* each tool button's height */
   --rail-tool-font-size: var(--text-sm); /* label size (14px); try 1rem for 16px */
   --rail-tool-padding-x: 14px;           /* space left and right of the label */
   --rail-tool-min-width: 0px;            /* raise to make every tool the same width */
-  /* Count badge on a group button: how many of its tools are on. */
-  --rail-count-size: 14px;
-  --rail-count-font-size: 8px;
-  --rail-count-offset: 3px;              /* distance from the button's top-right corner */
-  --rail-count-bg: #60a5fa;
-  --rail-count-ink: #111827;
 
   /* Master knob: scales all text, not spacing. 1 = the sizes below. */
   --font-scale: 1;
@@ -505,11 +498,6 @@
 .mark-dim {
   opacity: var(--mark-dim-opacity);
   transition: opacity var(--guide-fade-in) ease;
-}
-
-/* B&W toggle in the Marks step (Marks.jsx): the photo only, not the marks. */
-.photo-bw {
-  filter: var(--mark-bw-filter);
 }
 
 /* Crop frame (ImagePanel.jsx, crop step): white border, rule-of-thirds

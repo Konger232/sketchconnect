@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useLayoutEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ImagePanel from '../components/analysis/ImagePanel'
-import MarkPanel, { DEFAULT_MARK_SIZE, MarksLayer, useMarkDrawing } from '../components/analysis/Marks'
+import MarkPanel, { DEFAULT_MARK_COLOR, DEFAULT_MARK_SIZE, MarkRail, MarksLayer, SELECT_HINT, useMarkDrawing } from '../components/analysis/Marks'
 import Fade from '../components/analysis/Fade'
 
 import Button from '../components/common/Button'
@@ -112,9 +112,26 @@ export default function CreateSketch() {
   // ===== STATE: FOCAL POINTS AND MARKS =====
   const [markTool, setMarkTool] = useState('pen')
   const [markSize, setMarkSize] = useState(DEFAULT_MARK_SIZE)
-  // B&W photo while marking. View only: nothing is saved.
-  const [markBlackAndWhite, setMarkBlackAndWhite] = useState(false)
-  const drawing = useMarkDrawing(svgRef, { enabled: step === 'marks', tool: markTool, size: markSize })
+  // One colour for every mark: picking another redraws them all.
+  const [markColor, setMarkColor] = useState(DEFAULT_MARK_COLOR)
+  const drawing = useMarkDrawing(svgRef, { enabled: step === 'marks', tool: markTool, size: markSize, color: markColor })
+  function handleMarkColor(key) {
+    setMarkColor(key)
+    drawing.recolor(key)
+  }
+  // The Marks tools' props: the right panel (tablet, desktop) and the
+  // floating rail on the photo (phone) share them.
+  const markTools = {
+    tool: markTool,
+    onToolChange: setMarkTool,
+    size: markSize,
+    onSizeChange: setMarkSize,
+    color: markColor,
+    onColorChange: handleMarkColor,
+    count: drawing.count,
+    canUndo: drawing.canUndo,
+    onUndo: drawing.undo,
+  }
 
   // ===== STATE: ANALYSIS =====
   // Framing and location are already done; the wait starts on the title.
@@ -630,7 +647,6 @@ export default function CreateSketch() {
             // bakeCrop draws this <img> onto a canvas. Without CORS loading,
             // the backend photo taints the canvas and the export fails.
             crossOrigin="anonymous"
-            imageClassName={step === 'marks' && markBlackAndWhite ? 'photo-bw' : ''}
             // Crop and marks work on the original upload through the frame.
             imageUrl={originalImageUrl}
             zoom={zoom}
@@ -655,6 +671,14 @@ export default function CreateSketch() {
           <div className="flex min-h-0 flex-1 items-center gap-3 p-5 md:p-[var(--stage-inset)]">
             {planCard('Photo', false)}
             {planCard('Plan', true)}
+          </div>
+        )}
+
+        {/* Phone: the Marks tools float on the photo. Tablet and desktop
+            use the right panel (MarkPanel), which has room for them. */}
+        {step === 'marks' && (
+          <div className="absolute bottom-4 right-4 md:hidden">
+            <MarkRail {...markTools} disabled={saving} />
           </div>
         )}
 
@@ -720,18 +744,15 @@ export default function CreateSketch() {
           )}
 
           {step === 'marks' && (
-            <MarkPanel
-              tool={markTool}
-              onToolChange={setMarkTool}
-              size={markSize}
-              onSizeChange={setMarkSize}
-              blackAndWhite={markBlackAndWhite}
-              onBlackAndWhiteChange={setMarkBlackAndWhite}
-              count={drawing.count}
-              canUndo={drawing.canUndo}
-              onUndo={drawing.undo}
-              disabled={saving}
-            />
+            <>
+              <div className="hidden md:block">
+                <MarkPanel {...markTools} disabled={saving} />
+              </div>
+              <div className="flex flex-col gap-1 md:hidden">
+                <p className="sc-body">Draw on the photo. Open Marks for the pen, color, eraser and line.</p>
+                <p className="text-sm text-sc-text3">{SELECT_HINT}</p>
+              </div>
+            </>
           )}
 
           {step === 'analyzing' && (
@@ -743,7 +764,7 @@ export default function CreateSketch() {
                 { label: 'Framing and marks' },
                 { label: 'Location', result: uploadedLocation?.label || 'Not in photo' },
                 { label: 'Scene title' },
-                { label: 'Guide questions' },
+                { label: 'Sparks questions' },
               ]}
             />
           )}

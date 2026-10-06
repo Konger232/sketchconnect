@@ -13,8 +13,8 @@ import StylePicker from '../components/analysis/StylePicker'
 import JourneyTrace from '../components/analysis/JourneyTrace'
 import ProgressSteps from '../components/common/ProgressSteps'
 import { useStagedProgress } from '../lib/useStagedProgress'
-import { MarksLayer, cycleSelection, markAtPoint } from '../components/analysis/Marks'
-import { pointInOutline, snapSpot, squareScale } from '../lib/markGeometry'
+import { MarksLayer, markAtPoint } from '../components/analysis/Marks'
+import { pointInOutline } from '../lib/markGeometry'
 import { usePaintedRect } from '../lib/usePaintedRect'
 import { useValueStudy } from '../lib/useValueStudy'
 import { api } from '../lib/api'
@@ -28,7 +28,7 @@ const NOTE_LIMIT = 500
 
 const TABS = [
   { key: 'details', label: 'Details' },
-  { key: 'guide', label: 'Guide' },
+  { key: 'guide', label: 'Sparks' }, // key stays 'guide' in code
   { key: 'feedback', label: 'Feedback' },
 ]
 
@@ -44,7 +44,7 @@ function locationText(location) {
 
 /**
  * The sketch workspace (design handoff): the photo stage on the left, and
- * a panel on the right with the Guide, Details and Feedback tabs.
+ * a panel on the right with the Details, Sparks and Feedback tabs.
  *
  * Opened from a sketch card (Edit Sketch), or straight after New Sketch's
  * scene analysis (router state: mode 'create' and the analysis). In create
@@ -91,6 +91,16 @@ export default function EditSketch() {
   // Parts of the scene picked by a tap as a guide answer ([{ id, points }]).
   const [answerOutlines, setAnswerOutlines] = useState([])
   const guides = useGuides()
+  // An answer's overlay (such as values) stays on while the next question
+  // shows, then turns off. With no rail, there is no other way to turn it
+  // off. pendingOverlayRef holds the one just picked across the change.
+  const pendingOverlayRef = useRef(null)
+  useEffect(() => {
+    guides.clearOverlays()
+    if (pendingOverlayRef.current) guides.applyAction(pendingOverlayRef.current)
+    pendingOverlayRef.current = null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guideQuestion])
   // A created sketch's Guide tab (review): no questions, only the scene
   // type for Help Quest. Kept stable so AIGuidance doesn't reset.
   // The footer slot for the Guide tab's Back / Next in review, so they sit
@@ -246,16 +256,6 @@ export default function EditSketch() {
     else navigate('/')
   }
 
-  // Mark a spot: a tap snaps to where two of the sketcher's lines cross,
-  // or to the nearest point on one line. Tapping the same spot clears it.
-  function handleSpotAt(p, aspect = 1) {
-    const spot = snapSpot(marks, p, aspect)
-    if (!spot) return
-    const [sx, sy] = squareScale(aspect)
-    const same = sketcherSpot && Math.hypot((sketcherSpot.x - spot.x) * sx, (sketcherSpot.y - spot.y) * sy) < 12
-    setSketcherSpot(same ? null : spot)
-  }
-
   // Pick an answer by its lines: a tap on the Plan while the question's
   // options are tied to marks.
   // A question that takes a tap as its answer (marks analysis,
@@ -273,23 +273,6 @@ export default function EditSketch() {
       return
     }
     setMarkTap((prev) => ({ id: hit?.id ?? null, n: (prev?.n || 0) + 1 }))
-  }
-
-  // Select marks on the Plan photo (GuideStage): same tap cycle as the
-  // Marks step. Shown at once, then saved; a failed save puts it back.
-  // The selection is part of the plan, so the next guidance run re-analyses.
-  function handleSelectMarkAt(p, aspect = 1) {
-    const before = (sketch.marks || []).map((m, i) => (m.id ? m : { ...m, id: `m${i + 1}` }))
-    const hit = markAtPoint(before, p, aspect)
-    if (!hit) return
-    const after = cycleSelection(before, hit.id, aspect)
-    setSketch((prev) => ({ ...prev, marks: after }))
-    api.put(`/api/sketches/${sketchId}/marks/selection`, {
-      selected_ids: after.filter((m) => m.selected && !m.erased).map((m) => m.id),
-    }).catch((err) => {
-      console.warn('Could not save the mark selection', err)
-      setSketch((prev) => ({ ...prev, marks: before }))
-    })
   }
 
   // Start Sketching (create mode): confirms the new sketch, so it leaves
@@ -466,13 +449,9 @@ export default function EditSketch() {
         valueStudy={isOwner ? valueStudy : null}
         aiSuggestion={tab === 'guide' ? aiSuggestion : null}
         highlightMarkIds={tab === 'guide' ? highlightIds : []}
-        onSpotAt={isOwner && tab === 'guide' && guideQuestion ? handleSpotAt : undefined}
         onPickAt={isOwner && tab === 'guide' && (guideQuestion?.tap_answer || guideQuestion?.option_mark_ids?.some((ids) => ids?.length)) ? handlePickAt : undefined}
         answerOutlines={tab === 'guide' ? answerOutlines : []}
         spot={tab === 'guide' && guideQuestion ? sketcherSpot : null}
-        // Its Guides rail sits inside this panel, so it scrolls away with it.
-        showRail={isOwner}
-        onSelectAt={isOwner ? handleSelectMarkAt : undefined}
       />
     ),
   })
@@ -528,6 +507,7 @@ export default function EditSketch() {
           }}
           onAction={(action) => {
             stripRef.current?.show('plan') // overlays draw on the Plan
+            pendingOverlayRef.current = action
             guides.applyAction(action)
           }}
         />
@@ -741,7 +721,7 @@ export default function EditSketch() {
         <div className="sc-dropzone min-h-[260px]">
           <img src={cameraWhite} alt="camera" className="h-16 w-16 text-white" />
           <p className="font-heading text-xl font-semibold leading-snug">Photograph your finished sketch</p>
-          <p className="max-w-[280px] text-md text-sc-text3">Feedback compares it with your photo and the plan you made in Guide.</p>
+          <p className="max-w-[280px] text-md text-sc-text3">Feedback compares it with your photo and the plan you made in Sparks.</p>
         </div>
         
         </Button>
