@@ -31,7 +31,7 @@ from app.features.sketches.schemas import (
     AdoptMarkRequest, MarkSelectionRequest, SketchUpdateRequest, SketcherFocalPointInput,
 )
 from app.core.schemas import FocalRegion, SessionChoice, normalize_source, region_points
-from app.core import design_fundamentals
+from app.core import design_fundamentals, rules
 from app.features.marks_analysis import question_bank as marks_bank
 from app.features.marks_analysis.service import chosen_principles, intents_from_choices
 from app.core.exif_utils import extract_location_and_time
@@ -79,12 +79,6 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
         # -- previously only surfaced during the original capture flow,
         # never persisted back out to the frontend after the fact.
         "focal_regions": (s.cached_scene_analysis or {}).get("focal_regions", []),
-        # Eye level + vanishing points (scene_analysis/schemas.py Perspective),
-        # or None. Older cached results only had perspective_lines, which
-        # nothing reads any more; they show no overlay until re-analysed.
-        "perspective": (s.cached_scene_analysis or {}).get("perspective"),
-        # Unit + measured spans for the proportions overlay, or None.
-        "proportions": (s.cached_scene_analysis or {}).get("proportions"),
         # Which grid to offer: "grid" (square) or "rule_of_thirds", by style.
         "grid": question_bank.grid_action(s.style),
         "created_at": s.created_at,
@@ -764,14 +758,22 @@ async def upload_final_sketch(
     sketch_id: str,
     background_tasks: BackgroundTasks,
     image: UploadFile = File(...),
+    # The sketcher picks the style with the final sketch, not in New Sketch
+    # (October 6, 2026): it chooses the critique persona (their admired
+    # artist for that style, or the style's default).
+    style: str = Form(...),
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
     """
-    Save the sketcher's final sketch, then start the critique call in the
-    background. Returns right away with critique_status 'pending'.
-    A newer upload replaces the old file and runs the critique again.
+    Save the sketcher's final sketch and its style, then start the critique
+    call in the background. Returns right away with critique_status
+    'pending'. A newer upload replaces the old file and runs the critique again.
     """
+    try:
+        rules.validate_style(style)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     sketch = db.query(Sketch).filter(
         Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
     ).first()
@@ -791,6 +793,7 @@ async def upload_final_sketch(
     _delete_upload_file(sketch.final_sketch_url)
     sketch.final_sketch_url = f"/uploads/{filename}"
     sketch.final_sketch_provided = True
+    sketch.style = style
 
     start_critique(db, sketch, background_tasks)  # commits
     db.refresh(sketch)

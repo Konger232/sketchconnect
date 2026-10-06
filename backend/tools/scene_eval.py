@@ -333,18 +333,18 @@ def main():
     for name, stem, photo, sketch in cases:
         style = args.style or getattr(sketch, "style", None) or "realistic"
         print(f"\n### {name}  (style: {style})")
-        plan = service.build_plan(sketch, framed_image=photo)
         json_path = out / f"{stem}.json"
         if args.redraw and json_path.exists():
             result = json.loads(json_path.read_text())
         else:
-            result, _raw = service.analyze(photo, style, sketch.crop_transform, plan=plan)
+            # Photo only since the scene-photo-only branch: no plan, no style.
+            result, _raw = service.analyze(photo, sketch.crop_transform)
         # What was sent, kept with the result so the report can be rebuilt later.
         result["_eval"] = {
             "name": name,
             "style": style,
-            "plan_text": plan.text,
-            "plan_image_sent": plan.image is not None,
+            "plan_text": "(scene analysis reads the photo only)",
+            "plan_image_sent": False,
         }
         json_path.write_text(json.dumps(result, indent=2))
 

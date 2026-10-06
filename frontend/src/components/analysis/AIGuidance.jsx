@@ -604,7 +604,8 @@ export default function AIGuidance({
       const form = new FormData()
       form.append('sketch_id', sketchId)
       form.append('question', helpQuestQuestion)
-      form.append('style', style)
+      // Empty until the final sketch upload, where the style is picked.
+      if (style) form.append('style', style)
       form.append('scene_type', analysis.scene_type)
       form.append('step_id', `prompt-${promptIndex}`)
       const { data } = await api.post('/api/help-quest', form)

@@ -2,9 +2,11 @@ import Icon from '../common/Icon'
 import { STYLES } from '../../data/styles'
 
 /**
- * The Style step (New Sketch, step 5): four cards in a 2 x 2 grid. The
- * selected card has a guide-blue border and a check badge. Picking a card
- * only selects it; the footer's "Analyze scene" runs the scene analysis.
+ * The style cards, shown with the final sketch upload (Edit Sketch,
+ * Feedback tab): four cards in a 2 x 2 grid. The selected card has a
+ * guide-blue border and a check badge. Picking a card only selects it;
+ * "Get feedback" uploads the sketch with that style, which picks the
+ * critique's persona.
  */
 export default function StylePicker({ style, disabled, onSelectStyle }) {
   return (

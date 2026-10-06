@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api", tags=["help-quest"])
 async def help_quest(
     sketch_id: str = Form(...),
     question: str = Form(...),
-    style: str = Form(...),
+    style: str = Form(""),  # empty until the final sketch upload
     scene_type: str = Form(...),
     step_id: str = Form(...),
     image: UploadFile | None = File(None),

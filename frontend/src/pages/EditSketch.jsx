@@ -18,7 +18,7 @@ import { pointInOutline, snapSpot, squareScale } from '../lib/markGeometry'
 import { usePaintedRect } from '../lib/usePaintedRect'
 import { useValueStudy } from '../lib/useValueStudy'
 import { api } from '../lib/api'
-import { withGuideQuestions } from '../lib/guideAnalysis'
+import { runGuideAnalysis } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
 import { previewUrl } from '../lib/previewUrl'
 import { STYLES, sceneTypeLabel } from '../data/styles'
@@ -118,6 +118,9 @@ export default function EditSketch() {
   // starts the critique call in the background.
   const [finalFile, setFinalFile] = useState(null)
   const [finalPreview, setFinalPreview] = useState(null)
+  // The style the sketcher drew in, picked with the final sketch. It
+  // chooses the critique's persona. Starts from the sketch's saved style.
+  const [finalStyle, setFinalStyle] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState(null)
   const libraryInputRef = useRef(null)
@@ -158,24 +161,18 @@ export default function EditSketch() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sketch?.id])
 
-  // The Guide tab needs the scene analysis. The backend reuses its cached
-  // result while the framing, plan and style are unchanged, so this is
-  // quick on a return visit. New Sketch passes it in already.
+  // The Guide tab needs the scene and marks analyses. The backend reuses
+  // both cached results while the photo, framing and marks are unchanged,
+  // so this is quick on a return visit. New Sketch passes them in already.
   useEffect(() => {
-    // No style yet (New Sketch left before "Analyze scene"): the Guide
-    // tab shows the style cards first (handlePickStyle).
     // Only New Sketch asks questions. A created sketch's Guide tab lists its
     // saved answers, and its overlays come with the sketch itself.
-    if (!sketch || !isOwner || mode !== 'create' || analysis || analyzing || !sketch.style) return
+    if (!sketch || !isOwner || mode !== 'create' || analysis || analyzing) return
     async function run() {
       setAnalyzing(true)
       setGuidanceError(null)
       try {
-        const form = new FormData()
-        form.append('sketch_id', sketchId)
-        form.append('style', sketch.style)
-        const { data: sceneData } = await api.post('/api/scene-analysis', form)
-        const data = await withGuideQuestions(sceneData, sketchId)
+        const data = await runGuideAnalysis(sketchId)
         setAnalysis(data)
         // The backend fills a missing title from the AI's suggestion.
         const suggested = (data.suggested_title || '').trim().slice(0, 150)
@@ -184,10 +181,7 @@ export default function EditSketch() {
           ...prev,
           title: prev.title || suggested || prev.title,
           scene_type: data.scene_type,
-          perspective: data.perspective,
-          proportions: data.proportions,
           focal_regions: data.focal_regions,
-          grid: data.grid,
         }))
       } catch (err) {
         setGuidanceError(err.response?.data?.detail || 'Could not load the guide questions right now.')
@@ -197,19 +191,7 @@ export default function EditSketch() {
     }
     run()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sketch?.id, isOwner, sketch?.style, mode])
-
-  // Guide tab, sketch without a style: save the pick, which starts the
-  // scene analysis above.
-  async function handlePickStyle(value) {
-    setGuidanceError(null)
-    try {
-      await api.put(`/api/sketches/${sketchId}`, { style: value })
-      setSketch((prev) => ({ ...prev, style: value }))
-    } catch (err) {
-      setGuidanceError(err.response?.data?.detail || 'Could not save the style.')
-    }
-  }
+  }, [sketch?.id, isOwner, mode])
 
   // While the critique call runs in the background, re-fetch the sketch
   // every few seconds until its status leaves 'pending'.
@@ -382,6 +364,7 @@ export default function EditSketch() {
       if (finalPreview) URL.revokeObjectURL(finalPreview)
       setFinalFile(f)
       setFinalPreview(url)
+      setFinalStyle((cur) => cur || sketch?.style || null)
     } catch {
       if (pick === pickRef.current) setUploadError('Could not open this photo. Try a JPEG or PNG.')
     }
@@ -402,6 +385,7 @@ export default function EditSketch() {
     try {
       const form = new FormData()
       form.append('image', finalFile)
+      form.append('style', finalStyle)
       const { data } = await api.post(`/api/sketches/${sketchId}/final-sketch`, form)
       setSketch((prev) => ({ ...prev, ...data }))
       clearFinal()
@@ -516,12 +500,6 @@ export default function EditSketch() {
     <div className="sc-panel-body">
       {analyzing ? (
         <p className="sc-body animate-pulse">Reading your scene…</p>
-      ) : !sketch.style ? (
-        <>
-          <p className="sc-body">Pick a style. Guide questions are tuned to it.</p>
-          <StylePicker style={null} onSelectStyle={handlePickStyle} />
-          {guidanceError && <p className="text-base text-accent">{guidanceError}</p>}
-        </>
       ) : guidanceError ? (
         <p className="text-base text-accent">{guidanceError}</p>
       ) : (
@@ -721,12 +699,14 @@ export default function EditSketch() {
           <Button variant="choice" className="flex-1 text-center" onClick={() => cameraInputRef.current?.click()}>Retake</Button>
           <Button variant="choice" className="flex-1 text-center" onClick={() => libraryInputRef.current?.click()}>Choose another</Button>
         </div>
+        <p className="text-md text-sc-text2">Which style did you sketch in? Feedback comes from an artist who works in it.</p>
+        <StylePicker style={finalStyle} disabled={uploading} onSelectStyle={setFinalStyle} />
       </>
     )
     feedbackFooter = (
       <>
         <Button variant="secondaryOnDark" className="mr-auto" onClick={clearFinal} disabled={uploading}>Back</Button>
-        <Button variant="action" onClick={handleGetFeedback} disabled={uploading}>{uploading ? 'Uploading…' : 'Get feedback'}</Button>
+        <Button variant="action" onClick={handleGetFeedback} disabled={uploading || !finalStyle}>{uploading ? 'Uploading…' : 'Get feedback'}</Button>
       </>
     )
   } else if (finalSketchUrl) {

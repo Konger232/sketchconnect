@@ -15,7 +15,6 @@ Variables:
   $bank           the three steps' question versions and the relationship types
                   (marks_analysis/question_bank.py render_bank)
   $max_objects    how many objects the guide asks about (config.MAX_MARK_MEANING_QUESTIONS)
-  $style          the sketcher's chosen style key
   $scene_facts    from the cached scene analysis: scene type, summary, focal areas
   $marks_table    one line per mark, in stroke order (core/mark_geometry.py)
   $groups         how the marks group into shapes (s1, s2, ...) and connect
@@ -100,8 +99,6 @@ Mark ids (m1, ...) and shape ids (s1, ...) are for you only. Never write an id i
 ---
 
 # Session Input Data
-Style: $style
-
 Scene facts (from the scene analysis):
 $scene_facts
 

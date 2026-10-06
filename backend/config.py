@@ -119,11 +119,7 @@ MAX_MARKS_FOR_AI = 24
 # guidance doesn't open with a quiz.
 MAX_MARK_MEANING_QUESTIONS = 2
 
-# Which call drives the guided questions during the parallel run (design
-# doc, item 20): "scene_analysis" (the default) or "marks_analysis". Both
-# calls fire when it is "marks_analysis": scene analysis first, for the
-# scene facts and overlays, then marks analysis for the questions. Set
-# GUIDE_SOURCE=marks_analysis in backend/.env to compare on the same sketches.
-GUIDE_SOURCE = _os.environ.get("GUIDE_SOURCE", "scene_analysis").strip().lower()
-if GUIDE_SOURCE not in ("scene_analysis", "marks_analysis"):
-    GUIDE_SOURCE = "scene_analysis"
+# The marks analysis call drives every guided question. The scene analysis
+# call reads the photo only (scene facts and focal areas), started when the
+# crop is confirmed (scene-photo-only branch, October 6, 2026). The old
+# GUIDE_SOURCE switch is gone; a GUIDE_SOURCE line left in .env is ignored.

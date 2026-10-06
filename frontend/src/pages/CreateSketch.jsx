@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useLayoutEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ImagePanel from '../components/analysis/ImagePanel'
 import MarkPanel, { DEFAULT_MARK_SIZE, MarksLayer, useMarkDrawing } from '../components/analysis/Marks'
-import StylePicker from '../components/analysis/StylePicker'
 import Fade from '../components/analysis/Fade'
 
 import Button from '../components/common/Button'
@@ -11,12 +10,11 @@ import ConfirmDialog from '../components/common/ConfirmDialog'
 import SketchModal from '../components/common/SketchModal'
 
 import { api } from '../lib/api'
-import { withGuideQuestions } from '../lib/guideAnalysis'
+import { runGuideAnalysis, startSceneAnalysis } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
 import { previewUrl } from '../lib/previewUrl'
 import { useStagedProgress } from '../lib/useStagedProgress'
 import { ASPECT_RATIO_ORDER, bakeCrop, computeImageBox, reframeToRect, resolveAspectRatio } from '../lib/cropMath'
-import { STYLES } from '../data/styles'
 
 import cameraWhite from '../assets/images/ico_camera_w.png'
 
@@ -26,13 +24,21 @@ const MAX_ZOOM = 8
 const MIN_CROP = 0.2
 
 // New Sketch setup, in order (design handoff). 'analyzing' follows the
-// four steps, then the sketch opens in EditSketch's workspace.
+// three steps, then the sketch opens in EditSketch's workspace. Style is
+// picked later, with the final sketch (October 6, 2026).
 const STEPS = [
   { key: 'photo', name: 'Reference photo' },
   { key: 'crop', name: 'Crop and reframe' },
   { key: 'marks', name: 'Marks' },
-  { key: 'style', name: 'Style' },
 ]
+
+// The frame as the crop step leaves it, to tell whether it changed since
+// it was last saved.
+function sameFrame(a, b) {
+  return !!a && !!b && a.aspect_ratio === b.aspect_ratio && a.ratio === b.ratio &&
+    a.zoom === b.zoom && a.offset_x === b.offset_x && a.offset_y === b.offset_y
+}
+const UNTOUCHED_FRAME = { aspect_ratio: 'original', ratio: null, zoom: 1, offset_x: 0, offset_y: 0 }
 
 // The hint over the photo on the photo steps.
 const STAGE_HINTS = {
@@ -56,7 +62,7 @@ export default function CreateSketch() {
   const routerLocation = useLocation()
   const backgroundLocation = routerLocation.state?.backgroundLocation
 
-  // 'photo' | 'crop' | 'marks' | 'style' | 'analyzing'
+  // 'photo' | 'crop' | 'marks' | 'analyzing'
   const [step, setStep] = useState('photo')
 
   // ===== STATE: PHOTO =====
@@ -83,9 +89,12 @@ export default function CreateSketch() {
   const [customRatio, setCustomRatio] = useState(null) // after a free corner crop
   const [cropRect, setCropRect] = useState(null) // the frame while a corner is dragged
   const cornerRef = useRef(null)
-  const initialTransformRef = useRef({ zoom: 1, offset_x: 0, offset_y: 0 })
-  // The transform last saved, so Back from Style reopens the same frame.
-  const savedTransformRef = useRef(null)
+  // The frame last saved on the server (sameFrame). The upload itself is
+  // the untouched frame, so Next with no change saves nothing.
+  const savedFrameRef = useRef(UNTOUCHED_FRAME)
+  // The scene analysis started when the crop was confirmed (a promise of
+  // its result, or null). The guide waits for it after the marks.
+  const sceneRef = useRef(null)
 
   const containerRef = useRef(null)
   const imgRef = useRef(null)
@@ -107,8 +116,7 @@ export default function CreateSketch() {
   const [markBlackAndWhite, setMarkBlackAndWhite] = useState(false)
   const drawing = useMarkDrawing(svgRef, { enabled: step === 'marks', tool: markTool, size: markSize })
 
-  // ===== STATE: STYLE AND SCENE ANALYSIS =====
-  const [style, setStyle] = useState(null)
+  // ===== STATE: ANALYSIS =====
   // Framing and location are already done; the wait starts on the title.
   const analysisProgress = useStagedProgress({ count: 4, start: 2, stepMs: 7000, active: step === 'analyzing' })
 
@@ -219,11 +227,11 @@ export default function CreateSketch() {
     setUploadedFile(null)
     setUploadedLocation(null)
     drawing.clear()
-    setStyle(null)
     setAspectRatioKey('original')
     setCustomRatio(null)
     resetTransform()
-    savedTransformRef.current = null
+    savedFrameRef.current = UNTOUCHED_FRAME
+    sceneRef.current = null
   }
 
   // HEIC photos need converting before they can be previewed (previewUrl).
@@ -416,7 +424,60 @@ export default function CreateSketch() {
     setNaturalSize({ width: e.target.naturalWidth, height: e.target.naturalHeight })
   }
 
-  // ===== STEP 3: MARKS (saves crop and marks together) =====
+  // ===== CROP CONFIRMED: SAVE THE FRAME, START THE SCENE ANALYSIS =====
+
+  // Next on the crop step. A changed frame is baked and saved first, since
+  // the scene analysis reads the saved framed photo. The scene analysis
+  // then runs in the background while the sketcher draws marks.
+  async function handleConfirmCrop() {
+    const frame = {
+      aspect_ratio: aspectRatioKey,
+      ratio: aspectRatioKey === 'custom' ? customRatio : null,
+      zoom: zoomRef.current,
+      offset_x: offsetRef.current.x,
+      offset_y: offsetRef.current.y,
+    }
+    if (!sameFrame(frame, savedFrameRef.current)) {
+      setSaving(true)
+      setError(null)
+      try {
+        const blob = await bakeCrop({
+          imageEl: imgRef.current,
+          naturalSize,
+          aspectRatioKey,
+          customRatio,
+          zoom: frame.zoom,
+          offset: { x: frame.offset_x, y: frame.offset_y },
+        })
+        const form = new FormData()
+        // Focal points are retired: marks are the one plan (design doc,
+        // item 17). The endpoint still takes the two point lists, empty.
+        form.append('old_points', '[]')
+        form.append('new_points', '[]')
+        form.append('framed_image', blob, 'framed.jpg')
+        form.append('crop_transform', JSON.stringify({
+          aspect_ratio: aspectRatioKey,
+          ...(aspectRatioKey === 'custom' && { ratio: customRatio }),
+          zoom: frame.zoom,
+          offset_x: frame.offset_x,
+          offset_y: frame.offset_y,
+        }))
+        const { data } = await api.post(`/api/sketches/${sketchId}/focal-frame`, form)
+        if (data?.reference_image_url) setReferenceImageUrl(resolveUrl(data.reference_image_url))
+        savedFrameRef.current = frame
+        sceneRef.current = null // that analysis read the old frame
+      } catch (err) {
+        setError(err.response?.data?.detail || 'Could not save your framing.')
+        return
+      } finally {
+        setSaving(false)
+      }
+    }
+    if (!sceneRef.current) sceneRef.current = startSceneAnalysis(sketchId)
+    setStep('marks')
+  }
+
+  // ===== STEP 3: MARKS, THEN THE GUIDE =====
 
   // Back to framing: marks were drawn against the current frame, so
   // they're cleared rather than left misaligned.
@@ -425,86 +486,31 @@ export default function CreateSketch() {
     setStep('crop')
   }
 
-  async function handleConfirmFrame(skipMarks = false) {
+  // Next (or Skip) on the marks step: save the marks, then wait for the
+  // scene analysis and run the marks analysis, which writes the guide.
+  async function handleAnalyze(skipMarks = false) {
     setSaving(true)
     setError(null)
     try {
-      const finalTransform = { zoom: zoomRef.current, offset_x: offsetRef.current.x, offset_y: offsetRef.current.y }
-      // Focal points are retired: marks are the one plan (design doc,
-      // item 17). The endpoint still takes the two point lists, empty.
       const form = new FormData()
       form.append('old_points', '[]')
       form.append('new_points', '[]')
       form.append('marks', JSON.stringify(skipMarks ? [] : drawing.marks))
-
-      const transformChanged =
-        aspectRatioKey !== 'original' ||
-        finalTransform.zoom !== initialTransformRef.current.zoom ||
-        finalTransform.offset_x !== initialTransformRef.current.offset_x ||
-        finalTransform.offset_y !== initialTransformRef.current.offset_y
-
-      if (transformChanged) {
-        const blob = await bakeCrop({
-          imageEl: imgRef.current,
-          naturalSize,
-          aspectRatioKey,
-          customRatio,
-          zoom: finalTransform.zoom,
-          offset: { x: finalTransform.offset_x, y: finalTransform.offset_y },
-        })
-        form.append('framed_image', blob, 'framed.jpg')
-        form.append('crop_transform', JSON.stringify({
-          aspect_ratio: aspectRatioKey,
-          ...(aspectRatioKey === 'custom' && { ratio: customRatio }),
-          ...finalTransform,
-        }))
-      }
-
-      const { data } = await api.post(`/api/sketches/${sketchId}/focal-frame`, form)
-      if (data?.reference_image_url) setReferenceImageUrl(resolveUrl(data.reference_image_url))
+      await api.post(`/api/sketches/${sketchId}/focal-frame`, form)
       // Skipped marks weren't saved, so don't keep showing them.
       if (skipMarks) drawing.clear()
-      savedTransformRef.current = { zoom: finalTransform.zoom, offset: { x: finalTransform.offset_x, y: finalTransform.offset_y } }
-      setStep('style')
     } catch (err) {
-      setError(err.response?.data?.detail || 'Could not save your framing and marks.')
+      setError(err.response?.data?.detail || 'Could not save your marks.')
+      return
     } finally {
       setSaving(false)
     }
-  }
 
-  function handleBackToMarks() {
-    if (savedTransformRef.current) resetTransform(savedTransformRef.current)
-    setStep('marks')
-  }
-
-  // ===== STEP 5: STYLE, THEN SCENE ANALYSIS =====
-
-  // Picking a card saves the style straight away, so the sketch keeps it
-  // even if the sketcher leaves before "Analyze scene". Not awaited:
-  // handleAnalyze saves it again anyway.
-  function handleStylePick(value) {
-    setStyle(value)
-    api.put(`/api/sketches/${sketchId}`, { style: value }).catch((err) => console.warn('Could not save style', err))
-  }
-
-  // Runs the scene analysis, then opens the sketch in the workspace
-  // (EditSketch, create mode) on the Guide tab with this analysis.
-  async function handleAnalyze() {
-    if (!style) return
     setStep('analyzing')
-    setError(null)
     try {
-      await api.put(`/api/sketches/${sketchId}`, { style })
-      // No image upload: the backend reads the saved reference photo, and
-      // the marks saved with it, from the sketch itself.
-      const form = new FormData()
-      form.append('sketch_id', sketchId)
-      form.append('style', style)
       const abort = new AbortController()
       analysisAbortRef.current = abort
-      const { data: sceneData } = await api.post('/api/scene-analysis', form, { signal: abort.signal })
-      const data = await withGuideQuestions(sceneData, sketchId, abort.signal)
+      const data = await runGuideAnalysis(sketchId, { scene: sceneRef.current, signal: abort.signal })
       if (discardedRef.current) return
       // Finished while "Discard this sketch?" is open: wait for the answer.
       if (confirmingCloseRef.current) finishedAnalysisRef.current = data
@@ -512,7 +518,8 @@ export default function CreateSketch() {
     } catch (err) {
       if (discardedRef.current) return
       setError(err.response?.data?.detail || 'Scene analysis failed. Try again.')
-      setStep('style')
+      sceneRef.current = null
+      setStep('marks')
     } finally {
       analysisAbortRef.current = null
     }
@@ -539,7 +546,6 @@ export default function CreateSketch() {
       : step === 'marks'
         ? drawing.handlers
         : {}
-  const styleLabel = STYLES.find((s) => s.value === style)?.label
 
   // The sketcher's plan on a 0-1000 frame: their marks.
   const planLayer = () => <MarksLayer marks={drawing.marks} live={drawing.live} />
@@ -615,7 +621,7 @@ export default function CreateSketch() {
           </div>
         )}
 
-        {(onPhotoSteps || step === 'style') && (
+        {onPhotoSteps && (
           <ImagePanel
             containerRef={containerRef}
             imgRef={imgRef}
@@ -625,16 +631,11 @@ export default function CreateSketch() {
             // the backend photo taints the canvas and the export fails.
             crossOrigin="anonymous"
             imageClassName={step === 'marks' && markBlackAndWhite ? 'photo-bw' : ''}
-            // Crop and marks work on the original upload through the
-            // frame. From Style on, the photo is the saved framed image.
-            imageUrl={onPhotoSteps ? originalImageUrl : referenceImageUrl || originalImageUrl}
+            // Crop and marks work on the original upload through the frame.
+            imageUrl={originalImageUrl}
             zoom={zoom}
             offset={offset}
-            box={
-              step === 'style' && box
-                ? { width: boxSize.width, height: boxSize.height, left: 0, top: 0 }
-                : box
-            }
+            box={box}
             heightClass="min-h-0 flex-1"
             cropFrame={step === 'crop'}
             cropRect={cropRect}
@@ -644,7 +645,7 @@ export default function CreateSketch() {
             onPointerUp={stageHandlers.onPointerUp}
             onPointerCancel={stageHandlers.onPointerCancel}
             onWheel={stageHandlers.onWheel}
-            onImageLoad={onPhotoSteps ? handleImageLoad : undefined}
+            onImageLoad={handleImageLoad}
           >
             <Fade show={step !== 'crop'}>{planLayer()}</Fade>
           </ImagePanel>
@@ -653,7 +654,7 @@ export default function CreateSketch() {
         {step === 'analyzing' && (
           <div className="flex min-h-0 flex-1 items-center gap-3 p-5 md:p-[var(--stage-inset)]">
             {planCard('Photo', false)}
-            {planCard(`Plan · ${styleLabel || ''}`, true)}
+            {planCard('Plan', true)}
           </div>
         )}
 
@@ -733,13 +734,6 @@ export default function CreateSketch() {
             />
           )}
 
-          {step === 'style' && (
-            <>
-              <p className="sc-body">Guide questions are tuned to the style you pick.</p>
-              <StylePicker style={style} onSelectStyle={handleStylePick} />
-            </>
-          )}
-
           {step === 'analyzing' && (
             <ProgressSteps
               heading="Reading your scene…"
@@ -775,20 +769,14 @@ export default function CreateSketch() {
             {step === 'crop' && (
               <>
                 <Button variant="secondaryOnDark" className="mr-auto" onClick={() => setStep('photo')}>Back</Button>
-                <Button variant="action" onClick={() => setStep('marks')} disabled={!box}>Next</Button>
+                <Button variant="action" onClick={handleConfirmCrop} disabled={!box || saving}>{saving ? 'Saving…' : 'Next'}</Button>
               </>
             )}
             {step === 'marks' && (
               <>
                 <Button variant="secondaryOnDark" className="mr-auto" onClick={handleBackToCrop} disabled={saving}>Back</Button>
-                <Button variant="quietOnDark" onClick={() => handleConfirmFrame(true)} disabled={saving}>Skip</Button>
-                <Button variant="action" onClick={() => handleConfirmFrame()} disabled={saving}>{saving ? 'Saving…' : 'Next'}</Button>
-              </>
-            )}
-            {step === 'style' && (
-              <>
-                <Button variant="secondaryOnDark" className="mr-auto" onClick={handleBackToMarks}>Back</Button>
-                <Button variant="action" onClick={handleAnalyze} disabled={!style}>Analyze scene</Button>
+                <Button variant="quietOnDark" onClick={() => handleAnalyze(true)} disabled={saving}>Skip</Button>
+                <Button variant="action" onClick={() => handleAnalyze()} disabled={saving}>{saving ? 'Saving…' : 'Next'}</Button>
               </>
             )}
           </div>

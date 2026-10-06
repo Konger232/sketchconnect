@@ -33,10 +33,6 @@ class FocalRegion(BaseModel):
     points: Optional[list[list[float]]] = None
     # Why the eye lands here, one short sentence (scene analysis prompt).
     reason: Optional[str] = None
-    # Gemini's own read of whether the sketcher marked this area. Kept for
-    # debugging only: which areas count as missed is decided by geometry
-    # against the stored focal points (scene_analysis/service.py).
-    sketcher_marked: Optional[bool] = None
 
 
 def region_points(region) -> list[list[float]]:

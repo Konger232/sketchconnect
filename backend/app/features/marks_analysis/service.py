@@ -3,11 +3,12 @@ Marks analysis call (design doc, Section 11, item 20). Reads the
 sketcher's marks through the Elements × Principles matrix
 (app/core/design_fundamentals.json) and writes the guided questions.
 
-Runs after the scene analysis call, beside it, during the parallel run.
-config.GUIDE_SOURCE picks which of the two drives the guided questions.
-Scene analysis still supplies the scene facts (scene type, summary, focal
-areas); this call reads them from the sketch's cached scene analysis as
-text. Perspective and proportions are not offered by any guided question
+Runs after the marks are drawn. The scene analysis call (photo only) has
+usually finished by then: it starts when the sketcher confirms the crop.
+This call reads its scene facts (scene type, summary, focal areas) from
+the sketch's cached scene analysis as text. Style is not an input: the
+sketcher picks it at the final sketch upload, for the critique (Oct 6,
+2026). Perspective and proportions are not offered by any guided question
 (decided October 2, 2026): measuring is read as the proportion principle
 through the sketcher's own marks.
 
@@ -51,7 +52,7 @@ from app.features.scene_analysis import service as scene_service
 PROMPTS = Path(__file__).parent / "prompts"
 
 # Bump when the cleaned result changes shape. Part of the cache fingerprint.
-ANALYSIS_VERSION = 6  # 6: word limits; 5: subject kind, plain readings; 4: three-step guide (objects, relationships, principle steps); 3: unseen reticle
+ANALYSIS_VERSION = 7  # 7: no style, photo-only scene facts; 6: 6: word limits; 5: subject kind, plain readings; 4: three-step guide (objects, relationships, principle steps); 3: unseen reticle
 
 ROLES = ["contour", "big_shape", "eye_level", "ground_line", "perspective_guide",
          "measurement", "alignment", "gesture", "unclear"]
@@ -132,6 +133,13 @@ class MarksPlan:
         return next((g for g in self.geo["groups"] if g["id"] == shape_id), None)
 
 
+def selected_mark_ids(sketch) -> set[str]:
+    """The selected visible marks' ids, without measuring or drawing
+    anything: a cache hit only needs these (router.py)."""
+    return {mark_geometry.mark_id(m, i) for i, m in enumerate(mark_geometry.visible_marks(sketch.marks))
+            if m.get("selected")}
+
+
 def build_plan(sketch, framed_image: Image.Image | None = None) -> MarksPlan:
     marks = composite.visible_marks(sketch.marks)
     aspect = scene_service.frame_aspect(sketch, framed_image)
@@ -165,9 +173,6 @@ def scene_facts(cached_scene: dict | None, sketch) -> str:
     for i, r in enumerate(regions):
         state = "no mark sits on it" if i in unmarked else "marked"
         lines.append(f"- Focal area: {r.get('label')} ({state}). {r.get('reason') or ''}".rstrip())
-    eye = (s.get("perspective") or {}).get("eye_level_y")
-    if eye is not None:
-        lines.append(f"- Eye level: y = {eye}")
     return "\n".join(lines)
 
 
@@ -177,13 +182,12 @@ def _intents_text(intents: list[dict]) -> str:
     return "\n".join(f"- {i['principle']} on {', '.join(i['mark_ids']) or 'no marks'} ({i['source']})" for i in intents)
 
 
-def build_prompt(style: str, plan: MarksPlan, cached_scene: dict | None, sketch, intents: list[dict]) -> str:
+def build_prompt(plan: MarksPlan, cached_scene: dict | None, sketch, intents: list[dict]) -> str:
     return render_prompt(
         PROMPTS / "marks_analysis.md",
         fundamentals=df.render_text(),
         bank=question_bank.render_bank(),
         max_objects=MAX_MARK_MEANING_QUESTIONS,
-        style=style,
         scene_facts=scene_facts(cached_scene, sketch),
         marks_table=mark_geometry.marks_table(plan.geo),
         groups=mark_geometry.groups_text(plan.geo),
@@ -195,15 +199,14 @@ def build_prompt(style: str, plan: MarksPlan, cached_scene: dict | None, sketch,
 def fingerprint(sketch, cached_scene: dict | None) -> str:
     """
     Changes when anything the call reads changes: the scene analysis it
-    builds on, the style, or the marks (selection included). Prompted marks
+    builds on (photo and framing), or the marks (selection included). Prompted marks
     ("Yes, add it") come from this guide, so they are left out. Answers are
     left out too: every relationship type offered already has its principle
     step.
     """
     payload = {
         "version": ANALYSIS_VERSION,
-        "scene": (cached_scene or {}).get("plan_fingerprint"),
-        "style": sketch.style,
+        "scene": (cached_scene or {}).get("photo_fingerprint"),
         "marks": [m for m in (sketch.marks or []) if m.get("source") != "prompted"],
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()[:16]
@@ -643,7 +646,7 @@ def assemble(cleaned: dict, sketch, cached_scene: dict | None, selected_ids: set
 
 # ---------- the call ----------
 
-def analyze(pil_image: Image.Image, sketch, cached_scene: dict | None, style: str,
+def analyze(pil_image: Image.Image, sketch, cached_scene: dict | None,
             plan: MarksPlan | None = None) -> tuple[dict, str | None]:
     """
     Returns (cleaned result, raw Gemini text). With no visible marks there
@@ -655,7 +658,7 @@ def analyze(pil_image: Image.Image, sketch, cached_scene: dict | None, style: st
     if not plan.marks:
         return clean({}, plan, intents), None
     raw, raw_text = call_gemini_json_with_raw(
-        build_prompt(style, plan, cached_scene, sketch, intents), response_schema(),
+        build_prompt(plan, cached_scene, sketch, intents), response_schema(),
         [pil_image, plan.image], mock_name="marks_analysis",
     )
     cleaned = clean(raw, plan, intents)

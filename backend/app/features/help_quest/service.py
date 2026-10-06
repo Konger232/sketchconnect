@@ -57,7 +57,8 @@ def build_prompt(sketch, question: str, style: str, scene_type: str, step_id: st
     return render_prompt(
         PROMPTS / "help_quest.md",
         scene_type=scene_type,
-        style=style,
+        # Style is picked at the final sketch upload, so it is often empty here.
+        style_note=f" in '{style}' style" if style else "",
         question=question,
         step_id=step_id,
         plan_context=plan_context,

@@ -1,27 +1,41 @@
 import { api } from './api'
 
-// Parallel run (design doc, item 20): the scene analysis response says which
-// call drives the guided questions (guide_source, backend config.GUIDE_SOURCE).
-// For "marks_analysis", the marks analysis call runs next and its questions
-// replace the scene analysis ones. Everything else (overlays, focal areas,
-// title) still comes from the scene analysis. If the marks analysis fails,
-// the scene analysis questions stay, so the sketcher is never left without
-// a guide.
-export async function withGuideQuestions(sceneData, sketchId, signal) {
-  if (sceneData?.guide_source !== 'marks_analysis') return sceneData
-  try {
-    const form = new FormData()
-    form.append('sketch_id', sketchId)
-    const { data } = await api.post('/api/marks-analysis', form, { signal })
-    return {
-      ...sceneData,
-      prepared_prompts: data.prepared_prompts,
-      marks_analysis: data,
-      debug_raw_gemini_response: data.debug_raw_gemini_response || sceneData.debug_raw_gemini_response,
-    }
-  } catch (err) {
-    if (signal?.aborted) throw err
-    console.warn('Marks analysis failed; using the scene analysis questions', err)
-    return sceneData
+// Two calls (scene-photo-only branch, October 6, 2026):
+//  1. Scene analysis reads the framed photo only: scene type, summary,
+//     title and focal areas. New Sketch starts it as soon as the crop is
+//     confirmed (startSceneAnalysis), so it runs while the sketcher draws.
+//  2. Marks analysis reads the marks and writes every guided question.
+// The backend caches both: scene analysis per photo and framing, marks
+// analysis per marks and selection.
+
+function sceneForm(sketchId) {
+  const form = new FormData()
+  form.append('sketch_id', sketchId)
+  return form
+}
+
+// Starts the scene analysis and returns its promise. A failure is caught
+// here and retried by runGuideAnalysis, so it never surfaces as an
+// unhandled rejection while the sketcher is still drawing.
+export function startSceneAnalysis(sketchId, signal) {
+  return api
+    .post('/api/scene-analysis', sceneForm(sketchId), { signal })
+    .then(({ data }) => data)
+    .catch(() => null)
+}
+
+// The guide: waits for the scene analysis started earlier (if any), then
+// asks once more, which is a quick cache hit unless the framing changed or
+// the early call failed, then runs the marks analysis.
+export async function runGuideAnalysis(sketchId, { scene = null, signal } = {}) {
+  if (scene) await scene
+  const { data: sceneData } = await api.post('/api/scene-analysis', sceneForm(sketchId), { signal })
+  const { data } = await api.post('/api/marks-analysis', sceneForm(sketchId), { signal })
+  return {
+    ...sceneData,
+    prepared_prompts: data.prepared_prompts,
+    focal_suggestions: data.focal_suggestions,
+    marks_analysis: data,
+    debug_raw_gemini_response: data.debug_raw_gemini_response || sceneData.debug_raw_gemini_response,
   }
 }
