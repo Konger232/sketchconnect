@@ -76,7 +76,7 @@
         "looks_for": "Repeated lines, such as railings or mullions."
       },
       "rhythm": {
-        "strength": "weak",
+        "strength": "strong",
         "looks_for": "Repeated lines at a changing interval."
       },
       "proportion": {
@@ -84,8 +84,8 @@
         "looks_for": "A measuring line compares lengths."
       },
       "variety": {
-        "strength": "weak",
-        "looks_for": "Straight and curved, thick and thin."
+        "strength": "strong",
+        "looks_for": "Lines that differ: straight and curved, horizontal and vertical, thick and thin."
       },
       "unity": {
         "strength": "strong",
@@ -128,11 +128,11 @@
     },
     "form": {
       "balance": {
-        "strength": "weak",
+        "strength": "strong",
         "looks_for": "A solid mass against an open area."
       },
       "emphasis": {
-        "strength": "weak",
+        "strength": "strong",
         "looks_for": "The form with the clearest depth."
       },
       "movement": {
@@ -140,7 +140,7 @@
         "looks_for": "Forms receding into depth."
       },
       "pattern": {
-        "strength": "weak",
+        "strength": "strong",
         "looks_for": "Repeated forms, such as columns or cars."
       },
       "rhythm": {
@@ -151,8 +151,12 @@
         "strength": "strong",
         "looks_for": "The scale of near and far."
       },
+      "variety": {
+        "strength": "strong",
+        "looks_for": "Forms that differ: boxy and round, tall and low."
+      },
       "unity": {
-        "strength": "weak",
+        "strength": "strong",
         "looks_for": "Overlapping forms read as one group."
       }
     },
@@ -215,7 +219,7 @@
     "color": {
       "emphasis": {
         "strength": "strong",
-        "looks_for": "A warm area against a cold one."
+        "looks_for": "A color that stands apart from its surroundings: warm against cool, a complementary pair, or saturated against dull."
       },
       "unity": {
         "strength": "strong",
@@ -226,8 +230,8 @@
         "looks_for": "Warm colors that feel active."
       },
       "balance": {
-        "strength": "weak",
-        "looks_for": "A small warm area against a large cold one."
+        "strength": "strong",
+        "looks_for": "Colors spread to balance the frame: matching colors placed evenly either side of a center line (symmetrical), a small pop of strong color against a large quiet area (asymmetrical), or colors repeated around a center (radial)."
       }
     },
     "texture": {

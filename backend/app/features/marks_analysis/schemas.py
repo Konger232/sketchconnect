@@ -10,7 +10,7 @@ from app.core.schemas import Relationship, SceneType, Source, Spot
 from app.features.scene_analysis.schemas import FocalSuggestion
 
 Role = Literal["contour", "big_shape", "eye_level", "ground_line", "perspective_guide",
-               "measurement", "alignment", "gesture", "unclear"]
+               "gesture", "unclear"]
 Fit = Literal["close", "loose", "not_applicable"]
 
 
@@ -26,7 +26,6 @@ class MarkReading(BaseModel):
 class Reading(BaseModel):
     """One AI reading of what an object's marks point at (seeing as)."""
     text: str                        # the option the sketcher sees
-    name: str                        # short noun phrase, fills {A} or {B} later
     element: str
 
 
@@ -40,6 +39,8 @@ class GuideObject(BaseModel):
     description: str = ""
     element: str
     weight: Optional[Literal["light", "medium", "heavy"]] = None
+    # How far back it sits in the scene, read from the photo.
+    depth: Optional[Literal["foreground", "middle", "background"]] = None
     readings: list[Reading] = Field(default_factory=list)
     selected: bool = False           # the sketcher selected these marks
 
@@ -52,6 +53,7 @@ class SceneObject(BaseModel):
     description: str
     element: str
     points: list[list[int]]          # outline, [[x, y], ...] in 0-1000
+    depth: Optional[Literal["foreground", "middle", "background"]] = None
 
 
 class Balance(BaseModel):
@@ -155,3 +157,5 @@ class MarksAnalysisResponse(BaseModel):
     focal_suggestions: list[FocalSuggestion] = Field(default_factory=list)
     prepared_prompts: list[MarksPrompt] = Field(default_factory=list)
     debug_raw_gemini_response: Optional[str] = None
+    # DEBUG=true only: a report page exists (GET /api/sketches/{id}/marks-report).
+    debug_report: bool = False

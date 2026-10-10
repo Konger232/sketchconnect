@@ -4,7 +4,8 @@ marks analysis call (design doc, Section 11, item 20; Elements x Principles
 Matrix doc, "Guide sequence", October 3, 2026). Element and principle keys
 come from app/core/design_fundamentals.json.
 
-The guide has three steps, each with 2 or 3 versions of its question:
+The guide has three steps, each with 1 to 3 question examples (tone only;
+the AI writes its own wording):
   mark_meaning      seeing as: what a mark points at
   relationship      seeing that: how two objects connect, or what one does
   principle_intent  what the sketcher wants to bring out
@@ -33,6 +34,8 @@ from string import Template
 from app.core import design_fundamentals as df
 
 BANK_PATH = Path(__file__).parent / "question_bank.json"
+# The relationship type saved for "They are not related." (relationship.unrelated).
+UNRELATED = "unrelated"
 MIN_OPTIONS, MAX_OPTIONS = 2, 4
 
 _cache: tuple[float, dict] | None = None
@@ -110,14 +113,14 @@ def _check(bank: dict) -> None:
     if not isinstance(mm, dict):
         problems.append("mark_meaning is missing")
     else:
-        problems += _versions("mark_meaning.questions", mm.get("questions"))
+        problems += _versions("mark_meaning.question_examples", mm.get("question_examples"))
 
     rel = bank.get("relationship")
     if not isinstance(rel, dict):
         problems.append("relationship is missing")
     else:
-        problems += _versions("relationship.questions_two", rel.get("questions_two"))
-        problems += _versions("relationship.questions_one", rel.get("questions_one"))
+        problems += _versions("relationship.question_examples_two", rel.get("question_examples_two"))
+        problems += _versions("relationship.question_examples_one", rel.get("question_examples_one"))
         if "kinds" in rel:
             problems.append("relationship: 'kinds' is renamed 'types'")
         types = rel.get("types")
@@ -134,17 +137,26 @@ def _check(bank: dict) -> None:
                 if t.get("element") in elements and t.get("principle") in principles \
                         and df.cell(t["element"], t["principle"]) is None:
                     problems.append(f"{where}: {t['element']} > {t['principle']} is not a matrix cell")
-                for field in ("looks_for", "example", "option"):
+                for field in ("looks_for", "example"):
                     if not _text(t.get(field)):
                         problems.append(f"{where}: missing {field}")
-                if "option_one" in t and not _text(t["option_one"]):
-                    problems.append(f"{where}: option_one must be text when present")
+                if name == UNRELATED:
+                    problems.append(f"{where}: '{UNRELATED}' is kept for the fixed 'not related' option")
+                if not isinstance(t.get("one_object"), bool):
+                    problems.append(f"{where}: one_object must be true or false")
+                if "option" in t or "option_one" in t:
+                    problems.append(f"{where}: option wording is written by the AI now; remove option/option_one")
+
+        un_rel = rel.get("unrelated")
+        if not isinstance(un_rel, dict) or not isinstance(un_rel.get("options"), list) \
+                or not un_rel["options"] or not all(_text(o) for o in un_rel["options"]):
+            problems.append("relationship.unrelated: needs at least one option wording")
 
     pi = bank.get("principle_intent")
     if not isinstance(pi, dict):
         problems.append("principle_intent is missing")
     else:
-        problems += _versions("principle_intent.questions", pi.get("questions"))
+        problems += _versions("principle_intent.question_examples", pi.get("question_examples"))
         mp = pi.get("max_principles")
         if not isinstance(mp, int) or isinstance(mp, bool) or not 1 <= mp <= 3:
             problems.append("principle_intent: max_principles must be between 1 and 3")
@@ -222,7 +234,7 @@ def relationship_types() -> list[str]:
 
 
 def one_object_types() -> list[str]:
-    return [k for k, t in load_bank()["relationship"]["types"].items() if t.get("option_one")]
+    return [k for k, t in load_bank()["relationship"]["types"].items() if t.get("one_object")]
 
 
 def type_info(rtype: str) -> dict:
@@ -242,21 +254,22 @@ def repeated_keys() -> set[str]:
 # ---------- prompt text ----------
 
 def render_bank() -> str:
-    """The three steps and the relationship types as prompt text. Static between edits."""
+    """The three steps' question examples and the relationship types as
+    prompt text. No option wording: the AI writes its own. Static between edits."""
     bank = load_bank()
     rel = bank["relationship"]
     lines = [
-        "Seeing as (mark_meaning) question versions: " + json.dumps(bank["mark_meaning"]["questions"]),
-        "Seeing that (relationship), two objects: " + json.dumps(rel["questions_two"]),
-        "Seeing that (relationship), one object: " + json.dumps(rel["questions_one"]),
-        "What to bring out (principle_intent): " + json.dumps(bank["principle_intent"]["questions"]),
+        "Seeing as (mark_meaning), question examples: " + json.dumps(bank["mark_meaning"]["question_examples"]),
+        "Seeing that (relationship), question examples, two objects: " + json.dumps(rel["question_examples_two"]),
+        "Seeing that (relationship), question examples, one object: " + json.dumps(rel["question_examples_one"]),
+        "What to bring out (principle_intent), question examples: " + json.dumps(bank["principle_intent"]["question_examples"]),
         "",
-        "Relationship types (type: element > principle. What to look for. Option wording.):",
+        "Relationship types (type: element > principle. Objects. What to look for. Example scene.):",
     ]
     for name, t in rel["types"].items():
-        one = f' One object: "{t["option_one"]}".' if t.get("option_one") else " Two objects only."
-        lines.append(f'- {name}: {t["element"]} > {t["principle"]}. {t["looks_for"].rstrip(".")}. '
-                     f'Example: {t["example"]}. Two objects: "{t["option"]}".{one}')
+        objs = "One or two objects." if t["one_object"] else "Two objects only."
+        lines.append(f'- {name}: {t["element"]} > {t["principle"]}. {objs} '
+                     f'{t["looks_for"].rstrip(".")}. Example: {t["example"]}.')
     return "\n".join(lines)
 
 
@@ -299,38 +312,48 @@ def focal_suggestion_prompt(label: str, reason: str | None) -> dict:
 
 def mark_meaning_prompt(question: str, readings: list[dict], obj: dict, focus: str) -> dict:
     """Seeing as, for one object: the AI's two readings, each with its
-    element and a short name (used as {A} or {B} later)."""
+    element. Either pick names the object by the object's own name ({A} or
+    {B} later), so a reading such as "its red" never becomes the subject."""
     return _answer_by_tap({
         "key": "mark_meaning",
         "focus": focus,
         "shape_id": obj["shape_id"],
-        "question": _clean(question) or load_bank()["mark_meaning"]["questions"][0],
+        "question": _clean(question) or load_bank()["mark_meaning"]["question_examples"][0],
         "options": [r["text"] for r in readings],
         "option_elements": [r["element"] for r in readings],
-        "option_names": [r["name"] for r in readings],
+        "option_names": [obj["name"]] * len(readings),
         "option_actions": [None] * len(readings),
         "mark_ids": list(obj["mark_ids"]),
     })
 
 
-def relationship_prompt(conn: dict, objects: dict, focus: str) -> dict:
+def relationship_prompt(conn: dict, objects: dict, focus: str, n: int = 0) -> dict:
     """
     Seeing that, for one pair (or one lone object). Options are relationship
     types in the AI's wording, with {A} and {B} left in: the app fills them
-    with the sketcher's own names from mark_meaning (name_refs).
+    with the sketcher's own names from mark_meaning (name_refs). A pair also
+    gets the fixed "not related" option last, its wording rotating with n,
+    the pair's place in the guide.
     """
     refs = conn["refs"]
     types = [o["type"] for o in conn["options"]]
+    texts = [o["text"] for o in conn["options"]]
+    elements = [type_info(t)["element"] for t in types]
+    principles = [type_info(t)["principle"] for t in types]
+    if len(refs) == 2:
+        wording = load_bank()["relationship"]["unrelated"]["options"]
+        types, texts = types + [UNRELATED], texts + [wording[n % len(wording)]]
+        elements, principles = elements + [None], principles + [None]
     names = {k: objects[sid]["name"] for k, sid in zip("AB", refs)}
     mark_ids = [m for sid in refs for m in objects[sid]["mark_ids"]]
     return _answer_by_tap({
         "key": "relationship",
         "focus": focus,
         "question": _clean(conn["question"]),
-        "options": [o["text"] for o in conn["options"]],
+        "options": texts,
         "option_types": types,
-        "option_elements": [type_info(t)["element"] for t in types],
-        "option_principles": [type_info(t)["principle"] for t in types],
+        "option_elements": elements,
+        "option_principles": principles,
         "option_actions": [None] * len(types),
         "name_refs": dict(zip("AB", refs)),
         "default_names": names,

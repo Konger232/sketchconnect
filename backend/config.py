@@ -114,10 +114,11 @@ MAX_MARKS = 200
 MAX_POINTS_PER_MARK = 5000
 MAX_MARKS_FOR_AI = 24
 
-# "What do you see these marks as?" questions, one per selected shape,
-# asked first (design doc, item 17). A design decision, kept low so the
-# guidance doesn't open with a quiz.
-MAX_MARK_MEANING_QUESTIONS = 2
+# How many subjects the guide asks about ("What caught your eye there?"):
+# the selected shapes, else the shapes drawn first (design doc, items 17
+# and 24). A design decision, kept low so the guidance doesn't open with a
+# quiz. Raised from 2 to 3 on October 10, 2026.
+MAX_MARK_MEANING_QUESTIONS = 3
 
 # The marks analysis call drives every guided question. The scene analysis
 # call reads the photo only (scene facts and focal areas), started when the

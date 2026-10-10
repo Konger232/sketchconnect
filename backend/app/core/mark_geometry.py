@@ -55,6 +55,15 @@ BIG_MARK_LONG = 700
 # right after the other). Counted among visible marks.
 ORDER_WINDOW = 1
 
+# Two marks drawn one right after the other, with an end of one within this
+# many square units of an end of the other, continue each other: one shape,
+# though they don't touch (a roofline drawn as two strokes with a small
+# gap). About 4% of the frame's long side. They must also run the same
+# way, within JOIN_ANGLE degrees, so a roof continues into a roof but not
+# into a wall. Keep both in sync with lib/markGeometry.js.
+JOIN_GAP = 40
+JOIN_ANGLE = 30
+
 STEP = 5         # marks are resampled to a point every STEP units for "runs along"
 SIMPLIFY = 3     # Douglas-Peucker tolerance (frame units) before comparing;
                  # well under the smallest reach (SNAP + line width)
@@ -70,6 +79,27 @@ def square_scale(aspect: float | None) -> tuple[float, float]:
     """
     a = aspect if aspect and aspect > 0 else 1.0
     return (1.0, 1.0 / a) if a >= 1 else (a, 1.0)
+
+
+def _end_gap(a: list, b: list) -> tuple[float, list]:
+    """The shortest distance between an end of a and an end of b, and the
+    midpoint of that gap."""
+    best = None
+    for p in (a[0], a[-1]):
+        for q in (b[0], b[-1]):
+            d = math.hypot(p[0] - q[0], p[1] - q[1])
+            if best is None or d < best[0]:
+                best = (d, [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2])
+    return best
+
+
+def _same_way(a: list, b: list) -> bool:
+    """Whether two marks run the same way (start to end, either direction),
+    within JOIN_ANGLE degrees."""
+    def angle(p):
+        return math.degrees(math.atan2(p[-1][1] - p[0][1], p[-1][0] - p[0][0])) % 180
+    d = abs(angle(a) - angle(b))
+    return min(d, 180 - d) <= JOIN_ANGLE
 
 
 def _to_square(mark: dict, sx: float, sy: float) -> dict:
@@ -344,6 +374,14 @@ def analyse(marks: list[dict] | None, aspect: float | None = 1.0) -> dict:
     for i in range(len(marks)):
         for j in range(i + 1, len(marks)):
             reach = (marks[i].get("width", 6) + marks[j].get("width", 6)) / 2 + SNAP
+            gap = _end_gap(marks[i]["points"], marks[j]["points"])
+            if (j - i <= ORDER_WINDOW and not guides[i] and not guides[j]
+                    and gap[0] <= JOIN_GAP and _same_way(marks[i]["points"], marks[j]["points"])
+                    and _boxes_apart(boxes[i], boxes[j], reach)):
+                # Apart, but one continues the other: one shape.
+                links.append({"a": ids[i], "b": ids[j], "kind": "continues", "at": to_frame(gap[1])})
+                parent[root(j)] = root(i)
+                continue
             if _boxes_apart(boxes[i], boxes[j], reach):
                 continue
             ln = link(marks[i], marks[j], simple[i], simple[j])
@@ -470,6 +508,7 @@ def groups_text(geo: dict) -> str:
     words = {
         "runs_along": "runs along",
         "connects": "connects to",
+        "continues": "continues",
         "crosses": "crosses",
         "contains": "contains",
         "inside": "sits inside",

@@ -19,11 +19,13 @@ photo or framing) replaces that dict, which also clears this cache.
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException
+from fastapi.responses import HTMLResponse
 from PIL import Image
 import pillow_heif
 from sqlalchemy.orm import Session
 
 from config import COACHING_MAX_DIMENSION, DEBUG
+from app.features.marks_analysis import debug_report
 from app.core.auth import get_current_sketcher_id
 from app.core.database import get_db
 from app.core.gemini_service import GeminiQuotaExceededError
@@ -58,7 +60,9 @@ async def marks_analysis(
     fingerprint = service.fingerprint(sketch, scene)
     cached = scene.get(CACHE_KEY) or {}
     if cached.get("fingerprint") == fingerprint and "cleaned" in cached:
-        return service.assemble(cached["cleaned"], sketch, scene, service.selected_mark_ids(sketch))
+        result = service.assemble(cached["cleaned"], sketch, scene, service.selected_mark_ids(sketch))
+        result["debug_report"] = DEBUG and debug_report.report_path(sketch.id).exists()
+        return result
 
     if not sketch.reference_image_url:
         raise HTTPException(400, "This sketch has no reference photo on file")
@@ -82,4 +86,42 @@ async def marks_analysis(
 
     result = service.assemble(cleaned, sketch, scene, plan.selected_ids)
     result["debug_raw_gemini_response"] = raw_text if DEBUG else None
+    if DEBUG and raw_text is not None:
+        # One HTML page per call: images, strokes in order, the prompt,
+        # Gemini's answer and the guide it became (debug_report.py).
+        try:
+            prompt = service.build_prompt(plan, scene, sketch, service.intents_from_choices(sketch.session_choices))
+            # The photo as uploaded. Without a reframe there is no separate
+            # original: the reference photo is it.
+            original = None
+            try:
+                src = sketch.original_image_url or sketch.reference_image_url
+                original = Image.open(UPLOAD_DIR / Path(src).name).convert("RGB")
+                original.thumbnail((1200, 1200))
+            except Exception:
+                original = None  # missing file: the report says "(none)"
+            path = debug_report.write_report(sketch, photo, plan, prompt, raw_text, cleaned, result,
+                                             service.ANALYSIS_VERSION, original)
+            print(f"[marks_analysis] report: {path}")
+            result["debug_report"] = True
+        except Exception as exc:  # a report must never break the guide
+            print(f"[marks_analysis] report failed: {exc}")
     return result
+
+
+@router.get("/sketches/{sketch_id}/marks-report", response_class=HTMLResponse)
+async def marks_report(
+    sketch_id: str,
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """DEBUG=true only: the last marks analysis report for this sketch
+    (debug_report.py), for the link under the guide question. The owner
+    only. 404 when DEBUG is off or no call has written one yet."""
+    if not DEBUG:
+        raise HTTPException(404, "Not found")
+    sketch = db.query(Sketch).filter(Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id).first()
+    path = debug_report.report_path(sketch_id)
+    if sketch is None or not path.exists():
+        raise HTTPException(404, "No marks analysis report for this sketch yet")
+    return HTMLResponse(path.read_text(encoding="utf-8"))

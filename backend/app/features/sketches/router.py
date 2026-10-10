@@ -39,7 +39,7 @@ from app.features.sketches.focal_pairing import pair_focal_points, region_anchor
 from app.features.scene_analysis import question_bank
 from app.core.value_study import compute_value_study
 from app.core.paths import UPLOAD_DIR
-from config import MAX_MARKS, MAX_POINTS_PER_MARK
+from config import DEBUG, MAX_MARKS, MAX_POINTS_PER_MARK
 from app.features.critique_agent.router import start_critique
 from app.features.geocode.service import reverse_geocode
 
@@ -564,7 +564,11 @@ async def add_session_choice(
         if len(total) > cap:
             raise HTTPException(422, f"{cap} is the most for one plan")
         choice["principles"] = picked
-        if not picked and not choice.get("undecided_principle"):
+        # An answer by tapping strokes or scene objects (option_index -1) or
+        # in their own words is the sketcher's own goal: kept with its
+        # mark_ids and words, with no principle named.
+        own_answer = choice.get("own_words") or choice.get("option_index") == -1
+        if not picked and not choice.get("undecided_principle") and not own_answer:
             raise HTTPException(400, "Pick a principle or Not sure yet")
 
     # A changed answer (Back, then a new pick) can drop a principle. The
@@ -999,6 +1003,8 @@ async def get_sketch(
         .all()
     )
     data = _sketch_to_dict(sketch, critiques[-1].critique if critiques else None)
+    # DEBUG=true only: the owner can open the last marks analysis report.
+    data["debug_report"] = DEBUG and (DEBUG_DIR / f"marks_report_{sketch.id}.html").exists()
     data["critiques"] = [
         {
             "critique": c.critique,

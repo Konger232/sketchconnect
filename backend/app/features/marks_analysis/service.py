@@ -52,10 +52,10 @@ from app.features.scene_analysis import service as scene_service
 PROMPTS = Path(__file__).parent / "prompts"
 
 # Bump when the cleaned result changes shape. Part of the cache fingerprint.
-ANALYSIS_VERSION = 7  # 7: no style, photo-only scene facts; 6: 6: word limits; 5: subject kind, plain readings; 4: three-step guide (objects, relationships, principle steps); 3: unseen reticle
+ANALYSIS_VERSION = 15  # 15: line strong on rhythm and variety, form matches shape on every principle; 14: contrast split by element (value, color, texture, space; size is scale), color > balance strong; 13: three subjects (MAX_MARK_MEANING_QUESTIONS); 12: stroke roles defined in the prompt, measurement and alignment dropped; 11: with nothing selected, the guide asks about the shapes drawn first; 10: depth (foreground, middle, background) on objects and scene objects; 9: strokes that continue each other join one shape (JOIN_GAP); 8: AI writes all wording, bank sets types only, readings without names; 7: no style, photo-only scene facts; 6: 6: word limits; 5: subject kind, plain readings; 4: three-step guide (objects, relationships, principle steps); 3: unseen reticle
 
-ROLES = ["contour", "big_shape", "eye_level", "ground_line", "perspective_guide",
-         "measurement", "alignment", "gesture", "unclear"]
+ROLES = ["perspective_guide", "eye_level", "ground_line", "contour", "big_shape",
+         "gesture", "unclear"]
 FITS = ["close", "loose", "not_applicable"]
 MAX_STEP_OPTIONS = 3
 MIN_STEP_OPTIONS = 2
@@ -63,6 +63,8 @@ MAX_RELATIONSHIP_QUESTIONS = 2
 MAX_SCENE_OBJECTS = 6
 MAX_FORM_RELATIONSHIPS = 4
 WEIGHTS = ["light", "medium", "heavy"]
+# How far back a subject sits in the scene (October 10, 2026).
+DEPTHS = ["foreground", "middle", "background"]
 KINDS = ["person", "animal", "vehicle", "building", "object", "plant", "landscape", "sky", "water"]
 SIDES = ["left", "right", "top", "bottom", "even"]
 # A form point closer than this to a mark (square units, frame long side
@@ -119,6 +121,10 @@ class MarksPlan:
     marks: list[dict]                              # visible marks, stroke order
     image: Image.Image | None                      # Image 2, ids labelled
     selected_shapes: list[dict] = field(default_factory=list)  # [{id, mark_ids}] selected marks only
+    # With nothing selected: the shapes of the strokes drawn first, in
+    # stroke order, at most MAX_MARK_MEANING_QUESTIONS. What a sketcher
+    # sets down first is what they set out to plan.
+    first_shapes: list[dict] = field(default_factory=list)       # [{id, mark_ids}]
     aspect: float = 1.0
 
     @property
@@ -157,8 +163,17 @@ def build_plan(sketch, framed_image: Image.Image | None = None) -> MarksPlan:
         ids = [i for i in g["mark_ids"] if i in selected]
         if ids:
             shapes.append({"id": g["id"], "mark_ids": ids})
+    first = []
+    if not shapes:
+        shape_of = {m: g for g in geo["groups"] for m in g["mark_ids"]}
+        for f in geo["marks"]:  # stroke order
+            g = shape_of.get(f["id"])
+            if g and all(x["id"] != g["id"] for x in first):
+                first.append({"id": g["id"], "mark_ids": list(g["mark_ids"])})
+            if len(first) >= MAX_MARK_MEANING_QUESTIONS:
+                break
     return MarksPlan(geo=geo, marks=marks, image=image,
-                     selected_shapes=shapes[:MAX_MARK_MEANING_QUESTIONS], aspect=aspect)
+                     selected_shapes=shapes[:MAX_MARK_MEANING_QUESTIONS], first_shapes=first, aspect=aspect)
 
 
 def scene_facts(cached_scene: dict | None, sketch) -> str:
@@ -192,6 +207,7 @@ def build_prompt(plan: MarksPlan, cached_scene: dict | None, sketch, intents: li
         marks_table=mark_geometry.marks_table(plan.geo),
         groups=mark_geometry.groups_text(plan.geo),
         shapes="\n".join(f"- {s['id']}: {', '.join(s['mark_ids'])}" for s in plan.selected_shapes) or "none selected",
+        first_shapes="\n".join(f"- {s['id']}: {', '.join(s['mark_ids'])}" for s in plan.first_shapes) or "not used (shapes are selected)",
         intents=_intents_text(intents),
     )
 
@@ -253,17 +269,18 @@ def response_schema() -> dict:
                         "description": {"type": "string"},
                         "element": element,
                         "weight": {"type": "string", "enum": WEIGHTS},
+                        "depth": {"type": "string", "enum": DEPTHS},
                         "question": {"type": "string"},
                         "readings": {
                             "type": "array",
                             "items": {
                                 "type": "object",
-                                "properties": {"text": {"type": "string"}, "name": {"type": "string"}, "element": element},
-                                "required": ["text", "name", "element"],
+                                "properties": {"text": {"type": "string"}, "element": element},
+                                "required": ["text", "element"],
                             },
                         },
                     },
-                    "required": ["shape_id", "kind", "name", "description", "element", "weight", "question", "readings"],
+                    "required": ["shape_id", "kind", "name", "description", "element", "weight", "depth", "question", "readings"],
                 },
             },
             "scene_objects": {
@@ -275,9 +292,10 @@ def response_schema() -> dict:
                         "label": {"type": "string"},
                         "description": {"type": "string"},
                         "element": element,
+                        "depth": {"type": "string", "enum": DEPTHS},
                         "contour_points": {"type": "array", "items": {"type": "integer"}},
                     },
-                    "required": ["kind", "label", "description", "element", "contour_points"],
+                    "required": ["kind", "label", "description", "element", "depth", "contour_points"],
                 },
             },
             "relationships": {
@@ -355,6 +373,40 @@ def _no_ids(text: str) -> bool:
     return bool(text) and not _ID_IN_TEXT.search(text)
 
 
+_PRONOUN_START = re.compile(r"^(its|his|her|their)\b", re.I)
+
+
+def _standalone_name(name, readings: list[dict]) -> str:
+    """The object's name for {A} or {B}. A name that leans on a pronoun
+    ("its vibrant red hue") falls back to the first reading, which names
+    the subject itself."""
+    n = _safe(name)
+    if n and not _PRONOUN_START.match(n):
+        return n
+    if DEBUG and n:
+        print(f"[marks_analysis] name replaced (starts with a pronoun): {n}")
+    if not readings:
+        return "this part"
+    t = readings[0]["text"]
+    return t[:1].lower() + t[1:]  # it sits mid-sentence in {A}/{B}
+
+
+def _framing_depth_ok(depths: list) -> bool:
+    """Framing needs {A}, the framing subject, nearer than {B}. Unknown
+    depths pass, so a missing reading never hides an option."""
+    if len(depths) != 2 or None in depths:
+        return True
+    return DEPTHS.index(depths[0]) < DEPTHS.index(depths[1])
+
+
+def _has_slots(text: str, n_objects: int) -> bool:
+    """AI wording must leave the subjects as {A} (and {B} for a pair), so
+    the app can fill in the object's name or the sketcher's own words."""
+    if not text or "{A}" not in text:
+        return False
+    return ("{B}" in text) == (n_objects == 2)
+
+
 def _safe(text) -> str:
     """Text the sketcher will read, or "" when it is empty or names an id."""
     t = _text(text)
@@ -376,7 +428,6 @@ def _log_long(cleaned: dict) -> None:
             check(f, o.get(f))
         for r in o["readings"]:
             check("text", r["text"])
-            check("name", r["name"])
     for o in cleaned["scene_objects"]:
         check("label", o["label"])
         check("description", o["description"])
@@ -452,7 +503,9 @@ def clean(raw: dict, plan: MarksPlan, intents: list[dict]) -> dict:
     # Objects (step 1): the sketcher's selection wins. Otherwise Gemini's picks.
     selected = {s["id"]: s["mark_ids"] for s in plan.selected_shapes}
     raw_objects = {o.get("shape_id"): o for o in raw.get("objects") or [] if isinstance(o, dict)}
-    order = list(selected) if selected else [k for k in raw_objects if plan.shape(k)]
+    # The sketcher's selection, else the shapes drawn first. Never Gemini's
+    # own pick: the guide follows what the sketcher put down.
+    order = list(selected) if selected else [s["id"] for s in plan.first_shapes]
     objects = []
     for sid in order[:MAX_MARK_MEANING_QUESTIONS]:
         g = plan.shape(sid)
@@ -466,18 +519,19 @@ def clean(raw: dict, plan: MarksPlan, intents: list[dict]) -> dict:
             element = max(set(found), key=found.count) if found else "shape"
         rs = []
         for r in (o.get("readings") or [])[:2]:
-            t, n = _safe(r.get("text")), _safe(r.get("name"))
-            if t and n and r.get("element") in elements:
-                rs.append({"text": t, "name": n, "element": r["element"]})
+            t = _safe(r.get("text"))
+            if t and r.get("element") in elements:
+                rs.append({"text": t, "element": r["element"]})
         objects.append({
             "shape_id": sid,
             "mark_ids": mark_ids,
             "selected": sid in selected,
             "kind": o.get("kind") if o.get("kind") in KINDS else None,
-            "name": _safe(o.get("name")) or (rs[0]["name"] if rs else "this part"),
+            "name": _standalone_name(o.get("name"), rs),
             "description": _safe(o.get("description")),
             "element": element,
             "weight": o.get("weight") if o.get("weight") in WEIGHTS else None,
+            "depth": o.get("depth") if o.get("depth") in DEPTHS else None,
             "question": _safe(o.get("question")),
             "readings": rs if len(rs) == 2 else [],
         })
@@ -492,15 +546,16 @@ def clean(raw: dict, plan: MarksPlan, intents: list[dict]) -> dict:
             scene_objects.append({"id": f"o{len(scene_objects) + 1}", "label": label,
                                   "kind": o.get("kind") if o.get("kind") in KINDS else None,
                                   "description": _safe(o.get("description")) or label,
-                                  "element": o["element"], "points": pts})
+                                  "element": o["element"], "points": pts,
+                                  "depth": o.get("depth") if o.get("depth") in DEPTHS else None})
         if len(scene_objects) >= MAX_SCENE_OBJECTS:
             break
 
     # Relationships (step 2) and their principle steps (step 3).
     one_types = set(question_bank.one_object_types())
-    q_two = bank["relationship"]["questions_two"][0]
-    q_one = bank["relationship"]["questions_one"][0]
-    q_bring = bank["principle_intent"]["questions"][0]
+    q_two = bank["relationship"]["question_examples_two"][0]
+    q_one = bank["relationship"]["question_examples_one"][0]
+    q_bring = bank["principle_intent"]["question_examples"][0]
     relationships, pairs = [], set()
     for r in raw.get("relationships") or []:
         refs = list(dict.fromkeys(x for x in (r.get("refs") or []) if x in by_id))[:2]
@@ -511,7 +566,13 @@ def clean(raw: dict, plan: MarksPlan, intents: list[dict]) -> dict:
         for o in r.get("options") or []:
             t, text = o.get("type"), _safe(o.get("text"))
             if t in allowed and t not in seen and text:
-                if len(refs) == 1 and "{B}" in text:
+                if t == "framing" and not _framing_depth_ok([by_id[x].get("depth") for x in refs]):
+                    if DEBUG:
+                        print(f"[marks_analysis] framing option dropped (the framing subject is not nearer): {text}")
+                    continue
+                if not _has_slots(text, len(refs)):
+                    if DEBUG:
+                        print(f"[marks_analysis] relationship option dropped (needs {{A}}{' and {B}' if len(refs) == 2 else ' only'}): {text}")
                     continue
                 seen.add(t)
                 opts.append({"type": t, "text": text})
@@ -526,9 +587,9 @@ def clean(raw: dict, plan: MarksPlan, intents: list[dict]) -> dict:
             info = question_bank.type_info(o["type"])
             steps[o["type"]] = _principle_step(raw_steps.get(o["type"]), info["element"], info["principle"], q_bring)
         steps["other"] = _principle_step(raw_steps.get("other"), by_id[refs[0]]["element"], None, q_bring)
-        question = _safe(r.get("question")) or (q_two if len(refs) == 2 else q_one)
-        if len(refs) == 1:
-            question = question.replace("{B}", "").strip()
+        question = _safe(r.get("question"))
+        if not _has_slots(question, len(refs)):
+            question = q_two if len(refs) == 2 else q_one
         pairs.add(tuple(sorted(refs)))
         relationships.append({"refs": refs, "question": question, "options": opts, "principle_steps": steps})
         if len(relationships) >= MAX_RELATIONSHIP_QUESTIONS:
@@ -604,11 +665,13 @@ def assemble(cleaned: dict, sketch, cached_scene: dict | None, selected_ids: set
         if o["readings"]:
             prompts.append(question_bank.mark_meaning_prompt(o["question"], o["readings"], o, focus(o["mark_ids"])))
     # 2 and 3. Seeing that, each followed by what to bring out.
+    pairs = 0
     for conn in cleaned.get("relationships") or []:
         if not all(r in objects for r in conn["refs"]):
             continue
         ids = [m for r in conn["refs"] for m in objects[r]["mark_ids"]]
-        prompts.append(question_bank.relationship_prompt(conn, objects, focus(ids)))
+        prompts.append(question_bank.relationship_prompt(conn, objects, focus(ids), pairs))
+        pairs += len(conn["refs"]) == 2
         prompts.append(question_bank.principle_prompt(conn, objects, focus(ids)))
 
     # Unseen: focal areas no mark sits on, from the scene analysis.
@@ -631,7 +694,7 @@ def assemble(cleaned: dict, sketch, cached_scene: dict | None, selected_ids: set
         "debug": DEBUG,
         "scene_type": scene.get("scene_type"),
         "marks": cleaned.get("marks") or [],
-        "objects": [{k: o[k] for k in ("shape_id", "mark_ids", "kind", "name", "description", "element", "weight", "readings", "selected")}
+        "objects": [{k: o[k] for k in ("shape_id", "mark_ids", "kind", "name", "description", "element", "weight", "depth", "readings", "selected")}
                     for o in objects.values()],
         "scene_objects": cleaned.get("scene_objects") or [],
         "balance": cleaned.get("balance"),

@@ -33,3 +33,6 @@ backend/legacy/
 
 # Debug output (DEBUG=true): complete marks per Gemini call
 backend/debug_out/
+
+# Plan read trial output (tools/plan_read_eval.py)
+backend/plan_read_out/

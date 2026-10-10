@@ -1,5 +1,5 @@
 {
-  "about": "Guided question bank for the marks analysis call (Elements x Principles Matrix doc, Guide sequence, October 3, 2026). Element and principle keys come from app/core/design_fundamentals.json. Three steps: mark_meaning (seeing as), relationship (seeing that), principle_intent (what to bring out). The AI picks one of each step's question versions and fits it to the scene. It cannot add a step or a relationship type that is not listed here. Every step also takes a tap on the photo or the sketcher's own words (own_words). focal_suggestion and unseen ask about something no mark sits on.",
+  "about": "Guided question bank for the marks analysis call (Elements x Principles Matrix doc, Guide sequence, October 3, 2026). Element and principle keys come from app/core/design_fundamentals.json. Three steps: mark_meaning (seeing as), relationship (seeing that), principle_intent (what to bring out). The bank sets the steps and which relationship types exist. The AI writes every question and option in its own words for the scene; the question examples only set the tone. It cannot add a step or a relationship type that is not listed here. Every step also takes a tap on the photo or the sketcher's own words (own_words). focal_suggestion and unseen ask about something no mark sits on.",
   "actions": {
     "value_study": "Dominant values: the photo simplified into a few flat value shapes, light to dark (OpenCV).",
     "grayscale": "The Plan photo in black and white, until turned off in Guides, Value.",
@@ -31,90 +31,108 @@
     ]
   },
   "mark_meaning": {
-    "about": "Seeing as. Once per object the guide asks about. The AI writes two readings, each tied to an element, and a short name for each (used as {A} or {B} in the next step).",
-    "questions": [
+    "about": "Seeing as. Once per object the guide asks about. The AI writes two readings, each tied to an element. The object's name (not a reading) fills {A} or {B} in the next step, unless the sketcher answers in their own words.",
+    "question_examples": [
       "What do you see it as?",
       "What caught your eye there?",
       "What are you following?"
     ]
   },
   "relationship": {
-    "about": "Seeing that. Once per pair of objects, or once for a lone object. The AI offers 2 or 3 types that fit, in the wording of 'option' (two objects) or 'option_one' (one object), fitted to the scene. {A} and {B} are filled with the sketcher's own names from mark_meaning. Only types with option_one can be offered for one object.",
-    "questions_two": [
+    "about": "Seeing that. Once per pair of objects, or once for a lone object. The bank sets which types exist and what each looks for. It never sets the wording: the AI picks 2 or 3 types that fit what is visible and writes each option for this scene. {A} and {B} stand for the objects. The app fills them with the object's name, or the sketcher's own words from mark_meaning. Only types with one_object: true can be offered for a lone object.",
+    "question_examples_two": [
       "How do {A} and {B} connect for you?",
       "What links {A} and {B}?",
       "What do you see between {A} and {B}?"
     ],
-    "questions_one": [
+    "question_examples_one": [
       "What does {A} do in the scene?",
       "Why does {A} hold your eye?"
     ],
+    "unrelated": {
+      "about": "A fixed last option on every two-object question, so the sketcher can say the AI paired two things that don't belong together (two strokes that only happen to run parallel, say). The wording rotates from one pair to the next. Picking it saves type 'unrelated', with no element or principle, and skips \"What to bring out\" for that pair.",
+      "options": [
+        "They are not related.",
+        "I don't see the connection."
+      ]
+    },
     "types": {
       "gesture": {
         "element": "line",
         "principle": "movement",
+        "one_object": false,
         "looks_for": "Figures or animals facing, reaching toward, or turning away from each other. A gaze or a lean is an implied line.",
-        "example": "the two diners leaning toward each other across the table",
-        "option": "{A} turns toward {B}"
-      },
-      "echo": {
-        "element": "shape",
-        "principle": "rhythm",
-        "looks_for": "Repeated shapes or colours in different subjects",
-        "example": "round lanterns echoing a round window",
-        "option": "{A} repeats the shape of {B}"
-      },
-      "contrast": {
-        "element": "shape",
-        "principle": "variety",
-        "looks_for": "Opposites side by side: old and new, big and small, rigid and organic",
-        "example": "a glass tower beside a wooden shophouse",
-        "option": "{A} and {B} are opposites side by side"
-      },
-      "scale": {
-        "element": "shape",
-        "principle": "proportion",
-        "looks_for": "A small subject set against a much larger one",
-        "example": "a lone cyclist under a flyover",
-        "option": "{A} looks small beside {B}"
-      },
-      "framing": {
-        "element": "space",
-        "principle": "emphasis",
-        "looks_for": "One subject seen through or inside another",
-        "example": "a street seen through an archway",
-        "option": "{A} frames {B}"
+        "example": "the two diners leaning toward each other across the table"
       },
       "leading": {
         "element": "line",
         "principle": "movement",
+        "one_object": false,
         "looks_for": "Lines that carry the eye from one subject to the other",
-        "example": "tram rails running toward a clock tower",
-        "option": "{A} leads my eye to {B}"
+        "example": "tram rails running toward a clock tower"
       },
-      "temperature": {
+      "echo": {
+        "element": "shape",
+        "principle": "rhythm",
+        "one_object": false,
+        "looks_for": "Repeated shapes or colours in different subjects",
+        "example": "round lanterns echoing a round window"
+      },
+      "framing": {
+        "element": "space",
+        "principle": "emphasis",
+        "one_object": false,
+        "looks_for": "One subject seen through or inside another",
+        "example": "a street seen through an archway"
+      },
+      "scale": {
+        "element": "shape",
+        "principle": "proportion",
+        "one_object": false,
+        "looks_for": "One subject much taller, wider or bigger than the other.",
+        "example": "a man walking under a tall utility pole"
+      },
+      "value_contrast": {
+        "element": "value",
+        "principle": "emphasis",
+        "one_object": true,
+        "looks_for": "Light against dark: a pale subject against a dark one, or the reverse.",
+        "example": "a white umbrella against a shaded doorway"
+      },
+      "color_contrast": {
         "element": "color",
         "principle": "emphasis",
-        "looks_for": "A warm area against a cold one. The warm one comes forward.",
-        "example": "a red lantern against a blue-grey wall",
-        "option": "The warm {A} stands out from the cool {B}",
-        "option_one": "It is the warm spot in a cool scene"
+        "one_object": true,
+        "looks_for": "Colors that pull apart: warm against cool, a complementary pair (red and green, blue and orange), or saturated against dull. The warm or saturated one comes forward.",
+        "example": "a red lantern against a blue-grey wall"
+      },
+      "texture_contrast": {
+        "element": "texture",
+        "principle": "variety",
+        "one_object": true,
+        "looks_for": "Rough against smooth.",
+        "example": "a rough stone wall beside a glass door"
+      },
+      "space_contrast": {
+        "element": "space",
+        "principle": "emphasis",
+        "one_object": true,
+        "looks_for": "A subject (positive space) set against open, empty space (negative space) around it.",
+        "example": "a lone figure against a blank wall"
       },
       "palette": {
         "element": "color",
         "principle": "unity",
+        "one_object": true,
         "looks_for": "The scene held by one or two dominant colors",
-        "example": "a street all in ochre and terracotta",
-        "option": "{A} and {B} share the same few colors",
-        "option_one": "Its colors run through the whole scene"
+        "example": "a street all in ochre and terracotta"
       },
       "weight": {
         "element": "space",
         "principle": "balance",
+        "one_object": true,
         "looks_for": "The weight on one side against the other: size, value, warm color, detail, isolation and distance from the center",
-        "example": "a large tree on the left against a small red boat on the right",
-        "option": "{A} on one side holds up {B} on the other",
-        "option_one": "It balances the other side"
+        "example": "a large tree on the left against a small red boat on the right"
       }
     }
   },
@@ -122,7 +140,7 @@
     "about": "What to bring out. Asked after the relationship, with the options for the type the sketcher picked: that type's principle first, then one or two more from the same element's matrix row. Each option is a plain goal for this scene, never a principle name. A pick saves the principle as an intent (source intended). Up to max_principles across the plan.",
     "max_principles": 3,
     "multi_select": false,
-    "questions": [
+    "question_examples": [
       "What do you want to bring out?",
       "How will you show it?",
       "What matters most here?"
@@ -130,7 +148,7 @@
   },
   "unseen": {
     "about": "Asked only when no focal_suggestion is left. Gemini writes one question from a form_relationships entry that no mark sits on, and names the entry's element and principle. The options are fixed. The app shows a reticle on the first form.",
-    "question": "Your marks leave out how these parts of the scene relate. Do you see it?",
+    "question": "Your plan leaves out how these parts of the scene relate. Do you see it?",
     "fixed_options": [
       {
         "label": "I see it now"
