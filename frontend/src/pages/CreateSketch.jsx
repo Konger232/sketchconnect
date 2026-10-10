@@ -29,7 +29,7 @@ const MIN_CROP = 0.2
 const STEPS = [
   { key: 'photo', name: 'Reference photo' },
   { key: 'crop', name: 'Crop and reframe' },
-  { key: 'marks', name: 'Marks' },
+  { key: 'marks', name: 'Plan what to sketch' },
 ]
 
 // The frame as the crop step leaves it, to tell whether it changed since
@@ -43,7 +43,7 @@ const UNTOUCHED_FRAME = { aspect_ratio: 'original', ratio: null, zoom: 1, offset
 // The hint over the photo on the photo steps.
 const STAGE_HINTS = {
   crop: 'Drag corners to crop. Pinch to zoom.',
-  marks: 'Mark shapes or edges you care about',
+  marks: 'Select shapes or edges you care about',
 }
 
 const RATIO_LABELS = { original: 'Original' }
@@ -517,7 +517,7 @@ export default function CreateSketch() {
       // Skipped marks weren't saved, so don't keep showing them.
       if (skipMarks) drawing.clear()
     } catch (err) {
-      setError(err.response?.data?.detail || 'Could not save your marks.')
+      setError(err.response?.data?.detail || 'Could not save your plan.')
       return
     } finally {
       setSaving(false)
@@ -569,11 +569,12 @@ export default function CreateSketch() {
 
   // Photo and Plan side by side (scene analysis). The outer SVG keeps the
   // frame's shape; the inner one is the usual 0-1000 overlay space.
+  // While the AI reads it: the Plan, full width like every other step,
+  // scanning, with its label under it like Edit Sketch's strip.
   const planCard = (label, withPlan) => (
-    <figure className="flex min-w-0 flex-1 flex-col gap-1.5">
-      {/* The plan card scans while the AI reads it. */}
-      <div className={`relative overflow-hidden rounded-xl ${withPlan && step === 'analyzing' ? 'sc-scan' : ''}`}>
-        <svg viewBox={`0 0 ${Math.round(1000 * ratio)} 1000`} className="block h-auto max-h-[60vh] w-full">
+    <figure className="flex w-full min-w-0 flex-col md:min-h-0 md:flex-1">
+      <div className={`relative overflow-hidden md:min-h-0 md:flex-1 ${withPlan && step === 'analyzing' ? 'sc-scan' : ''}`}>
+        <svg viewBox={`0 0 ${Math.round(1000 * ratio)} 1000`} className="block h-auto max-h-[75vh] w-full md:h-full md:max-h-none">
           <svg x="0" y="0" width={Math.round(1000 * ratio)} height="1000" viewBox="0 0 1000 1000" preserveAspectRatio="none">
             <image href={referenceImageUrl || originalImageUrl} width="1000" height="1000" preserveAspectRatio="none"
               opacity={withPlan ? 0.75 : 1} />
@@ -581,7 +582,7 @@ export default function CreateSketch() {
           </svg>
         </svg>
       </div>
-      <figcaption className="text-base font-bold text-sc-text2">{label}</figcaption>
+      <figcaption className="shrink-0 pb-3 pt-2 text-center text-base font-bold text-white">{label}</figcaption>
     </figure>
   )
 
@@ -590,7 +591,7 @@ export default function CreateSketch() {
       <ConfirmDialog
         open={confirmingClose}
         title="Discard this sketch?"
-        message="Closing now deletes this sketch: the photo, the framing, your marks and the scene analysis."
+        message="Closing now deletes this sketch: the photo, the framing, your plan and the scene analysis."
         confirmLabel="Discard"
         cancelLabel="Keep editing"
         onConfirm={discardAndClose}
@@ -599,7 +600,7 @@ export default function CreateSketch() {
       <ConfirmDialog
         open={!!replaceWith}
         title="Replace this photo?"
-        message="A new photo starts this sketch over. Your framing and marks will be deleted."
+        message="A new photo starts this sketch over. Your framing and plan will be deleted."
         confirmLabel="Replace photo"
         cancelLabel="Keep this one"
         onConfirm={async () => {
@@ -614,7 +615,16 @@ export default function CreateSketch() {
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} className="hidden" />
 
       {/* ===== LEFT: PHOTO STAGE ===== */}
-      <div className="relative flex min-h-[55vh] flex-1 flex-col bg-sc-modal md:min-h-0">
+      {/* The photo is shown the same way as in Edit Sketch, on every step:
+          the full width of the stage. On a phone the stage is as tall as
+          the photo or frame (at most 75vh), so the panel below moves up;
+          from 768px it fills the left side, inset top and bottom only.
+          --frame-ratio is the frame's width / height. Only the empty photo
+          step (the camera button) keeps a fixed height. */}
+      <div
+        className={`relative flex flex-col bg-sc-modal md:min-h-0 md:flex-1 ${step === 'photo' && !preview ? 'min-h-[55vh] flex-1' : 'flex-none'}`}
+        style={{ '--frame-ratio': ratio }}
+      >
         {step === 'photo' && !preview && (
           <div className="flex flex-1 p-5 md:p-[var(--stage-inset)]">
             <Button className="w-full h-full flex flex-1 p-0 block reset-button-styles"
@@ -632,8 +642,8 @@ export default function CreateSketch() {
 
         {step === 'photo' && preview && (
           <div className="relative min-h-0 flex-1">
-            <div className="absolute inset-3 md:inset-[var(--stage-inset)]">
-              <img src={preview} alt="Reference photo" className="h-full w-full animate-fade-in-scale object-contain" />
+            <div className="relative md:absolute md:inset-x-0 md:inset-y-[var(--stage-inset)]">
+              <img src={preview} alt="Reference photo" className="block h-auto max-h-[75vh] w-full animate-fade-in-scale object-contain md:h-full md:max-h-none" />
             </div>
           </div>
         )}
@@ -652,7 +662,8 @@ export default function CreateSketch() {
             zoom={zoom}
             offset={offset}
             box={box}
-            heightClass="min-h-0 flex-1"
+            heightClass="max-md:aspect-[var(--frame-ratio)] max-md:max-h-[75vh] md:min-h-0 md:flex-1"
+            padClass="p-0 md:px-0 md:py-[var(--stage-inset)]"
             cropFrame={step === 'crop'}
             cropRect={cropRect}
             cornerHandlers={step === 'crop' ? cornerHandlers : undefined}
@@ -668,8 +679,7 @@ export default function CreateSketch() {
         )}
 
         {step === 'analyzing' && (
-          <div className="flex min-h-0 flex-1 items-center gap-3 p-5 md:p-[var(--stage-inset)]">
-            {planCard('Photo', false)}
+          <div className="flex flex-col items-center md:min-h-0 md:flex-1 md:justify-center md:py-[var(--stage-inset)]">
             {planCard('Plan', true)}
           </div>
         )}
@@ -691,7 +701,7 @@ export default function CreateSketch() {
 
       {/* ===== RIGHT: STEP PANEL ===== */}
       <div className="sc-panel">
-        <div className="flex shrink-0 flex-col gap-2 border-b border-sc-divider px-4 pb-3 pt-4">
+        <div className="sc-step-head">
           <div className="sc-progress" aria-hidden="true">
             {STEPS.map((s, i) => (
               <span key={s.key} data-state={i < stepIndex ? 'done' : i === stepIndex ? 'current' : 'todo'} />
@@ -749,7 +759,7 @@ export default function CreateSketch() {
                 <MarkPanel {...markTools} disabled={saving} />
               </div>
               <div className="flex flex-col gap-1 md:hidden">
-                <p className="sc-body">Draw on the photo. Open Marks for the pen, color, eraser and line.</p>
+                <p className="sc-body">Draw your plan on the photo. Open Tools for the pen, color, eraser and line.</p>
                 <p className="text-sm text-sc-text3">{SELECT_HINT}</p>
               </div>
             </>
@@ -761,10 +771,10 @@ export default function CreateSketch() {
               current={analysisProgress.current}
               seconds={analysisProgress.seconds}
               steps={[
-                { label: 'Framing and marks' },
+                { label: 'Framing and plan' },
                 { label: 'Location', result: uploadedLocation?.label || 'Not in photo' },
                 { label: 'Scene title' },
-                { label: 'Sparks questions' },
+                { label: 'Questions' },
               ]}
             />
           )}

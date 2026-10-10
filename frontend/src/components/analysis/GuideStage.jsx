@@ -73,6 +73,12 @@ export default function GuideStage({
   // Marks the current guided question is about. They show, and the rest
   // fade, even when the Marks toggle is off.
   highlightMarkIds = [],
+  // "Have you considered capturing ...?" (New Sketch only): a tap on the red
+  // area answers "Yes, add it". On a "Do you see ...?" question, a tap on
+  // the AI's reticle answers "I see it now". Once added (suggestionAdded), the red area
+  // fades and the new stroke along its outline takes its place.
+  onSuggestionTap,
+  suggestionAdded = false,
   // The sketcher's spot, { x, y, mark_ids }, drawn as their own reticle.
   spot = null,
   // Answer by lines (owner only, while a question's options are tied to
@@ -120,9 +126,12 @@ export default function GuideStage({
   const tappable = !!onPickAt
 
   return (
-    <div className="relative min-h-[55vh] flex-1 overflow-hidden bg-sc-modal md:min-h-0">
-      <div className="absolute inset-3 md:inset-[var(--stage-inset)]">
-        <img ref={imgRef} src={imageUrl} alt={alt} className="h-full w-full animate-fade-in-scale object-contain" />
+    // Phone: the photo spans the full width at its own height (at most
+    // 75vh), so nothing is wasted above or below it. From 768px it fills
+    // the stage's width, inset top and bottom only.
+    <div className="relative flex-1 overflow-hidden bg-sc-modal md:min-h-0">
+      <div className="relative md:absolute md:inset-x-0 md:inset-y-[var(--stage-inset)]">
+        <img ref={imgRef} src={imageUrl} alt={alt} className="block h-auto max-h-[75vh] w-full animate-fade-in-scale object-contain md:h-full md:max-h-none" />
 
         {rect && (
           <div className="pointer-events-none absolute" style={rect}>
@@ -138,8 +147,14 @@ export default function GuideStage({
               {answerOutlines.length > 0 && <ShapeOutlineOverlay focalRegions={answerOutlines} variant="answer" />}
             </Fade>
             {/* The one focal area the current question asks about. */}
-            <Fade as="div" show={!!suggestedRegion}>
-              {shownRegion && <ShapeOutlineOverlay focalRegions={[shownRegion]} />}
+            <Fade as="div" show={!!suggestedRegion && !suggestionAdded}>
+              {shownRegion && (
+                <ShapeOutlineOverlay
+                  focalRegions={[shownRegion]}
+                  onRegionClick={suggestedRegion && !suggestionAdded ? onSuggestionTap : undefined}
+                  regionLabel={aiSuggestion?.label}
+                />
+              )}
             </Fade>
             <Fade as="div" show={show('perspective')}>
               <PerspectiveLinesOverlay perspective={perspective} />
@@ -173,9 +188,10 @@ export default function GuideStage({
               </Fade>
               {/* The sketcher's spot on their lines, while a question shows. */}
               {spot && <Reticle x={spot.x} y={spot.y} />}
-              {/* The AI's suggestion, while its question is showing. Has
-                  its own fade (AISuggestedReticle). */}
-              <AISuggestedReticle suggestion={aiSuggestion} />
+              {/* The AI's suggested spot (a dot), while its question is
+                  showing. A suggested area shows only its red outline, no
+                  reticle. Has its own fade (AISuggestedReticle). */}
+              <AISuggestedReticle suggestion={suggestedRegion ? null : aiSuggestion} onTap={onSuggestionTap} />
             </svg>
           </div>
         )}

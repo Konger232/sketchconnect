@@ -5,7 +5,8 @@ import Icon from './Icon'
  * The dark modal shell for New Sketch (CreateSketch.jsx) and Edit Sketch
  * (EditSketch.jsx), from the design handoff.
  *
- *   header   close (x) on the left, the title centred
+ *   header   close (x) on the left, the title centred. Thinner, with a
+ *            smaller title, on a phone (under 768px).
  *   body     children, laid out by the page: the photo stage on the left
  *            (flex-1) and the right panel (.sc-panel, 340px on iPad,
  *            380px on desktop). Under 768px they stack.
@@ -28,24 +29,24 @@ export default function SketchModal({ title, onClose, onDelete, children }) {
         className="relative flex h-full w-full flex-col overflow-hidden bg-sc-modal font-sans text-sc-text
                    lg:max-h-[var(--modal-max-h)] lg:max-w-[var(--modal-max-w)] lg:rounded-[var(--modal-radius)] lg:shadow-2xl"
       >
-        <div className="relative flex h-14 shrink-0 items-center border-b border-sc-divider px-3">
+        <div className="relative flex h-11 shrink-0 items-center border-b border-sc-divider px-2 md:h-14 md:px-3">
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="relative z-10 flex h-11 w-11 items-center justify-center text-white"
+            className="relative z-10 flex h-9 w-9 items-center justify-center text-white md:h-11 md:w-11"
           >
-            <Icon name="close" size={16} />
+            <Icon name="close" size={14} />
           </button>
-          <span className="pointer-events-none absolute inset-x-0 text-center font-heading text-title font-bold">
+          <span className="pointer-events-none absolute inset-x-0 text-center font-heading text-md font-bold md:text-title">
             {title}
           </span>
           { onDelete && (
             <button type="button" 
               onClick={onDelete}
               aria-label="Delete Sketch" 
-              className="absolute right-3 z-10 flex h-11 w-11 items-center justify-center text-sc-text3 hover:text-white">
-              <Icon name="delete" className="h-6 w-6 text-white/80 m-2" alt="Delete Sketch"/>
+              className="absolute right-2 z-10 flex h-9 w-9 items-center justify-center text-sc-text3 hover:text-white md:right-3 md:h-11 md:w-11">
+              <Icon name="delete" className="m-2 h-5 w-5 text-white/80 md:h-6 md:w-6" alt="Delete Sketch"/>
             </button>
           )}
         </div>

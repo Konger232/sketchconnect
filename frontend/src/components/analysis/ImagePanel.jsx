@@ -23,6 +23,9 @@ export default function ImagePanel({
   offset = { x: 0, y: 0 },
   box,
   heightClass,
+  // Space around the photo. The Marks step passes its own, so the photo
+  // spans the full width.
+  padClass = 'p-3 md:p-[var(--stage-inset)]',
   children,
   onPointerDown,
   onPointerMove,
@@ -53,7 +56,7 @@ export default function ImagePanel({
       ref={containerRef}
       // touch-none while a gesture handler is attached (pan/zoom, drawing),
       // so a finger on the photo doesn't scroll the page instead.
-      className={`relative flex w-full select-none items-center justify-center overflow-hidden bg-sc-modal p-3 md:p-[var(--stage-inset)] ${onPointerDown ? 'touch-none' : ''} ${heightClass}`}
+      className={`relative flex w-full select-none items-center justify-center overflow-hidden bg-sc-modal ${padClass} ${onPointerDown ? 'touch-none' : ''} ${heightClass}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

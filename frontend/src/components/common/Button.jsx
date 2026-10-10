@@ -38,7 +38,8 @@ export default function Button({ variant = 'primary', size = 'md', active = fals
     action: 'bg-sc-action px-5 font-bold text-sc-action-ink hover:brightness-105',
     secondaryOnDark: 'border-[1.5px] border-sc-strong px-[18px] font-bold text-white hover:bg-white/5',
     quietOnDark: 'px-3 font-semibold text-sc-text2 hover:text-white',
-    choice: `min-h-[50px] w-full border-[1.5px] px-3.5 py-2 text-left font-semibold ${
+    // Height and padding: --space-option-* tokens (index.css), tighter on a phone.
+    choice: `min-h-[var(--space-option-min-h)] w-full border-[1.5px] px-[var(--space-option-x)] py-[var(--space-option-y)] text-left font-semibold ${
       active ? 'border-sc-guide bg-sc-raised text-white' : 'border-sc-border bg-sc-raised text-white hover:border-sc-strong'
     }`,
   }
@@ -48,7 +49,10 @@ export default function Button({ variant = 'primary', size = 'md', active = fals
     sm: 'px-3 py-1 text-xs',
   }
 
-  const spacing = isLink ? '' : isPill ? 'px-3 py-1.5 text-2xs' : isModal ? `min-h-11 text-md ${variant === 'choice' ? '' : 'whitespace-nowrap'}` : sizes[size]
+  // Modal buttons: 44px tall, or 32px with size="sm" (the guide's Back and
+  // Next, kept small so the question keeps the room).
+  const modalSize = size === 'sm' && variant !== 'choice' ? 'min-h-8 text-sm' : 'min-h-11 text-md'
+  const spacing = isLink ? '' : isPill ? 'px-3 py-1.5 text-2xs' : isModal ? `${modalSize} ${variant === 'choice' ? '' : 'whitespace-nowrap'}` : sizes[size]
 
   const button = (
     <button

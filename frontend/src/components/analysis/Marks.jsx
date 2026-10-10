@@ -81,7 +81,7 @@ export function markColor(key) {
 
 // How to select a mark: shown under the tools (MarkPanel) and, on a phone,
 // in the panel below the photo (CreateSketch).
-export const SELECT_HINT = 'Tap a line you drew to select it. Tap it again to unselect. Selected lines are asked about first.'
+export const SELECT_HINT = 'Tap a stroke you drew to select it. Tap it again to unselect. Selected strokes are asked about first.'
 
 // The label for a size button: the token's number, so "0.5mm" shows "0.5".
 const sizeLabel = (s) => markToken(s.token, s.fallback).replace(/mm$/, '')
@@ -478,9 +478,9 @@ export function MarkRail({
 
   if (!open) {
     return (
-      <button type="button" className="rail-toggle" aria-expanded="false" onClick={() => setOpen(true)}>
+      <button type="button" className="rail-toggle" aria-expanded="false" aria-label="Plan tools" onClick={() => setOpen(true)}>
         <Icon name="pen" size={22} />
-        Marks
+        Tools
       </button>
     )
   }
@@ -499,7 +499,7 @@ export function MarkRail({
   )
 
   return (
-    <div className="rail flex-col" role="toolbar" aria-label="Marks" aria-orientation="vertical">
+    <div className="rail flex-col" role="toolbar" aria-label="Plan tools" aria-orientation="vertical">
       {button('pen', 'Pen', 'pen', { 'aria-pressed': tool === 'pen' && !sub, onClick: () => pick('pen') })}
       <div className="relative">
         {button('color', 'Color', 'color', {
@@ -551,7 +551,7 @@ export function MarkRail({
       })}
       <button
         type="button"
-        aria-label="Close marks tools"
+        aria-label="Close plan tools"
         className="flex h-11 w-[var(--rail-button)] items-center justify-center rounded-xl text-sc-muted hover:text-white"
         onClick={() => { setSub(null); setOpen(false) }}
       >

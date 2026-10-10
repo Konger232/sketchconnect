@@ -39,11 +39,32 @@ const BIG_MARK = 500
 const BIG_MARK_LONG = 700
 // Marks join only when drawn this close in stroke order (1 = consecutive).
 const ORDER_WINDOW = 1
+// Consecutive marks with an end of one within this many square units of an
+// end of the other continue each other, so they are one shape though they
+// don't touch (a roofline drawn as two strokes). Same as JOIN_GAP in
+// app/core/mark_geometry.py. They must also run the same way, within
+// JOIN_ANGLE degrees, so a roof continues into a roof but not into a wall.
+const JOIN_GAP = 40
+const JOIN_ANGLE = 30
 // Resample step for "runs along", and the simplify tolerance.
 const STEP = 5
 const SIMPLIFY = 3
 
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1])
+
+// Whether two marks run the same way (start to end, either direction),
+// within JOIN_ANGLE degrees.
+function sameWay(a, b) {
+  const angle = (p) => ((Math.atan2(p[p.length - 1][1] - p[0][1], p[p.length - 1][0] - p[0][0]) * 180) / Math.PI + 180) % 180
+  const d = Math.abs(angle(a) - angle(b))
+  return Math.min(d, 180 - d) <= JOIN_ANGLE
+}
+
+// The shortest distance between an end of one mark and an end of the other.
+function endGap(a, b) {
+  const ends = (p) => [p[0], p[p.length - 1]]
+  return Math.min(...ends(a).flatMap((p) => ends(b).map((q) => dist(p, q))))
+}
 
 function length(pts) {
   let n = 0
@@ -204,6 +225,10 @@ export function markGroups(marks, aspect = 1) {
     if (guides[i]) continue
     for (let j = i + 1; j <= Math.min(i + ORDER_WINDOW, visible.length - 1); j++) {
       if (guides[j] || root(i) === root(j)) continue
+      if (endGap(visible[i].points, visible[j].points) <= JOIN_GAP && sameWay(visible[i].points, visible[j].points)) {
+        parent[root(j)] = root(i)
+        continue
+      }
       const reach = ((visible[i].width ?? 6) + (visible[j].width ?? 6)) / 2 + SNAP
       const [a, b] = [boxes[i], boxes[j]]
       if (a[2] + reach < b[0] || b[2] + reach < a[0] || a[3] + reach < b[1] || b[3] + reach < a[1]) continue

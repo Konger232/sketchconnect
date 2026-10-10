@@ -57,8 +57,7 @@ export function Reticle({ x, y, variant = 'user', number }) {
           </radialGradient>
         </defs>
         <circle className="focal-ai-glow" r={GLOW_RADIUS_PX} fill={`url(#${glowId})`} />
-        <circle r={r} fill="none" stroke="var(--focal-point-ring)" strokeWidth={cssPx('--focal-ring-halo', 5)} />
-        <circle r={r} fill="none" stroke="var(--focal-accent-ai)" strokeWidth={cssPx('--focal-ring-width', 3)} />
+        <circle r={r} fill="none" stroke="var(--focal-accent-ai)" style={{ strokeWidth: 'var(--focal-ai-ring-width)' }} />
       </g>
     )
   }

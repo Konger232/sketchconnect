@@ -12,7 +12,9 @@ import { Reticle } from './Reticle'
  *
  * Renders an SVG <g>, so place it inside a viewBox="0 0 1000 1000" SVG.
  */
-export default function AISuggestedReticle({ suggestion }) {
+// onTap: the reticle answers its question's first option when tapped (or
+// Enter or Space), e.g. "I see it now".
+export default function AISuggestedReticle({ suggestion, onTap }) {
   const [shown, setShown] = useState(suggestion)
   const [leaving, setLeaving] = useState(false)
 
@@ -38,8 +40,17 @@ export default function AISuggestedReticle({ suggestion }) {
   return (
     <g
       key={shown.region_ref}
-      className={`focal-ai ${leaving ? 'focal-ai--out' : 'focal-ai--in'}`}
+      className={`focal-ai ${leaving ? 'focal-ai--out' : 'focal-ai--in'}${onTap && !leaving ? ' sc-suggest-spot' : ''}`}
       onAnimationEnd={handleAnimationEnd}
+      {...(onTap && !leaving && {
+        role: 'button',
+        tabIndex: 0,
+        'aria-label': shown.label ? `I see ${shown.label}` : 'I see it now',
+        onClick: onTap,
+        onKeyDown: (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTap() }
+        },
+      })}
     >
       <Reticle x={shown.x} y={shown.y} variant="ai" />
     </g>

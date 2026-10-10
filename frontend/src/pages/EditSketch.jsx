@@ -28,7 +28,7 @@ const NOTE_LIMIT = 500
 
 const TABS = [
   { key: 'details', label: 'Details' },
-  { key: 'guide', label: 'Sparks' }, // key stays 'guide' in code
+  { key: 'guide', label: 'Plan' }, // key stays 'guide' in code
   { key: 'feedback', label: 'Feedback' },
 ]
 
@@ -68,6 +68,9 @@ export default function EditSketch() {
   // with Start Sketching) opened again.
   const mode = routerLocation.state?.mode === 'create' || sketch?.is_draft ? 'create' : 'edit'
   const [tab, setTab] = useState(mode === 'create' ? 'guide' : 'details')
+  // Phone: the panel is a bottom sheet over the photo (.sc-sheet). The
+  // handle folds it down to the tabs, to see the whole photo; a tab opens it.
+  const [sheetOpen, setSheetOpen] = useState(true)
   // The close dialog: 'sketch' (create mode: delete the sketch) or
   // 'changes' (edit mode: drop unsaved edits), or null.
   const [confirmingClose, setConfirmingClose] = useState(null)
@@ -88,6 +91,12 @@ export default function EditSketch() {
   // The last tap on the Plan while a question's options are tied to lines:
   // { id, n } (id null for a miss). AIGuidance picks the matching option.
   const [markTap, setMarkTap] = useState(null)
+  // Taps on the suggested focal area (GuideStage), counted: AIGuidance
+  // answers "Yes, add it" for each new one.
+  const [suggestionTap, setSuggestionTap] = useState(0)
+  // "Yes, add it" sent and not yet saved: the region_ref, so the stroke
+  // shows (and the red area fades) without waiting for the server.
+  const [adoptingRegion, setAdoptingRegion] = useState(null)
   // Parts of the scene picked by a tap as a guide answer ([{ id, points }]).
   const [answerOutlines, setAnswerOutlines] = useState([])
   const guides = useGuides()
@@ -105,7 +114,6 @@ export default function EditSketch() {
   // type for Help Quest. Kept stable so AIGuidance doesn't reset.
   // The footer slot for the Guide tab's Back / Next in review, so they sit
   // at the bottom right of the panel, like Start Sketching in create mode.
-  const [guideFooterEl, setGuideFooterEl] = useState(null)
   const reviewAnalysis = useMemo(
     () => ({ scene_type: sketch?.scene_type, prepared_prompts: [] }),
     [sketch?.scene_type],
@@ -426,6 +434,21 @@ export default function EditSketch() {
   const locationUnchanged =
     mode === 'create' &&
     sketchLocation && sketch.location && sketchLocation.lat === sketch.location.lat && sketchLocation.lon === sketch.location.lon
+  // While "Yes, add it" is being saved, the area's outline shows as the
+  // stroke the server will add (same colour and width), so the red area
+  // turns yellow at once. The saved stroke replaces it.
+  const pendingRegion = adoptingRegion != null && !marks.some((m) => m.adopted_region === adoptingRegion)
+    ? (sketch.focal_regions || [])[adoptingRegion] : null
+  const pendingPoints = pendingRegion?.points?.length ? pendingRegion.points
+    : Array.from({ length: Math.floor((pendingRegion?.contour_points || []).length / 2) },
+      (_, k) => [pendingRegion.contour_points[2 * k], pendingRegion.contour_points[2 * k + 1]])
+  const guideMarks = pendingPoints.length >= 3
+    ? [...marks, {
+        id: 'pending-adopt', source: 'prompted', adopted_region: adoptingRegion, width: 6.5,
+        color: getComputedStyle(document.documentElement).getPropertyValue('--mark-color').trim() || '#fde68a',
+        points: [...pendingPoints, pendingPoints[0]],
+      }]
+    : marks
 
   // ===== RENDER: PHOTO STAGE PANELS =====
   // Reference photo (the untouched upload), Plan (the framed photo with
@@ -442,7 +465,7 @@ export default function EditSketch() {
       <GuideStage
         imageUrl={referenceImageUrl}
         guides={guides}
-        marks={marks}
+        marks={guideMarks}
         perspective={sketch.perspective}
         focalRegions={sketch.focal_regions || []}
         proportions={sketch.proportions}
@@ -450,6 +473,8 @@ export default function EditSketch() {
         aiSuggestion={tab === 'guide' ? aiSuggestion : null}
         highlightMarkIds={tab === 'guide' ? highlightIds : []}
         onPickAt={isOwner && tab === 'guide' && (guideQuestion?.tap_answer || guideQuestion?.option_mark_ids?.some((ids) => ids?.length)) ? handlePickAt : undefined}
+        onSuggestionTap={isOwner && mode === 'create' && tab === 'guide' ? () => setSuggestionTap((n) => n + 1) : undefined}
+        suggestionAdded={aiSuggestion != null && guideMarks.some((m) => m.source === 'prompted' && m.adopted_region === aiSuggestion.region_ref)}
         answerOutlines={tab === 'guide' ? answerOutlines : []}
         spot={tab === 'guide' && guideQuestion ? sketcherSpot : null}
       />
@@ -489,17 +514,19 @@ export default function EditSketch() {
           // A created sketch only needs the scene type, for Help Quest.
           analysis={mode === 'create' ? analysis : reviewAnalysis}
           review={mode !== 'create'}
-          footerEl={guideFooterEl}
           savedChoices={sketch.session_choices || []}
           onSuggestionChange={(suggestion) => {
             setAiSuggestion(suggestion)
             if (suggestion) stripRef.current?.show('plan') // the suggestion is drawn on the Plan
           }}
           onMarksChange={(saved) => setSketch((prev) => ({ ...prev, marks: saved }))}
+          onAdoptPending={setAdoptingRegion}
           onPromptChange={setGuideQuestion}
           spot={sketcherSpot}
           onSpotClear={() => setSketcherSpot(null)}
           markTap={markTap}
+          suggestionTap={suggestionTap}
+          debugReport={Boolean(sketch.debug_report || analysis?.marks_analysis?.debug_report)}
           onAnswerObjects={setAnswerOutlines}
           onHighlight={(ids) => {
             setHighlightIds(ids)
@@ -526,8 +553,6 @@ export default function EditSketch() {
           </Button>
         </div>
       )}
-      {/* Review: AIGuidance puts Back and Next here. Hidden while empty. */}
-      {mode !== 'create' && <div ref={setGuideFooterEl} className="sc-footer justify-between empty:hidden" />}
     </>
   )
 
@@ -721,13 +746,13 @@ export default function EditSketch() {
         <div className="sc-dropzone min-h-[260px]">
           <img src={cameraWhite} alt="camera" className="h-16 w-16 text-white" />
           <p className="font-heading text-xl font-semibold leading-snug">Photograph your finished sketch</p>
-          <p className="max-w-[280px] text-md text-sc-text3">Feedback compares it with your photo and the plan you made in Sparks.</p>
+          <p className="max-w-[280px] text-md text-sc-text3">Feedback compares it with your photo and the plan you made.</p>
         </div>
         
         </Button>
         <p className="text-sm text-sc-text2">
           <b className="text-white">Your plan:</b>{' '}
-          {marks.length === 1 ? '1 mark' : `${marks.length} marks`}
+          {marks.length === 1 ? '1 stroke' : `${marks.length} strokes`}
           {styleLabel && `, ${styleLabel}`}.
         </p>
       </>
@@ -781,7 +806,7 @@ export default function EditSketch() {
       <ConfirmDialog
         open={confirmingClose === 'sketch'}
         title="Discard this sketch?"
-        message="Closing now deletes this sketch: the photo, the framing, your marks, the scene analysis and your answers."
+        message="Closing now deletes this sketch: the photo, the framing, your plan, the scene analysis and your answers."
         confirmLabel="Discard"
         cancelLabel="Keep editing"
         onConfirm={discardSketch}
@@ -812,24 +837,37 @@ export default function EditSketch() {
       <StageStrip ref={stripRef} panels={panels} focusKey={tab === 'feedback' && finalSketchUrl ? 'final' : 'plan'} />
 
       {/* ===== RIGHT: TABS ===== */}
-      <div className="sc-panel">
+      <div className="sc-panel sc-sheet">
+        <button
+          type="button"
+          className="sc-sheet-handle"
+          aria-label={sheetOpen ? 'Fold the panel down' : 'Open the panel'}
+          aria-expanded={sheetOpen}
+          onClick={() => setSheetOpen((v) => !v)}
+        >
+          <span />
+        </button>
         {isOwner ? (
           <>
             <div className="sc-tabs" role="tablist">
               {TABS.map((t) => (
-                <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className="sc-tab" onClick={() => setTab(t.key)}>
+                <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className="sc-tab"
+                  onClick={() => { setTab(t.key); setSheetOpen(true) }}>
                   {t.label}
                 </button>
               ))}
             </div>
-            {/* The Guide panel stays mounted so the question in progress
-                survives a trip to another tab. */}
-            <div className={tab === 'guide' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>{guideTab}</div>
-            {tab === 'details' && detailsPanel}
-            {tab === 'feedback' && feedbackPanel}
+            {/* Folded on a phone: only the handle and the tabs show. */}
+            <div className={`flex min-h-0 flex-1 flex-col ${sheetOpen ? '' : 'max-md:hidden'}`}>
+              {/* The Guide panel stays mounted so the question in progress
+                  survives a trip to another tab. */}
+              <div className={tab === 'guide' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>{guideTab}</div>
+              {tab === 'details' && detailsPanel}
+              {tab === 'feedback' && feedbackPanel}
+            </div>
           </>
         ) : (
-          viewerPanel
+          <div className={`flex min-h-0 flex-1 flex-col ${sheetOpen ? '' : 'max-md:hidden'}`}>{viewerPanel}</div>
         )}
       </div>
     </SketchModal>

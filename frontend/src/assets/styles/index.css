@@ -114,19 +114,45 @@
      the sc-* Tailwind colours, which point at the tokens in :root. */
   .sc-panel       { @apply flex min-h-0 w-full shrink-0 flex-col border-sc-divider bg-sc-panel text-sc-text
                            md:w-[var(--panel-w-ipad)] md:border-l lg:w-[var(--panel-w-desktop)]; }
-  .sc-panel-body  { @apply flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6 [&>*]:shrink-0; }
-  .sc-footer      { @apply flex shrink-0 items-center justify-end gap-2.5 border-t border-sc-divider px-4 py-2.5; }
+  /* Phone (under 768px), Edit Sketch: the panel is a bottom sheet over the
+     photo, so the questions are on screen without scrolling. Its handle
+     folds it down to the tabs. Tokens: --sheet-* in :root. */
+  .sc-sheet       { @apply max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-20 max-md:border-t
+                           max-md:max-h-[var(--sheet-max-h)] max-md:rounded-t-[var(--sheet-radius)];
+                    box-shadow: var(--sheet-shadow); }
+  /* Keep the footer (Back, Next, Start Sketching) above the phone's home
+     bar; dvh follows the browser's toolbar as it shows and hides. */
+  @media (max-width: 767.98px) {
+    .sc-sheet { max-height: var(--sheet-max-h-dynamic); padding-bottom: env(safe-area-inset-bottom); }
+  }
+  @media (min-width: 768px) { .sc-sheet { box-shadow: none; } }
+  .sc-sheet-handle { @apply flex h-6 w-full shrink-0 items-center justify-center md:hidden; }
+  .sc-sheet-handle > span { @apply block h-1 w-10 rounded-full; background: var(--sheet-handle); }
+  /* Spacing comes from the --space-* tokens in :root, with tighter values
+     on a phone (the "Spacing" block at the end of :root). */
+  .sc-panel-body  { @apply flex min-h-0 flex-1 flex-col overflow-y-auto [&>*]:shrink-0;
+                    gap: var(--space-panel-gap); padding: var(--space-panel-y) var(--space-panel-x); }
+  .sc-footer      { @apply flex shrink-0 items-center justify-end gap-2.5 border-t border-sc-divider;
+                    padding: var(--space-footer-y) var(--space-footer-x); }
+  /* The step header in New Sketch: progress bar, step name, "2 of 3". */
+  .sc-step-head   { @apply flex shrink-0 flex-col gap-2 border-b border-sc-divider;
+                    padding: var(--space-head-top) var(--space-panel-x) var(--space-head-bottom); }
+  /* A guide question and its answers (AIGuidance.jsx). */
+  .sc-guide       { @apply flex flex-col; gap: var(--space-guide-gap); }
+  .sc-options     { @apply mt-1 flex flex-col; gap: var(--space-option-gap); }
   .sc-heading     { @apply font-heading text-title font-semibold text-white; }
   .sc-body        { @apply text-base text-sc-text3; }
   .sc-field-label { @apply text-sm font-semibold text-sc-text3; }
-  .sc-field       { @apply w-full rounded-xl border-[1.5px] border-sc-strong bg-sc-raised px-3.5 py-3 text-lg font-medium
-                           text-white placeholder:text-sc-muted focus:border-sc-guide focus:outline-none; }
+  .sc-field       { @apply w-full rounded-xl border-[1.5px] border-sc-strong bg-sc-raised px-3.5 text-lg font-medium
+                           text-white placeholder:text-sc-muted focus:border-sc-guide focus:outline-none;
+                    padding-top: var(--space-field-y); padding-bottom: var(--space-field-y); }
   /* Guide answers (AIGuidance.jsx). The own-words row: a pencil, a text
      field and the ">" button, the same size and border as a choice
      (Button.jsx). Active while the sketcher types or after a tap on empty
      space. The tag after an option text shows only in debug mode. */
-  .sc-own-words   { @apply flex min-h-[50px] w-full items-center gap-2.5 rounded-[10px] border-[1.5px] border-sc-border
-                           bg-sc-raised pl-3.5 pr-1 text-white focus-within:border-sc-strong; }
+  .sc-own-words   { @apply flex w-full items-center gap-2.5 rounded-[10px] border-[1.5px] border-sc-border
+                           bg-sc-raised pl-3.5 pr-1 text-white focus-within:border-sc-strong;
+                    min-height: var(--space-option-min-h); }
   .sc-own-words[data-active='true'] { @apply border-sc-guide; }
   .sc-own-words input { @apply min-w-0 flex-1 bg-transparent py-2 text-md font-semibold text-white
                                placeholder:font-normal placeholder:text-sc-muted focus:outline-none; }
@@ -138,8 +164,9 @@
 
   /* Guide / Details / Feedback tabs: active = white text and a red
      underline as wide as the label. */
-  .sc-tabs        { @apply flex shrink-0 justify-center gap-8 border-b border-sc-divider px-3 pt-1.5; }
-  .sc-tab         { @apply -mb-px flex h-[46px] flex-col items-stretch justify-end gap-2.5 px-1.5 text-md font-semibold text-sc-text3; }
+  .sc-tabs        { @apply flex shrink-0 justify-center border-b border-sc-divider px-3 pt-1.5; gap: var(--space-tabs-gap); }
+  .sc-tab         { @apply -mb-px flex flex-col items-stretch justify-end px-1.5 text-md font-semibold text-sc-text3;
+                    height: var(--space-tab-h); gap: var(--space-tab-underline-gap); }
   .sc-tab::after  { content: ''; display: block; height: var(--tab-underline); border-radius: 2px; background: transparent; }
   .sc-tab[aria-selected='true']        { @apply text-white; }
   .sc-tab[aria-selected='true']::after { background: var(--tab-active); }
@@ -195,7 +222,10 @@
  */
 :root {
   --focal-accent-user: #60a5fa;   /* sketcher's own focal point (handoff blue) */
-  --focal-accent-ai: #39ff14;     /* Gemini-suggested anchor, before adoption */
+  /* Gemini-suggested spot (a single point): the same red and line width as
+     the suggested focal area's outline (--focal-shape-*), no white halo. */
+  --focal-accent-ai: var(--focal-shape-color);
+  --focal-ai-ring-width: var(--focal-shape-stroke-width);
   --focal-reticle-stroke-width: 2px;
   --focal-reticle-stroke-opacity: 1;
   --focal-reticle-fill-opacity: 0.4;
@@ -224,6 +254,7 @@
   --focal-shape-opacity: 1;
   --focal-shape-fill: #f87171;           /* colour inside the contour */
   --focal-shape-fill-opacity: 0.30;      /* 0 = no fill */
+  --focal-shape-hover-fill-opacity: 0.5; /* the suggested area under the pointer or focused */
 
   /* Answer outlines (ShapeOutlineOverlay.jsx, variant "answer"): a part of
      the scene the sketcher picked by tapping the photo while answering a
@@ -311,7 +342,7 @@
   --modal-max-w: 1200px;                 /* desktop; iPad fills the screen */
   --modal-max-h: 780px;
   --modal-radius: 0px;
-  --stage-inset: 24px;                   /* photo inset on the stage */
+  --stage-inset: 24px;                   /* photo inset on the stage, top and bottom (from 768px) */
 
   /* Habits and opportunities under the feedback (JourneyTrace.jsx). */
   --trace-habit-accent: #60a5fa;          /* Habits: guide blue */
@@ -321,10 +352,12 @@
   --trace-tag-bg: #374151;                /* the principle tag, e.g. "Emphasis" */
   --trace-tag-ink: #e5e7eb;
 
-  /* Photo stage strip (StageStrip.jsx): Reference photo, Plan, Final
-     sketch, scrolling sideways. */
-  --strip-gap: 12px;                     /* space between panels and at the ends */
-  --strip-panel-width: calc(100% - 56px); /* narrower than the stage so the next panel peeks in */
+  /* Bottom sheet (.sc-sheet): Edit Sketch's panel on a phone. */
+  --sheet-max-h: 58vh;                   /* open; the photo shows above it */
+  --sheet-max-h-dynamic: 58dvh;          /* the same, for browsers with dvh */
+  --sheet-radius: 18px;
+  --sheet-handle: #4b5563;
+  --sheet-shadow: 0 -10px 28px rgba(0, 0, 0, 0.55);
   --panel-w-ipad: 340px;                 /* right panel, >= 768px */
   --panel-w-desktop: 380px;              /* right panel, >= 1024px */
   --panel-bg: #111827;
@@ -383,7 +416,49 @@
   --leading-tight:  1.25;
   --leading-snug:   1.4;
   --leading-normal: 1.5;
+
+  /* Spacing in the Create / Edit sketch panels (SketchModal). One place
+     to tune padding, gaps and row heights; the phone values are in the
+     @media block right after :root. Tablet and desktop use these. */
+  --space-panel-x: 1.5rem;               /* panel body, left and right */
+  --space-panel-y: 1.5rem;               /* panel body, top and bottom */
+  --space-panel-gap: 1rem;               /* between blocks in the panel */
+  --space-footer-x: 1rem;                /* footer row (Back, Next, Start Sketching) */
+  --space-footer-y: 0.625rem;
+  --space-head-top: 1rem;                /* New Sketch step header */
+  --space-head-bottom: 0.75rem;
+  --space-tabs-gap: 2rem;                /* between Details, Sparks, Feedback */
+  --space-tab-h: 2.875rem;               /* tab row height */
+  --space-tab-underline-gap: 0.625rem;   /* label to red underline */
+  --space-guide-gap: 0.875rem;           /* question, options, Back */
+  --space-option-gap: 0.5rem;            /* between answer options */
+  --space-option-min-h: 3.125rem;        /* answer option height */
+  --space-option-x: 0.875rem;            /* answer option padding */
+  --space-option-y: 0.5rem;
+  --space-field-y: 0.75rem;              /* Details text fields */
   
+}
+
+/* Phone (under 768px): tighter spacing. Tune here. */
+@media (max-width: 767.98px) {
+  :root {
+    --space-panel-x: 1rem;
+    --space-panel-y: 1rem;
+    --space-panel-gap: 0.75rem;
+    --space-footer-x: 0.75rem;
+    --space-footer-y: 0.375rem;
+    --space-head-top: 0.75rem;
+    --space-head-bottom: 0.5rem;
+    --space-tabs-gap: 1.5rem;
+    --space-tab-h: 2.5rem;
+    --space-tab-underline-gap: 0.5rem;
+    --space-guide-gap: 0.625rem;
+    --space-option-gap: 0.375rem;
+    --space-option-min-h: 2.75rem;
+    --space-option-x: 0.75rem;
+    --space-option-y: 0.375rem;
+    --space-field-y: 0.5rem;
+  }
 }
 
 /*
@@ -495,6 +570,23 @@
   stroke: var(--mark-select-halo);
   stroke-opacity: var(--mark-select-halo-opacity);
 }
+/* The suggested focal area, tappable as "Yes, add it" (ShapeOutlineOverlay). */
+.sc-suggest-area {
+  pointer-events: auto;
+  cursor: pointer;
+  fill-opacity: var(--focal-shape-fill-opacity);
+  transition: fill-opacity var(--guide-fade-in) ease;
+  outline: none;
+}
+.sc-suggest-spot {
+  pointer-events: auto;
+  cursor: pointer;
+  outline: none;
+}
+.sc-suggest-area:hover,
+.sc-suggest-area:focus-visible {
+  fill-opacity: var(--focal-shape-hover-fill-opacity);
+}
 .mark-dim {
   opacity: var(--mark-dim-opacity);
   transition: opacity var(--guide-fade-in) ease;
@@ -523,10 +615,12 @@
   height: var(--crop-corner-size);
   border: 0 solid var(--crop-frame-color);
 }
-.crop-frame__corner--tl { top: -5px; left: -5px; border-top-width: var(--crop-corner-width); border-left-width: var(--crop-corner-width); }
-.crop-frame__corner--tr { top: -5px; right: -5px; border-top-width: var(--crop-corner-width); border-right-width: var(--crop-corner-width); }
-.crop-frame__corner--bl { bottom: -5px; left: -5px; border-bottom-width: var(--crop-corner-width); border-left-width: var(--crop-corner-width); }
-.crop-frame__corner--br { bottom: -5px; right: -5px; border-bottom-width: var(--crop-corner-width); border-right-width: var(--crop-corner-width); }
+/* Corners sit just inside the frame: the frame can span the full width of
+   the stage, and a corner hanging outside it would be cut off. */
+.crop-frame__corner--tl { top: 0; left: 0; border-top-width: var(--crop-corner-width); border-left-width: var(--crop-corner-width); }
+.crop-frame__corner--tr { top: 0; right: 0; border-top-width: var(--crop-corner-width); border-right-width: var(--crop-corner-width); }
+.crop-frame__corner--bl { bottom: 0; left: 0; border-bottom-width: var(--crop-corner-width); border-left-width: var(--crop-corner-width); }
+.crop-frame__corner--br { bottom: 0; right: 0; border-bottom-width: var(--crop-corner-width); border-right-width: var(--crop-corner-width); }
 .crop-frame__corner::after { content: ''; position: absolute; inset: calc(-1 * var(--crop-corner-hit)); }
 .crop-frame__corner--tl, .crop-frame__corner--br { cursor: nwse-resize; }
 .crop-frame__corner--tr, .crop-frame__corner--bl { cursor: nesw-resize; }

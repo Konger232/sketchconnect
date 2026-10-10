@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useRef, useState } from 'react'
 import Icon from '../common/Icon'
+import GuideNav from './GuideNav'
 import Button, { NextButton } from '../common/Button'
 import { api } from '../../lib/api'
 
@@ -61,7 +61,13 @@ function resolvePrompt(prompt, choices) {
     p = { ...prompt, ...v, relationship_type: prompt.variants[type] ? type : 'other' }
   }
   if (!Object.keys(names).length) return p
-  return { ...p, question: fill(p.question), options: (p.options || []).map(fill), names }
+  // The subjects' strokes, with any the sketcher added by tapping in
+  // "What caught your eye there?", so the later steps highlight them too.
+  const added = Object.values(prompt.name_refs || {}).flatMap(
+    (sid) => choices.find((x) => x.key === 'mark_meaning' && x.shape_id === sid)?.mark_ids || [],
+  )
+  const markIds = [...new Set([...(p.mark_ids || []), ...added])]
+  return { ...p, question: fill(p.question), options: (p.options || []).map(fill), names, mark_ids: markIds }
 }
 
 // Not overlays: "describe" opens a text field, "mark" (answer by selecting a
@@ -90,8 +96,12 @@ function intentsFrom(choices) {
 // A seed question (requires_principle) is asked only when the sketcher
 // chose its principle for at least one of its marks.
 function isAsked(prompt, choices) {
-  // "What do you want to bring out?" follows its relationship question.
-  if (prompt?.after_relationship?.length) return Boolean(relationshipFor(prompt, choices))
+  // "What do you want to bring out?" follows its relationship question,
+  // unless the sketcher said the two are not related.
+  if (prompt?.after_relationship?.length) {
+    const rel = relationshipFor(prompt, choices)
+    return Boolean(rel) && rel.relationship?.type !== 'unrelated'
+  }
   if (!prompt?.requires_principle) return true
   const marks = new Set(prompt.mark_ids || [])
   return intentsFrom(choices).some(
@@ -203,9 +213,14 @@ export default function AIGuidance({
   // The last tap on the photo while a question with tied options shows:
   // { id, n }, id the mark tapped (or null for a miss), n a counter.
   markTap = null,
-  // review: the page's footer element. Back and Next render there, at the
-  // bottom of the panel. Without it they render under the options.
-  footerEl = null,
+  // A count of taps on the suggested focal area (EditSketch.jsx).
+  suggestionTap = 0,
+  // DEBUG=true only: a marks analysis report exists for this sketch, so a
+  // link under the question opens it (backend debug_report.py).
+  debugReport = false,
+  // "Yes, add it": called with the area's region_ref as soon as it's picked,
+  // so the page can draw the stroke before the server answers, then null.
+  onAdoptPending,
   // Called with the parts of the scene picked by a tap ([{ id, points }]),
   // or [], so the page can draw their outlines.
   onAnswerObjects,
@@ -287,7 +302,7 @@ export default function AIGuidance({
     const obj = (marksAnalysis?.objects || []).find((x) => x.mark_ids?.includes(t.id))
     if (obj) return { label: obj.name, description: obj.description || obj.name, element: obj.element }
     const m = (marksAnalysis?.marks || []).find((x) => x.mark_id === t.id)
-    return m ? { label: m.traces, description: m.traces, element: m.element } : { label: 'your mark', description: 'Your mark', element: null }
+    return m ? { label: m.traces, description: m.traces, element: m.element } : { label: 'your stroke', description: 'Your stroke', element: null }
   }
 
   // Show the AI's reticle only while its question is on screen: at a
@@ -457,8 +472,8 @@ export default function AIGuidance({
       advancePrompt(saveAnswer(prompt, option, index, {
         relationship: {
           type: prompt.option_types[index],
-          element: prompt.option_elements?.[index],
-          principle: prompt.option_principles?.[index],
+          element: prompt.option_elements?.[index] || undefined,
+          principle: prompt.option_principles?.[index] || undefined,
           subjects: Object.values(prompt.names || {}).filter(Boolean),
         },
       }))
@@ -478,17 +493,27 @@ export default function AIGuidance({
         .then(({ data }) => onMarksChange?.(data.marks))
         .catch((err) => console.warn('Could not remove the area from the plan', err))
     }
-    // "Yes, add it" to "There is the ... here": the first option. The
-    // area becomes a mark along its outline, in the normal mark colour.
-    if (prompt.suggestion && index === 0) {
-      const color = getComputedStyle(document.documentElement).getPropertyValue('--mark-color').trim() || '#fde68a'
-      api.post(`/api/sketches/${sketchId}/marks/adopt`, {
-        region_ref: prompt.suggestion.region_ref,
-        color,
-        size_mm: 1,
-      })
-        .then(({ data }) => onMarksChange?.(data.marks))
-        .catch((err) => console.warn('Could not add the area to the plan', err))
+    // A question that points at the photo (a suggested area or spot): its
+    // first option ("Yes, add it", "I see it now"), picked here or by a tap
+    // on the area or spot, stays on screen with the pick highlighted; ">" or
+    // Next moves on (handleChosenContinue). For an area, it also becomes a
+    // mark along its outline, in the normal mark colour (adding the same
+    // area again is a no-op).
+    if ((prompt.suggestion || prompt.spot) && index === 0) {
+      if (prompt.suggestion) {
+        const color = getComputedStyle(document.documentElement).getPropertyValue('--mark-color').trim() || '#fde68a'
+        onAdoptPending?.(prompt.suggestion.region_ref)
+        api.post(`/api/sketches/${sketchId}/marks/adopt`, {
+          region_ref: prompt.suggestion.region_ref,
+          color,
+          size_mm: 1,
+        })
+          .then(({ data }) => onMarksChange?.(data.marks))
+          .catch((err) => console.warn('Could not add the area to the plan', err))
+          .finally(() => onAdoptPending?.(null))
+      }
+      setChosen(0)
+      return
     }
     advancePrompt(latest)
   }
@@ -500,12 +525,23 @@ export default function AIGuidance({
     const prompt = currentPrompt()
     const rows = tapped.map((t) => ({ ...t, ...describeTap(t) }))
     if (!rows.length) return
-    const label = rows.map((r) => r.label).join(' and ')
+    // The response field holds 200 characters at most (own_words max_length).
+    const label = rows.map((r) => r.label).join(' and ').slice(0, 200)
+    const tappedMarks = rows.filter((r) => r.kind === 'mark').map((r) => r.id)
+    const objects = rows.filter((r) => r.kind === 'object')
     const extra = {
       name: label,
       element: rows[0].element || prompt.option_elements?.[0] || undefined,
-      object_ids: rows.filter((r) => r.kind === 'object').map((r) => r.id),
-      mark_ids: rows.filter((r) => r.kind === 'mark').map((r) => r.id),
+      object_ids: objects.map((r) => r.id),
+      mark_ids: tappedMarks,
+    }
+    // "What caught your eye there?": tapped strokes add to the subject
+    // asked about, they don't replace it. Its strokes stay, and it keeps
+    // its own name, unless a tapped part of the scene names it. No new
+    // questions are written for the added strokes.
+    if (prompt.key === 'mark_meaning') {
+      extra.mark_ids = [...new Set([...(prompt.mark_ids || []), ...tappedMarks])]
+      if (!objects.length) extra.name = prompt.option_names?.[0] || label
     }
     if (prompt.key === 'principle_intent') extra.relationship_type = prompt.relationship_type
     advancePrompt(saveAnswer(prompt, label.charAt(0).toUpperCase() + label.slice(1), -1, extra))
@@ -588,6 +624,18 @@ export default function AIGuidance({
     return latest
   }
 
+  // A tap on the AI's suggested area or spot (GuideStage, via EditSketch):
+  // the same as its first option. Only taps made while this panel is open count, so a
+  // count left from before it mounted never answers for the sketcher.
+  const seenSuggestionTap = useRef(suggestionTap)
+  useEffect(() => {
+    if (suggestionTap === seenSuggestionTap.current) return
+    seenSuggestionTap.current = suggestionTap
+    if (!(shown?.suggestion || shown?.spot) || review || helpQuestOpen || describing !== null) return
+    handlePromptSelect(shown.options[0], 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestionTap])
+
   // ">": save the pick, then the next question. The saved pick, unchanged,
   // just moves on (re-saving would lose words typed for "Something else").
   function handleChosenContinue() {
@@ -628,20 +676,53 @@ export default function AIGuidance({
     return tag ? <span className="sc-option-tag">[{tag}]</span> : null
   }
 
-  // Back to the previous question. Hidden on the first one.
-  const backButton = !review && previousAsked() >= 0 ? (
-    <Button variant="quietOnDark" className="-ml-3 flex items-center gap-1 self-start" onClick={goBack}>
-      <Icon name="chevron-left" size={14} />
-      Back
-    </Button>
+  // Next: the same as the ">" on the picked row (a picked option, tapped
+  // rows or own words), or, back on a question already answered, on to the
+  // next one. Off until there's an answer.
+  const currentSaved = shown ? choices.find((c) => sameQuestion(c, shown)) : null
+  const hasOwnWords = Boolean(ownText.trim())
+  const canNext = tapped.length > 0 || hasOwnWords || chosen !== null || Boolean(currentSaved)
+  function goNext() {
+    if (tapped.length) saveTapped()
+    else if (hasOwnWords) saveOwnWords()
+    else if (chosen !== null) handleChosenContinue()
+    else if (currentSaved) advancePrompt()
+  }
+  // DEBUG=true only: the marks analysis report, in a new tab. The route
+  // needs the sign-in token, so the page is fetched, then opened.
+  async function openReport() {
+    const tab = window.open('', '_blank')
+    try {
+      const { data } = await api.get(`/api/sketches/${sketchId}/marks-report`, { responseType: 'text' })
+      if (tab) tab.location.href = URL.createObjectURL(new Blob([data], { type: 'text/html' }))
+    } catch (err) {
+      tab?.close()
+      console.warn('No marks analysis report yet', err)
+    }
+  }
+  const reportLink = debugReport ? (
+    <button type="button" className="self-start text-sm text-white/60 underline hover:text-white" onClick={openReport}>
+      Debug: marks analysis report
+    </button>
   ) : null
+
+  // Back (hidden on the first question) and Next, above the question.
+  const navRow = !review ? (
+    <GuideNav
+      onBack={previousAsked() >= 0 ? goBack : undefined}
+      onNext={goNext}
+      nextDisabled={!canNext || describing !== null}
+    />
+  ) : null
+  // The closing note has Back only.
+  const backButton = !review && previousAsked() >= 0 ? <GuideNav onBack={goBack} /> : null
 
   // Guide question panel (design handoff): the question, an optional
   // principle line (prompt.principle and prompt.principle_text, when the
   // scene analysis sends them), then the answers. "Ask me something else"
   // opens Help Quest. The page's panel supplies the padding.
   return (
-    <div className="flex flex-col gap-3.5">
+    <div className="sc-guide">
       {!analysis ? (
         <p className="sc-body">Preparing your questions…</p>
       ) : (
@@ -650,7 +731,7 @@ export default function AIGuidance({
             // Read only, one question at a time, the way it was asked: every
             // option shows, the sketcher's pick highlighted, so the other
             // choices stay visible to learn from. Back and Next step through.
-            <div key={reviewIndex} className="flex animate-fade-in-up flex-col gap-3.5">
+            <div key={reviewIndex} className="sc-guide animate-fade-in-up">
               {reviewed.length === 0 ? (
                 <p className="sc-body">No guided answers were saved for this sketch.</p>
               ) : (() => {
@@ -663,9 +744,15 @@ export default function AIGuidance({
                 const last = reviewIndex >= reviewed.length - 1
                 return (
                   <>
+                    <GuideNav
+                      onBack={reviewIndex > 0 ? () => setReviewIndex((i) => i - 1) : undefined}
+                      onNext={() => setReviewIndex((i) => i + 1)}
+                      nextDisabled={last}
+                    />
                     <p className="text-base text-sc-text3">Question {reviewIndex + 1} of {reviewed.length}</p>
                     <p className="font-heading text-question font-bold text-white">{c.prompt}</p>
-                    <div className="mt-1 flex flex-col gap-2">
+                    {reportLink}
+                    <div className="sc-options">
                       {options.map((opt, i) => (
                         <Button
                           key={`${opt}-${i}`}
@@ -692,28 +779,6 @@ export default function AIGuidance({
                         Ask me something else
                       </Button>
                     )}
-                    {/* Back and Next on one row, anchored at the bottom right
-                        of the panel (footerEl), so the question sits up top. */}
-                    {(() => {
-                      const nav = (reviewIndex > 0 || !last) ? (
-                        <>
-                          {reviewIndex > 0 ? (
-                            <Button variant="quietOnDark" className="flex items-center gap-1" onClick={() => setReviewIndex((i) => i - 1)}>
-                              <Icon name="chevron-left" size={14} />
-                              Back
-                            </Button>
-                          ) : <span />}
-                          {!last && (
-                            <Button variant="secondaryOnDark" className="flex items-center gap-1" onClick={() => setReviewIndex((i) => i + 1)}>
-                              Next
-                              <Icon name="chevron-right" size={14} />
-                            </Button>
-                          )}
-                        </>
-                      ) : null
-                      if (!nav) return null
-                      return footerEl ? createPortal(nav, footerEl) : <div className="flex items-center justify-between">{nav}</div>
-                    })()}
                   </>
                 )
               })()}
@@ -726,9 +791,10 @@ export default function AIGuidance({
           )}
 
           {!review && prompt && !helpQuestOpen && (
-            <div key={promptIndex} className="flex animate-fade-in-up flex-col gap-3.5">
-              {backButton}
+            <div key={promptIndex} className="sc-guide animate-fade-in-up">
+              {navRow}
               <p className="font-heading text-question font-bold text-white">{prompt.question}</p>
+              {reportLink}
               {prompt.principle && prompt.principle_text && (
                 <p className="text-base text-sc-text3">
                   <span className="font-bold capitalize text-sc-guide">{prompt.principle}:</span> 
@@ -736,7 +802,7 @@ export default function AIGuidance({
                 </p>
               )}
               {describing !== null ? (
-                <div className="mt-1 flex flex-col gap-2">
+                <div className="sc-options">
                   <input
                     autoFocus
                     value={describeText}
@@ -753,7 +819,7 @@ export default function AIGuidance({
                   </div>
                 </div>
               ) : (
-                <div className="mt-1 flex flex-col gap-2">
+                <div className="sc-options">
                   {(prompt.options || []).map((opt, i) => (
                     <Button
                       key={opt}

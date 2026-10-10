@@ -38,7 +38,10 @@ const STYLES = {
   },
 }
 
-export default function ShapeOutlineOverlay({ focalRegions = [], variant = 'focal' }) {
+// onRegionClick: the area takes a tap (and Enter or Space) as an answer --
+// the suggested focal area, where a tap means "Yes, add it". regionLabel
+// names it for screen readers.
+export default function ShapeOutlineOverlay({ focalRegions = [], variant = 'focal', onRegionClick, regionLabel }) {
   return (
     <svg
       viewBox="0 0 1000 1000"
@@ -58,7 +61,17 @@ export default function ShapeOutlineOverlay({ focalRegions = [], variant = 'foca
           <polygon
             key={region.id || i}
             points={points.join(' ')}
-            style={STYLES[variant] || STYLES.focal}
+            style={onRegionClick ? { ...(STYLES[variant] || STYLES.focal), fillOpacity: undefined } : STYLES[variant] || STYLES.focal}
+            {...(onRegionClick && {
+              className: 'sc-suggest-area',
+              role: 'button',
+              tabIndex: 0,
+              'aria-label': regionLabel ? `Add ${regionLabel} to your plan` : 'Add this area to your plan',
+              onClick: onRegionClick,
+              onKeyDown: (e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRegionClick() }
+              },
+            })}
             vectorEffect="non-scaling-stroke"
           />
         )
