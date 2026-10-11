@@ -273,6 +273,15 @@ def render_bank() -> str:
     return "\n".join(lines)
 
 
+def render_types() -> str:
+    """The relationship types only, for the plan read (item 25): each is
+    pinned to one element > principle cell. Static between edits."""
+    lines = ["Relationship types (type: element > principle. What to look for. Example scene.):"]
+    for name, t in load_bank()["relationship"]["types"].items():
+        lines.append(f'- {name}: {t["element"]} > {t["principle"]}. {t["looks_for"].rstrip(".")}. Example: {t["example"]}.')
+    return "\n".join(lines)
+
+
 # ---------- prepared prompts ----------
 
 def _clean(text: str) -> str:

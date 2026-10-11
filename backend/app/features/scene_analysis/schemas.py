@@ -21,6 +21,8 @@ class FocalSuggestion(BaseModel):
     reason: Optional[str] = None
     x: int                   # a point inside the region's outline, 0-1000
     y: int
+    # The plan card (item 25): the sketcher added it to the plan.
+    adopted: bool = False
 
 
 class SceneAnalysisResponse(BaseModel):

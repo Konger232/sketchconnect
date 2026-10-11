@@ -407,6 +407,111 @@ def analyse(marks: list[dict] | None, aspect: float | None = 1.0) -> dict:
     return {"marks": facts, "links": links, "groups": groups, "aspect": aspect or 1.0}
 
 
+# ---------- areas (design doc, item 25) ----------
+
+DEPTHS = ["foreground", "middle", "background"]
+
+
+def areas(geo: dict, marks: list[dict] | None, aspect: float | None, depth: dict[str, str]) -> tuple[list[list[str]], list[str]]:
+    """
+    Shapes joined one level up, after the marks analysis call, so the
+    strokes around one part of the scene count together whatever order they
+    were drawn in. Only the plan read's order uses them.
+      - Shapes that touch, in any stroke order, join when they are at the
+        same depth (or a depth is unknown). A car touching the shopfront
+        behind it does not join it.
+      - A drawn subject (a loop or freehand stroke, never a straight line)
+        joins the frame around it. A frame is not farther than the subject,
+        and is open like a doorway: one shape wider and taller than the
+        subject with the subject's centre in its box, or separate strokes
+        close by on the left and right, or a top piece with a side it
+        touches. The ground below is never part of a frame.
+    Guides and big strokes never join. depth: mark id -> foreground,
+    middle or background, from Gemini. Returns (areas in stroke order, one
+    line per join for the debug report).
+    """
+    vis = visible_marks(marks)
+    ids = [mark_id(m, i) for i, m in enumerate(vis)]
+    if not ids:
+        return [], []
+    sx, sy = square_scale(aspect)
+    sq = {ids[i]: _to_square(m, sx, sy) for i, m in enumerate(vis)}
+    free = {i: not (is_guide(sq[i]) or is_big(sq[i])) for i in ids}
+    rank = {d: n for n, d in enumerate(DEPTHS)}
+    gid = {m: g["id"] for g in geo["groups"] for m in g["mark_ids"]}
+    parent = {g["id"]: g["id"] for g in geo["groups"]}
+    why: list[str] = []
+
+    def root(x):
+        while parent[x] != x:
+            x = parent[x]
+        return x
+
+    def join(a, b, reason):
+        if root(a) != root(b):
+            why.append(reason)
+            parent[root(b)] = root(a)
+
+    def same_depth(a, b):
+        da, db = depth.get(a), depth.get(b)
+        return da is None or db is None or da == db
+
+    def not_farther(a, b):
+        da, db = depth.get(a), depth.get(b)
+        return da is None or db is None or rank[da] <= rank[db]
+
+    for ln in geo["links"]:
+        if ln["kind"] in ("connects", "crosses", "runs_along", "contains", "inside") \
+                and free[ln["a"]] and free[ln["b"]] and same_depth(ln["a"], ln["b"]):
+            join(gid[ln["a"]], gid[ln["b"]], f"{ln['a']} {ln['kind'].replace('_', ' ')} {ln['b']}")
+
+    touching = {frozenset((ln["a"], ln["b"])) for ln in geo["links"]}
+    box = {m: _box(sq[m]["points"]) for m in ids}
+    pad = SNAP + 10
+    for m in ids:
+        if not free[m] or kind(sq[m]) == "straight line":
+            continue
+        x0, y0, x1, y1 = box[m]
+        cx, cy, w, h = (x0 + x1) / 2, (y0 + y1) / 2, x1 - x0, y1 - y0
+        # One open shape around it.
+        for g in geo["groups"]:
+            if g["id"] == gid[m] or not all(free[k] for k in g["mark_ids"]) \
+                    or any(kind(sq[k]) == "closed shape" for k in g["mark_ids"]):
+                continue
+            a0, b0, a1, b1 = _box([q for k in g["mark_ids"] for q in sq[k]["points"]])
+            if a0 - pad <= cx <= a1 + pad and b0 - pad <= cy <= b1 + pad \
+                    and a1 - a0 > w and b1 - b0 > h and all(not_farther(k, m) for k in g["mark_ids"]):
+                join(g["id"], gid[m], f"{m} inside {'+'.join(g['mark_ids'])}")
+        # Separate framing pieces close by: within twice its size.
+        reach = max(2 * max(w, h), 100)
+        near = [k for k in ids if k != m and free[k] and gid[k] != gid[m] and depth.get(k) and depth.get(m)
+                and not_farther(k, m) and kind(sq[k]) != "closed shape"]
+        side = {}
+        left = [k for k in near if x0 - reach <= box[k][2] <= x0 + pad and box[k][1] - pad <= cy <= box[k][3] + pad]
+        right = [k for k in near if x1 - pad <= box[k][0] <= x1 + reach and box[k][1] - pad <= cy <= box[k][3] + pad]
+        top = [k for k in near if y0 - reach <= box[k][3] <= y0 + pad and box[k][0] - pad <= cx <= box[k][2] + pad]
+        if left:
+            side["left"] = max(left, key=lambda k: box[k][2])
+        if right:
+            side["right"] = min(right, key=lambda k: box[k][0])
+        if top:
+            side["top"] = max(top, key=lambda k: box[k][3])
+
+        def corner(s):  # the top piece meets that side, as a beam meets a post
+            return s in side and frozenset((side["top"], side[s])) in touching
+
+        if ("left" in side and "right" in side) or ("top" in side and (corner("left") or corner("right"))):
+            pieces = " + ".join(f"{k} {v}" for k, v in side.items())
+            for k in side.values():
+                join(gid[k], gid[m], f"{m} framed by {pieces}")
+
+    out: dict[str, list[str]] = {}
+    for g in geo["groups"]:
+        out.setdefault(root(g["id"]), []).extend(g["mark_ids"])
+    order = {m: i for i, m in enumerate(ids)}
+    return sorted((sorted(v, key=order.get) for v in out.values()), key=lambda v: order[v[0]]), why
+
+
 # ---------- points against marks ----------
 
 def distance_to_marks(point, marks: list[dict] | None, aspect: float | None = 1.0) -> float:

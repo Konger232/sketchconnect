@@ -174,6 +174,47 @@ def _persona_for(db: Session, sketch: Sketch) -> Persona | SimpleNamespace:
     return persona
 
 
+def plan_read_text(sketch: Sketch) -> str:
+    """
+    The plan read the sketcher saw (design doc, item 25), with their thumbs,
+    as prompt text: the top 2 principles are what the plan set out to do,
+    the other strong and moderate ones are context, the none ones are never
+    held against the sketcher. The sketcher's one rating of the read
+    ("Is this right?") says how far to trust it as their intent.
+    """
+    cleaned = ((sketch.cached_scene_analysis or {}).get("marks_analysis") or {}).get("cleaned") or {}
+    pr = cleaned.get("plan_read")
+    if not pr or not pr.get("principles"):
+        return "none (this sketch was planned before the plan read, or has no strokes)"
+    rels = {}
+    for r in pr.get("relationships") or []:
+        rels.setdefault(r["principle"], []).append(r)
+    lines, shown = [], 0
+    for p in pr["principles"]:
+        if p["group"] == "none":
+            place = "not in the plan"
+        else:
+            place = "shown first" if shown < 2 else "under See more"
+            shown += 1
+        tips = "; ".join(f"{t['name']}: {t['tip']}" for t in p.get("tips") or [])
+        line = (f"- {p['principle']} ({p['group']}, {place})"
+                + (f" on strokes {', '.join(p['mark_ids'])}" if p.get("mark_ids") else "")
+                + (f". Why: {p['why']}" if p.get("why") else "")
+                + (f". Tips: {tips}" if tips else ""))
+        for r in rels.get(p["principle"], []):
+            line += f". Relationship {r['type']} between {' and '.join(r.get('objects') or [])} ({', '.join(r['mark_ids'])})"
+        lines.append(line)
+    marked = [f"{c.get('response')}: {c.get('prompt')} ({c.get('principle')})"
+              for c in sketch.session_choices or [] if c.get("key") == "bookmark" and c.get("bookmarked")]
+    if marked:
+        lines.append("Tips the sketcher bookmarked: " + "; ".join(marked))
+    rating = next((c.get("vote") for c in sketch.session_choices or [] if c.get("key") == "plan_read" and c.get("vote")), None)
+    lines.append({"up": "The sketcher said this reads their plan right (thumbs up).",
+                  "down": "The sketcher said this misreads their plan (thumbs down)."}.get(rating, "The sketcher did not rate this read."))
+    media = ", ".join(cleaned.get("media") or []) or "not given"
+    return f"Media: {media}\n" + "\n".join(lines)
+
+
 def run_critique(db: Session, sketch: Sketch) -> None:
     """Build the journey from the database, call Gemini, store the result."""
     persona = _persona_for(db, sketch)
@@ -235,6 +276,7 @@ def run_critique(db: Session, sketch: Sketch) -> None:
         marks=summarize_marks(sketch.marks),
         revisions=summarize_revisions(sketch.marks),
         session_choices=session_choices,
+        plan_read=plan_read_text(sketch),
         help_quest_log=help_quest_log,
         prior_review_summary=prior_review_summary or "none — first critique this session",
         principles=", ".join(principles()),

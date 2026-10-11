@@ -528,9 +528,32 @@ async def add_session_choice(
     ).first()
     if sketch is None:
         raise HTTPException(404, "Sketch not found")
-    if not sketch.is_draft:
+    # Thumbs and bookmarks on the plan read (item 25) can change in Edit
+    # Sketch too.
+    if not sketch.is_draft and body.key not in ("plan_read", "bookmark"):
         raise HTTPException(409, "Guided answers can't change once the sketch is created")
     choice = {**body.model_dump(exclude_none=True), "answered_at": datetime.now(timezone.utc).isoformat()}
+    if choice.get("key") == "plan_read":
+        # One rating for the whole plan read ("Is this right?"). No vote
+        # clears it.
+        kept = [c for c in (sketch.session_choices or []) if c.get("key") != "plan_read"]
+        sketch.session_choices = kept + ([choice] if choice.get("vote") else [])
+        db.commit()
+        return {"count": len(sketch.session_choices)}
+    if choice.get("key") == "bookmark":
+        # Bookmarks lock once the final sketch is uploaded: the critique
+        # judges the sketch against them.
+        if sketch.final_sketch_url:
+            raise HTTPException(409, "Bookmarks can't change once the final sketch is uploaded")
+        # One bookmark per principle and tip name. bookmarked False clears it.
+        if choice.get("principle") not in design_fundamentals.principle_keys():
+            raise HTTPException(400, "Unknown principle")
+        kept = [c for c in (sketch.session_choices or [])
+                if not (c.get("key") == "bookmark" and c.get("principle") == choice["principle"]
+                        and c.get("response") == choice["response"])]
+        sketch.session_choices = kept + ([choice] if choice.get("bookmarked") else [])
+        db.commit()
+        return {"count": len(sketch.session_choices)}
     repeated = _repeated_keys()
 
     def same_question(old: dict) -> bool:
@@ -688,6 +711,9 @@ async def adopt_focal_area(
     ).first()
     if sketch is None:
         raise HTTPException(404, "Sketch not found")
+    # The plan card can add an area until the final sketch is uploaded.
+    if sketch.final_sketch_url:
+        raise HTTPException(409, "The plan can't change once the final sketch is uploaded")
 
     cached = sketch.cached_scene_analysis or {}
     regions = cached.get("focal_regions") or []
@@ -739,14 +765,16 @@ async def unadopt_focal_area(
     never the sketcher's own stroke, so it is not a revision. Only while
     the sketch is a draft, since answers are final once it is created.
     Removing a mark that is not there is a no-op. Returns the saved marks.
+    Since the plan card (item 25), allowed until the final sketch is
+    uploaded, like adding one.
     """
     sketch = db.query(Sketch).filter(
         Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
     ).first()
     if sketch is None:
         raise HTTPException(404, "Sketch not found")
-    if not sketch.is_draft:
-        raise HTTPException(409, "Guided answers can't change once the sketch is created")
+    if sketch.final_sketch_url:
+        raise HTTPException(409, "The plan can't change once the final sketch is uploaded")
     marks = [
         dict(m) for m in (sketch.marks or [])
         if not (m.get("adopted_region") == region_ref and m.get("source") == "prompted")
@@ -955,6 +983,27 @@ async def list_recent_sketches(
     return [_sketch_to_dict(s) for s in rows]
 
 
+@router.get("/sketch-media/last")
+async def last_media(
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """The media card's picks from the sketcher's most recent sketch that
+    has them (design doc, item 25), to pre-fill the next sketch's card."""
+    recent = (
+        db.query(Sketch)
+        .filter(Sketch.sketcher_id == sketcher_id)
+        .order_by(Sketch.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    for sk in recent:
+        for c in sk.session_choices or []:
+            if c.get("key") == "media" and c.get("media"):
+                return {"media": c["media"]}
+    return {"media": []}
+
+
 @router.get("/sketches/{sketch_id}")
 async def get_sketch(
     sketch_id: str,
@@ -1018,5 +1067,14 @@ async def get_sketch(
     data["critique_status"] = sketch.critique_status
     # The sketcher's guided answers, so the Guide tab can show their picks.
     data["session_choices"] = _with_options(sketch)
+    # The plan read they saw (design doc, item 25), from the cache, so Edit
+    # Sketch shows the card without another call. None before item 25.
+    cleaned = ((sketch.cached_scene_analysis or {}).get("marks_analysis") or {}).get("cleaned") or {}
+    data["plan_read"] = cleaned.get("plan_read")
+    data["media"] = cleaned.get("media") or []
+    # The focal areas to consider, under the plan read.
+    if cleaned.get("plan_read"):
+        from app.features.marks_analysis.service import focal_list
+        data["focal_suggestions"] = focal_list(sketch, sketch.cached_scene_analysis)
     data["is_owner"] = True
     return data

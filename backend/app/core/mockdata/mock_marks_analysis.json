@@ -2,250 +2,376 @@
   "marks": [
     {
       "mark_id": "m1",
-      "traces": "the stone figure's arms",
-      "element": "form",
-      "role": "big_shape",
-      "fit": "loose"
+      "traces": "the toll gate",
+      "element": "line",
+      "role": "contour",
+      "fit": "close",
+      "depth": "middle"
     },
     {
       "mark_id": "m2",
-      "traces": "the central tower",
-      "element": "shape",
+      "traces": "the toll gate",
+      "element": "line",
       "role": "contour",
-      "fit": "loose"
+      "fit": "close",
+      "depth": "middle"
     },
     {
       "mark_id": "m3",
-      "traces": "the right wall's top edge",
+      "traces": "the toll gate",
       "element": "line",
       "role": "contour",
-      "fit": "close"
-    }
-  ],
-  "objects": [
-    {
-      "shape_id": "s2",
-      "name": "the tower",
-      "description": "The tall dark tower in the middle",
-      "element": "shape",
-      "weight": "heavy",
-      "question": "You traced around the tall tower in the middle. What do you see it as?",
-      "readings": [
-        {
-          "text": "The tall tower in the middle of the castle",
-          "name": "the tower",
-          "element": "shape"
-        },
-        {
-          "text": "Its dark stone, darker than the pale sky behind it",
-          "name": "the dark tower",
-          "element": "value"
-        }
-      ],
-      "kind": "building"
+      "fit": "close",
+      "depth": "middle"
     },
     {
-      "shape_id": "s1",
-      "name": "the stone figure",
-      "description": "The big stone figure across the gate",
-      "element": "form",
-      "weight": "heavy",
-      "question": "You circled the big stone figure over the gate. What caught your eye there?",
-      "readings": [
-        {
-          "text": "The big stone figure over the gate",
-          "name": "the stone figure",
-          "element": "form"
-        },
-        {
-          "text": "Its pale stone against the dark castle wall",
-          "name": "the pale figure",
-          "element": "value"
-        }
-      ],
-      "kind": "object"
-    }
-  ],
-  "scene_objects": [
-    {
-      "label": "the lantern post",
-      "description": "The lantern on the right, warm orange against grey stone",
-      "element": "color",
-      "contour_points": [
-        800,
-        450,
-        860,
-        450,
-        860,
-        520,
-        840,
-        540,
-        840,
-        900,
-        820,
-        900,
-        820,
-        540,
-        800,
-        520
-      ],
-      "kind": "object"
+      "mark_id": "m4",
+      "traces": "the toll gate",
+      "element": "line",
+      "role": "contour",
+      "fit": "close",
+      "depth": "middle"
     },
     {
-      "label": "the red banner",
-      "description": "The red banner on the right wall",
-      "element": "color",
-      "contour_points": [
-        880,
-        480,
-        960,
-        480,
-        960,
-        700,
-        920,
-        650,
-        880,
-        700
-      ],
-      "kind": "object"
+      "mark_id": "m5",
+      "traces": "the toll gate",
+      "element": "line",
+      "role": "contour",
+      "fit": "close",
+      "depth": "middle"
     },
     {
-      "label": "the sky",
-      "description": "The pale empty sky above the castle",
-      "element": "space",
-      "contour_points": [
-        0,
-        0,
-        1000,
-        0,
-        1000,
-        280,
-        600,
-        300,
-        400,
-        300,
-        0,
-        280
-      ],
-      "kind": "sky"
-    }
-  ],
-  "relationships": [
+      "mark_id": "m6",
+      "traces": "the road curb",
+      "element": "line",
+      "role": "contour",
+      "fit": "close",
+      "depth": "foreground"
+    },
     {
-      "refs": [
-        "s2",
-        "s1"
-      ],
-      "question": "How do {A} and {B} connect for you?",
-      "options": [
-        {
-          "type": "scale",
-          "text": "{B} looks small beside {A}"
-        },
-        {
-          "type": "contrast",
-          "text": "{A} and {B} are opposites: sharp stone against round forms"
-        },
-        {
-          "type": "leading",
-          "text": "{B} leads my eye up to {A}"
-        }
-      ],
-      "principle_steps": [
-        {
-          "type": "scale",
-          "question": "What do you want to bring out?",
-          "options": [
-            {
-              "principle": "proportion",
-              "text": "How tall {A} is beside {B}"
-            },
-            {
-              "principle": "emphasis",
-              "text": "{B} as the focus under the tall tower"
-            },
-            {
-              "principle": "balance",
-              "text": "The big tower weighed against the figure"
-            }
-          ]
-        },
-        {
-          "type": "contrast",
-          "question": "How will you show it?",
-          "options": [
-            {
-              "principle": "variety",
-              "text": "The sharp tower against the round figure"
-            },
-            {
-              "principle": "emphasis",
-              "text": "{B} standing out against {A}"
-            }
-          ]
-        },
-        {
-          "type": "leading",
-          "question": "What matters most here?",
-          "options": [
-            {
-              "principle": "movement",
-              "text": "The climb from {B} up to {A}"
-            },
-            {
-              "principle": "emphasis",
-              "text": "The top of {A} as where the eye lands"
-            },
-            {
-              "principle": "unity",
-              "text": "One line tying {B} to {A}"
-            }
-          ]
-        },
-        {
-          "type": "other",
-          "question": "What do you want to bring out?",
-          "options": [
-            {
-              "principle": "emphasis",
-              "text": "{A} as the one shape that stands out"
-            },
-            {
-              "principle": "unity",
-              "text": "{A} and {B} reading as one silhouette"
-            }
-          ]
-        }
-      ]
+      "mark_id": "m7",
+      "traces": "the canopy roof",
+      "element": "line",
+      "role": "contour",
+      "fit": "close",
+      "depth": "foreground"
+    },
+    {
+      "mark_id": "m8",
+      "traces": "the white truck",
+      "element": "line",
+      "role": "contour",
+      "fit": "close",
+      "depth": "middle"
+    },
+    {
+      "mark_id": "m9",
+      "traces": "the toll gate",
+      "element": "line",
+      "role": "contour",
+      "fit": "close",
+      "depth": "middle"
+    },
+    {
+      "mark_id": "m10",
+      "traces": "the orange paving",
+      "element": "line",
+      "role": "contour",
+      "fit": "close",
+      "depth": "foreground"
     }
   ],
-  "balance": {
-    "heavier": "left",
-    "reason": "The big stone figure sits low on the left and outweighs the open right side."
+  "plan_read": {
+    "principles": [
+      {
+        "principle": "emphasis",
+        "group": "strong",
+        "mark_ids": [
+          "m8"
+        ],
+        "elements": [
+          "value",
+          "space"
+        ],
+        "why": "The bright white truck stands out against dark canopy shadows.",
+        "tips": [
+          {
+            "name": "Value contrast",
+            "tip": "Keep the truck white while darkening surrounding canopy shadows."
+          }
+        ]
+      },
+      {
+        "principle": "movement",
+        "group": "strong",
+        "mark_ids": [
+          "m6"
+        ],
+        "elements": [
+          "line",
+          "space"
+        ],
+        "why": "Diagonal curb line leads the eye toward central gate structure.",
+        "tips": [
+          {
+            "name": "Leading lines",
+            "tip": "Taper road lines toward center to deepen perspective."
+          }
+        ]
+      },
+      {
+        "principle": "pattern",
+        "group": "strong",
+        "mark_ids": [
+          "m1",
+          "m3",
+          "m5"
+        ],
+        "elements": [
+          "line",
+          "shape"
+        ],
+        "why": "Repeating vertical canopy pillars create a structured architectural grid.",
+        "tips": [
+          {
+            "name": "Vertical alignment",
+            "tip": "Keep vertical pillar edges parallel across the entire structure."
+          }
+        ]
+      },
+      {
+        "principle": "unity",
+        "group": "strong",
+        "mark_ids": [
+          "m7"
+        ],
+        "elements": [
+          "line"
+        ],
+        "why": "Overhead canopy roof line ties all structural elements together.",
+        "tips": [
+          {
+            "name": "Continuous beam",
+            "tip": "Draw main roof beam in one confident continuous stroke."
+          }
+        ]
+      },
+      {
+        "principle": "balance",
+        "group": "moderate",
+        "mark_ids": [
+          "m2",
+          "m4"
+        ],
+        "elements": [
+          "shape",
+          "space"
+        ],
+        "why": "Symmetrical openings on both sides balance the central booth.",
+        "tips": [
+          {
+            "name": "Symmetrical framing",
+            "tip": "Match dark negative space shapes on left and right sides."
+          }
+        ]
+      },
+      {
+        "principle": "variety",
+        "group": "moderate",
+        "mark_ids": [
+          "m10"
+        ],
+        "elements": [
+          "texture",
+          "shape"
+        ],
+        "why": "Paved ground patch introduces brick texture against flat canopy.",
+        "tips": [
+          {
+            "name": "Texture contrast",
+            "tip": "Use quick pen strokes to suggest foreground paving bricks."
+          }
+        ]
+      },
+      {
+        "principle": "proportion",
+        "group": "moderate",
+        "mark_ids": [
+          "m9"
+        ],
+        "elements": [
+          "space",
+          "line"
+        ],
+        "why": "Ground road spacing defines scale between booth and side pillars.",
+        "tips": [
+          {
+            "name": "Measuring width",
+            "tip": "Compare ground gap widths against pillar thickness before drawing."
+          }
+        ]
+      },
+      {
+        "principle": "rhythm",
+        "group": "none",
+        "mark_ids": [],
+        "elements": [],
+        "why": "",
+        "tips": [
+          {
+            "name": "Repeating gaps",
+            "tip": "Repeat shadow intervals along pavement to suggest rhythmic depth."
+          }
+        ]
+      }
+    ],
+    "relationships": [
+      {
+        "type": "value_contrast",
+        "principle": "emphasis",
+        "objects": [
+          "white truck"
+        ],
+        "mark_ids": [
+          "m8"
+        ],
+        "why": "Bright pickup body pops against dark shaded booth canopy background.",
+        "tips": [
+          {
+            "name": "High contrast",
+            "tip": "Leave white paper raw for the truck body."
+          }
+        ]
+      },
+      {
+        "type": "framing",
+        "principle": "emphasis",
+        "objects": [
+          "canopy",
+          "white truck"
+        ],
+        "mark_ids": [
+          "m2",
+          "m8"
+        ],
+        "why": "Dark canopy opening frames the white truck in middle ground.",
+        "tips": [
+          {
+            "name": "Frame subject",
+            "tip": "Darken frame edges to focus eyes on central vehicle."
+          }
+        ]
+      },
+      {
+        "type": "leading",
+        "principle": "movement",
+        "objects": [
+          "curb line",
+          "white truck"
+        ],
+        "mark_ids": [
+          "m6",
+          "m8"
+        ],
+        "why": "Diagonal curb line directs visual attention toward the white pickup.",
+        "tips": [
+          {
+            "name": "Guide eyes",
+            "tip": "Strengthen line weight along foreground curb to lead entry."
+          }
+        ]
+      },
+      {
+        "type": "echo",
+        "principle": "pattern",
+        "objects": [
+          "left pillar",
+          "right pillar"
+        ],
+        "mark_ids": [
+          "m1",
+          "m5"
+        ],
+        "why": "Vertical structural pillars repeat matching rectangular shapes across entrance.",
+        "tips": [
+          {
+            "name": "Repeat forms",
+            "tip": "Maintain equal spacing between structural vertical pillars."
+          }
+        ]
+      },
+      {
+        "type": "palette",
+        "principle": "unity",
+        "objects": [
+          "canopy beam"
+        ],
+        "mark_ids": [
+          "m7"
+        ],
+        "why": "Dark gray architectural color holds top of frame together.",
+        "tips": [
+          {
+            "name": "Unified wash",
+            "tip": "Apply a single dark watercolor wash across top beam."
+          }
+        ]
+      },
+      {
+        "type": "weight",
+        "principle": "balance",
+        "objects": [
+          "left opening",
+          "right opening"
+        ],
+        "mark_ids": [
+          "m2",
+          "m4"
+        ],
+        "why": "Open dark spaces on both sides distribute visual weight evenly.",
+        "tips": [
+          {
+            "name": "Even weight",
+            "tip": "Balance dark washes on both sides of central booth."
+          }
+        ]
+      },
+      {
+        "type": "texture_contrast",
+        "principle": "variety",
+        "objects": [
+          "paved ground"
+        ],
+        "mark_ids": [
+          "m10"
+        ],
+        "why": "Rough ground brick texture contrasts with flat dark canopy.",
+        "tips": [
+          {
+            "name": "Surface change",
+            "tip": "Hatch ground details while keeping upper structure smooth."
+          }
+        ]
+      },
+      {
+        "type": "scale",
+        "principle": "proportion",
+        "objects": [
+          "booth gap",
+          "road entrance"
+        ],
+        "mark_ids": [
+          "m9"
+        ],
+        "why": "Width of central road passage gives relative scale to structure.",
+        "tips": [
+          {
+            "name": "Check scale",
+            "tip": "Gauge lane widths relative to central booth height."
+          }
+        ]
+      }
+    ]
   },
-  "form_relationships": [
-    {
-      "forms": [
-        {
-          "label": "the lantern post",
-          "x": 830,
-          "y": 600
-        },
-        {
-          "label": "the central tower",
-          "x": 500,
-          "y": 350
-        }
-      ],
-      "mark_ids": [],
-      "element": "color",
-      "principle": "emphasis",
-      "observation": "The warm lantern stands apart from the grey stone."
-    }
-  ],
-  "unseen": {
-    "form_ref": 0,
-    "question": "The lantern post on the right glows warm against the grey stone. Do you see it?"
-  },
-  "stroke_order_note": "The big figure came first, then the tower, then the right wall."
+  "stroke_order_note": "The gate came first, then the curb, the canopy and the truck."
 }

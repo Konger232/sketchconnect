@@ -99,10 +99,11 @@ STYLES = ["ink_and_wash", "realistic", "minimalist", "reportage"]
 # Focal-region cap: a design decision, not citation-backed (design doc, Sec. 6)
 MAX_FOCAL_REGIONS = 3
 
-# How many missed focal areas (focal_regions the sketcher did not mark)
-# become "The AI also noticed..." guided questions. A design decision, kept
-# low so the questions don't crowd out the sketcher's own choices.
-MAX_FOCAL_SUGGESTIONS = 2
+# How many missed focal areas (focal_regions the sketcher did not mark) the
+# plan card lists under "You might want to consider adding these to your
+# sketch" (design doc, item 25, October 11, 2026). The scene analysis
+# returns at most 3.
+MAX_FOCAL_SUGGESTIONS = 3
 
 # Marks (Marks.jsx). MAX_MARKS caps what is stored, erased marks included;
 # when a save goes over, the oldest erased marks are dropped first.

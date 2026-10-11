@@ -1,12 +1,12 @@
 """
-Marks analysis call request/response (design doc, Section 11, item 20).
+Marks analysis call request/response (design doc, Section 11, items 20 and 25).
 Element and principle keys come from app/core/design_fundamentals.json.
 """
 from typing import Optional, Literal
 
 from pydantic import BaseModel, Field
 
-from app.core.schemas import Relationship, SceneType, Source, Spot
+from app.core.schemas import Relationship, SceneType, Spot
 from app.features.scene_analysis.schemas import FocalSuggestion
 
 Role = Literal["contour", "big_shape", "eye_level", "ground_line", "perspective_guide",
@@ -14,83 +14,48 @@ Role = Literal["contour", "big_shape", "eye_level", "ground_line", "perspective_
 Fit = Literal["close", "loose", "not_applicable"]
 
 
+Depth = Literal["foreground", "middle", "background"]
+
+
 class MarkReading(BaseModel):
-    """What one mark is, read by the AI (seeing as, before the sketcher says)."""
+    """What one stroke points at, read from the photo under it."""
     mark_id: str
-    traces: str                      # the scene feature it follows, or "nothing in the scene"
+    traces: str                      # the scene feature it follows
     element: str                     # a from_marks element
     role: Role
     fit: Fit
+    depth: Optional[Depth] = None    # of what it points at (item 25)
 
 
-class Reading(BaseModel):
-    """One AI reading of what an object's marks point at (seeing as)."""
-    text: str                        # the option the sketcher sees
-    element: str
+class PlanTip(BaseModel):
+    name: str                        # 3 words or fewer
+    tip: str                         # 10 words or fewer, starts with a verb
 
 
-class GuideObject(BaseModel):
-    """One object the guide asks about: a shape of the sketcher's marks."""
-    shape_id: str
-    mark_ids: list[str]
-    # What the subject is. People and animals are never read as shapes.
-    kind: Optional[Literal["person", "animal", "vehicle", "building", "object", "plant", "landscape", "sky", "water"]] = None
-    name: str
-    description: str = ""
-    element: str
-    weight: Optional[Literal["light", "medium", "heavy"]] = None
-    # How far back it sits in the scene, read from the photo.
-    depth: Optional[Literal["foreground", "middle", "background"]] = None
-    readings: list[Reading] = Field(default_factory=list)
-    selected: bool = False           # the sketcher selected these marks
-
-
-class SceneObject(BaseModel):
-    """A part of the scene a tap on the photo can pick, marked or not."""
-    id: str                          # o1, o2, ...
-    kind: Optional[Literal["person", "animal", "vehicle", "building", "object", "plant", "landscape", "sky", "water"]] = None
-    label: str
-    description: str
-    element: str
-    points: list[list[int]]          # outline, [[x, y], ...] in 0-1000
-    depth: Optional[Literal["foreground", "middle", "background"]] = None
-
-
-class Balance(BaseModel):
-    heavier: Literal["left", "right", "top", "bottom", "even"]
-    reason: str = ""
-
-
-class FormPoint(BaseModel):
-    label: str
-    x: int
-    y: int
-
-
-class FormRelationship(BaseModel):
-    """How forms in the scene relate, marked or not. mark_ids is empty when
-    no mark sits on them; those feed the unseen question."""
-    forms: list[FormPoint]
-    mark_ids: list[str] = Field(default_factory=list)
-    element: Optional[str] = None
+class PlanPrinciple(BaseModel):
+    """One principle in the plan read (design doc, item 25)."""
     principle: str
-    observation: str
-
-
-class Intent(BaseModel):
-    """A principle the sketcher works toward, on the marks it applies to."""
-    principle: str
+    group: Literal["strong", "moderate", "none"]
     mark_ids: list[str] = Field(default_factory=list)
-    source: Source
-    answer_to: Optional[str] = None
+    elements: list[str] = Field(default_factory=list)
+    why: str = ""
+    tips: list[PlanTip] = Field(default_factory=list)
 
 
-class PrincipleVariant(BaseModel):
-    """What to bring out, for one relationship type (or "other")."""
-    question: str
-    options: list[str]
-    option_principles: list[str]
-    option_elements: list[str] = Field(default_factory=list)
+class PlanRelationship(BaseModel):
+    """A relationship inside a strong or moderate principle. The card shows
+    only its tips; the type is kept for the critique."""
+    type: str
+    principle: str
+    objects: list[str] = Field(default_factory=list)
+    mark_ids: list[str] = Field(default_factory=list)
+    why: str = ""
+    tips: list[PlanTip] = Field(default_factory=list)
+
+
+class PlanRead(BaseModel):
+    principles: list[PlanPrinciple] = Field(default_factory=list)
+    relationships: list[PlanRelationship] = Field(default_factory=list)
 
 
 class MarksPrompt(BaseModel):
@@ -130,7 +95,7 @@ class MarksPrompt(BaseModel):
     # refs, as the variant for the type the sketcher picked ("other" for a
     # tap or their own words).
     after_relationship: list[str] = Field(default_factory=list)
-    variants: dict[str, PrincipleVariant] = Field(default_factory=dict)
+    variants: dict[str, dict] = Field(default_factory=dict)
     max_principles: Optional[int] = None
     # Answer by a tap on the photo, or in the sketcher's own words.
     tap_answer: bool = False
@@ -146,15 +111,15 @@ class MarksAnalysisResponse(BaseModel):
     debug: bool = False
     scene_type: Optional[SceneType] = None
     marks: list[MarkReading] = Field(default_factory=list)
-    objects: list[GuideObject] = Field(default_factory=list)
-    scene_objects: list[SceneObject] = Field(default_factory=list)
-    balance: Optional[Balance] = None
-    form_relationships: list[FormRelationship] = Field(default_factory=list)
+    # The plan read (item 25), checked and in card order.
+    plan_read: PlanRead = Field(default_factory=PlanRead)
+    # Strokes joined by area, in stroke order (core/mark_geometry.areas).
+    areas: list[list[str]] = Field(default_factory=list)
+    # The media card's picks the tips were written for.
+    media: list[str] = Field(default_factory=list)
     stroke_order_note: Optional[str] = None
-    # Intents saved so far (from the sketch's answers), at most max_principles.
-    intents: list[Intent] = Field(default_factory=list)
-    max_principles: int = 3
     focal_suggestions: list[FocalSuggestion] = Field(default_factory=list)
+    # The one question left in New Sketch: a missed focal area.
     prepared_prompts: list[MarksPrompt] = Field(default_factory=list)
     debug_raw_gemini_response: Optional[str] = None
     # DEBUG=true only: a report page exists (GET /api/sketches/{id}/marks-report).

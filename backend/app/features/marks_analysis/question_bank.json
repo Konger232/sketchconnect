@@ -82,8 +82,8 @@
         "element": "space",
         "principle": "emphasis",
         "one_object": false,
-        "looks_for": "One subject seen through or inside another",
-        "example": "a street seen through an archway"
+        "looks_for": "An entrance, or one or more foreground objects, around a subject further back or at the same depth, leading the eye to it",
+        "example": "a street seen between two trees and the branch above"
       },
       "scale": {
         "element": "shape",

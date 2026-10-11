@@ -148,3 +148,13 @@ class SessionChoice(BaseModel):
     relationship_type: Optional[str] = None
     object_ids: list[str] = Field(default_factory=list)
     own_words: Optional[bool] = None
+    # The plan read (design doc, item 25), key "plan_read": the sketcher's
+    # one rating of the whole read ("Is this right?"). vote None clears it.
+    # group is unused since the rating moved from each principle to the card.
+    vote: Optional[Literal["up", "down"]] = None
+    group: Optional[Literal["strong", "moderate", "none"]] = None
+    # A bookmarked tip, key "bookmark": prompt is the tip, response its
+    # name, principle the principle it is under. bookmarked False clears it.
+    bookmarked: Optional[bool] = None
+    # The media card, key "media": the picks (plan_read.MEDIA keys).
+    media: list[str] = Field(default_factory=list)

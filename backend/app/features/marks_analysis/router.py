@@ -1,8 +1,8 @@
 """
-POST /api/marks-analysis: the marks analysis call (design doc, Section 11,
-item 20). Fires when the sketcher finishes the Marks step in New Sketch,
-and again when the marks or the selection change before Start Sketching.
-It drives every guided question.
+POST /api/marks-analysis: the marks analysis call, the plan read (design
+doc, Section 11, items 20 and 25). Fires when the sketcher finishes the
+strokes and the media card in New Sketch, and again when the strokes, the
+selection or the media change. Edit Sketch reads it from the cache.
 
 HTTP layer only: auth, caching, loading the photo. The marks and the scene
 facts are read from the stored sketch, never sent from the browser. The
@@ -18,6 +18,8 @@ photo or framing) replaces that dict, which also clears this cache.
 """
 from pathlib import Path
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse
 from PIL import Image
@@ -25,7 +27,7 @@ import pillow_heif
 from sqlalchemy.orm import Session
 
 from config import COACHING_MAX_DIMENSION, DEBUG
-from app.features.marks_analysis import debug_report
+from app.features.marks_analysis import debug_report, plan_read
 from app.core.auth import get_current_sketcher_id
 from app.core.database import get_db
 from app.core.gemini_service import GeminiQuotaExceededError
@@ -40,12 +42,30 @@ pillow_heif.register_heif_opener()
 
 router = APIRouter(prefix="/api", tags=["marks-analysis"])
 
+
+def _save_media(db: Session, sketch: Sketch, picks: list[str]) -> None:
+    """The media card's picks (design doc, item 25), kept with the answers
+    as one entry with key "media", so the critique and the next sketch's
+    card can read them. Part of the cache fingerprint: the tips follow them."""
+    picks = plan_read.clean_media(picks)
+    if picks == service.media_of(sketch) and any(c.get("key") == "media" for c in sketch.session_choices or []):
+        return
+    entry = {"key": "media", "prompt": "What do you draw with?",
+             "response": ", ".join(plan_read.MEDIA_NAMES[k] for k in picks) or "Not set",
+             "media": picks, "answered_at": datetime.now(timezone.utc).isoformat()}
+    # A new list, so SQLAlchemy sees the JSON column change.
+    sketch.session_choices = [c for c in sketch.session_choices or [] if c.get("key") != "media"] + [entry]
+    db.commit()
+
 CACHE_KEY = "marks_analysis"
 
 
 @router.post("/marks-analysis", response_model=MarksAnalysisResponse)
 async def marks_analysis(
     sketch_id: str = Form(...),
+    # The media card's picks, comma-separated keys (plan_read.MEDIA). Sent
+    # by New Sketch; omitted elsewhere, which keeps the saved picks.
+    media: str | None = Form(None),
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
@@ -55,6 +75,8 @@ async def marks_analysis(
     scene = cached_scene(sketch)
     if scene is None:
         raise HTTPException(409, "Run the scene analysis first")
+    if media is not None:
+        _save_media(db, sketch, [m.strip() for m in media.split(",") if m.strip()])
 
     # Cache hit: no plan image, no photo load.
     fingerprint = service.fingerprint(sketch, scene)
@@ -90,7 +112,7 @@ async def marks_analysis(
         # One HTML page per call: images, strokes in order, the prompt,
         # Gemini's answer and the guide it became (debug_report.py).
         try:
-            prompt = service.build_prompt(plan, scene, sketch, service.intents_from_choices(sketch.session_choices))
+            prompt = service.build_prompt(plan, scene, sketch)
             # The photo as uploaded. Without a reframe there is no separate
             # original: the reference photo is it.
             original = None
