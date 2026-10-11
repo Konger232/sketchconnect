@@ -8,10 +8,13 @@ import { Icon } from './Icon'
 //   choice           an answer to a guide question, full width, left aligned.
 //                    onNext adds a round amber ">" inside it on the right,
 //                    set up like the close buttons: a 44px tap area with a
-//                    small circle inside (nextLabel names it)
+//                    small circle inside (nextLabel names it). trailing puts
+//                    another control there instead (the plan card's
+//                    BookmarkButton). active: highlighted (blue border);
+//                    selected: chosen to keep (blue fill, white text).
 const MODAL_VARIANTS = ['action', 'secondaryOnDark', 'quietOnDark', 'choice']
 
-export default function Button({ variant = 'primary', size = 'md', active = false, className = '', onNext, nextLabel = 'Continue', ...props }) {
+export default function Button({ variant = 'primary', size = 'md', active = false, selected = false, className = '', onNext, nextLabel = 'Continue', trailing, ...props }) {
   const isLink = variant === 'link' || variant === 'linkOnDark'
   const isPill = variant === 'pill' || variant === 'pillOnLight'
   const isModal = MODAL_VARIANTS.includes(variant)
@@ -40,7 +43,8 @@ export default function Button({ variant = 'primary', size = 'md', active = fals
     quietOnDark: 'px-3 font-semibold text-sc-text2 hover:text-white',
     // Height and padding: --space-option-* tokens (index.css), tighter on a phone.
     choice: `min-h-[var(--space-option-min-h)] w-full border-[1.5px] px-[var(--space-option-x)] py-[var(--space-option-y)] text-left font-semibold ${
-      active ? 'border-sc-guide bg-sc-raised text-white' : 'border-sc-border bg-sc-raised text-white hover:border-sc-strong'
+      selected ? `bg-sc-guide text-white ${active ? 'border-white' : 'border-sc-guide'}`
+        : active ? 'border-sc-guide bg-sc-raised text-white' : 'border-sc-border bg-sc-raised text-white hover:border-sc-strong'
     }`,
   }
 
@@ -57,16 +61,42 @@ export default function Button({ variant = 'primary', size = 'md', active = fals
   const button = (
     <button
       type={isModal ? 'button' : undefined}
-      className={`${base} ${spacing} ${variants[variant]} ${variant === 'choice' && onNext ? 'pr-12' : ''} ${className}`}
+      className={`${base} ${spacing} ${variants[variant]} ${variant === 'choice' && (onNext || trailing) ? 'pr-12' : ''} ${className}`}
       {...props}
     />
   )
-  if (variant !== 'choice' || !onNext) return button
+  if (variant !== 'choice' || !(onNext || trailing)) return button
   return (
     <div className="relative w-full">
       {button}
-      <NextButton onClick={onNext} label={nextLabel} className="absolute right-1 top-1/2 -translate-y-1/2" />
+      <div className="absolute right-1 top-1/2 -translate-y-1/2">
+        {trailing || <NextButton onClick={onNext} label={nextLabel} />}
+      </div>
     </div>
+  )
+}
+
+// The bookmark inside a choice on the plan card (PlanReadCard.jsx): a tip
+// or a focal area to keep. Same 44px tap area as NextButton. Without
+// onToggle it only shows a kept item (locked after the final sketch).
+export function BookmarkButton({ on, onToggle, label }) {
+  if (!onToggle) {
+    return on ? (
+      <span className="flex h-11 w-11 items-center justify-center text-white" aria-label={label}>
+        <Icon name="bookmark-filled" size={18} />
+      </span>
+    ) : null
+  }
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={on}
+      onClick={onToggle}
+      className={`flex h-11 w-11 shrink-0 items-center justify-center ${on ? 'text-white' : 'text-sc-text3 hover:text-white'}`}
+    >
+      <Icon name={on ? 'bookmark-filled' : 'bookmark'} size={18} />
+    </button>
   )
 }
 

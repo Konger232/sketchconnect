@@ -265,6 +265,40 @@ const ICONS = {
     draw: { ...STROKE, strokeWidth: 1.8 },
     content: <path d="M5 7.5 10 12.5l5-5" />,
   },
+
+  // Plan read tips (PlanReadCard): a bookmark, outlined. Filled when on.
+  bookmark: {
+    viewBox: '0 0 24 24',
+    draw: STROKE,
+    content: <path d="M6 3.5h12a.5.5 0 0 1 .5.5v16.2a.4.4 0 0 1-.65.3L12 16l-5.85 4.5a.4.4 0 0 1-.65-.3V4a.5.5 0 0 1 .5-.5Z" />,
+  },
+  'bookmark-filled': {
+    viewBox: '0 0 24 24',
+    draw: { ...STROKE, fill: 'currentColor' },
+    content: <path d="M6 3.5h12a.5.5 0 0 1 .5.5v16.2a.4.4 0 0 1-.65.3L12 16l-5.85 4.5a.4.4 0 0 1-.65-.3V4a.5.5 0 0 1 .5-.5Z" />,
+  },
+
+  // Plan read thumbs (PlanReadCard): agree, disagree.
+  'thumb-up': {
+    viewBox: '0 0 24 24',
+    draw: STROKE,
+    content: (
+      <>
+        <path d="M7 10v11" />
+        <path d="M15 5.9 14 10h5.8a2 2 0 0 1 1.9 2.5l-2.3 8A2 2 0 0 1 17.5 22H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h2.8a2 2 0 0 0 1.8-1.1L12 3a3.1 3.1 0 0 1 3 2.9Z" />
+      </>
+    ),
+  },
+  'thumb-down': {
+    viewBox: '0 0 24 24',
+    draw: STROKE,
+    content: (
+      <>
+        <path d="M17 14V3" />
+        <path d="M9 18.1 10 14H4.2a2 2 0 0 1-1.9-2.5l2.3-8A2 2 0 0 1 6.5 2H20a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-2.8a2 2 0 0 0-1.8 1.1L12 21a3.1 3.1 0 0 1-3-2.9Z" />
+      </>
+    ),
+  },
 }
 
 export function Icon({ name, src, alt = '', size = 24, className = '', ...props }) {

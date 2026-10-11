@@ -473,7 +473,8 @@ export default function EditSketch() {
         aiSuggestion={tab === 'guide' ? aiSuggestion : null}
         highlightMarkIds={tab === 'guide' ? highlightIds : []}
         onPickAt={isOwner && tab === 'guide' && (guideQuestion?.tap_answer || guideQuestion?.option_mark_ids?.some((ids) => ids?.length)) ? handlePickAt : undefined}
-        onSuggestionTap={isOwner && mode === 'create' && tab === 'guide' ? () => setSuggestionTap((n) => n + 1) : undefined}
+        onSuggestionTap={isOwner && tab === 'guide' && (mode === 'create' || (sketch.plan_read && !sketch.final_sketch_url))
+          ? () => setSuggestionTap((n) => n + 1) : undefined}
         suggestionAdded={aiSuggestion != null && guideMarks.some((m) => m.source === 'prompted' && m.adopted_region === aiSuggestion.region_ref)}
         answerOutlines={tab === 'guide' ? answerOutlines : []}
         spot={tab === 'guide' && guideQuestion ? sketcherSpot : null}
@@ -528,6 +529,18 @@ export default function EditSketch() {
           suggestionTap={suggestionTap}
           debugReport={Boolean(sketch.debug_report || analysis?.marks_analysis?.debug_report)}
           onAnswerObjects={setAnswerOutlines}
+          // The plan read (design doc, item 25): from the run in New Sketch,
+          // or saved with the sketch for Edit Sketch.
+          planRead={mode === 'create' ? analysis?.plan_read : sketch.plan_read}
+          // Bookmarks and added areas can change until the final sketch is uploaded.
+          bookmarksLocked={Boolean(sketch.final_sketch_url)}
+          focalSuggestions={(mode === 'create' ? analysis?.focal_suggestions : sketch.focal_suggestions) || []}
+          // New Sketch: Back on the plan card reopens the strokes step with
+          // this draft, so the sketcher can change the plan and read it again.
+          onBackToStrokes={mode === 'create' ? () => navigate('/capture', {
+            replace: true,
+            state: { backgroundLocation: routerLocation.state?.backgroundLocation, resumeSketchId: sketchId },
+          }) : undefined}
           onHighlight={(ids) => {
             setHighlightIds(ids)
             if (ids.length) stripRef.current?.show('plan') // the marks are drawn on the Plan
@@ -541,7 +554,8 @@ export default function EditSketch() {
       )}
     </div>
   )
-  // Create mode: Start Sketching confirms the new sketch.
+  // Create mode: Start Sketching confirms the new sketch. Edit mode: Get
+  // Feedback opens the Feedback tab, the next step after the plan.
   const guideTab = (
     <>
       {guidePanel}
@@ -550,6 +564,16 @@ export default function EditSketch() {
           {confirmError && <span className="mr-auto text-base text-accent">{confirmError}</span>}
           <Button variant="action" className="ml-auto" onClick={handleStartSketching} disabled={saving}>
             Start Sketching
+          </Button>
+        </div>
+      )}
+      {mode === 'edit' && isOwner && (
+        <div className="sc-footer">
+          <Button variant="action" className="ml-auto" onClick={() => {
+            setTab('feedback')
+            if (finalSketchUrl) stripRef.current?.show('final')
+          }}>
+            Get Feedback
           </Button>
         </div>
       )}

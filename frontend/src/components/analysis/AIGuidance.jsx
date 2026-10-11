@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../common/Icon'
 import GuideNav from './GuideNav'
+import PlanReadCard, { bookmarkKey } from './PlanReadCard'
 import Button, { NextButton } from '../common/Button'
 import { api } from '../../lib/api'
 
@@ -186,6 +187,10 @@ function savedIndex(choice, prompt) {
  * that overlay on until the question after next. Names: value_study,
  * grid, proportions, perspective (only value_study is in the bank now).
  */
+// Saved answers that are not guide questions: the plan read's thumbs and
+// the media card (design doc, item 25).
+const NOT_QUESTIONS = ['plan_read', 'media', 'bookmark']
+
 export default function AIGuidance({
   sketchId,
   referenceImageUrl,
@@ -224,7 +229,25 @@ export default function AIGuidance({
   // Called with the parts of the scene picked by a tap ([{ id, points }]),
   // or [], so the page can draw their outlines.
   onAnswerObjects,
+  // The plan read (design doc, item 25): { principles, relationships }.
+  // Shown first, before any question; New Sketch and Edit Sketch.
+  planRead = null,
+  // New Sketch only: Back on the plan card returns to the strokes.
+  onBackToStrokes,
+  // The final sketch is uploaded: bookmarks on the plan card are locked.
+  bookmarksLocked = false,
+  // The focal areas to consider ([{ region_ref, label, reason, adopted }]).
+  focalSuggestions = [],
 }) {
+  const hasPlan = Boolean(planRead?.principles?.length)
+  // With a plan read, the panel is the card alone, one scroll (item 25).
+  const [showPlan, setShowPlan] = useState(hasPlan)
+  // The focal area drawn in red on the photo, and the areas added since.
+  const [shownArea, setShownArea] = useState(null)
+  const [adoptedNow, setAdoptedNow] = useState({})
+  const areas = (focalSuggestions || []).map((sg) => ({
+    ...sg, adopted: adoptedNow[sg.region_ref] ?? Boolean(sg.adopted),
+  }))
 
   const [promptIndex, setPromptIndex] = useState(0)
 
@@ -262,6 +285,7 @@ export default function AIGuidance({
   // starts this flow from a clean slate.
   useEffect(() => {
     setPromptIndex(nextAsked(analysis?.prepared_prompts || [], 0, choices))
+    setShowPlan(hasPlan)
     setHelpQuestOpen(false)
     setHelpQuestAnswer(null)
     setDescribing(null)
@@ -308,7 +332,7 @@ export default function AIGuidance({
   // Show the AI's reticle only while its question is on screen: at a
   // missed focal area (suggestion) or at a spot where the sketcher's lines
   // meet (spot).
-  const shown = currentPrompt()
+  const shown = showPlan ? null : currentPrompt()
   const spotKey = shown?.spot ? `spot-${shown.spot.x}-${shown.spot.y}` : null
   const currentSuggestion = shown?.suggestion || null
   useEffect(() => {
@@ -322,14 +346,15 @@ export default function AIGuidance({
   useEffect(() => {
     onPromptChange?.(shown && !helpQuestOpen ? shown : null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [promptIndex, analysis, helpQuestOpen])
+  }, [promptIndex, analysis, helpQuestOpen, showPlan])
   useEffect(() => () => onPromptChange?.(null), []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onSuggestionChange?.(null), []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // review: the saved answers in the order the questions were asked
   // (position), each shown the way it was asked.
   const reviewed = review
-    ? choices.map((c, i) => ({ ...c, _i: i })).sort((a, b) => (a.position ?? a._i) - (b.position ?? b._i))
+    ? choices.filter((c) => !NOT_QUESTIONS.includes(c.key))
+      .map((c, i) => ({ ...c, _i: i })).sort((a, b) => (a.position ?? a._i) - (b.position ?? b._i))
     : []
 
   // Options tied to the sketcher's lines.
@@ -340,7 +365,8 @@ export default function AIGuidance({
   // the picked option's lines; none while a tied question waits for a
   // pick (all lines plain); else prompt.mark_ids.
   const highlightKey = (
-    review ? reviewed[reviewIndex]?.mark_ids || []
+    showPlan ? []
+      : review ? reviewed[reviewIndex]?.mark_ids || []
       : tapped.some((t) => t.kind === 'mark') ? tapped.filter((t) => t.kind === 'mark').map((t) => t.id)
       : chosen !== null && optionMarks[chosen]?.length ? optionMarks[chosen]
       : linked ? []
@@ -350,6 +376,62 @@ export default function AIGuidance({
     onHighlight?.(highlightKey ? highlightKey.split(',') : [])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightKey])
+
+  // The plan read's rating, one for the whole read (item 25): "Is this
+  // right?". Saved at once; the same thumb again clears it. Allowed in Edit
+  // Sketch too.
+  const vote = choices.find((c) => c.key === 'plan_read' && c.vote && !c.principle)?.vote || null
+  function handleVote(next) {
+    const entry = { key: 'plan_read', prompt: 'Is this right?', response: next || '', vote: next || undefined }
+    setChoices((cur) => [...cur.filter((c) => c.key !== 'plan_read'), ...(next ? [entry] : [])])
+    api.post(`/api/sketches/${sketchId}/session-choices`, entry)
+      .catch((err) => console.warn('Could not save the thumb', err))
+  }
+  // Bookmarked tips (key "bookmark"), one per principle and tip name.
+  const bookmarks = new Set(choices.filter((c) => c.key === 'bookmark' && c.bookmarked).map((c) => bookmarkKey(c.principle, c.response)))
+  function handleBookmark(principle, tip, on) {
+    const entry = { key: 'bookmark', prompt: tip.tip, response: tip.name, principle, bookmarked: on, mark_ids: tip.ids || [] }
+    setChoices((cur) => [
+      ...cur.filter((c) => !(c.key === 'bookmark' && c.principle === principle && c.response === tip.name)),
+      ...(on ? [entry] : []),
+    ])
+    api.post(`/api/sketches/${sketchId}/session-choices`, entry)
+      .catch((err) => console.warn('Could not save the bookmark', err))
+  }
+  function showArea(sg) {
+    setShownArea(sg)
+    onSuggestionChange?.(sg)
+  }
+  // The bookmark on a focal area: add it to the plan as a stroke along its
+  // outline (prompted), or take it off. The red area turns into the stroke.
+  function adoptArea(sg, on) {
+    setAdoptedNow((cur) => ({ ...cur, [sg.region_ref]: on }))
+    if (on) {
+      const color = getComputedStyle(document.documentElement).getPropertyValue('--mark-color').trim() || '#fde68a'
+      onAdoptPending?.(sg.region_ref)
+      api.post(`/api/sketches/${sketchId}/marks/adopt`, { region_ref: sg.region_ref, color, size_mm: 1 })
+        .then(({ data }) => onMarksChange?.(data.marks))
+        .catch((err) => {
+          console.warn('Could not add the area to the plan', err)
+          setAdoptedNow((cur) => ({ ...cur, [sg.region_ref]: false }))
+        })
+        .finally(() => onAdoptPending?.(null))
+    } else {
+      api.delete(`/api/sketches/${sketchId}/marks/adopt/${sg.region_ref}`)
+        .then(({ data }) => onMarksChange?.(data.marks))
+        .catch((err) => {
+          console.warn('Could not take the area off the plan', err)
+          setAdoptedNow((cur) => ({ ...cur, [sg.region_ref]: true }))
+        })
+    }
+  }
+  function leavePlan() {
+    onHighlight?.([])
+    setShowPlan(false)
+  }
+  function backToPlan() {
+    setShowPlan(true)
+  }
 
   // Pick a tied option: highlight its lines and show its overlay.
   function chooseOption(index) {
@@ -631,6 +713,11 @@ export default function AIGuidance({
   useEffect(() => {
     if (suggestionTap === seenSuggestionTap.current) return
     seenSuggestionTap.current = suggestionTap
+    if (showPlan) {
+      const sg = shownArea && areas.find((a) => a.region_ref === shownArea.region_ref)
+      if (sg && !sg.adopted && !bookmarksLocked) adoptArea(sg, true)
+      return
+    }
     if (!(shown?.suggestion || shown?.spot) || review || helpQuestOpen || describing !== null) return
     handlePromptSelect(shown.options[0], 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -709,13 +796,14 @@ export default function AIGuidance({
   // Back (hidden on the first question) and Next, above the question.
   const navRow = !review ? (
     <GuideNav
-      onBack={previousAsked() >= 0 ? goBack : undefined}
+      onBack={previousAsked() >= 0 ? goBack : hasPlan ? backToPlan : undefined}
       onNext={goNext}
       nextDisabled={!canNext || describing !== null}
     />
   ) : null
   // The closing note has Back only.
-  const backButton = !review && previousAsked() >= 0 ? <GuideNav onBack={goBack} /> : null
+  const backButton = !review && previousAsked() >= 0 ? <GuideNav onBack={goBack} />
+    : !review && hasPlan ? <GuideNav onBack={backToPlan} /> : null
 
   // Guide question panel (design handoff): the question, an optional
   // principle line (prompt.principle and prompt.principle_text, when the
@@ -727,13 +815,36 @@ export default function AIGuidance({
         <p className="sc-body">Preparing your questions…</p>
       ) : (
         <>
-          {review && !helpQuestOpen && (
+          {showPlan && !helpQuestOpen && (
+            <div className="sc-guide animate-fade-in-up">
+              {/* New Sketch: change the strokes and read the plan again. */}
+              {!review && onBackToStrokes && (
+                <button type="button" onClick={onBackToStrokes}
+                  className="flex items-center gap-1 self-start text-sm font-semibold text-sc-text3 hover:text-white">
+                  <Icon name="chevron-left" size={14} />
+                  Change your strokes
+                </button>
+              )}
+              <PlanReadCard planRead={planRead} onHighlight={onHighlight} vote={vote} onVote={handleVote}
+                bookmarks={bookmarks} onBookmark={bookmarksLocked ? undefined : handleBookmark}
+                suggestions={areas} onShowSuggestion={showArea}
+                onAdopt={bookmarksLocked ? undefined : adoptArea} />
+              {reportLink}
+              {/* "Ask me something else" (Help Quest) is left off the plan
+                  card for now (October 11, 2026): too much on one scroll. */}
+            </div>
+          )}
+
+          {review && !showPlan && !helpQuestOpen && (
             // Read only, one question at a time, the way it was asked: every
             // option shows, the sketcher's pick highlighted, so the other
             // choices stay visible to learn from. Back and Next step through.
             <div key={reviewIndex} className="sc-guide animate-fade-in-up">
               {reviewed.length === 0 ? (
-                <p className="sc-body">No guided answers were saved for this sketch.</p>
+                <>
+                  {hasPlan && <GuideNav onBack={backToPlan} />}
+                  <p className="sc-body">No guided answers were saved for this sketch.</p>
+                </>
               ) : (() => {
                 const c = reviewed[Math.min(reviewIndex, reviewed.length - 1)]
                 // Answers saved before options were kept show only the pick.
@@ -745,7 +856,7 @@ export default function AIGuidance({
                 return (
                   <>
                     <GuideNav
-                      onBack={reviewIndex > 0 ? () => setReviewIndex((i) => i - 1) : undefined}
+                      onBack={reviewIndex > 0 ? () => setReviewIndex((i) => i - 1) : hasPlan ? backToPlan : undefined}
                       onNext={() => setReviewIndex((i) => i + 1)}
                       nextDisabled={last}
                     />
@@ -790,7 +901,7 @@ export default function AIGuidance({
             </div>
           )}
 
-          {!review && prompt && !helpQuestOpen && (
+          {!review && !showPlan && prompt && !helpQuestOpen && (
             <div key={promptIndex} className="sc-guide animate-fade-in-up">
               {navRow}
               <p className="font-heading text-question font-bold text-white">{prompt.question}</p>
@@ -893,7 +1004,7 @@ export default function AIGuidance({
             </div>
           )}
 
-          {!review && !prompt && !helpQuestOpen && (
+          {!review && !showPlan && !prompt && !helpQuestOpen && (
             <div className="flex animate-fade-in-up flex-col gap-3">
               {backButton}
               <p className="font-heading text-question font-bold text-white">That's all for now.</p>

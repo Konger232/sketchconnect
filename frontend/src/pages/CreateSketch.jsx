@@ -24,12 +24,20 @@ const MAX_ZOOM = 8
 const MIN_CROP = 0.2
 
 // New Sketch setup, in order (design handoff). 'analyzing' follows the
-// three steps, then the sketch opens in EditSketch's workspace. Style is
-// picked later, with the final sketch (October 6, 2026).
+// steps, then the sketch opens in EditSketch's workspace with the plan read
+// (design doc, item 25). Style is picked later, with the final sketch.
 const STEPS = [
   { key: 'photo', name: 'Reference photo' },
   { key: 'crop', name: 'Crop and reframe' },
   { key: 'marks', name: 'Plan what to sketch' },
+  { key: 'media', name: 'What you draw with' },
+]
+
+// The media card (item 25), the same keys as the backend (plan_read.MEDIA).
+// Pick any number; the tips may name only these. None: tool-free tips.
+const MEDIA = [
+  { group: 'Line', items: [['fineliner', 'Waterproof fineliner'], ['fountain_pen', 'Fountain pen'], ['pencil', 'Pencil']] },
+  { group: 'Color', items: [['watercolor', 'Watercolor'], ['gouache', 'Gouache'], ['markers', 'Markers'], ['watercolor_pencils', 'Watercolor pencils'], ['pastels', 'Pastels']] },
 ]
 
 // The frame as the crop step leaves it, to tell whether it changed since
@@ -62,8 +70,13 @@ export default function CreateSketch() {
   const routerLocation = useLocation()
   const backgroundLocation = routerLocation.state?.backgroundLocation
 
-  // 'photo' | 'crop' | 'marks' | 'analyzing'
+  // 'photo' | 'crop' | 'marks' | 'media' | 'analyzing'
   const [step, setStep] = useState('photo')
+  // The media card's picks. Pre-filled from the sketcher's last sketch.
+  const [media, setMedia] = useState([])
+  const mediaLoadedRef = useRef(false)
+  // Skip on the marks step: the plan is sent with no strokes.
+  const skipMarksRef = useRef(false)
 
   // ===== STATE: PHOTO =====
   // The chosen file is only uploaded on "Use photo", so Retake and Choose
@@ -115,6 +128,55 @@ export default function CreateSketch() {
   // One colour for every mark: picking another redraws them all.
   const [markColor, setMarkColor] = useState(DEFAULT_MARK_COLOR)
   const drawing = useMarkDrawing(svgRef, { enabled: step === 'marks', tool: markTool, size: markSize, color: markColor })
+
+  // Back from the plan card (EditSketch, New Sketch): reopen this draft at
+  // the strokes step, with its photo, crop and strokes, so the sketcher can
+  // change the plan and have it read again (design doc, item 25).
+  const resumeId = routerLocation.state?.resumeSketchId
+  useEffect(() => {
+    if (!resumeId) return
+    let cancelled = false
+    api.get(`/api/sketches/${resumeId}`).then(({ data }) => {
+      if (cancelled) return
+      setSketchId(data.id)
+      setOriginalImageUrl(resolveUrl(data.original_image_url || data.reference_image_url))
+      setReferenceImageUrl(resolveUrl(data.reference_image_url))
+      setUploadedLocation(data.location || null)
+      const t = data.crop_transform || {}
+      const frame = {
+        aspect_ratio: t.aspect_ratio || 'original',
+        ratio: t.aspect_ratio === 'custom' ? t.ratio ?? null : null,
+        zoom: t.zoom ?? 1,
+        offset_x: t.offset_x ?? 0,
+        offset_y: t.offset_y ?? 0,
+      }
+      setAspectRatioKey(frame.aspect_ratio)
+      setCustomRatio(frame.ratio)
+      resetTransform({ zoom: frame.zoom, offset: { x: frame.offset_x, y: frame.offset_y } })
+      savedFrameRef.current = frame
+      drawing.setMarks(data.marks || [])
+      if (data.media?.length) {
+        setMedia(data.media)
+        mediaLoadedRef.current = true
+      }
+      setStep('marks')
+    }).catch(() => setError('Could not reopen this sketch.'))
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeId])
+
+  // The media card opens with the last sketch's picks.
+  useEffect(() => {
+    if (step !== 'media' || mediaLoadedRef.current) return
+    mediaLoadedRef.current = true
+    api.get('/api/sketch-media/last').then(({ data }) => {
+      if (data?.media?.length) setMedia((cur) => (cur.length ? cur : data.media))
+    }).catch(() => {})
+  }, [step])
+
+  function toggleMedia(key) {
+    setMedia((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]))
+  }
   function handleMarkColor(key) {
     setMarkColor(key)
     drawing.recolor(key)
@@ -505,7 +567,13 @@ export default function CreateSketch() {
 
   // Next (or Skip) on the marks step: save the marks, then wait for the
   // scene analysis and run the marks analysis, which writes the guide.
-  async function handleAnalyze(skipMarks = false) {
+  // Next (or Skip) on the marks step: on to the media card.
+  function handleMarksDone(skipMarks = false) {
+    skipMarksRef.current = skipMarks
+    setStep('media')
+  }
+
+  async function handleAnalyze(skipMarks = skipMarksRef.current) {
     setSaving(true)
     setError(null)
     try {
@@ -527,7 +595,7 @@ export default function CreateSketch() {
     try {
       const abort = new AbortController()
       analysisAbortRef.current = abort
-      const data = await runGuideAnalysis(sketchId, { scene: sceneRef.current, signal: abort.signal })
+      const data = await runGuideAnalysis(sketchId, { scene: sceneRef.current, signal: abort.signal, media })
       if (discardedRef.current) return
       // Finished while "Discard this sketch?" is open: wait for the answer.
       if (confirmingCloseRef.current) finishedAnalysisRef.current = data
@@ -536,7 +604,7 @@ export default function CreateSketch() {
       if (discardedRef.current) return
       setError(err.response?.data?.detail || 'Scene analysis failed. Try again.')
       sceneRef.current = null
-      setStep('marks')
+      setStep('media')
     } finally {
       analysisAbortRef.current = null
     }
@@ -556,7 +624,7 @@ export default function CreateSketch() {
     naturalSize && boxSize.width && boxSize.height
       ? computeImageBox(boxSize.width, boxSize.height, naturalSize.width, naturalSize.height, zoom, offset.x, offset.y)
       : null
-  const onPhotoSteps = step === 'crop' || step === 'marks'
+  const onPhotoSteps = step === 'crop' || step === 'marks' || step === 'media'
   const stageHandlers =
     step === 'crop'
       ? { onPointerDown: handlePointerDown, onPointerMove: handlePointerMove, onPointerUp: handlePointerUp, onPointerCancel: handlePointerUp, onWheel: handleWheel }
@@ -765,6 +833,35 @@ export default function CreateSketch() {
             </>
           )}
 
+          {step === 'media' && (
+            <div className="flex flex-col gap-4">
+              <p className="sc-body">What will you draw with? Pick all that apply. Your tips will use them.</p>
+              {MEDIA.map(({ group, items }) => (
+                <div key={group} className="flex flex-col gap-2" role="group" aria-label={group}>
+                  <p className="text-base font-semibold text-sc-text3">{group}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {items.map(([key, name]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        aria-pressed={media.includes(key)}
+                        onClick={() => toggleMedia(key)}
+                        className={`rounded-full border-[1.5px] px-3.5 py-2 text-md font-semibold transition-colors ${
+                          media.includes(key)
+                            ? 'border-sc-guide bg-sc-guide text-sc-guide-ink'
+                            : 'border-sc-divider text-white hover:border-white/60'
+                        }`}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <p className="text-sm text-sc-text3">None picked: the tips stay tool-free.</p>
+            </div>
+          )}
+
           {step === 'analyzing' && (
             <ProgressSteps
               heading="Reading your scene…"
@@ -774,7 +871,7 @@ export default function CreateSketch() {
                 { label: 'Framing and plan' },
                 { label: 'Location', result: uploadedLocation?.label || 'Not in photo' },
                 { label: 'Scene title' },
-                { label: 'Questions' },
+                { label: 'Reading your plan' },
               ]}
             />
           )}
@@ -806,8 +903,14 @@ export default function CreateSketch() {
             {step === 'marks' && (
               <>
                 <Button variant="secondaryOnDark" className="mr-auto" onClick={handleBackToCrop} disabled={saving}>Back</Button>
-                <Button variant="quietOnDark" onClick={() => handleAnalyze(true)} disabled={saving}>Skip</Button>
-                <Button variant="action" onClick={() => handleAnalyze()} disabled={saving}>{saving ? 'Saving…' : 'Next'}</Button>
+                <Button variant="quietOnDark" onClick={() => handleMarksDone(true)} disabled={saving}>Skip</Button>
+                <Button variant="action" onClick={() => handleMarksDone()} disabled={saving}>Next</Button>
+              </>
+            )}
+            {step === 'media' && (
+              <>
+                <Button variant="secondaryOnDark" className="mr-auto" onClick={() => setStep('marks')} disabled={saving}>Back</Button>
+                <Button variant="action" onClick={() => handleAnalyze()} disabled={saving}>{saving ? 'Saving…' : 'Read my plan'}</Button>
               </>
             )}
           </div>
