@@ -7,20 +7,20 @@ import { api } from '../lib/api'
 
 const FEATURES = [
   {
-    title: 'Discover New Locations',
-    body: 'See where fellow sketchers have captured amazing scenes. Our interactive map shows you sketching spots you never knew existed, from hidden cafés to architectural gems.',
+    title: 'Plan before you draw',
+    body: 'Mark what catches your eye on your photo. The AI reads your plan back with design principles and short tips for the tools in your bag.',
   },
   {
-    title: 'Share Your Adventures',
-    body: 'Post your sketches with exact locations, weather conditions, and the story behind each piece. Help others find their next perfect sketching spot.',
+    title: 'Discover new places',
+    body: 'See where fellow sketchers have drawn, on a map or by search. Planning a trip? See how others sketched the same place, and which paints they brought.',
   },
   {
-    title: 'Connect with Your Tribe',
-    body: 'Find local sketching groups, join workshops, and meet artists who share your passion for drawing the world around us.',
+    title: 'Share your journey',
+    body: 'Post your sketch with its story and every stage it took to get there. Pick a location, or leave it out. Share it to Instagram or Facebook in one tap.',
   },
   {
-    title: 'Stay True to the Mission',
-    body: 'Built-in location verification ensures every sketch shared is authentically created on-site, keeping true to the Urban Sketchers manifesto.',
+    title: 'Connect with your tribe',
+    body: 'Follow sketchers you learn from, comment on their work, and show your own kit. Join workshops and meet artists who share your passion for drawing the world around us.',
   },
 ]
 
@@ -76,7 +76,7 @@ export default function LoggedOutHome() {
 
       <p className="mt-8 text-center font-hand text-2xl">Connect &nbsp;.&nbsp; Sketch &nbsp;.&nbsp; Share</p>
       <p className="mt-2 text-center text-sm text-ink/70">
-        Discover your next sketching adventure with fellow urban sketchers worldwide.
+        Discover your next sketching adventure with fellow sketchers worldwide.
         SketchConnect brings together the global community of artists who love to draw
         the world around them, one location at a time.
       </p>
@@ -88,10 +88,10 @@ export default function LoggedOutHome() {
       <div className="mt-8 rounded-xl bg-black/5 p-5">
         <h2 className="text-lg font-bold">Why SketchConnect</h2>
         <p className="mt-2 text-sm text-ink/80">
-          SketchConnect is built for the vibrant community of urban sketchers who believe
-          in drawing on location, capturing the essence of places as they truly are.
-          Inspired by the Urban Sketchers movement founded in 2007, we're creating a
-          dedicated space where artists can:
+          SketchConnect is for everyone learning to see like a sketcher. Inspired by the
+          Urban Sketchers movement, founded in 2007, we believe drawing from observation is
+          the best way to understand a place. Sketch in front of the scene when you can, or
+          practice from a photo when you can't. Either way, you learn to see.
         </p>
         <div className="mt-4 flex flex-col gap-4">
           {FEATURES.map((f) => (
