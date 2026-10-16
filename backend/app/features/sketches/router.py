@@ -11,7 +11,7 @@ import io
 import json
 import re
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -82,7 +82,6 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
         # Which grid to offer: "grid" (square) or "rule_of_thirds", by style.
         "grid": question_bank.grid_action(s.style),
         "created_at": s.created_at,
-        "is_draft": bool(s.is_draft),
         # The latest critique's text, if any -- this is what
         # SketchCard.jsx's feed view shows as the sketch's description,
         # with a Read more/Show less toggle once it runs long. None (not
@@ -268,7 +267,6 @@ async def create_sketch(
 
     sketch = Sketch(
         sketcher_id=sketcher_id,
-        is_draft=True,  # until Start Sketching (confirm_sketch)
         title=title,
         field_notes=field_notes,
         reference_image_url=reference_image_url,
@@ -286,45 +284,9 @@ async def create_sketch(
         except (TypeError, ValueError):
             pass  # malformed client payload -- don't fail the upload over metadata
     db.add(sketch)
-    _delete_stale_drafts(db, sketcher_id)
     db.commit()
     db.refresh(sketch)
     return _sketch_to_dict(sketch)
-
-
-# A draft (New Sketch never reached Start Sketching) older than this is
-# treated as abandoned: deleted the next time the same sketcher starts one.
-DRAFT_TTL = timedelta(days=1)
-
-
-def _delete_stale_drafts(db: Session, sketcher_id: str) -> None:
-    """Delete this sketcher's abandoned drafts, files and all. Caller commits."""
-    cutoff = datetime.utcnow() - DRAFT_TTL
-    for old in db.query(Sketch).filter(
-        Sketch.sketcher_id == sketcher_id, Sketch.is_draft.is_(True), Sketch.created_at < cutoff
-    ).all():
-        _delete_sketch_files(old)
-        db.delete(old)
-
-
-@router.post("/sketches/{sketch_id}/confirm")
-async def confirm_sketch(
-    sketch_id: str,
-    db: Session = Depends(get_db),
-    sketcher_id: str = Depends(get_current_sketcher_id),
-):
-    """
-    Start Sketching: the end of New Sketch. The sketch stops being a draft,
-    shows in the feeds, and its guided answers are final.
-    """
-    sketch = db.query(Sketch).filter(
-        Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
-    ).first()
-    if sketch is None:
-        raise HTTPException(404, "Sketch not found")
-    sketch.is_draft = False
-    db.commit()
-    return {"is_draft": False}
 
 
 @router.put("/sketches/{sketch_id}")
@@ -528,10 +490,10 @@ async def add_session_choice(
     ).first()
     if sketch is None:
         raise HTTPException(404, "Sketch not found")
-    # Thumbs and bookmarks on the plan read (item 25) can change in Edit
-    # Sketch too.
-    if not sketch.is_draft and body.key not in ("plan_read", "bookmark"):
-        raise HTTPException(409, "Guided answers can't change once the sketch is created")
+    # Answers lock once the final sketch is uploaded: the critique reads
+    # them. The plan read rating ("Is this right?") can still change.
+    if sketch.final_sketch_url and body.key != "plan_read":
+        raise HTTPException(409, "Answers can't change once the final sketch is uploaded")
     choice = {**body.model_dump(exclude_none=True), "answered_at": datetime.now(timezone.utc).isoformat()}
     if choice.get("key") == "plan_read":
         # One rating for the whole plan read ("Is this right?"). No vote
@@ -762,11 +724,9 @@ async def unadopt_focal_area(
     Undo "Yes, add it": the sketcher went Back and changed the answer to
     "Already in my plan" or "No thanks" (design doc, item 20). The mark
     added from that focal area is removed outright, not erased: it was
-    never the sketcher's own stroke, so it is not a revision. Only while
-    the sketch is a draft, since answers are final once it is created.
-    Removing a mark that is not there is a no-op. Returns the saved marks.
-    Since the plan card (item 25), allowed until the final sketch is
-    uploaded, like adding one.
+    never the sketcher's own stroke, so it is not a revision. Allowed until
+    the final sketch is uploaded, like adding one (item 25). Removing a
+    mark that is not there is a no-op. Returns the saved marks.
     """
     sketch = db.query(Sketch).filter(
         Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
@@ -930,10 +890,12 @@ async def list_sketches(
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
-    """Feed for the profile 'Sketches' tab, newest first."""
+    """The sketcher's own sketches, newest first, shared or not. A sketch
+    left in New Sketch without Discard stays here as "Sketching", for the
+    sketcher to open or delete (design doc, item 30)."""
     rows = (
         db.query(Sketch)
-        .filter(Sketch.sketcher_id == sketcher_id, Sketch.is_draft.is_(False))
+        .filter(Sketch.sketcher_id == sketcher_id)
         .order_by(Sketch.created_at.desc())
         .all()
     )
@@ -961,6 +923,8 @@ async def list_recent_sketches(
     routes in file order, and "recent" would otherwise be swallowed as a
     (nonexistent) sketch_id.
     """
+    # Only shared sketches, the ones with a final sketch (design doc,
+    # item 30).
     # AI critique/feedback text is never included here, for anyone --
     # this feed is public by design (Home page, logged in or not), and
     # critique is the one thing that stays sketcher-only no matter what.
@@ -969,7 +933,7 @@ async def list_recent_sketches(
         point = WKTElement(f"POINT({lon} {lat})", srid=4326)
         nearby = (
             db.query(Sketch)
-            .filter(Sketch.is_draft.is_(False))
+            .filter(Sketch.final_sketch_url.isnot(None))
             .filter(Sketch.location.isnot(None))
             .filter(ST_DWithin(Sketch.location, point, radius_km * 1000))
             .order_by(ST_Distance(Sketch.location, point))
@@ -979,7 +943,13 @@ async def list_recent_sketches(
         if nearby:
             return [_sketch_to_dict(s) for s in nearby]
 
-    rows = db.query(Sketch).filter(Sketch.is_draft.is_(False)).order_by(Sketch.created_at.desc()).limit(limit).all()
+    rows = (
+        db.query(Sketch)
+        .filter(Sketch.final_sketch_url.isnot(None))
+        .order_by(Sketch.created_at.desc())
+        .limit(limit)
+        .all()
+    )
     return [_sketch_to_dict(s) for s in rows]
 
 
@@ -1027,9 +997,10 @@ async def get_sketch(
         raise HTTPException(404, "Sketch not found")
 
     is_owner = sketcher_id is not None and sketcher_id == sketch.sketcher_id
-    # A draft is the owner's alone until Start Sketching.
-    if sketch.is_draft and not is_owner:
-        raise HTTPException(404, "Sketch not found")
+    # A sketch is shared once it has a final sketch (design doc, item 30).
+    # Before that, it is the owner's alone.
+    if not sketch.final_sketch_url and not is_owner:
+        raise HTTPException(404, "This sketch isn't shared yet")
 
     # The sketch owner's public name and avatar, shown at the top of the
     # sketch's right panel. Public, like the profile itself.

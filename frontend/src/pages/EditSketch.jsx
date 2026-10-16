@@ -50,9 +50,10 @@ function locationText(location) {
  * scene analysis (router state: mode 'create' and the analysis). In create
  * mode the title is the AI's suggestion, so Details says so.
  *
- * Create mode is the end of New Sketch: the sketch only counts as created
- * at Start Sketching. Closing before that asks "Discard this sketch?", and
- * Discard deletes it. Edit mode opens on Details (or on Feedback once there
+ * Create mode is the end of New Sketch. Closing it asks "Discard this
+ * sketch?", and Discard deletes it. Start Sketching shows once the plan
+ * read is back, and just closes. The sketch is shared with others once it
+ * has a final sketch (design doc, item 30). Edit mode opens on Details (or on Feedback once there
  * is a final sketch); closing with unsaved Details or an un-sent final
  * sketch photo asks "Discard changes?".
  *
@@ -64,9 +65,9 @@ export default function EditSketch() {
   const routerLocation = useLocation()
   const [sketch, setSketch] = useState(null)
   const [loadError, setLoadError] = useState(null)
-  // Create mode: straight from New Sketch, or a draft (never confirmed
-  // with Start Sketching) opened again.
-  const mode = routerLocation.state?.mode === 'create' || sketch?.is_draft ? 'create' : 'edit'
+  // Create mode: straight from New Sketch. Any other opening is Edit
+  // Sketch, including a sketch left in New Sketch without Discard.
+  const mode = routerLocation.state?.mode === 'create' ? 'create' : 'edit'
   const [tab, setTab] = useState(mode === 'create' ? 'guide' : 'details')
   // Phone: the panel is a bottom sheet over the photo (.sc-sheet). The
   // handle folds it down to the tabs, to see the whole photo; a tab opens it.
@@ -156,10 +157,8 @@ export default function EditSketch() {
       try {
         const { data } = await api.get(`/api/sketches/${sketchId}`)
         setSketch(data)
-        // A draft continues New Sketch on Guide; a sketch with a final
-        // sketch opens on its feedback.
-        if (data.is_draft) setTab('guide')
-        else if (routerLocation.state?.mode !== 'create' && data.final_sketch_url) setTab('feedback')
+        // A sketch with a final sketch opens on its feedback.
+        if (routerLocation.state?.mode !== 'create' && data.final_sketch_url) setTab('feedback')
       } catch (err) {
         setLoadError(err.response?.status === 404 ? 'not_found' : 'error')
       }
@@ -283,20 +282,10 @@ export default function EditSketch() {
     setMarkTap((prev) => ({ id: hit?.id ?? null, n: (prev?.n || 0) + 1 }))
   }
 
-  // Start Sketching (create mode): confirms the new sketch, so it leaves
-  // draft, shows in the feeds, and its answers are final. Saves any
-  // unsaved Details first, then closes.
-  const [confirmError, setConfirmError] = useState(null)
+  // Start Sketching (create mode): saves any unsaved Details, then closes.
   async function handleStartSketching() {
     if (detailsDirty() && !(await handleSave())) {
       setTab('details') // show the save error instead of closing
-      return
-    }
-    setConfirmError(null)
-    try {
-      await api.post(`/api/sketches/${sketchId}/confirm`)
-    } catch (err) {
-      setConfirmError(err.response?.data?.detail || 'Could not create this sketch. Try again.')
       return
     }
     closeModal()
@@ -536,7 +525,7 @@ export default function EditSketch() {
           bookmarksLocked={Boolean(sketch.final_sketch_url)}
           focalSuggestions={(mode === 'create' ? analysis?.focal_suggestions : sketch.focal_suggestions) || []}
           // New Sketch: Back on the plan card reopens the strokes step with
-          // this draft, so the sketcher can change the plan and read it again.
+          // this sketch, so the sketcher can change the plan and read it again.
           onBackToStrokes={mode === 'create' ? () => navigate('/capture', {
             replace: true,
             state: { backgroundLocation: routerLocation.state?.backgroundLocation, resumeSketchId: sketchId },
@@ -554,14 +543,13 @@ export default function EditSketch() {
       )}
     </div>
   )
-  // Create mode: Start Sketching confirms the new sketch. Edit mode: Get
-  // Feedback opens the Feedback tab, the next step after the plan.
+  // Create mode: Start Sketching, once the plan read is back. Edit mode:
+  // Get Feedback opens the Feedback tab, the next step after the plan.
   const guideTab = (
     <>
       {guidePanel}
-      {mode === 'create' && (
+      {mode === 'create' && analysis?.plan_read && (
         <div className="sc-footer">
-          {confirmError && <span className="mr-auto text-base text-accent">{confirmError}</span>}
           <Button variant="action" className="ml-auto" onClick={handleStartSketching} disabled={saving}>
             Start Sketching
           </Button>

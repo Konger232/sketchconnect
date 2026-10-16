@@ -129,7 +129,7 @@ export default function CreateSketch() {
   const [markColor, setMarkColor] = useState(DEFAULT_MARK_COLOR)
   const drawing = useMarkDrawing(svgRef, { enabled: step === 'marks', tool: markTool, size: markSize, color: markColor })
 
-  // Back from the plan card (EditSketch, New Sketch): reopen this draft at
+  // Back from the plan card (EditSketch, New Sketch): reopen this sketch at
   // the strokes step, with its photo, crop and strokes, so the sketcher can
   // change the plan and have it read again (design doc, item 25).
   const resumeId = routerLocation.state?.resumeSketchId

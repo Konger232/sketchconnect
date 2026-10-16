@@ -32,7 +32,6 @@ create table if not exists sketches (
   focal_points jsonb,
   marks jsonb,
   session_choices jsonb,
-  is_draft boolean not null default false,
   created_at timestamptz not null default now()
 );
 create index if not exists sketches_sketcher_id_idx on sketches (sketcher_id);
@@ -48,8 +47,9 @@ alter table sketches add column if not exists location_label text;
 alter table sketches add column if not exists critique_status text;
 alter table sketches add column if not exists session_choices jsonb;
 alter table sketches add column if not exists marks jsonb;
--- True from the upload until Start Sketching. Existing sketches are not drafts.
-alter table sketches add column if not exists is_draft boolean not null default false;
+-- is_draft was dropped on October 16, 2026: a sketch is shared once it has
+-- a final sketch (design doc, item 30). Safe to run again.
+alter table sketches drop column if exists is_draft;
 
 create table if not exists personas (
   id uuid primary key default gen_random_uuid(),
