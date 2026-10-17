@@ -13,6 +13,11 @@ import Button from '../components/common/Button'
 // stays a mode toggle on this same page rather than a separate route —
 // Supabase's signUp/signInWithPassword calls are otherwise identical. The
 // nav drawer's "Register" link deep-links here via ?mode=register.
+//
+// Continue with Google (design doc, item 34) works for Login and Register
+// alike: Google sends the sketcher back to the app signed in, and a first
+// sign-in creates the account. The provider and its OAuth client are set
+// up in Supabase (Authentication, Providers, Google), not here.
 export default function LoginPage() {
   const [searchParams] = useSearchParams()
   const [email, setEmail] = useState('')
@@ -49,6 +54,17 @@ export default function LoginPage() {
   } finally {
     setLoading(false)
   }
+  }
+
+  async function handleGoogle() {
+    setError(null)
+    setNotice(null)
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    })
+    // On success the browser leaves for Google, so only an error lands here.
+    if (error) setError(error.message)
   }
 
   async function handleForgotPassword() {
@@ -102,6 +118,15 @@ export default function LoginPage() {
             {loading ? 'Please wait…' : mode === 'sign_in' ? 'Login' : 'Register'}
           </Button>
         </form>
+
+        <div className="my-5 flex items-center gap-3 text-xs text-gray-500">
+          <span className="h-px flex-1 bg-gray-300" />
+          or
+          <span className="h-px flex-1 bg-gray-300" />
+        </div>
+        <Button variant="outline" className="w-full" onClick={handleGoogle} disabled={loading}>
+          Continue with Google
+        </Button>
 
         {/* link to register and login jsx */}
         <div className="mt-6 flex flex-col items-center gap-2 text-sm">

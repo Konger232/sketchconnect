@@ -23,6 +23,7 @@ const stubClient = {
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
     signInWithPassword: async () => ({ error: { message: 'Supabase is not configured yet.' } }),
     signUp: async () => ({ error: { message: 'Supabase is not configured yet.' } }),
+    signInWithOAuth: async () => ({ error: { message: 'Supabase is not configured yet.' } }),
     signOut: async () => ({ error: null }),
   },
 }
