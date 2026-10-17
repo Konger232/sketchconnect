@@ -9,6 +9,7 @@ import PaintEditor from '../components/common/PaintEditor'
 import SketchListMapView from '../components/common/SketchListMapView'
 import { useAuth } from '../components/common/AuthContext'
 import { MarksLayer } from '../components/analysis/Marks'
+import RuleOfThirdsGrid from '../components/analysis/RuleOfThirdsGrid'
 import Comments from '../components/sketch/Comments'
 import FeedbackBlock from '../components/sketch/FeedbackBlock'
 import PaletteBars from '../components/sketch/PaletteBars'
@@ -29,6 +30,7 @@ function PlanImage({ src, marks }) {
   return (
     <div className="relative">
       <img src={src} alt="The plan: strokes on the reference photo" className="block w-full" />
+      <RuleOfThirdsGrid />
       <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
         <MarksLayer marks={marks} />
       </svg>
@@ -117,7 +119,9 @@ export default function SketchDetail() {
     setS((x) => ({ ...x, liked: data.liked, like_count: data.like_count }))
   }
 
-  const openEdit = () => navigate(`/sketches/${s.id}/edit`, { state: { backgroundLocation: location } })
+  // Edit opens the existing Edit Sketch over this page, on Details. Save
+  // closes it and comes back here.
+  const openEdit = () => navigate(`/sketches/${s.id}/edit`, { state: { backgroundLocation: location, tab: 'details', closeOnSave: true } })
 
   // ---- the final sketch's palette (owner) ----
   function openPaint(mode, paint, el) {
@@ -213,7 +217,10 @@ export default function SketchDetail() {
           <section className="ed-section">
             <h2 className="ed-kicker m-0">The scene</h2>
             <div className="grid gap-8 md:grid-cols-2 md:gap-14">
-              <img src={reference} alt="Reference photo" className="block w-full" />
+              <div className="relative">
+                <img src={reference} alt="Reference photo" className="block w-full" />
+                <RuleOfThirdsGrid />
+              </div>
               <div className="flex flex-col gap-5">
                 <div className="flex flex-col gap-1">
                   <span className="ed-caption">Reference photo</span>

@@ -68,7 +68,11 @@ export default function EditSketch() {
   // Create mode: straight from New Sketch. Any other opening is Edit
   // Sketch, including a sketch left in New Sketch without Discard.
   const mode = routerLocation.state?.mode === 'create' ? 'create' : 'edit'
-  const [tab, setTab] = useState(mode === 'create' ? 'guide' : 'details')
+  // A page can ask for a tab (the Sketch page asks for Details) and for
+  // Save to close the modal (state.tab, state.closeOnSave).
+  const askedTab = routerLocation.state?.tab
+  const closeOnSave = routerLocation.state?.closeOnSave === true
+  const [tab, setTab] = useState(askedTab || (mode === 'create' ? 'guide' : 'details'))
   // Phone: the panel is a bottom sheet over the photo (.sc-sheet). The
   // handle folds it down to the tabs, to see the whole photo; a tab opens it.
   const [sheetOpen, setSheetOpen] = useState(true)
@@ -158,7 +162,9 @@ export default function EditSketch() {
         const { data } = await api.get(`/api/sketches/${sketchId}`)
         setSketch(data)
         // A sketch with a final sketch opens on its feedback.
-        if (routerLocation.state?.mode !== 'create' && data.final_sketch_url) setTab('feedback')
+        // A sketch with a final sketch opens on its feedback, unless the
+        // page that opened it asked for a tab.
+        if (!askedTab && routerLocation.state?.mode !== 'create' && data.final_sketch_url) setTab('feedback')
       } catch (err) {
         setLoadError(err.response?.status === 404 ? 'not_found' : 'error')
       }
@@ -314,6 +320,11 @@ export default function EditSketch() {
     } finally {
       setSaving(false)
     }
+  }
+
+  // The Details Save button. Closes the modal when the opening page asked.
+  async function handleSaveClick() {
+    if ((await handleSave()) && closeOnSave) closeModal()
   }
 
   async function handleDelete() {
@@ -649,7 +660,7 @@ export default function EditSketch() {
       <div className="sc-footer">
         {savedJustNow && <span className="mr-auto text-base text-sc-text3">Saved</span>}
         <Button variant="secondaryOnDark" className="ml-auto" onClick={() => setTab('feedback')}>See feedback</Button>
-        <Button variant="action" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+        <Button variant="action" onClick={handleSaveClick} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
       </div>
     </>
   )
