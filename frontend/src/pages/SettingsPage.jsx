@@ -3,6 +3,7 @@ import Header from '../components/common/Header'
 import Button from '../components/common/Button'
 import { STYLES } from '../data/styles'
 import { api } from '../lib/api'
+import MyKit from '../components/kit/MyKit'
 
 // One admired-artist slot per style (design doc: "each style holds exactly
 // one admired artist slot"). Saving triggers the one-time Persona Creation
@@ -55,6 +56,8 @@ export default function SettingsPage() {
             </div>
           ))}
         </div>
+
+        <MyKit />
       </main>
     </div>
   )

@@ -104,3 +104,24 @@ create policy "own sketches" on sketches for all using (auth.uid() = sketcher_id
 create policy "own personas" on personas for all using (auth.uid() = sketcher_id);
 create policy "own help quest log" on help_quest_log for all using (auth.uid() = sketcher_id);
 create policy "own critiques" on critique_responses for all using (auth.uid() = sketcher_id);
+
+-- My kit (design doc, item 28, October 17, 2026): one row per tool the
+-- sketcher carries. Safe to run again.
+create table if not exists kit_items (
+  id uuid primary key default gen_random_uuid(),
+  sketcher_id uuid not null references auth.users (id) on delete cascade,
+  kind text not null check (kind in ('line', 'color', 'brush', 'paper', 'extra')),
+  label text not null,
+  details jsonb not null default '{}',
+  pigment_codes jsonb not null default '[]',
+  medium text check (medium in ('watercolor', 'gouache')),
+  opacity text check (opacity in ('transparent', 'opaque')),
+  source text not null default 'own' check (source in ('own', 'ai')),
+  pinned boolean not null default false,
+  hidden boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists kit_items_sketcher_id_idx on kit_items (sketcher_id);
+alter table kit_items enable row level security;
+drop policy if exists "own kit" on kit_items;
+create policy "own kit" on kit_items for all using (auth.uid() = sketcher_id);

@@ -112,6 +112,7 @@ MAX_FOCAL_SUGGESTIONS = 3
 # prompt says how many more there are. A design decision: labels on the
 # planning image start to overlap at about 15-20 marks.
 MAX_MARKS = 200
+MAX_KIT_ITEMS = 60                   # tools in one sketcher's kit (design doc, item 28)
 MAX_POINTS_PER_MARK = 5000
 MAX_MARKS_FOR_AI = 24
 

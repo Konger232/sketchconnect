@@ -30,6 +30,7 @@ from app.features.help_quest import router as help_quest
 from app.features.sketches import router as sketches
 from app.features.profile import router as profile
 from app.features.geocode import router as geocode
+from app.features.kit import router as kit
 
 app = FastAPI(title="SketchConnect middle server")
 
@@ -58,6 +59,7 @@ app.include_router(help_quest.router)
 app.include_router(sketches.router)
 app.include_router(profile.router)
 app.include_router(geocode.router)
+app.include_router(kit.router)
 
 
 @app.get("/health")

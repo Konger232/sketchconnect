@@ -175,3 +175,29 @@ class Profile(Base):
     avatar_url = Column(String, nullable=True)
     location = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class KitItem(Base):
+    """
+    One tool in a sketcher's kit (design doc, item 28): a pen, a paint, a
+    brush, paper or an extra. Free text plus a few fields per kind; no
+    product database. Only `color` items take part in color matching, by
+    their pigment codes. `source` is `own` for one the sketcher typed, `ai`
+    for one they confirmed from the kit reading call (later).
+    """
+    __tablename__ = "kit_items"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    sketcher_id = Column(UUID(as_uuid=False), nullable=False, index=True)
+
+    kind = Column(String, nullable=False)  # line | color | brush | paper | extra
+    label = Column(String, nullable=False)
+    details = Column(JSON, nullable=False, default=dict)
+    pigment_codes = Column(JSON, nullable=False, default=list)  # color only
+    medium = Column(String, nullable=True)  # color only: watercolor | gouache
+    opacity = Column(String, nullable=True)  # color only: transparent | opaque
+    source = Column(String, nullable=False, default="own")
+    pinned = Column(Boolean, nullable=False, default=False)
+    hidden = Column(Boolean, nullable=False, default=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
