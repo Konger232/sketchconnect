@@ -908,6 +908,17 @@ async def delete_sketch(
     return {"deleted": True}
 
 
+def _with_likes(db: Session, rows: list, viewer_id: str | None, dicts: list[dict]) -> list[dict]:
+    """Adds like_count, liked and is_owner to each card, for SketchCard's
+    heart."""
+    from app.features.community.router import like_summary
+    likes = like_summary(db, [s.id for s in rows], viewer_id)
+    for s, d in zip(rows, dicts):
+        d["like_count"], d["liked"] = likes.get(s.id, (0, False))
+        d["is_owner"] = bool(viewer_id) and s.sketcher_id == viewer_id
+    return dicts
+
+
 @router.get("/sketches")
 async def list_sketches(
     db: Session = Depends(get_db),
@@ -923,7 +934,7 @@ async def list_sketches(
         .all()
     )
     latest = _latest_critiques_by_sketch(db, [s.id for s in rows])
-    return [_sketch_to_dict(s, latest.get(s.id)) for s in rows]
+    return _with_likes(db, rows, sketcher_id, [_sketch_to_dict(s, latest.get(s.id)) for s in rows])
 
 
 @router.get("/sketches/recent")
@@ -933,6 +944,7 @@ async def list_recent_sketches(
     radius_km: float = 50.0,
     limit: int = 10,
     db: Session = Depends(get_db),
+    viewer_id: str | None = Depends(get_optional_sketcher_id),
 ):
     """
     Public feed for the logged-out Home page: recent sketches, ordered by
@@ -964,7 +976,7 @@ async def list_recent_sketches(
             .all()
         )
         if nearby:
-            return [_sketch_to_dict(s) for s in nearby]
+            return _with_likes(db, nearby, viewer_id, [_sketch_to_dict(s) for s in nearby])
 
     rows = (
         db.query(Sketch)
@@ -973,7 +985,7 @@ async def list_recent_sketches(
         .limit(limit)
         .all()
     )
-    return [_sketch_to_dict(s) for s in rows]
+    return _with_likes(db, rows, viewer_id, [_sketch_to_dict(s) for s in rows])
 
 
 @router.get("/sketch-media/last")

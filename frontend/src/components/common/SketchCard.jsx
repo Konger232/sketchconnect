@@ -1,5 +1,7 @@
-import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import Icon from './Icon'
+import { useAuth } from './AuthContext'
 import { relativeTime } from '../../lib/relativeTime'
 import { getSketchStatus } from '../../lib/sketchStatus'
 import { api } from '../../lib/api'
@@ -12,7 +14,10 @@ export default function SketchCard({ sketch }) {
     ? sketch.images.map(resolveImageUrl)
     : sketch.reference_image_url ? [resolveImageUrl(sketch.reference_image_url)] : []
   const [index, setIndex] = useState(0)
-  const [liked, setLiked] = useState(false)
+  const [like, setLike] = useState({ liked: Boolean(sketch.liked), count: sketch.like_count || 0 })
+  useEffect(() => { setLike({ liked: Boolean(sketch.liked), count: sketch.like_count || 0 }) }, [sketch.id, sketch.liked, sketch.like_count])
+  const { user } = useAuth()
+  const navigate = useNavigate()
   const activeImage = images[index % Math.max(images.length, 1)]
   const status = getSketchStatus(sketch)
   const location = useLocation()
@@ -20,6 +25,27 @@ export default function SketchCard({ sketch }) {
   // A shared sketch (one with a final sketch) opens its page. One still in
   // progress opens Edit Sketch over the current page.
   const shared = Boolean(sketch.final_sketch_url)
+  const isOwner = Boolean(sketch.is_owner)
+
+  // The heart is a real like (design doc, item 33). Only shared sketches
+  // take likes. The owner sees the count. A visitor goes to the login page.
+  async function toggleLike(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (isOwner) return
+    if (!user) return navigate('/login', { state: { from: location.pathname } })
+    const before = like
+    const next = { liked: !like.liked, count: like.count + (like.liked ? -1 : 1) }
+    setLike(next)
+    try {
+      const { data } = before.liked
+        ? await api.delete(`/api/sketches/${sketch.id}/like`)
+        : await api.post(`/api/sketches/${sketch.id}/like`)
+      setLike({ liked: data.liked, count: data.like_count })
+    } catch {
+      setLike(before)
+    }
+  }
   const href = shared ? `/sketches/${sketch.id}` : `/sketches/${sketch.id}/edit`
   const sketchLinkState = shared ? undefined : { backgroundLocation: location }
 
@@ -27,15 +53,18 @@ export default function SketchCard({ sketch }) {
     <Link to={href} state={sketchLinkState} className="flex flex-col text-left">
       <div className="photo-placeholder relative aspect-[4/3] overflow-hidden rounded-[4px]">
         {activeImage && <img src={activeImage} alt="" className="absolute inset-0 h-full w-full object-cover" />}
-        <span
-          role="button"
-          tabIndex={-1}
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setLiked((f) => !f) }}
-          aria-label="Save"
-          className="absolute right-2.5 top-2.5 flex h-[30px] w-[30px] items-center justify-center rounded-full bg-white/85 text-[15px]"
-        >
-          {liked ? '♥' : '♡'}
-        </span>
+        {shared && (
+          <button
+            type="button"
+            onClick={toggleLike}
+            aria-pressed={like.liked}
+            aria-label={isOwner ? `${like.count} likes` : like.liked ? 'Unlike' : 'Like'}
+            className={`absolute right-2.5 top-2.5 flex h-[30px] items-center gap-1 rounded-full bg-white/85 px-2 text-xs font-semibold text-ink ${isOwner ? 'cursor-default' : ''}`}
+          >
+            <Icon name={like.liked ? 'heart-filled' : 'heart'} size={15} className={like.liked ? 'text-[var(--tab-active)]' : ''} />
+            {like.count > 0 && <span>{like.count}</span>}
+          </button>
+        )}
         <span className="absolute left-2.5 top-2.5 rounded-full bg-black/60 px-2 py-0.5 text-3xs font-medium text-white">
           {status}
         </span>

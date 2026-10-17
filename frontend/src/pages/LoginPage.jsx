@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import Header from '../components/common/Header'
 import Footer from '../components/common/Footer'
@@ -30,6 +30,10 @@ export default function LoginPage() {
   const [notice, setNotice] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  // Back to the page that sent the visitor here (a Like, a comment, a
+  // Follow). Only paths inside the app.
+  const fromState = useLocation().state?.from
+  const from = typeof fromState === 'string' && fromState.startsWith('/') && !fromState.startsWith('//') ? fromState : '/'
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -47,7 +51,7 @@ export default function LoginPage() {
     } else if (mode === 'sign_up' && !data.session) {
       setNotice('Check your email to confirm your account.')
     } else {
-      navigate('/')
+      navigate(from, { replace: true })
     }
   } catch (err) {
     setError(err.message || 'Something went wrong. Please try again.')
@@ -61,7 +65,7 @@ export default function LoginPage() {
     setNotice(null)
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: window.location.origin + from },
     })
     // On success the browser leaves for Google, so only an error lands here.
     if (error) setError(error.message)
