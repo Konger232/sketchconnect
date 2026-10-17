@@ -58,10 +58,14 @@ def _find_key(kid: str) -> dict | None:
     return None
 
 
-async def get_current_sketcher_id(
+async def get_current_claims(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-) -> str:
-    """FastAPI dependency: returns the verified sketcher's UUID (auth.uid())."""
+) -> dict:
+    """
+    FastAPI dependency: the verified token's claims. `sub` is auth.uid();
+    `email` and `user_metadata` (full_name, avatar_url from Google) seed a
+    new sketcher's profile (features/profile/router.py).
+    """
     if credentials is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing bearer token")
 
@@ -88,9 +92,16 @@ async def get_current_sketcher_id(
             algorithms=[key.get("alg", "ES256")],
             audience=SUPABASE_JWT_AUDIENCE,
         )
-        return payload["sub"]  # auth.uid()
+        return payload
     except JWTError as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, f"Invalid token: {exc}")
+
+
+async def get_current_sketcher_id(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> str:
+    """FastAPI dependency: returns the verified sketcher's UUID (auth.uid())."""
+    return (await get_current_claims(credentials))["sub"]
 
 
 async def get_optional_sketcher_id(

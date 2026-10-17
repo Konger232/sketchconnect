@@ -125,3 +125,15 @@ create index if not exists kit_items_sketcher_id_idx on kit_items (sketcher_id);
 alter table kit_items enable row level security;
 drop policy if exists "own kit" on kit_items;
 create policy "own kit" on kit_items for all using (auth.uid() = sketcher_id);
+
+-- The sketcher page (design doc, item 36, October 17, 2026). Safe to run again.
+alter table profiles add column if not exists handle text;
+alter table profiles add column if not exists bio text;
+alter table profiles add column if not exists links jsonb;
+alter table profiles add column if not exists featured_sketch_ids jsonb;
+alter table profiles add column if not exists kit_photo_url text;
+create unique index if not exists profiles_handle_key on profiles (handle);
+-- Admired sketchers are a list: one persona per name, with no style.
+alter table personas alter column style drop not null;
+-- Whose voice gives a sketch's feedback, picked with the final sketch.
+alter table sketches add column if not exists persona_id uuid references personas (id) on delete set null;

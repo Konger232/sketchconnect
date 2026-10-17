@@ -98,20 +98,26 @@ class Sketch(Base):
     # Guided-question answers, one {prompt, response} per pick, appended
     # by POST /api/sketches/{id}/session-choices. Read by the critique call.
     session_choices = Column(JSON, nullable=True)
+    # Whose voice gives this sketch's feedback: one of the sketcher's
+    # admired sketchers (design doc, item 36), picked with the final
+    # sketch. Null falls back to the style's persona, then a default coach.
+    persona_id = Column(UUID(as_uuid=False), ForeignKey("personas.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Persona(Base):
     """
-    One admired-artist persona per (sketcher, style). Regenerated only when
-    the sketcher edits their admired artist in settings — never per-critique
-    (design doc, "Persona generation and caching").
+    A critique persona, made once and reused (design doc, "Persona
+    generation and caching"). Since October 17, 2026 (item 36), one per
+    admired sketcher on the sketcher's list, with `style` null. Rows with a
+    style are the older one-per-style personas and the style defaults,
+    kept so older sketches still get their voice.
     """
     __tablename__ = "personas"
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
     sketcher_id = Column(UUID(as_uuid=False), nullable=False, index=True)
-    style = Column(String, nullable=False)
+    style = Column(String, nullable=True)
 
     admired_artist_name = Column(String, nullable=True)
     persona_source = Column(String, nullable=False)  # sketcher_provided | system_default
@@ -174,6 +180,14 @@ class Profile(Base):
     display_name = Column(String, nullable=True)
     avatar_url = Column(String, nullable=True)
     location = Column(String, nullable=True)
+    # The sketcher page (design doc, item 36): its address (/@handle), a
+    # short self-introduction, links to their social pages, up to 6 pinned
+    # sketches, and the photo of their kit (item 28).
+    handle = Column(String, nullable=True, unique=True)
+    bio = Column(Text, nullable=True)
+    links = Column(JSON, nullable=True)
+    featured_sketch_ids = Column(JSON, nullable=True)
+    kit_photo_url = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
