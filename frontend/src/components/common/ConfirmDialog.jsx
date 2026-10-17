@@ -12,7 +12,7 @@ export default function ConfirmDialog({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[1500] flex items-center justify-center bg-black/60 p-4">
+    <div className="fixed inset-0 z-[1600] flex items-center justify-center bg-black/60 p-4">
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-ink">
         {title && <h2 className="text-base font-semibold">{title}</h2>}
         <p className="mt-2 text-sm text-ink/70">{message}</p>

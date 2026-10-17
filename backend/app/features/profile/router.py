@@ -8,21 +8,22 @@ the Google name and photo when there are any, and a handle made from the
 name or the email (core/handles.py). A profile from before handles gets
 one the next time it is read.
 
-GET /api/personas -- read-only list of every per-style admired-artist
-persona already set in Settings (design doc: "one artist per style" --
-see app/features/persona/router.py). The profile page's "favorite urban sketchers"
-section reads this instead of keeping its own separate field, so there's
-exactly one place that data lives.
+POST /api/profile/kit-photo -- the photo of the sketcher's kit.
 """
+import io
+import re
+import uuid
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from PIL import Image, ImageOps
 from sqlalchemy.orm import Session
 
 from app.core import handles
 from app.core.database import get_db
 from app.core.auth import get_current_claims, get_current_sketcher_id
-from app.core.models import Profile, Persona
+from app.core.models import Profile, Sketch
+from app.core.paths import UPLOAD_DIR
 from app.features.profile.schemas import ProfileUpdateRequest
 
 router = APIRouter(prefix="/api", tags=["profile"])
@@ -31,6 +32,9 @@ router = APIRouter(prefix="/api", tags=["profile"])
 # Links a sketcher page can show (design doc, item 36), in this order.
 LINK_KINDS = ("instagram", "tiktok", "facebook", "website")
 MAX_LINK_CHARS = 200
+MAX_FEATURED = 5
+MAX_FAVORITE_PAINTS = 24
+PAINT_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
 
 
 def _profile_to_dict(p: Profile) -> dict:
@@ -42,6 +46,9 @@ def _profile_to_dict(p: Profile) -> dict:
         "handle": p.handle,
         "bio": p.bio,
         "links": p.links or {},
+        "favorite_paints": p.favorite_paints or [],
+        "featured_sketch_ids": p.featured_sketch_ids or [],
+        "kit_photo_url": p.kit_photo_url,
     }
 
 
@@ -59,14 +66,6 @@ def _clean_links(links: dict[str, str]) -> dict[str, str]:
             raise HTTPException(422, f"The {kind} link doesn't look like a web address.")
         out[kind] = url
     return out
-
-
-def _persona_to_dict(p: Persona) -> dict:
-    return {
-        "style": p.style,
-        "admired_artist_name": p.admired_artist_name,
-        "persona_label": p.persona_label,
-    }
 
 
 def _get_or_create_profile(db: Session, sketcher_id: str, claims: dict | None = None) -> Profile:
@@ -116,6 +115,18 @@ async def update_profile(
         profile.bio = body.bio.strip() or None
     if body.links is not None:
         profile.links = _clean_links(body.links)
+    if body.favorite_paints is not None:
+        ids = [i for i in dict.fromkeys(body.favorite_paints) if PAINT_ID.match(i)]
+        profile.favorite_paints = ids[:MAX_FAVORITE_PAINTS]
+    if body.featured_sketch_ids is not None:
+        # Only the sketcher's own shared sketches, in the order given.
+        wanted = list(dict.fromkeys(body.featured_sketch_ids))[:MAX_FEATURED]
+        shared = {
+            sid for (sid,) in db.query(Sketch.id).filter(
+                Sketch.sketcher_id == sketcher_id, Sketch.final_sketch_url.isnot(None), Sketch.id.in_(wanted)
+            ).all()
+        } if wanted else set()
+        profile.featured_sketch_ids = [i for i in wanted if i in shared]
     if body.handle is not None:
         handle = body.handle.strip().lstrip("@").lower()
         if handle != profile.handle:
@@ -130,10 +141,28 @@ async def update_profile(
     return _profile_to_dict(profile)
 
 
-@router.get("/personas")
-async def list_personas(
+@router.post("/profile/kit-photo")
+async def upload_kit_photo(
+    image: UploadFile = File(...),
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
-    rows = db.query(Persona).filter(Persona.sketcher_id == sketcher_id).all()
-    return [_persona_to_dict(p) for p in rows]
+    """The photo of the sketcher's kit, shown on their sketcher page
+    (design doc, items 28 and 36). Replaces the last one. Reading the tools
+    from it (the kit reading call) comes later."""
+    contents = await image.read()
+    try:
+        pil = ImageOps.exif_transpose(Image.open(io.BytesIO(contents))).convert("RGB")
+    except Exception:
+        raise HTTPException(400, "Could not read that photo")
+    pil.thumbnail((1600, 1600))
+    filename = f"kit_{uuid.uuid4()}.jpg"
+    pil.save(UPLOAD_DIR / filename, format="JPEG", quality=88)
+    profile = _get_or_create_profile(db, sketcher_id)
+    old = profile.kit_photo_url
+    profile.kit_photo_url = f"/uploads/{filename}"
+    db.commit()
+    if old:
+        (UPLOAD_DIR / old.rsplit("/", 1)[-1]).unlink(missing_ok=True)
+    return {"kit_photo_url": profile.kit_photo_url}
+

@@ -26,18 +26,23 @@ from config import MAX_KIT_ITEMS
 
 router = APIRouter(prefix="/api", tags=["kit"])
 
-KIND_ORDER = ["line", "color", "brush", "paper", "extra"]
+KIND_ORDER = ["line", "ink", "color", "brush", "paper", "extra"]
 
-# The detail fields each kind keeps. Text fields are trimmed to 40
-# characters; `waterproof` is a yes or no; `surface` is one of three.
+# The detail fields each kind keeps. Every kind takes a short `note`
+# ("the everyday line"), shown beside the tool on the sketcher page. Text
+# fields are trimmed to 40 characters, the note to 80; `waterproof` is a
+# yes or no; `surface` is one of three. A paint's `brand` is the one the
+# paint editor picked.
 KIND_DETAILS = {
-    "line": {"size": str, "ink": str, "waterproof": bool},
-    "color": {},
-    "brush": {"size": str},
-    "paper": {"size": str, "weight": str, "surface": ("cold_press", "hot_press", "rough")},
-    "extra": {},
+    "line": {"note": str, "size": str, "ink": str, "waterproof": bool},
+    "ink": {"note": str, "waterproof": bool},
+    "color": {"note": str, "brand": str},
+    "brush": {"note": str, "size": str},
+    "paper": {"note": str, "size": str, "weight": str, "surface": ("cold_press", "hot_press", "rough")},
+    "extra": {"note": str},
 }
 MAX_DETAIL_CHARS = 40
+MAX_NOTE_CHARS = 80
 MAX_PIGMENT_CODES = 4
 
 # Colour Index pigment codes as printed on tubes: P, a hue family, a
@@ -53,7 +58,7 @@ def _clean_details(kind: str, details: dict) -> dict:
         if value is None or value == "":
             continue
         if rule is str:
-            text = str(value).strip()[:MAX_DETAIL_CHARS]
+            text = str(value).strip()[: MAX_NOTE_CHARS if key == "note" else MAX_DETAIL_CHARS]
             if text:
                 out[key] = text
         elif rule is bool:

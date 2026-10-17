@@ -4,12 +4,10 @@ import { supabaseConfigured } from './lib/supabaseClient'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import CreateSketch from './pages/CreateSketch'
-
-import ProfilePage from './pages/ProfilePage'
-import EditProfilePage from './pages/EditProfilePage'
 import EditSketch from './pages/EditSketch'
 import SearchPage from './pages/SearchPage'
-import SettingsPage from './pages/SettingsPage'
+import Sketcher from './pages/Sketcher'
+import SketchDetail from './pages/SketchDetail'
 import WorkshopsPage from './pages/WorkshopsPage'
 
 function RequireAuth({ children }) {
@@ -48,12 +46,14 @@ function Router() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/capture" element={<RequireAuth><CreateSketch /></RequireAuth>} />
-        
-        <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
-        <Route path="/profile/edit" element={<RequireAuth><EditProfilePage /></RequireAuth>} />
-        <Route path="/sketches/:sketchId" element={<EditSketch />} /> {/* public: read-only for non-owners, full owner controls when signed in as the sketcher -- see EditSketch.jsx */}
-        <Route path="/search" element={<SearchPage />} /> {/* public, same as EditSketch.jsx -- logged-out visitors search the public recent feed */}
-        <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
+        <Route path="/sketchers/:handle" element={<Sketcher />} /> {/* public: owner, member and visitor views */}
+        <Route path="/sketches/:sketchId" element={<SketchDetail />} /> {/* public: owner, member and visitor views */}
+        <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketch /></RequireAuth>} />
+        <Route path="/search" element={<SearchPage />} /> {/* public: logged-out visitors search the public recent feed */}
+        {/* Old pages, now folded into the Sketcher page */}
+        <Route path="/profile" element={<Navigate to="/" replace />} />
+        <Route path="/profile/edit" element={<Navigate to="/?edit=profile" replace />} />
+        <Route path="/settings" element={<Navigate to="/" replace />} />
         <Route path="/workshops" element={<RequireAuth><WorkshopsPage /></RequireAuth>} />
       </Routes>
       {/* When a route below was reached with backgroundLocation in its nav
@@ -67,7 +67,7 @@ function Router() {
       {backgroundLocation && (
         <Routes>
           <Route path="/capture" element={<RequireAuth><CreateSketch /></RequireAuth>} />
-          <Route path="/sketches/:sketchId" element={<EditSketch />} />
+          <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketch /></RequireAuth>} />
         </Routes>
       )}
     </>

@@ -1,6 +1,54 @@
-import { useEffect } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet'
+import { useEffect, useMemo } from 'react'
+import L from 'leaflet'
+import { Circle, MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
+import markerIcon from 'leaflet/dist/images/marker-icon.png'
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
+import markerShadow from 'leaflet/dist/images/marker-shadow.png'
+
+// Leaflet finds its default marker images by a CSS path that a Vite
+// build breaks. Point it at the bundled files instead.
+delete L.Icon.Default.prototype._getIconUrl
+L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow })
+
+// Pins drawn with the app's own classes (index.css .ed-pin*), for
+// SketchListMapView: a teardrop per sketch, a count disc per place, or the
+// "this sketch" dot. Leaflet takes the markup as a string.
+const PIN_SVG = '<svg viewBox="0 0 18 24" width="18" height="24" aria-hidden="true"><path fill="currentColor" d="M9 0C4 0 0 3.9 0 8.8 0 15.4 9 24 9 24s9-8.6 9-15.2C18 3.9 14 0 9 0z"/><circle cx="9" cy="8.8" r="3.2" fill="#fff"/></svg>'
+
+// A read-only map shows the design's pin; a draggable one keeps Leaflet's.
+const readOnlyIcon = L.divIcon({
+  className: '',
+  html: `<span class="ed-pin" data-active="true">${PIN_SVG}</span>`,
+  iconSize: [18, 24],
+  iconAnchor: [9, 24],
+})
+
+function pinIcon(pin) {
+  if (pin.variant === 'center') {
+    return L.divIcon({ className: '', html: '<span class="ed-pin-center"></span>', iconSize: [14, 14], iconAnchor: [7, 7] })
+  }
+  if (pin.variant === 'count') {
+    return L.divIcon({
+      className: '',
+      html: `<span class="ed-pin-count" data-active="${Boolean(pin.active)}">${pin.count}</span>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    })
+  }
+  return L.divIcon({
+    className: '',
+    html: `<span class="ed-pin" data-active="${Boolean(pin.active)}">${PIN_SVG}</span>`,
+    iconSize: [18, 24],
+    iconAnchor: [9, 24],
+  })
+}
+
+// Clicks on the map itself, to close an open pin card.
+function MapClicks({ onMapClick }) {
+  useMapEvents({ click: () => onMapClick?.() })
+  return null
+}
 
 // Child of MapContainer only — useMapEvents needs the Leaflet map context,
 // which only exists inside <MapContainer>, so this can't be inlined into
@@ -31,8 +79,19 @@ function FitToMarkers({ markers, zoom }) {
 }
 
 // hint: the line under an editable map. Off where the page explains it.
-export default function LocationMap({ lat, lon, label, points, zoom = 13, editable = false, onLocationChange, height = 'h-72', hint = true }) {
-  const markers = points?.length ? points : (lat != null && lon != null ? [{ lat, lon, label }] : [])
+//
+// Custom pins (SketchListMapView): `pins` [{ id, lat, lon, variant
+// ('pin' | 'count' | 'center'), count, active }] replace the default
+// markers. onPinClick(pin, { x, y }) gets the pin's position in the map, in
+// px, so a card can open beside it. `ring` { lat, lon, radius } draws a
+// dashed circle (radius in metres). onMapClick: a click on empty map.
+export default function LocationMap({
+  lat, lon, label, points, zoom = 13, editable = false, onLocationChange, height = 'h-72', hint = true,
+  pins, onPinClick, onMapClick, ring, rounded = true,
+}) {
+  const custom = Boolean(pins?.length)
+  const markers = custom ? pins : points?.length ? points : (lat != null && lon != null ? [{ lat, lon, label }] : [])
+  const icons = useMemo(() => (custom ? pins.map(pinIcon) : []), [custom, pins])
 
   if (markers.length === 0 && !editable) {
     return (
@@ -54,18 +113,43 @@ export default function LocationMap({ lat, lon, label, points, zoom = 13, editab
 
   return (
     <div>
-      <MapContainer center={center} zoom={initialZoom} scrollWheelZoom={editable} className={`${height} w-full rounded-lg`}>
+      <MapContainer center={center} zoom={initialZoom} scrollWheelZoom={editable} className={`${height} w-full ${rounded ? 'rounded-lg' : ''}`}>
         <TileLayer
             attribution='Tiles &copy; Esri &mdash; Sources: Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
           />
         {editable && <ClickToSetLocation onLocationChange={onLocationChange} />}
         {!editable && <FitToMarkers markers={markers} zoom={zoom} />}
+        {onMapClick && <MapClicks onMapClick={onMapClick} />}
+        {ring && (
+          <Circle
+            center={[ring.lat, ring.lon]}
+            radius={ring.radius}
+            pathOptions={{ color: '#111111', weight: 1.5, dashArray: '6 6', fillOpacity: 0.04 }}
+          />
+        )}
 
-        {markers.map((p, i) => (
+        {custom && pins.map((p, i) => (
+          <Marker
+            key={p.id ?? i}
+            position={[p.lat, p.lon]}
+            icon={icons[i]}
+            zIndexOffset={p.active ? 1000 : p.variant === 'center' ? 500 : 0}
+            eventHandlers={onPinClick && p.variant !== 'center' ? {
+              click: (e) => {
+                L.DomEvent.stopPropagation(e)
+                const pt = e.target._map.latLngToContainerPoint(e.latlng)
+                onPinClick(p, { x: pt.x, y: pt.y })
+              },
+            } : undefined}
+          />
+        ))}
+
+        {!custom && markers.map((p, i) => (
           <Marker
             key={i}
             position={[p.lat, p.lon]}
+            {...(editable ? {} : { icon: readOnlyIcon })}
             draggable={editable}
             eventHandlers={editable ? {
               dragend: (e) => {

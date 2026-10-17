@@ -137,3 +137,49 @@ create unique index if not exists profiles_handle_key on profiles (handle);
 alter table personas alter column style drop not null;
 -- Whose voice gives a sketch's feedback, picked with the final sketch.
 alter table sketches add column if not exists persona_id uuid references personas (id) on delete set null;
+
+-- Sketcher and sketch pages (design doc, items 28, 32, 33 and 36,
+-- October 17, 2026). Safe to run again.
+alter table kit_items drop constraint if exists kit_items_kind_check;
+alter table kit_items add constraint kit_items_kind_check
+  check (kind in ('line', 'ink', 'color', 'brush', 'paper', 'extra'));
+alter table profiles add column if not exists favorite_paints jsonb;
+alter table personas add column if not exists admired_link text;
+alter table personas add column if not exists admired_location text;
+alter table sketches add column if not exists palettes jsonb;
+
+create table if not exists sketcher_follows (
+  follower_id uuid not null references auth.users (id) on delete cascade,
+  followed_id uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (follower_id, followed_id),
+  check (follower_id <> followed_id)
+);
+create index if not exists sketcher_follows_followed_idx on sketcher_follows (followed_id);
+
+create table if not exists sketch_likes (
+  sketch_id uuid not null references sketches (id) on delete cascade,
+  sketcher_id uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (sketch_id, sketcher_id)
+);
+
+create table if not exists sketch_comments (
+  id uuid primary key default gen_random_uuid(),
+  sketch_id uuid not null references sketches (id) on delete cascade,
+  author_id uuid not null references auth.users (id) on delete cascade,
+  body text not null check (char_length(body) between 1 and 1000),
+  created_at timestamptz not null default now()
+);
+create index if not exists sketch_comments_sketch_idx on sketch_comments (sketch_id, created_at);
+
+alter table sketcher_follows enable row level security;
+alter table sketch_likes enable row level security;
+alter table sketch_comments enable row level security;
+drop policy if exists "own follows" on sketcher_follows;
+create policy "own follows" on sketcher_follows for all using (auth.uid() = follower_id);
+drop policy if exists "own likes" on sketch_likes;
+create policy "own likes" on sketch_likes for all using (auth.uid() = sketcher_id);
+drop policy if exists "own comments" on sketch_comments;
+create policy "own comments" on sketch_comments for all using (auth.uid() = author_id);
+

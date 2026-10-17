@@ -76,11 +76,8 @@ export default function NavDrawer({ open, onClose }) {
               <Link to="/workshops" onClick={onClose} className={linkStyle}>
                 <img src={icoCalendar} alt="" className="h-5 w-5" /> Workshop Calendar
               </Link>
-              <Link to="/profile/edit" onClick={onClose} className={textLinkStyle}>
+              <Link to="/?edit=profile" onClick={onClose} className={textLinkStyle}>
                 Edit Profile
-              </Link>
-              <Link to="/settings" onClick={onClose} className={textLinkStyle}>
-                Settings
               </Link>
               <button
                 onClick={() => { onClose(); signOut() }}

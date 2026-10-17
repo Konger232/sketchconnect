@@ -1,24 +1,21 @@
 import Header from '../components/common/Header'
 import Footer from '../components/common/Footer'
-import LoggedInHome from './LoggedInHome'
 import LoggedOutHome from './LoggedOutHome'
+import Sketcher from './Sketcher'
 import { useAuth } from '../components/common/AuthContext'
 
-// Landing / home screen. Header now manages its own nav drawer, so this
-// page only decides which body to render: a signed-in sketcher sees their
-// own profile-style feed (LoggedInHome); everyone else sees the public,
-// GPS-aware "recent sketches near you" view (LoggedOutHome), matching the
-// Claude Design "Home - Login User" canvas.
+// Home. A signed-in sketcher lands on their own Sketcher page (design doc,
+// item 36). Everyone else sees the public, GPS-aware recent sketches.
 export default function HomePage() {
-  const { user, loading } = useAuth()
+  const { user, profile, loading } = useAuth()
+
+  if (user && profile?.handle) return <Sketcher handle={profile.handle} />
 
   return (
     <div>
       <Header />
-      {loading ? (
+      {loading || (user && !profile) ? (
         <p className="mt-10 text-center text-ink/50">Loading…</p>
-      ) : user ? (
-        <LoggedInHome />
       ) : (
         <LoggedOutHome />
       )}

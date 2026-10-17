@@ -14,10 +14,19 @@ import { Icon } from './Icon'
 //                    selected: chosen to keep (blue fill, white text).
 const MODAL_VARIANTS = ['action', 'secondaryOnDark', 'quietOnDark', 'choice']
 
+// White community pages (Sketcher, Sketch Detail, the floating panels):
+// square, 1.5px ink border, uppercase and tracked, 44px tall.
+//   editorial        outlined (Edit kit, Edit, Like)
+//   editorialSolid   ink fill (Follow, Share, Post, Save in a panel)
+// size="sm": 40px, normal case, for small actions such as "Add paint".
+// active: the toggled-on state (Following, liked), outlined.
+const EDITORIAL_VARIANTS = ['editorial', 'editorialSolid']
+
 export default function Button({ variant = 'primary', size = 'md', active = false, selected = false, className = '', onNext, nextLabel = 'Continue', trailing, ...props }) {
   const isLink = variant === 'link' || variant === 'linkOnDark'
   const isPill = variant === 'pill' || variant === 'pillOnLight'
   const isModal = MODAL_VARIANTS.includes(variant)
+  const isEditorial = EDITORIAL_VARIANTS.includes(variant)
 
   const base = isLink
     ? 'transition-colors'
@@ -25,6 +34,8 @@ export default function Button({ variant = 'primary', size = 'md', active = fals
     ? 'rounded-full font-normal transition-all duration-150 active:scale-95 disabled:opacity-50'
     : isModal
     ? 'rounded-[10px] transition-colors disabled:opacity-50'
+    : isEditorial
+    ? 'inline-flex items-center justify-center gap-2 border-[1.5px] border-ink font-bold transition-colors disabled:opacity-50'
     : 'rounded-sm font-normal transition-colors'
 
   const variants = {
@@ -38,6 +49,8 @@ export default function Button({ variant = 'primary', size = 'md', active = fals
     linkOnDark: 'text-sm text-white/70 hover:text-white',
     pill: active ? 'bg-white/60 text-ink' : 'bg-white/20 text-white/70 hover:bg-white/20',
     pillOnLight: active ? 'bg-ink text-white' : 'bg-ink/10 text-ink/70 hover:bg-ink/20',
+    editorial: 'bg-white text-ink hover:bg-ink/5',
+    editorialSolid: active ? 'bg-white text-ink hover:bg-ink/5' : 'bg-ink text-white hover:bg-black/85',
     action: 'bg-sc-action px-5 font-bold text-sc-action-ink hover:brightness-105',
     secondaryOnDark: 'border-[1.5px] border-sc-strong px-[18px] font-bold text-white hover:bg-white/5',
     quietOnDark: 'px-3 font-semibold text-sc-text2 hover:text-white',
@@ -56,11 +69,14 @@ export default function Button({ variant = 'primary', size = 'md', active = fals
   // Modal buttons: 44px tall, or 32px with size="sm" (the guide's Back and
   // Next, kept small so the question keeps the room).
   const modalSize = size === 'sm' && variant !== 'choice' ? 'min-h-8 text-sm' : 'min-h-11 text-md'
-  const spacing = isLink ? '' : isPill ? 'px-3 py-1.5 text-2xs' : isModal ? `${modalSize} ${variant === 'choice' ? '' : 'whitespace-nowrap'}` : sizes[size]
+  const editorialSize = size === 'sm'
+    ? 'min-h-10 whitespace-nowrap px-3.5 text-sm'
+    : 'min-h-11 whitespace-nowrap px-6 text-sm uppercase tracking-[0.14em]'
+  const spacing = isLink ? '' : isPill ? 'px-3 py-1.5 text-2xs' : isModal ? `${modalSize} ${variant === 'choice' ? '' : 'whitespace-nowrap'}` : isEditorial ? editorialSize : sizes[size]
 
   const button = (
     <button
-      type={isModal ? 'button' : undefined}
+      type={isModal || isEditorial ? 'button' : undefined}
       className={`${base} ${spacing} ${variants[variant]} ${variant === 'choice' && (onNext || trailing) ? 'pr-12' : ''} ${className}`}
       {...props}
     />

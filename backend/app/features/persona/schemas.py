@@ -14,8 +14,16 @@ class PersonaCreateRequest(BaseModel):
 
 
 class AdmiredAddRequest(BaseModel):
-    """A name for the admired sketchers list (design doc, item 36)."""
+    """A name for the admired sketchers list (design doc, item 36), with an
+    optional link to their page and where they sketch."""
     name: str = Field(min_length=1, max_length=80)
+    link: Optional[str] = None
+    location: Optional[str] = None
+
+
+class AdmiredUpdateRequest(BaseModel):
+    link: Optional[str] = None
+    location: Optional[str] = None
 
 
 class PersonaResponse(BaseModel):

@@ -15,3 +15,7 @@ class ProfileUpdateRequest(BaseModel):
     bio: Optional[str] = Field(default=None, max_length=300)
     # {"instagram": url, "tiktok": url, "facebook": url, "website": url}
     links: Optional[dict[str, str]] = None
+    # My favorite palette, as paint ids from the paint list (frontend
+    # data/paints.js), and the featured sketches, in slideshow order.
+    favorite_paints: Optional[list[str]] = None
+    featured_sketch_ids: Optional[list[str]] = None

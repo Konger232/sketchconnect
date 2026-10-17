@@ -17,6 +17,7 @@ import { useStagedProgress } from '../lib/useStagedProgress'
 import { ASPECT_RATIO_ORDER, bakeCrop, computeImageBox, reframeToRect, resolveAspectRatio } from '../lib/cropMath'
 
 import cameraWhite from '../assets/images/ico_camera_w.png'
+import { MEDIA } from '../data/media'
 
 const MIN_ZOOM = 0.2
 const MAX_ZOOM = 8
@@ -33,12 +34,6 @@ const STEPS = [
   { key: 'media', name: 'What you draw with' },
 ]
 
-// The media card (item 25), the same keys as the backend (plan_read.MEDIA).
-// Pick any number; the tips may name only these. None: tool-free tips.
-const MEDIA = [
-  { group: 'Line', items: [['fineliner', 'Waterproof fineliner'], ['fountain_pen', 'Fountain pen'], ['pencil', 'Pencil']] },
-  { group: 'Color', items: [['watercolor', 'Watercolor'], ['gouache', 'Gouache'], ['markers', 'Markers'], ['watercolor_pencils', 'Watercolor pencils'], ['pastels', 'Pastels']] },
-]
 
 // The frame as the crop step leaves it, to tell whether it changed since
 // it was last saved.
@@ -256,7 +251,7 @@ export default function CreateSketch() {
 
   function leave() {
     notifySketchesChanged()
-    navigate(backgroundLocation || '/profile')
+    navigate(backgroundLocation || '/')
   }
 
   // Keep editing: back to the step, or on to the guided questions if the
@@ -611,7 +606,7 @@ export default function CreateSketch() {
   }
 
   function openGuidedQuestions(data) {
-    navigate(`/sketches/${sketchId}`, {
+    navigate(`/sketches/${sketchId}/edit`, {
       replace: true,
       state: { backgroundLocation, mode: 'create', analysis: data },
     })

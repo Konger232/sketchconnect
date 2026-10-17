@@ -102,6 +102,10 @@ class Sketch(Base):
     # admired sketchers (design doc, item 36), picked with the final
     # sketch. Null falls back to the style's persona, then a default coach.
     persona_id = Column(UUID(as_uuid=False), ForeignKey("personas.id", ondelete="SET NULL"), nullable=True)
+    # Closest paints, as pigment codes (design doc, item 28): `scene` from
+    # the reference photo, `sketch` from the final sketch. The sketcher can
+    # correct the sketch's list by hand on the sketch page.
+    palettes = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -122,6 +126,10 @@ class Persona(Base):
     admired_artist_name = Column(String, nullable=True)
     persona_source = Column(String, nullable=False)  # sketcher_provided | system_default
     persona_label = Column(String, nullable=False)
+    # For a name on the admired list: a link to their page and where they
+    # sketch, shown on the sketcher page (item 36).
+    admired_link = Column(String, nullable=True)
+    admired_location = Column(String, nullable=True)
     voice = Column(String, nullable=False)
     priorities = Column(JSON, nullable=False, default=list)
     tone = Column(String, nullable=False)
@@ -188,6 +196,8 @@ class Profile(Base):
     links = Column(JSON, nullable=True)
     featured_sketch_ids = Column(JSON, nullable=True)
     kit_photo_url = Column(String, nullable=True)
+    # My favorite palette: pigment codes, in the paint editor (item 36).
+    favorite_paints = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -204,7 +214,7 @@ class KitItem(Base):
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
     sketcher_id = Column(UUID(as_uuid=False), nullable=False, index=True)
 
-    kind = Column(String, nullable=False)  # line | color | brush | paper | extra
+    kind = Column(String, nullable=False)  # line | ink | color | brush | paper | extra
     label = Column(String, nullable=False)
     details = Column(JSON, nullable=False, default=dict)
     pigment_codes = Column(JSON, nullable=False, default=list)  # color only
@@ -215,3 +225,33 @@ class KitItem(Base):
     hidden = Column(Boolean, nullable=False, default=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Follow(Base):
+    """One sketcher following another (design doc, item 33)."""
+    __tablename__ = "sketcher_follows"
+
+    follower_id = Column(UUID(as_uuid=False), primary_key=True)
+    followed_id = Column(UUID(as_uuid=False), primary_key=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SketchLike(Base):
+    """One like on a shared sketch (design doc, item 33)."""
+    __tablename__ = "sketch_likes"
+
+    sketch_id = Column(UUID(as_uuid=False), ForeignKey("sketches.id", ondelete="CASCADE"), primary_key=True)
+    sketcher_id = Column(UUID(as_uuid=False), primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SketchComment(Base):
+    """A comment on a shared sketch (design doc, item 32)."""
+    __tablename__ = "sketch_comments"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    sketch_id = Column(UUID(as_uuid=False), ForeignKey("sketches.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_id = Column(UUID(as_uuid=False), nullable=False)
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+

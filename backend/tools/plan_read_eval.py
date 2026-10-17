@@ -39,6 +39,9 @@ MEDIA = {
 MEDIA_NAMES = {k: v for group in MEDIA.values() for k, v in group.items()}
 TOOL_WORDS = ["ink", "pen", "pens", "marker", "markers", "brush", "pencil", "pencils", "fineliner",
               "fineliners", "watercolor", "watercolors", "watercolour", "gouache", "pastel", "pastels", "crayon"]
+# Words a pick also covers: a fineliner is a pen, so "pen" or "ink" in a tip is fine.
+MEDIA_ALSO = {"fineliner": {"pen", "pens", "ink"}, "fountain_pen": {"pen", "pens", "ink"},
+              "markers": {"marker", "markers"}, "watercolor_pencils": {"pencil", "pencils", "watercolor"}}
 OUT = Path("plan_read_out")
 
 PROMPT = """You coach a beginner urban sketcher. Before sketching, they planned the
@@ -99,10 +102,25 @@ Example: name "Line weight", tip "Press hard up close, lighter going back."
 $media
 
 strokes: every stroke once, with its depth (foreground, middle or background), read from
-what it points at in the photo, not from where it sits on the page.
+what it points at in the photo, not from where it sits on the page, and its role:
+perspective_guide (an edge running back to a vanishing point), eye_level, ground_line
+(where the ground meets things), contour (the edge of one subject), big_shape (a mass,
+often a loop), gesture, or unclear.
 
-Framing is an entrance, or one or more foreground objects, around a subject further back
-that lead the eye to it. Every framing object is nearer than the subject.
+# Framing (Liz Steel, "Framing my compositions")
+Framing is foreground elements near the edges of the picture that contain the scene and
+lead the eye to the focal point: trees, a building's corner, a window, scaffolding, a
+colonnade, an arch. A frame can sit on one side only, along the top, top and bottom, on
+both sides, or all around, as when looking through an opening. The frame is in the
+foreground, nearer than the subject. It is usually kept simple, as white or dark
+negative space, so the subject stays the strongest part.
+Not framing:
+- the crop: how the sketcher cut the photo;
+- a loop or box the sketcher drew around a subject: that marks what they want to bring
+  out (emphasis), it is not a frame in the scene;
+- a subject standing out against empty space: that is space_contrast.
+Framing tips are about the frame as a shape. Examples: "Keep the trees as one dark
+shape.", "Leave the scaffolding as white paper.", "Let the frame run off the page."
 
 Never write stroke ids in why or tips.
 """
@@ -130,8 +148,9 @@ def schema() -> dict:
             }},
             "strokes": {"type": "array", "items": {
                 "type": "object",
-                "properties": {"mark_id": {"type": "string"}, "depth": {"type": "string", "enum": DEPTHS}},
-                "required": ["mark_id", "depth"],
+                "properties": {"mark_id": {"type": "string"}, "depth": {"type": "string", "enum": DEPTHS},
+                               "role": {"type": "string", "enum": ROLES}},
+                "required": ["mark_id", "depth", "role"],
             }},
             "relationships": {"type": "array", "items": {
                 "type": "object",
@@ -162,7 +181,7 @@ def _tools_named(text: str) -> set[str]:
 def checks(raw: dict, visible: set[str], media: list[str]) -> list[str]:
     """What item 25's clean() would flag. Reported, not applied."""
     notes, seen, used = [], [], set()
-    allowed = {w + s for k in media for w in MEDIA_NAMES[k].lower().split() for s in ("", "s")}
+    allowed = {w + s for k in media for w in MEDIA_NAMES[k].lower().split() for s in ("", "s")} | {w for k in media for w in MEDIA_ALSO.get(k, ())}
     for p in raw.get("principles", []):
         name = p.get("principle")
         seen.append(name)
@@ -236,9 +255,14 @@ def highlight(photo: Image.Image, marks: list[dict], ids: set[str]) -> Image.Ima
 
 DEPTHS = ["foreground", "middle", "background"]
 MAX_STRONG = 3
+ROLES = ["perspective_guide", "eye_level", "ground_line", "contour", "big_shape", "gesture", "unclear"]
+# A framing piece on its own: in the foreground, within this many frame units
+# of the crop's edge (Liz Steel's side, top or bottom frames).
+EDGE = 80
+NOT_FRAMES = {"perspective_guide", "eye_level", "ground_line"}
 
 
-def areas(marks: list[dict], aspect: float, depth: dict[str, str]) -> list[list[str]]:
+def areas(marks: list[dict], aspect: float, depth: dict[str, str], role: dict[str, str] | None = None) -> list[list[str]]:
     """Item 25 areas: shapes joined one level up, after the call.
     - Shapes that touch, in any stroke order, join when at the same depth
       (or either depth is unknown).
@@ -311,7 +335,7 @@ def areas(marks: list[dict], aspect: float, depth: dict[str, str]) -> list[list[
         w, h = x1 - x0, y1 - y0
         reach = max(2 * max(w, h), 100)  # how far a framing piece may stand from it
         near = [k for k in ids if k != m and free[k] and depth.get(k) and depth.get(m) and nearer(k, m)
-                and gid[k] != gid[m] and g.kind(sq[k]) != "closed shape"]
+                and gid[k] != gid[m] and g.kind(sq[k]) != "closed shape" and (role or {}).get(k) not in NOT_FRAMES]
         left = [k for k in near if x0 - reach <= box[k][2] <= x0 + pad and box[k][1] - pad <= cy <= box[k][3] + pad]
         right = [k for k in near if x1 - pad <= box[k][0] <= x1 + reach and box[k][1] - pad <= cy <= box[k][3] + pad]
         top = [k for k in near if y0 - reach <= box[k][3] <= y0 + pad and box[k][0] - pad <= cx <= box[k][2] + pad]
@@ -335,11 +359,36 @@ def areas(marks: list[dict], aspect: float, depth: dict[str, str]) -> list[list[
             for k in sides.values():
                 join(gid[k], gid[m], f"{m} framed by {pieces}")
 
+        # Liz Steel's frames: a foreground element at the edge of the crop,
+        # on one side, the top or the bottom (or several), between the edge
+        # and the subject. Any kind of stroke, a loop around a tree too, but
+        # not a perspective, eye-level or ground line.
+        if depth.get(m) in ("middle", "background"):
+            fb = {f["id"]: f["box"] for f in geo["marks"]}
+            mx0, my0, mx1, my1 = fb[m]
+            edge_pieces = []
+            for k in ids:
+                if k == m or gid[k] == gid[m] or depth.get(k) != "foreground" or (role or {}).get(k) in NOT_FRAMES:
+                    continue
+                a0, b0, a1, b1 = fb[k]
+                over_y = b0 <= my1 and b1 >= my0
+                over_x = a0 <= mx1 and a1 >= mx0
+                if a0 <= EDGE and a1 <= mx0 + 25 and over_y:
+                    edge_pieces.append(("left", k))
+                elif a1 >= 1000 - EDGE and a0 >= mx1 - 25 and over_y:
+                    edge_pieces.append(("right", k))
+                elif b0 <= EDGE and b1 <= my0 + 25 and over_x:
+                    edge_pieces.append(("top", k))
+                elif b1 >= 1000 - EDGE and b0 >= my1 - 25 and over_x:
+                    edge_pieces.append(("bottom", k))
+            for sd, k in edge_pieces:
+                join(gid[k], gid[m], f"{m} framed at the {sd} edge by {k}")
+
     out: dict[str, list[str]] = {}
     for grp in geo["groups"]:
         out.setdefault(root(grp["id"]), []).extend(grp["mark_ids"])
     order = {m: i for i, m in enumerate(ids)}
-    areas.why = why  # for the report
+    areas.why = list(dict.fromkeys(why))  # for the report, each once
     return sorted((sorted(v, key=order.get) for v in out.values()), key=lambda v: order[v[0]])
 
 
@@ -348,7 +397,7 @@ def tidy(raw: dict, visible: set[str], media: list[str], stroke_order: list[str]
     """Item 25's clean() rules, applied: what the card would show. The table in
     the report keeps Gemini's raw answer."""
     import copy
-    allowed = {w + s for k in media for w in MEDIA_NAMES[k].lower().split() for s in ("", "s")}
+    allowed = {w + s for k in media for w in MEDIA_NAMES[k].lower().split() for s in ("", "s")} | {w for k in media for w in MEDIA_ALSO.get(k, ())}
     pos = {m: i for i, m in enumerate(stroke_order)}
     groups = ["strong", "moderate", "none"]
     principles = copy.deepcopy(raw.get("principles", []))
@@ -488,10 +537,23 @@ def run(sid: str, sketch, photo: Image.Image, media: list[str]) -> dict:
                   if p.get("group") != "none"]
         notes += [f"no strokes: relationship {r.get('type')} returned" for r in raw.get("relationships", [])]
     depth = {s["mark_id"]: s["depth"] for s in raw.get("strokes", []) if s.get("mark_id") in visible}
-    area_list = areas(sketch.marks, plan.aspect, depth) if plan.marks else []
-    result = {"sketch_id": sid, "raw": raw, "depth": depth, "areas": area_list,
+    role = {s["mark_id"]: s.get("role") for s in raw.get("strokes", []) if s.get("mark_id") in visible}
+    area_list = areas(sketch.marks, plan.aspect, depth, role) if plan.marks else []
+    kinds = {f["id"]: f["kind"] for f in plan.geo["marks"]}
+    for r in raw.get("relationships", []):
+        if r.get("type") != "framing":
+            continue
+        ids_ = [i for i in r.get("mark_ids", []) if i in visible]
+        if ids_ and all(kinds.get(i) == "closed shape" for i in ids_):
+            notes.append(f"framing on {ids_}: only the sketcher's loops, not a frame in the scene")
+        if ids_ and not any(depth.get(i) == "foreground" for i in ids_):
+            notes.append(f"framing on {ids_}: no foreground stroke")
+    result = {"sketch_id": sid, "raw": raw, "depth": depth, "role": role, "areas": area_list,
+              "joins": list(getattr(areas, "why", [])),
               "tidy": tidy(raw, visible, media, stroke_order, area_list),
-              "checks": notes, "media": media, "strokes": stroke_order}
+              "checks": notes, "media": media, "strokes": stroke_order,
+              "marks": sketch.marks, "aspect": plan.aspect,
+              "run_at": __import__("datetime").datetime.now().isoformat(timespec="minutes")}
     OUT.mkdir(exist_ok=True)
     (OUT / f"{sid}.json").write_text(json.dumps(result, indent=2))
     (plan.image or small).save(OUT / f"{sid}.plan.png")
@@ -543,11 +605,13 @@ def card_html(raw: dict) -> str:
     return f"<div class='card'><div class='h'>Your plan</div>{top}</div>"
 
 
-def report() -> None:
+def report(only: list[str] | None = None) -> None:
     e = html.escape
     cards = []
     for jp in sorted(OUT.glob("*.json")):
         r = json.loads(jp.read_text())
+        if only is not None and r["sketch_id"] not in only:
+            continue
         sid, raw = r["sketch_id"], r["raw"]
         rows = []
         rels_of = {}
@@ -577,12 +641,15 @@ def report() -> None:
                         f"<td>{tips}</td><td><img src='{e(sid)}.rel{k}.png'></td></tr>")
         notes = "".join(f"<li>{e(c)}</li>" for c in r["checks"]) or "<li>none</li>"
         cards.append(f"""<section><h2>{e(sid)}</h2>
+<p>Run: {e(r.get("run_at", "before October 14 (old run)"))}</p>
 <p>Strokes in order: {e(', '.join(r['strokes']))}</p>
 <div class="row"><img class="plan" src="{e(sid)}.plan.png">{card_html(r.get('tidy') or raw)}</div>
 <p>The card applies the item 25 checks. The table below is Gemini's answer as returned.</p>
 <p>Media: {e(', '.join(MEDIA_NAMES[m] for m in r.get('media', [])) or 'not given')}</p>
 <p>Depth: {e(', '.join(f"{k} {v[0].upper()}" for k, v in r.get('depth', {}).items()) or 'not returned')}</p>
 <p>Areas: {e(' | '.join(', '.join(a) for a in r.get('areas', [])) or 'none')}</p>
+<p>Joins: {e('; '.join(r.get('joins', [])) or 'none')}</p>
+<p>Roles: {e(', '.join(f"{k} {v}" for k, v in (r.get('role') or {}).items()) or 'not returned')}</p>
 <h3>Principles, with their relationships</h3>
 <table><tr><th>#</th><th>Principle</th><th>Strokes</th><th>Elements</th><th>Why</th><th>Tips</th><th>Highlight</th></tr>{''.join(rows)}</table>
 <h3>Relationships under no shown principle</h3><table><tr><th>Type</th><th>Objects</th><th>Strokes</th><th>Why</th><th>Tips</th><th>Highlight</th></tr>{''.join(rels)}</table>
@@ -606,12 +673,17 @@ def main():
     ap.add_argument("--media", nargs="*", default=[], choices=sorted(MEDIA_NAMES),
                     help="what the sketcher draws with (the media card); none means tool-free tips")
     args = ap.parse_args()
+    done = []
     for sid, _, photo, sketch in cases_from_db(args.sketch):
+        done.append(sid)
         r = run(sid, sketch, photo, args.media)
         print(f"{sid}: " + ", ".join(f"{p['principle']}={p['group']}" for p in r["raw"]["principles"]))
         for c in r["checks"]:
             print(f"  check: {c}")
-    report()
+    for sid in args.sketch:
+        if not any(d.startswith(sid) or sid.startswith(d) for d in done):
+            print(f"{sid}: not run (not found, or no reference photo)")
+    report(done)
 
 
 if __name__ == "__main__":

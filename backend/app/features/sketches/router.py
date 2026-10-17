@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from pydantic import BaseModel
+
 from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, Form, HTTPException
 from PIL import Image, ImageOps
 import pillow_heif
@@ -82,6 +84,7 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
         # Which grid to offer: "grid" (square) or "rule_of_thirds", by style.
         "grid": question_bank.grid_action(s.style),
         "created_at": s.created_at,
+        "palettes": s.palettes or {},
         # The latest critique's text, if any -- this is what
         # SketchCard.jsx's feed view shows as the sketch's description,
         # with a Read more/Show less toggle once it runs long. None (not
@@ -1028,12 +1031,27 @@ async def get_sketch(
     owner = {
         "display_name": owner_profile.display_name if owner_profile else None,
         "avatar_url": owner_profile.avatar_url if owner_profile else None,
+        "handle": owner_profile.handle if owner_profile else None,
     }
+    # Likes and comments (design doc, items 32 and 33), for everyone.
+    from app.features.community.router import comment_count, like_count, liked_by
+    social = {
+        "like_count": like_count(db, sketch.id),
+        "liked": liked_by(db, sketcher_id, sketch.id),
+        "comment_count": comment_count(db, sketch.id),
+    }
+    cleaned = ((sketch.cached_scene_analysis or {}).get("marks_analysis") or {}).get("cleaned") or {}
 
     if not is_owner:
         data = _sketch_to_dict(sketch)
+        data.update(social)
         data["owner"] = owner
         data["is_owner"] = False
+        # Visitors get a short plan: the principles the plan carries, by
+        # name, without the tips or the sketcher's rating and bookmarks.
+        principles = (cleaned.get("plan_read") or {}).get("principles") or []
+        data["plan_short"] = [p.get("principle") for p in principles if p.get("group") in ("strong", "moderate")][:3]
+        data["media"] = cleaned.get("media") or []
         return data
 
     critiques = (
@@ -1054,13 +1072,16 @@ async def get_sketch(
         }
         for c in critiques
     ]
+    data.update(social)
     data["owner"] = owner
     data["critique_status"] = sketch.critique_status
+    # Scene analysis rows on the sketch page (owner only).
+    scene = sketch.cached_scene_analysis or {}
+    data["scene"] = {"summary": scene.get("scene_summary"), "scene_type": sketch.scene_type or scene.get("scene_type")}
     # The sketcher's guided answers, so the Guide tab can show their picks.
     data["session_choices"] = _with_options(sketch)
     # The plan read they saw (design doc, item 25), from the cache, so Edit
     # Sketch shows the card without another call. None before item 25.
-    cleaned = ((sketch.cached_scene_analysis or {}).get("marks_analysis") or {}).get("cleaned") or {}
     data["plan_read"] = cleaned.get("plan_read")
     data["media"] = cleaned.get("media") or []
     # The focal areas to consider, under the plan read.
@@ -1069,3 +1090,65 @@ async def get_sketch(
         data["focal_suggestions"] = focal_list(sketch, sketch.cached_scene_analysis)
     data["is_owner"] = True
     return data
+
+
+NEARBY_RADIUS_M = 300
+MAX_PALETTE = 12
+
+
+@router.get("/sketches/{sketch_id}/nearby")
+async def nearby_sketches(
+    sketch_id: str,
+    radius_m: int = NEARBY_RADIUS_M,
+    limit: int = 24,
+    db: Session = Depends(get_db),
+    sketcher_id: str | None = Depends(get_optional_sketcher_id),
+):
+    """Other shared sketches within radius_m of this one, nearest first
+    (design doc, item 29: "Other sketches near here")."""
+    sketch = db.query(Sketch).filter(Sketch.id == sketch_id).first()
+    if sketch is None or (not sketch.final_sketch_url and sketch.sketcher_id != sketcher_id):
+        raise HTTPException(404, "Sketch not found")
+    if sketch.location is None:
+        return []
+    radius_m = max(50, min(radius_m, 5000))
+    dist = ST_Distance(Sketch.location, sketch.location)
+    rows = (
+        db.query(Sketch, dist.label("distance_m"), Profile)
+        .outerjoin(Profile, Profile.id == Sketch.sketcher_id)
+        .filter(Sketch.id != sketch.id, Sketch.final_sketch_url.isnot(None), Sketch.location.isnot(None))
+        .filter(ST_DWithin(Sketch.location, sketch.location, radius_m))
+        .order_by(dist)
+        .limit(max(1, min(limit, 60)))
+        .all()
+    )
+    out = []
+    for s, d, p in rows:
+        item = _sketch_to_dict(s)
+        item["distance_m"] = round(d or 0)
+        item["owner"] = {"display_name": p.display_name if p else None, "handle": p.handle if p else None}
+        out.append(item)
+    return out
+
+
+class PaletteRequest(BaseModel):
+    """The final sketch's closest paints, corrected by the sketcher: paint
+    ids from the paint list (frontend data/paints.js)."""
+    sketch: list[str]
+
+
+@router.put("/sketches/{sketch_id}/palette")
+async def update_palette(
+    sketch_id: str,
+    body: PaletteRequest,
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    sketch = db.query(Sketch).filter(Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id).first()
+    if sketch is None:
+        raise HTTPException(404, "Sketch not found")
+    ids = [i for i in body.sketch if re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", i)][:MAX_PALETTE]
+    sketch.palettes = {**(sketch.palettes or {}), "sketch": ids}
+    db.commit()
+    return {"palettes": sketch.palettes}
+

@@ -22,11 +22,14 @@ export function AuthProvider({ children }) {
     return () => sub.subscription.unsubscribe()
   }, []) //[] means that it only runs once, when the component first appears
 
-  // Fetch profile data
+  // Fetch profile data. refreshProfile() reloads it after Edit profile
+  // saves (the header's name, the handle in the address).
+  const refreshProfile = () =>
+    api.get('/api/profile').then(({ data }) => { setProfile(data); return data }).catch(() => null)
   useEffect(() => {
     if (!session?.user) { setProfile(null); return }
-    api.get('/api/profile').then(({ data }) => setProfile(data)).catch(() => {})
-  }, [session?.user?.id])
+    refreshProfile()
+  }, [session?.user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const displayName = profile?.display_name || session?.user?.user_metadata?.full_name || session?.user?.email
 
@@ -36,6 +39,7 @@ export function AuthProvider({ children }) {
     profile,
     displayName,
     loading,
+    refreshProfile,
     signOut: () => supabase.auth.signOut(),
   }
 

@@ -17,10 +17,14 @@ export default function SketchCard({ sketch }) {
   const status = getSketchStatus(sketch)
   const location = useLocation()
   
-  const sketchLinkState = { backgroundLocation: location }
+  // A shared sketch (one with a final sketch) opens its page. One still in
+  // progress opens Edit Sketch over the current page.
+  const shared = Boolean(sketch.final_sketch_url)
+  const href = shared ? `/sketches/${sketch.id}` : `/sketches/${sketch.id}/edit`
+  const sketchLinkState = shared ? undefined : { backgroundLocation: location }
 
   return (
-    <Link to={`/sketches/${sketch.id}`} state={sketchLinkState} className="flex flex-col text-left">
+    <Link to={href} state={sketchLinkState} className="flex flex-col text-left">
       <div className="photo-placeholder relative aspect-[4/3] overflow-hidden rounded-[4px]">
         {activeImage && <img src={activeImage} alt="" className="absolute inset-0 h-full w-full object-cover" />}
         <span

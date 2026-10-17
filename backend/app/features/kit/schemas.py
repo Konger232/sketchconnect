@@ -6,7 +6,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-Kind = Literal["line", "color", "brush", "paper", "extra"]
+Kind = Literal["line", "ink", "color", "brush", "paper", "extra"]
 
 
 class KitItemRequest(BaseModel):

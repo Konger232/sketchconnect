@@ -321,7 +321,7 @@ export default function EditSketch() {
     try {
       await api.delete(`/api/sketches/${sketchId}`)
       notifySketchesChanged()
-      navigate('/profile')
+      navigate('/')
     } catch (err) {
       setConfirmingDelete(false)
       setDeleteError(err.response?.data?.detail || 'Could not delete this sketch.')

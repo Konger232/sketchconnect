@@ -10,22 +10,24 @@ GET /api/sketchers/{handle}/sketches  shared sketches, newest first, and for
                                       progress too
 
 A sketch is shared once it has a final sketch (item 30). Feedback from the
-critique agent is only ever sent to the sketcher who owns it. Followers,
-likes and comments join these responses with items 32 and 33.
+critique agent is only ever sent to the sketcher who owns it. Follower
+counts, likes and comments come from features/community.
 """
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_optional_sketcher_id
 from app.core.database import get_db
-from app.core.models import KitItem, Profile, Sketch
+from app.core.models import KitItem, Profile, Sketch, SketchComment, SketchLike
+from app.features.community.router import follow_counts, is_following
 from app.features.kit.router import KIND_ORDER, _to_dict as kit_item_to_dict
 from app.features.persona.router import admired_list, admired_to_dict
 from app.features.sketches.router import _latest_critiques_by_sketch, _sketch_to_dict
 
 router = APIRouter(prefix="/api", tags=["sketchers"])
 
-MAX_FEATURED = 6
+MAX_FEATURED = 5
 
 
 def _profile_by_handle(db: Session, handle: str) -> Profile:
@@ -63,9 +65,6 @@ async def get_sketcher(
     if not is_owner:
         kit_rows = [i for i in kit_rows if not i.hidden]
     kit_rows.sort(key=lambda i: (KIND_ORDER.index(i.kind), not i.pinned, i.created_at))
-    # My usual palette: the paints the sketcher pinned. Counting how often
-    # each paint appears in their sketches comes with palettes (item 28).
-    usual_palette = [kit_item_to_dict(i) for i in kit_rows if i.kind == "color" and i.pinned and not i.hidden]
 
     data = {
         "handle": profile.handle,
@@ -78,11 +77,14 @@ async def get_sketcher(
         "stats": {
             "sketches": len(shared),
             "cities": len({c for c in (_city(s.location_label) for s in shared) if c}),
+            **follow_counts(db, profile.id),
         },
+        "is_following": is_following(db, viewer_id, profile.id),
         "featured": [_sketch_to_dict(s) for s in featured],
         "kit_photo_url": profile.kit_photo_url,
         "kit": [kit_item_to_dict(i) for i in kit_rows],
-        "usual_palette": usual_palette,
+        # My favorite palette: paint ids from the paint list (data/paints.js).
+        "favorite_paints": profile.favorite_paints or [],
     }
     if is_owner:
         data["admired"] = [admired_to_dict(p) for p in admired_list(db, profile.id)]
@@ -103,10 +105,20 @@ async def list_sketcher_sketches(
     if not is_owner:
         q = q.filter(Sketch.final_sketch_url.isnot(None))
     rows = q.order_by(Sketch.created_at.desc()).all()
-    latest = _latest_critiques_by_sketch(db, [s.id for s in rows]) if is_owner else {}
+    ids = [s.id for s in rows]
+    latest = _latest_critiques_by_sketch(db, ids) if is_owner else {}
+    likes = dict(
+        db.query(SketchLike.sketch_id, func.count()).filter(SketchLike.sketch_id.in_(ids)).group_by(SketchLike.sketch_id).all()
+    ) if ids else {}
+    comments = dict(
+        db.query(SketchComment.sketch_id, func.count()).filter(SketchComment.sketch_id.in_(ids)).group_by(SketchComment.sketch_id).all()
+    ) if ids else {}
     out = []
     for s in rows:
         d = _sketch_to_dict(s, latest.get(s.id))
         d["shared"] = s.final_sketch_url is not None
+        d["place"] = _city(s.location_label)
+        d["like_count"] = likes.get(s.id, 0)
+        d["comment_count"] = comments.get(s.id, 0)
         out.append(d)
     return out

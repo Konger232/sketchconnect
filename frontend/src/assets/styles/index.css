@@ -624,3 +624,94 @@
 .crop-frame__corner::after { content: ''; position: absolute; inset: calc(-1 * var(--crop-corner-hit)); }
 .crop-frame__corner--tl, .crop-frame__corner--br { cursor: nwse-resize; }
 .crop-frame__corner--tr, .crop-frame__corner--bl { cursor: nesw-resize; }
+
+/*
+ * Community pages (design handoff, design_handoff_community, October 17,
+ * 2026): the Sketcher page, Sketch Detail, PaintEditor, SketchListMapView
+ * and the shared FloatPanel. White editorial pages: hairline rules between
+ * sections, uppercase kickers, square buttons (Button.jsx variants
+ * `editorial` and `editorialSolid`).
+ */
+:root {
+  --page-max-w: 1200px;
+  --section-gap: 56px;                   /* Sketcher page, between sections */
+  --detail-section-gap: 40px;            /* Sketch Detail, between groups */
+  --float-radius: 8px;                   /* every floating panel; sheets round the top only */
+  --float-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  --float-scrim: rgba(0, 0, 0, 0.45);
+  --float-modal-w: 640px;                /* Edit profile, Edit kit */
+  --float-popover-w: 340px;              /* PaintEditor */
+  --float-card-w: 220px;                 /* the map pin card */
+  --ed-rule: #111111;                    /* the line above each section */
+  --ed-row-rule: #e5e5e5;                /* between rows in a section */
+  --ed-muted: rgba(17, 17, 17, 0.6);
+  --ed-field-bg: #f1f1ef;                /* PaintEditor fields */
+  --swatch-bar-h: 56px;
+  --pin-ink: #111111;                    /* map pins */
+  --pin-active: rgb(255, 0, 0);          /* the picked pin */
+  --pin-center: var(--accent-guide);     /* "this sketch" on the nearby map */
+  --slideshow-ratio: 4 / 5;
+}
+@media (max-width: 767.98px) {
+  :root {
+    --section-gap: 40px;
+    --detail-section-gap: 32px;
+  }
+}
+
+@layer components {
+  .ed-page        { @apply mx-auto flex w-full flex-col px-5 pb-16 pt-6 md:px-10 md:pt-14 lg:px-[60px];
+                    max-width: var(--page-max-w); gap: var(--section-gap); }
+  .ed-page--detail { gap: var(--detail-section-gap); }
+  .ed-kicker      { @apply text-xs font-semibold uppercase tracking-[0.16em] text-ink; }
+  .ed-caption     { @apply text-xs font-semibold uppercase tracking-[0.12em]; color: var(--ed-muted); }
+  .ed-title       { @apply m-0 font-heading text-2xl font-bold leading-tight text-ink md:text-4xl; }
+  .ed-section     { @apply flex flex-col gap-5 pt-5; border-top: 1px solid var(--ed-rule); }
+  .ed-section-head { @apply flex items-center justify-between gap-4; }
+  .ed-row         { @apply grid grid-cols-[96px_1fr] gap-4 py-3.5 md:grid-cols-[120px_1fr];
+                    border-bottom: 1px solid var(--ed-row-rule); }
+  .ed-row > dt    { @apply ed-caption pt-0.5; }
+  .ed-row > dd    { @apply m-0 text-base text-ink; }
+  .ed-note        { @apply text-sm; color: var(--ed-muted); }
+  .ed-icon-btn    { @apply flex h-9 w-9 shrink-0 items-center justify-center text-ink hover:text-ink/60; }
+  .ed-avatar      { @apply photo-placeholder block shrink-0 overflow-hidden rounded-full bg-cover bg-center; }
+
+  /* GRID / MAP tabs (SketchListMapView): a red underline on the picked one. */
+  .ed-tabs        { @apply flex items-end gap-8 border-b border-ink/10; }
+  .ed-tab         { @apply -mb-px flex flex-col gap-2 px-0.5 pt-2 text-xs font-semibold uppercase tracking-[0.14em] text-ink/50; }
+  .ed-tab::after  { content: ''; display: block; height: 2px; background: transparent; }
+  .ed-tab[aria-selected='true']        { @apply text-ink; }
+  .ed-tab[aria-selected='true']::after { background: var(--tab-active); }
+
+  /* A palette bar: the swatch is set inline; the text colour is picked by
+     contrast (lib/color.js readableInk). */
+  .swatch-bar     { @apply flex items-center justify-between gap-3 px-3.5; min-height: var(--swatch-bar-h); }
+  .swatch-chip    { @apply inline-block h-6 w-6 shrink-0; }
+
+  /* FloatPanel.jsx: modal, popover and bottom sheet share one frame. */
+  .float-scrim    { @apply fixed inset-0 z-[1500]; background: var(--float-scrim); }
+  .float-panel    { @apply flex flex-col overflow-hidden bg-white text-ink; border-radius: var(--float-radius);
+                    box-shadow: var(--float-shadow); }
+  .float-sheet    { @apply max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-[1501] max-md:max-h-[88dvh]
+                           max-md:w-full max-md:rounded-b-none; }
+  .float-head     { @apply flex shrink-0 items-center justify-between gap-3 border-b border-ink/10 px-4 py-3.5 md:px-6 md:py-5; }
+  .float-body     { @apply flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4 md:px-6 md:py-5; }
+  .float-foot     { @apply flex shrink-0 items-center justify-end gap-2.5 border-t border-ink/10 px-4 py-3 md:px-6;
+                    padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+
+  /* Featured slideshow (Sketcher hero) and the stage slideshow (Sketch Detail). */
+  .ed-slide       { @apply photo-placeholder relative block w-full overflow-hidden; aspect-ratio: var(--slideshow-ratio); }
+  .ed-slide img   { @apply absolute inset-0 h-full w-full object-cover; }
+  .ed-segments    { @apply flex gap-1; }
+  .ed-segments > button { @apply h-0.5 flex-1 bg-ink/20; }
+  .ed-segments > button[aria-current='true'] { @apply bg-ink; }
+
+  /* Map pins drawn as Leaflet divIcons (LocationMap `pins`). */
+  .ed-pin         { @apply relative block h-6 w-[18px]; color: var(--pin-ink); }
+  .ed-pin[data-active='true'] { color: var(--pin-active); }
+  .ed-pin-count   { @apply flex h-8 min-w-[2rem] items-center justify-center rounded-full border-2 border-white px-1.5 text-xs font-bold text-white;
+                    background: var(--pin-ink); box-shadow: 0 1px 4px rgba(0,0,0,0.35); }
+  .ed-pin-count[data-active='true'] { background: var(--pin-active); }
+  .ed-pin-center  { @apply block h-3.5 w-3.5 rounded-full border-2 border-white; background: var(--pin-center);
+                    box-shadow: 0 0 0 2px var(--pin-center); }
+}
