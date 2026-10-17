@@ -32,3 +32,9 @@ def build_prompt(style: str, admired_artist_name: str | None) -> str:
 
 def generate_persona(style: str, admired_artist_name: str | None) -> dict:
     return call_gemini_json(build_prompt(style, admired_artist_name), RESPONSE_SCHEMA, mock_name="persona")
+
+
+def generate_admired_persona(artist: str) -> dict:
+    """One persona for a name on the admired sketchers list (item 36), with no style."""
+    prompt = render_prompt(PROMPTS / "persona_admired_sketcher.md", artist=artist)
+    return call_gemini_json(prompt, RESPONSE_SCHEMA, mock_name="persona")

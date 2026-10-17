@@ -25,7 +25,7 @@ from geoalchemy2.functions import ST_Distance, ST_DWithin
 
 from app.core.database import get_db
 from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
-from app.core.models import Sketch, CritiqueResponse, Profile
+from app.core.models import Sketch, CritiqueResponse, Persona, Profile
 from app.core.debug import DEBUG_DIR
 from app.features.sketches.schemas import (
     AdoptMarkRequest, MarkSelectionRequest, SketchUpdateRequest, SketcherFocalPointInput,
@@ -745,27 +745,45 @@ async def unadopt_focal_area(
     return {"marks": marks}
 
 
+def _is_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+        return True
+    except ValueError:
+        return False
+
+
 @router.post("/sketches/{sketch_id}/final-sketch")
 async def upload_final_sketch(
     sketch_id: str,
     background_tasks: BackgroundTasks,
     image: UploadFile = File(...),
-    # The sketcher picks the style with the final sketch, not in New Sketch
-    # (October 6, 2026): it chooses the critique persona (their admired
-    # artist for that style, or the style's default).
-    style: str = Form(...),
+    # Whose voice gives the feedback: one of the sketcher's admired
+    # sketchers (design doc, item 36). The style (October 6, 2026) is still
+    # taken while the Feedback tab sends it, and picks the older
+    # per-style persona when no voice is picked.
+    persona_id: Optional[str] = Form(None),
+    style: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
     """
-    Save the sketcher's final sketch and its style, then start the critique
+    Save the sketcher's final sketch and the voice (or style) for its
+    feedback, then start the critique
     call in the background. Returns right away with critique_status
     'pending'. A newer upload replaces the old file and runs the critique again.
     """
-    try:
-        rules.validate_style(style)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc))
+    if style:
+        try:
+            rules.validate_style(style)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+    if persona_id and not _is_uuid(persona_id):
+        raise HTTPException(400, "That voice isn't on your admired sketchers list")
+    if persona_id and db.query(Persona).filter(
+        Persona.id == persona_id, Persona.sketcher_id == sketcher_id
+    ).first() is None:
+        raise HTTPException(400, "That voice isn't on your admired sketchers list")
     sketch = db.query(Sketch).filter(
         Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
     ).first()
@@ -785,7 +803,9 @@ async def upload_final_sketch(
     _delete_upload_file(sketch.final_sketch_url)
     sketch.final_sketch_url = f"/uploads/{filename}"
     sketch.final_sketch_provided = True
-    sketch.style = style
+    sketch.persona_id = persona_id or None
+    if style:
+        sketch.style = style
 
     start_critique(db, sketch, background_tasks)  # commits
     db.refresh(sketch)

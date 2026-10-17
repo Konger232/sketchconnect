@@ -13,6 +13,11 @@ class PersonaCreateRequest(BaseModel):
     admired_artist_name: Optional[str] = None
 
 
+class AdmiredAddRequest(BaseModel):
+    """A name for the admired sketchers list (design doc, item 36)."""
+    name: str = Field(min_length=1, max_length=80)
+
+
 class PersonaResponse(BaseModel):
     persona_source: Literal["sketcher_provided", "system_default"]
     persona_label: str

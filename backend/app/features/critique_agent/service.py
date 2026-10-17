@@ -138,17 +138,25 @@ GENERIC_PERSONA = SimpleNamespace(
 
 def _persona_for(db: Session, sketch: Sketch) -> Persona | SimpleNamespace:
     """
-    The sketcher's persona for this sketch's style. With no admired artist
+    The voice the sketcher picked with the final sketch (`sketch.persona_id`,
+    one of their admired sketchers, item 36) when there is one. Otherwise
+    the sketcher's persona for this sketch's style. With no admired artist
     set for the style, the style's system default is generated once and
     stored, the same row Settings updates later (persona/router.py). If that
     call fails, GENERIC_PERSONA is used for this critique and nothing is
     stored, so the next critique tries again.
     """
+    if sketch.persona_id:
+        picked = db.query(Persona).filter(
+            Persona.id == sketch.persona_id, Persona.sketcher_id == sketch.sketcher_id
+        ).first()
+        if picked is not None:
+            return picked
     persona = (
         db.query(Persona)
         .filter(Persona.sketcher_id == sketch.sketcher_id, Persona.style == sketch.style)
         .first()
-    )
+    ) if sketch.style else None
     if persona is not None:
         return persona
     if not sketch.style:
