@@ -192,6 +192,12 @@ export default function Sketcher({ handle: handleProp }) {
         {/* ---- 1. Hero ---- */}
         <section className="grid items-center gap-7 md:grid-cols-2 md:gap-14">
           <div className="flex flex-col items-center gap-4 text-center md:px-6">
+            {/* The profile photo, 80px. Without one, the first letter of the name. */}
+            <span className="ed-avatar flex h-20 w-20 items-center justify-center">
+              {page.avatar_url
+                ? <img src={page.avatar_url} alt="" className="h-full w-full object-cover" />
+                : <span className="font-heading text-3xl font-bold text-ink/60">{(page.display_name || page.handle || '?')[0].toUpperCase()}</span>}
+            </span>
             <span className="ed-kicker">Sketcher{page.location ? ` · ${page.location}` : ''}</span>
             <h1 className="ed-title">{page.display_name || `@${page.handle}`}</h1>
             {page.bio && <p className="m-0 max-w-[420px] text-base leading-normal text-ink/90">{page.bio}</p>}
