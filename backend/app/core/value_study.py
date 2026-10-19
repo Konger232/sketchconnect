@@ -38,9 +38,9 @@ def _resize_if_needed(pil_image: Image.Image, max_dim: int = MAX_IMAGE_DIMENSION
     return pil_image.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
 
 
-def compute_value_study(pil_image: Image.Image, levels: int = 4) -> dict:
+def compute_value_study(pil_image: Image.Image, levels: int = 4, scale: bool = False) -> dict:
     """
-    Returns {"levels", "toneValues", "valueStudyImage"} -- valueStudyImage
+    Returns {"levels", "toneValues", "distribution", "valueStudyImage"} -- valueStudyImage
     is a data: URI PNG the frontend can drop straight into an <img src=...>
     in place of the real photo. `levels` is clamped to
     [MIN_TONAL_LEVELS, MAX_TONAL_LEVELS].
@@ -56,20 +56,34 @@ def compute_value_study(pil_image: Image.Image, levels: int = 4) -> dict:
     # shows a sketcher.
     gray = cv2.GaussianBlur(gray, VALUE_STUDY_BLUR_KERNEL, 0)
 
-    percentiles = np.linspace(0, 100, levels + 1)
-    thresholds = np.percentile(gray, percentiles)
+    if scale:
+        # A value scale (the Value tab, design doc, item 37): equal steps of
+        # lightness from black to white, each shown as its step's own grey,
+        # so a dark scene reads as mostly darks. The distribution then
+        # tells the sketcher how the scene's values are balanced.
+        thresholds = np.linspace(0, 256, levels + 1)
+    else:
+        # Equal-area groups: every value covers about the same share.
+        percentiles = np.linspace(0, 100, levels + 1)
+        thresholds = np.percentile(gray, percentiles)
 
     result = np.zeros_like(gray)
     tone_values = []
+    distribution = []  # % of the photo in each value, darkest first
+    total = gray.size
     for i in range(levels):
         lo, hi = thresholds[i], thresholds[i + 1]
         if i == levels - 1:
             mask = (gray >= lo) & (gray <= hi)
         else:
             mask = (gray >= lo) & (gray < hi)
-        representative = int(gray[mask].mean()) if mask.sum() > 0 else int((lo + hi) / 2)
+        if scale:
+            representative = int(round(255 * i / (levels - 1)))  # black, ..., white
+        else:
+            representative = int(gray[mask].mean()) if mask.sum() > 0 else int((lo + hi) / 2)
         result[mask] = representative
         tone_values.append(representative)
+        distribution.append(round(100.0 * int(mask.sum()) / total, 1))
 
     success, buffer = cv2.imencode(".png", result)
     if not success:
@@ -79,5 +93,6 @@ def compute_value_study(pil_image: Image.Image, levels: int = 4) -> dict:
     return {
         "levels": levels,
         "toneValues": tone_values,
+        "distribution": distribution,
         "valueStudyImage": f"data:image/png;base64,{b64_string}",
     }

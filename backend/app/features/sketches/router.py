@@ -85,6 +85,8 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
         "grid": question_bank.grid_action(s.style),
         "created_at": s.created_at,
         "palettes": s.palettes or {},
+        "value_levels": s.value_levels,
+        "gamut_mask": s.gamut_mask,
         # The latest critique's text, if any -- this is what
         # SketchCard.jsx's feed view shows as the sketch's description,
         # with a Read more/Show less toggle once it runs long. None (not
@@ -787,10 +789,15 @@ async def upload_final_sketch(
 async def sketch_value_study(
     sketch_id: str,
     levels: int = 4,
+    scale: bool = False,
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
     """
+    scale=true: equal steps of lightness, black to white, for the Value
+    tab's value distribution (design doc, item 37). Otherwise percentile
+    groups of equal area, as before.
+
     On-demand "dominant value shapes" toggle for SketchDetailPage's
     edit-mode view (see core/value_study.py's docstring for the
     algorithm -- deterministic OpenCV, not a Gemini call). Scoped to the
@@ -816,7 +823,7 @@ async def sketch_value_study(
     except Exception:
         raise HTTPException(400, "Could not load this sketch's photo")
 
-    return compute_value_study(pil_image, levels)
+    return compute_value_study(pil_image, levels, scale=scale)
 
 
 def _delete_sketch_files(sketch: Sketch) -> None:
@@ -1331,4 +1338,58 @@ async def order_uploads(
         rows[uid].position = i
     db.commit()
     return _uploads_response(db, sketch)
+
+
+# ---- The Value and Color tabs (design doc, item 37) ----
+
+MAX_MASK_CORNERS = 6
+
+
+class MaskCorner(BaseModel):
+    h: float  # hue, 0-360 (the Yurmby wheel is the screen colour wheel)
+    c: float  # intensity, 0 (grey centre) to 1 (rim)
+    paint_id: Optional[str] = None
+
+
+class GamutMask(BaseModel):
+    corners: list[MaskCorner]
+
+
+class StudiesRequest(BaseModel):
+    value_levels: Optional[int] = None
+    gamut_mask: Optional[GamutMask] = None
+    clear_mask: bool = False
+
+
+@router.put("/sketches/{sketch_id}/studies")
+async def save_studies(
+    sketch_id: str,
+    body: StudiesRequest,
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """Saves the value study's number of values and the gamut mask. The
+    mask is part of the plan, so it locks once the final sketch is in."""
+    sketch = _owned_sketch(db, sketch_id, sketcher_id)
+    if body.value_levels is not None:
+        if body.value_levels not in (3, 5, 7, 9):
+            raise HTTPException(400, "Pick 3, 5, 7 or 9 values")
+        sketch.value_levels = body.value_levels
+    if body.gamut_mask is not None or body.clear_mask:
+        if sketch.final_sketch_url:
+            raise HTTPException(409, "The plan can't change once the final sketch is uploaded")
+        if body.clear_mask:
+            sketch.gamut_mask = None
+        else:
+            corners = body.gamut_mask.corners[:MAX_MASK_CORNERS]
+            sketch.gamut_mask = {"corners": [
+                {
+                    "h": round(c.h % 360, 1),
+                    "c": round(max(0.0, min(1.0, c.c)), 3),
+                    "paint_id": c.paint_id if c.paint_id and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", c.paint_id) else None,
+                }
+                for c in corners
+            ]}
+    db.commit()
+    return {"value_levels": sketch.value_levels, "gamut_mask": sketch.gamut_mask}
 

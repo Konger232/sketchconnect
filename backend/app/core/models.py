@@ -106,6 +106,10 @@ class Sketch(Base):
     # the reference photo, `sketch` from the final sketch. The sketcher can
     # correct the sketch's list by hand on the sketch page.
     palettes = Column(JSON, nullable=True)
+    # The Value and Color tabs (design doc, item 37): how many values the
+    # value study uses, and the gamut mask ({"corners": [{h, c, paint_id}]}).
+    value_levels = Column(Integer, nullable=True)
+    gamut_mask = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

@@ -21,7 +21,7 @@ COACHING_MAX_DIMENSION = 1024    # longest side for images sent to Help Quest an
 
 # --- Value study (/value-study) ---
 MIN_TONAL_LEVELS = 2
-MAX_TONAL_LEVELS = 8
+MAX_TONAL_LEVELS = 9
 VALUE_STUDY_BLUR_KERNEL = (15, 15)   # Gaussian blur strength, mimics the optical
                                       # softening of a real squint, not just color reduction
 

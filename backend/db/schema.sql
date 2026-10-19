@@ -204,3 +204,7 @@ from sketches s
 where s.final_sketch_url is not null
   and not exists (select 1 from sketch_uploads u where u.sketch_id = s.id and u.url = s.final_sketch_url);
 
+-- The Value and Color tabs (design doc, item 37, October 19, 2026). Safe
+-- to run again.
+alter table sketches add column if not exists value_levels integer;
+alter table sketches add column if not exists gamut_mask jsonb;

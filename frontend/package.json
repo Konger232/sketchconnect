@@ -16,7 +16,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-leaflet": "^4.2.1",
-    "react-router-dom": "^6.26.2"
+    "react-router-dom": "^6.26.2",
+    "spectral.js": "3.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",

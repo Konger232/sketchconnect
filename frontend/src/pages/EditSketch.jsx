@@ -13,6 +13,10 @@ import { MarksLayer, markAtPoint } from '../components/analysis/Marks'
 import { pointInOutline } from '../lib/markGeometry'
 import { useValueStudy } from '../lib/useValueStudy'
 import { api } from '../lib/api'
+import ValuePanel from '../components/studies/ValuePanel'
+import ColorPanel from '../components/studies/ColorPanel'
+import { SamplePhoto, MaskedPhoto } from '../components/studies/ColorStage'
+import { PAINTS, paintById, paintForKitItem } from '../data/paints'
 import { runGuideAnalysis } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
 import { STYLES, sceneTypeLabel } from '../data/styles'
@@ -21,7 +25,9 @@ const NOTE_LIMIT = 500
 
 const TABS = [
   { key: 'details', label: 'Details' },
-  { key: 'guide', label: 'Plan' }, // key stays 'guide' in code
+  { key: 'guide', label: 'Composition' }, // key stays 'guide' in code
+  { key: 'value', label: 'Value' },
+  { key: 'color', label: 'Color' },
 ]
 
 function resolveUrl(url) {
@@ -74,6 +80,15 @@ export default function EditSketch() {
   const [confirmingClose, setConfirmingClose] = useState(null)
   // The photo stage strip (StageStrip): show('plan' | 'photo' | 'final').
   const stripRef = useRef(null)
+
+  // ===== STATE: VALUE AND COLOR (design doc, item 37) =====
+  const [valueLevels, setValueLevels] = useState(5)
+  const [valueStudies, setValueStudies] = useState({}) // { levels: study }
+  const [valueError, setValueError] = useState(null)
+  const [maskCorners, setMaskCorners] = useState([])
+  const [colorSample, setColorSample] = useState(null)
+  const [kitPaints, setKitPaints] = useState(null) // null until loaded
+  const maskSaveRef = useRef(null)
 
   // ===== STATE: GUIDE =====
   const [analysis, setAnalysis] = useState(routerLocation.state?.analysis || null)
@@ -139,6 +154,8 @@ export default function EditSketch() {
       try {
         const { data } = await api.get(`/api/sketches/${sketchId}`)
         setSketch(data)
+        if (data.value_levels) setValueLevels(data.value_levels)
+        setMaskCorners(data.gamut_mask?.corners || [])
       } catch (err) {
         setLoadError(err.response?.status === 404 ? 'not_found' : 'error')
       }
@@ -301,6 +318,47 @@ export default function EditSketch() {
     }
   }
 
+  // ===== VALUE AND COLOR =====
+
+  // The value study for the picked number of values, fetched once each.
+  useEffect(() => {
+    if (tab !== 'value' || !sketch?.is_owner || valueStudies[valueLevels]) return
+    setValueError(null)
+    api.get(`/api/sketches/${sketchId}/value-study`, { params: { levels: valueLevels, scale: true } })
+      .then(({ data }) => setValueStudies((m) => ({ ...m, [valueLevels]: data })))
+      .catch(() => setValueError('Could not read the values right now.'))
+  }, [tab, valueLevels, sketch?.is_owner]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function pickValueLevels(n) {
+    setValueLevels(n)
+    api.put(`/api/sketches/${sketchId}/studies`, { value_levels: n }).catch(() => {})
+  }
+
+  // The paints for the wheel: the kit's paints and the favourite palette,
+  // else the starter list.
+  useEffect(() => {
+    if (tab !== 'color' || kitPaints || !sketch?.is_owner) return
+    Promise.all([api.get('/api/kit').catch(() => ({ data: [] })), api.get('/api/profile').catch(() => ({ data: {} }))])
+      .then(([kit, prof]) => {
+        const found = [
+          ...kit.data.filter((i) => i.kind === 'color').map(paintForKitItem),
+          ...(prof.data.favorite_paints || []).map(paintById),
+        ].filter(Boolean)
+        setKitPaints([...new Map(found.map((p) => [p.id, p])).values()])
+      })
+  }, [tab, kitPaints, sketch?.is_owner])
+
+  // The mask saves itself a moment after a change ends.
+  function changeMask(corners, { done } = {}) {
+    setMaskCorners(corners)
+    clearTimeout(maskSaveRef.current)
+    if (!done) return
+    maskSaveRef.current = setTimeout(() => {
+      const body = corners.length ? { gamut_mask: { corners } } : { clear_mask: true }
+      api.put(`/api/sketches/${sketchId}/studies`, body).catch(() => {})
+    }, 400)
+  }
+
   // ===== RENDER: LOADING / ERROR =====
 
   const modalTitle = mode === 'create' ? 'New Sketch' : 'Edit Sketch'
@@ -380,7 +438,21 @@ export default function EditSketch() {
       />
     ),
   })
-  const panels = [
+  const tabStudy = valueStudies[valueLevels]
+  const studyPanels = tab === 'value'
+    ? [
+        { key: 'values', label: `${valueLevels} values`, content: tabStudy
+          ? <StripImage src={tabStudy.valueStudyImage} alt={`The photo in ${valueLevels} values`} />
+          : <div className="flex min-h-[40vh] flex-1 items-center justify-center text-md text-sc-text3">Reading the values…</div> },
+        { key: 'photo', label: 'Reference photo', content: <StripImage src={referenceImageUrl} alt="Reference photo" /> },
+      ]
+    : tab === 'color'
+      ? [
+          { key: 'sample', label: 'Tap to sample', content: <SamplePhoto src={referenceImageUrl} onSample={setColorSample} /> },
+          { key: 'mask', label: 'In your colours', content: <MaskedPhoto src={referenceImageUrl} corners={maskCorners} /> },
+        ]
+      : null
+  const panels = studyPanels || [
     ...(hasPlan
       ? [
           { key: 'photo', label: 'Reference photo', content: <StripImage src={originalImageUrl} alt="Reference photo" /> },
@@ -391,6 +463,7 @@ export default function EditSketch() {
       ? [{ key: 'final', label: 'Final sketch', content: <StripImage src={finalSketchUrl} alt="Your final sketch" /> }]
       : []),
   ]
+  const stripKey = tab === 'value' || tab === 'color' ? tab : 'plan'
   // ===== RENDER: PANELS =====
 
   const chips = (
@@ -455,16 +528,17 @@ export default function EditSketch() {
   )
   // Create mode: Start Sketching, once the plan read is back. Uploads and
   // feedback live on the SketchDetail page (design doc, item 38).
+  const startSketchingFooter = mode === 'create' && analysis?.plan_read ? (
+    <div className="sc-footer">
+      <Button variant="action" className="ml-auto" onClick={handleStartSketching} disabled={saving}>
+        Start Sketching
+      </Button>
+    </div>
+  ) : null
   const guideTab = (
     <>
       {guidePanel}
-      {mode === 'create' && analysis?.plan_read && (
-        <div className="sc-footer">
-          <Button variant="action" className="ml-auto" onClick={handleStartSketching} disabled={saving}>
-            Start Sketching
-          </Button>
-        </div>
-      )}
+      {startSketchingFooter}
     </>
   )
 
@@ -610,7 +684,7 @@ export default function EditSketch() {
       />
 
       {/* ===== LEFT: PHOTO STAGE (sideways strip) ===== */}
-      <StageStrip ref={stripRef} panels={panels} focusKey="plan" />
+      <StageStrip key={stripKey} ref={stripRef} panels={panels} focusKey={studyPanels ? panels[0].key : 'plan'} />
 
       {/* ===== RIGHT: TABS ===== */}
       <div className="sc-panel sc-sheet">
@@ -639,6 +713,26 @@ export default function EditSketch() {
                   survives a trip to another tab. */}
               <div className={tab === 'guide' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>{guideTab}</div>
               {tab === 'details' && detailsPanel}
+              {tab === 'value' && (
+                <>
+                  <div className="sc-panel-body">
+                    <ValuePanel levels={valueLevels} onLevels={pickValueLevels} study={tabStudy} loading={!tabStudy} error={valueError} />
+                  </div>
+                  {startSketchingFooter}
+                </>
+              )}
+              {tab === 'color' && (
+                <>
+                  <div className="sc-panel-body">
+                    {kitPaints ? (
+                      <ColorPanel corners={maskCorners} onChange={changeMask} paints={kitPaints.length ? kitPaints : PAINTS}
+                        fromKit={kitPaints.length > 0} sample={colorSample} onSample={setColorSample}
+                        readOnly={Boolean(sketch.final_sketch_url)} />
+                    ) : <p className="text-md text-sc-text3">Loading your paints…</p>}
+                  </div>
+                  {startSketchingFooter}
+                </>
+              )}
             </div>
           </>
         ) : (
