@@ -27,7 +27,7 @@ from geoalchemy2.functions import ST_Distance, ST_DWithin
 
 from app.core.database import get_db
 from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
-from app.core.models import Sketch, CritiqueResponse, Persona, Profile
+from app.core.models import Sketch, CritiqueResponse, Persona, Profile, SketchUpload
 from app.core.debug import DEBUG_DIR
 from app.features.sketches.schemas import (
     AdoptMarkRequest, MarkSelectionRequest, SketchUpdateRequest, SketcherFocalPointInput,
@@ -761,59 +761,25 @@ async def upload_final_sketch(
     sketch_id: str,
     background_tasks: BackgroundTasks,
     image: UploadFile = File(...),
-    # Whose voice gives the feedback: one of the sketcher's admired
-    # sketchers (design doc, item 36). The style (October 6, 2026) is still
-    # taken while the Feedback tab sends it, and picks the older
-    # per-style persona when no voice is picked.
     persona_id: Optional[str] = Form(None),
     style: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
     """
-    Save the sketcher's final sketch and the voice (or style) for its
-    feedback, then start the critique
-    call in the background. Returns right away with critique_status
-    'pending'. A newer upload replaces the old file and runs the critique again.
+    Older route, kept for any caller still using it: the same as
+    POST /sketches/{id}/uploads with final=true (design doc, item 38).
     """
     if style:
         try:
             rules.validate_style(style)
         except ValueError as exc:
             raise HTTPException(400, str(exc))
-    if persona_id and not _is_uuid(persona_id):
-        raise HTTPException(400, "That voice isn't on your admired sketchers list")
-    if persona_id and db.query(Persona).filter(
-        Persona.id == persona_id, Persona.sketcher_id == sketcher_id
-    ).first() is None:
-        raise HTTPException(400, "That voice isn't on your admired sketchers list")
-    sketch = db.query(Sketch).filter(
-        Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
-    ).first()
-    if sketch is None:
-        raise HTTPException(404, "Sketch not found")
-    if sketch.critique_status == "pending":
-        raise HTTPException(409, "Feedback is still being prepared for the last upload")
-
-    contents = await image.read()
-    try:
-        pil_image = ImageOps.exif_transpose(Image.open(io.BytesIO(contents))).convert("RGB")
-    except Exception:
-        raise HTTPException(400, "Could not decode final sketch image")
-
-    filename = f"{uuid.uuid4()}.jpg"
-    pil_image.save(UPLOAD_DIR / filename, format="JPEG", quality=90)
-    _delete_upload_file(sketch.final_sketch_url)
-    sketch.final_sketch_url = f"/uploads/{filename}"
-    sketch.final_sketch_provided = True
-    sketch.persona_id = persona_id or None
+    data = await add_upload(sketch_id, background_tasks, image, True, persona_id, db, sketcher_id)
     if style:
+        sketch = db.query(Sketch).filter(Sketch.id == sketch_id).first()
         sketch.style = style
-
-    start_critique(db, sketch, background_tasks)  # commits
-    db.refresh(sketch)
-    data = _sketch_to_dict(sketch)
-    data["critique_status"] = sketch.critique_status
+        db.commit()
     return data
 
 
@@ -903,6 +869,8 @@ async def delete_sketch(
         raise HTTPException(404, "Sketch not found")
 
     _delete_sketch_files(sketch)
+    for u in db.query(SketchUpload).filter(SketchUpload.sketch_id == sketch.id).all():
+        _delete_upload_file(u.url)
     db.delete(sketch)
     db.commit()
     return {"deleted": True}
@@ -934,7 +902,9 @@ async def list_sketches(
         .all()
     )
     latest = _latest_critiques_by_sketch(db, [s.id for s in rows])
-    return _with_likes(db, rows, sketcher_id, [_sketch_to_dict(s, latest.get(s.id)) for s in rows])
+    counts = upload_counts(db, [s.id for s in rows])
+    dicts = [_sketch_to_dict(s, latest.get(s.id)) | {"upload_count": counts.get(s.id, 0)} for s in rows]
+    return _with_likes(db, rows, sketcher_id, dicts)
 
 
 @router.get("/sketches/recent")
@@ -1064,6 +1034,7 @@ async def get_sketch(
         principles = (cleaned.get("plan_read") or {}).get("principles") or []
         data["plan_short"] = [p.get("principle") for p in principles if p.get("group") in ("strong", "moderate")][:3]
         data["media"] = cleaned.get("media") or []
+        data["uploads"] = uploads_to_list(sketch, _uploads(db, sketch.id))
         return data
 
     critiques = (
@@ -1100,6 +1071,8 @@ async def get_sketch(
     if cleaned.get("plan_read"):
         from app.features.marks_analysis.service import focal_list
         data["focal_suggestions"] = focal_list(sketch, sketch.cached_scene_analysis)
+    data["uploads"] = uploads_to_list(sketch, _uploads(db, sketch.id))
+    data["persona_id"] = sketch.persona_id
     data["is_owner"] = True
     return data
 
@@ -1163,4 +1136,186 @@ async def update_palette(
     sketch.palettes = {**(sketch.palettes or {}), "sketch": ids}
     db.commit()
     return {"palettes": sketch.palettes}
+
+
+# ---- Sketch uploads: progress sketches and the final (design doc, items
+# 35 and 38). The final is the upload whose url is sketches.final_sketch_url;
+# setting it shares the sketch and runs the critique. Deleting it unshares
+# the sketch and unlocks the plan.
+
+MAX_SKETCH_UPLOADS = 10
+
+
+def _owned_sketch(db: Session, sketch_id: str, sketcher_id: str) -> Sketch:
+    sketch = db.query(Sketch).filter(Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id).first()
+    if sketch is None:
+        raise HTTPException(404, "Sketch not found")
+    return sketch
+
+
+def _uploads(db: Session, sketch_id: str) -> list:
+    return (
+        db.query(SketchUpload)
+        .filter(SketchUpload.sketch_id == sketch_id)
+        .order_by(SketchUpload.position.asc(), SketchUpload.created_at.asc())
+        .all()
+    )
+
+
+def uploads_to_list(sketch: Sketch, rows: list) -> list[dict]:
+    return [
+        {"id": u.id, "url": u.url, "position": i, "created_at": u.created_at, "is_final": u.url == sketch.final_sketch_url}
+        for i, u in enumerate(rows)
+    ]
+
+
+def upload_counts(db: Session, sketch_ids: list[str]) -> dict:
+    """{sketch_id: number of uploads}, for the status labels on the cards."""
+    if not sketch_ids:
+        return {}
+    from sqlalchemy import func
+    return dict(
+        db.query(SketchUpload.sketch_id, func.count())
+        .filter(SketchUpload.sketch_id.in_(sketch_ids))
+        .group_by(SketchUpload.sketch_id)
+        .all()
+    )
+
+
+def _check_persona(db: Session, persona_id: Optional[str], sketcher_id: str) -> None:
+    if not persona_id:
+        return
+    if not _is_uuid(persona_id) or db.query(Persona).filter(
+        Persona.id == persona_id, Persona.sketcher_id == sketcher_id
+    ).first() is None:
+        raise HTTPException(400, "That voice isn't on your admired sketchers list")
+
+
+def _make_final(db: Session, sketch: Sketch, upload: SketchUpload, persona_id: Optional[str], background_tasks: BackgroundTasks) -> None:
+    """Share the sketch with this upload as its final, and run the critique."""
+    sketch.final_sketch_url = upload.url
+    sketch.final_sketch_provided = True
+    sketch.persona_id = persona_id or None
+    start_critique(db, sketch, background_tasks)  # commits
+
+
+def _uploads_response(db: Session, sketch: Sketch) -> dict:
+    db.refresh(sketch)
+    return {
+        "uploads": uploads_to_list(sketch, _uploads(db, sketch.id)),
+        "final_sketch_url": sketch.final_sketch_url,
+        "critique_status": sketch.critique_status,
+    }
+
+
+@router.post("/sketches/{sketch_id}/uploads")
+async def add_upload(
+    sketch_id: str,
+    background_tasks: BackgroundTasks,
+    image: UploadFile = File(...),
+    final: bool = Form(False),
+    persona_id: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """Add a progress sketch, or a final sketch (final=true), which shares
+    the sketch and runs the critique in the background."""
+    sketch = _owned_sketch(db, sketch_id, sketcher_id)
+    rows = _uploads(db, sketch_id)
+    if len(rows) >= MAX_SKETCH_UPLOADS:
+        raise HTTPException(400, f"A sketch holds up to {MAX_SKETCH_UPLOADS} uploads. Delete one first.")
+    if final:
+        _check_persona(db, persona_id, sketcher_id)
+        if sketch.critique_status == "pending":
+            raise HTTPException(409, "Feedback is still being prepared for the last final sketch")
+
+    contents = await image.read()
+    try:
+        pil_image = ImageOps.exif_transpose(Image.open(io.BytesIO(contents))).convert("RGB")
+    except Exception:
+        raise HTTPException(400, "Could not read that image")
+    filename = f"{uuid.uuid4()}.jpg"
+    pil_image.save(UPLOAD_DIR / filename, format="JPEG", quality=90)
+
+    upload = SketchUpload(
+        sketch_id=sketch.id, sketcher_id=sketcher_id, url=f"/uploads/{filename}",
+        position=(max((u.position for u in rows), default=-1) + 1),
+    )
+    db.add(upload)
+    db.commit()
+    if final:
+        _make_final(db, sketch, upload, persona_id, background_tasks)
+    return _uploads_response(db, sketch)
+
+
+class MakeFinalRequest(BaseModel):
+    persona_id: Optional[str] = None
+
+
+@router.post("/sketches/{sketch_id}/uploads/{upload_id}/final")
+async def make_final(
+    sketch_id: str,
+    upload_id: str,
+    body: MakeFinalRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """Make an upload the final sketch: shares the sketch, runs the critique."""
+    sketch = _owned_sketch(db, sketch_id, sketcher_id)
+    upload = db.query(SketchUpload).filter(SketchUpload.id == upload_id, SketchUpload.sketch_id == sketch_id).first() if _is_uuid(upload_id) else None
+    if upload is None:
+        raise HTTPException(404, "Upload not found")
+    _check_persona(db, body.persona_id, sketcher_id)
+    if sketch.critique_status == "pending":
+        raise HTTPException(409, "Feedback is still being prepared for the last final sketch")
+    _make_final(db, sketch, upload, body.persona_id, background_tasks)
+    return _uploads_response(db, sketch)
+
+
+@router.delete("/sketches/{sketch_id}/uploads/{upload_id}")
+async def delete_upload(
+    sketch_id: str,
+    upload_id: str,
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """Delete an upload. Deleting the final unshares the sketch and unlocks
+    the plan; its feedback stays in the history."""
+    sketch = _owned_sketch(db, sketch_id, sketcher_id)
+    upload = db.query(SketchUpload).filter(SketchUpload.id == upload_id, SketchUpload.sketch_id == sketch_id).first() if _is_uuid(upload_id) else None
+    if upload is None:
+        raise HTTPException(404, "Upload not found")
+    if upload.url == sketch.final_sketch_url:
+        if sketch.critique_status == "pending":
+            raise HTTPException(409, "Feedback is still being prepared for this sketch")
+        sketch.final_sketch_url = None
+        sketch.final_sketch_provided = False
+        sketch.critique_status = None
+    _delete_upload_file(upload.url)
+    db.delete(upload)
+    db.commit()
+    return _uploads_response(db, sketch)
+
+
+class UploadOrderRequest(BaseModel):
+    ids: list[str]
+
+
+@router.put("/sketches/{sketch_id}/uploads/order")
+async def order_uploads(
+    sketch_id: str,
+    body: UploadOrderRequest,
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """Set the uploads' order. `ids` lists every upload of the sketch."""
+    sketch = _owned_sketch(db, sketch_id, sketcher_id)
+    rows = {u.id: u for u in _uploads(db, sketch_id)}
+    if sorted(body.ids) != sorted(rows):
+        raise HTTPException(400, "List every upload of this sketch, once")
+    for i, uid in enumerate(body.ids):
+        rows[uid].position = i
+    db.commit()
+    return _uploads_response(db, sketch)
 

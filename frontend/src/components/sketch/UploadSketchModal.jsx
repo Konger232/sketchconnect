@@ -1,0 +1,149 @@
+import { useEffect, useRef, useState } from 'react'
+import Button from '../common/Button'
+import SketchModal from '../common/SketchModal'
+import { api } from '../../lib/api'
+import { previewUrl } from '../../lib/previewUrl'
+import cameraWhite from '../../assets/images/ico_camera_w.png'
+
+/**
+ * Upload sketch (design doc, item 38): the black modal from New Sketch,
+ * with only the upload. Opened from the SketchDetail page by the owner.
+ *
+ *   Progress sketch  added to the sketch's uploads. No feedback.
+ *   Final sketch     shares the sketch publicly and asks for feedback, in
+ *                    the voice picked here (item 36).
+ *
+ * With `upload` (an existing progress sketch), it only makes that upload
+ * the final: the photo is fixed, and the sketcher picks the voice.
+ *
+ * Submit closes the modal right away. The SketchDetail page shows
+ * "Feedback on its way…" until the critique lands.
+ */
+export default function UploadSketchModal({ sketch, upload = null, imageUrl, onClose, onDone }) {
+  const hasFinal = Boolean(sketch.final_sketch_url)
+  const pending = sketch.critique_status === 'pending'
+  const [file, setFile] = useState(null)
+  const [preview, setPreview] = useState(null)
+  const [kind, setKind] = useState(upload ? 'final' : hasFinal || pending ? 'progress' : 'final')
+  const [voices, setVoices] = useState([])
+  const [voice, setVoice] = useState(sketch.persona_id || '')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState(null)
+  const libraryRef = useRef(null)
+  const cameraRef = useRef(null)
+  const pickRef = useRef(0)
+
+  useEffect(() => {
+    api.get('/api/admired').then(({ data }) => setVoices(data)).catch(() => setVoices([]))
+  }, [])
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview) }, [preview])
+
+  // HEIC photos are converted for the preview only; the original uploads.
+  async function pickFile(e) {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    const pick = ++pickRef.current
+    setError(null)
+    try {
+      const url = await previewUrl(f)
+      if (pick !== pickRef.current) return URL.revokeObjectURL(url)
+      setFile(f)
+      setPreview(url)
+    } catch {
+      if (pick === pickRef.current) setError('Could not open this photo. Try a JPEG or PNG.')
+    }
+  }
+
+  async function submit() {
+    setSending(true)
+    setError(null)
+    try {
+      let data
+      if (upload) {
+        ;({ data } = await api.post(`/api/sketches/${sketch.id}/uploads/${upload.id}/final`, { persona_id: voice || null }))
+      } else {
+        const form = new FormData()
+        form.append('image', file)
+        form.append('final', kind === 'final' ? 'true' : 'false')
+        if (kind === 'final' && voice) form.append('persona_id', voice)
+        ;({ data } = await api.post(`/api/sketches/${sketch.id}/uploads`, form))
+      }
+      onDone?.(data)
+    } catch (err) {
+      const d = err.response?.data?.detail
+      setError(typeof d === 'string' ? d : 'Could not upload your sketch.')
+      setSending(false)
+    }
+  }
+
+  const shown = upload ? imageUrl : preview
+  const ready = upload || file
+  const finalBlocked = pending && kind === 'final'
+  const submitLabel = sending ? 'Uploading…' : kind === 'final' ? 'Share and get feedback' : 'Add progress sketch'
+
+  return (
+    <SketchModal title={upload ? 'Make it the final sketch' : 'Upload sketch'} onClose={onClose}>
+      <input ref={libraryRef} type="file" accept="image/*,.heic" onChange={pickFile} className="hidden" />
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={pickFile} className="hidden" />
+
+      {/* Left: the photo, or the place to take one. */}
+      <div className="flex min-h-[300px] flex-1 items-center justify-center bg-black p-4 md:min-h-0">
+        {shown ? (
+          <img src={shown} alt="Your sketch" className="max-h-full max-w-full object-contain" />
+        ) : (
+          <button type="button" className="sc-dropzone w-full max-w-[420px] min-h-[260px]" onClick={() => cameraRef.current?.click()}>
+            <img src={cameraWhite} alt="" className="h-16 w-16" />
+            <span className="font-heading text-xl font-semibold leading-snug">Photograph your sketch</span>
+            <span className="max-w-[280px] text-md text-sc-text3">Flat and in focus. Crop out your hand and the table.</span>
+          </button>
+        )}
+      </div>
+
+      {/* Right: one choice, and the voice for a final sketch. */}
+      <div className="sc-panel">
+        <div className="sc-panel-body gap-3.5">
+          {!upload && (
+            <>
+              <p className="text-md text-sc-text2">What is this photo?</p>
+              <Button variant="choice" selected={kind === 'progress'} onClick={() => setKind('progress')}>
+                Progress sketch
+                <span className={`mt-0.5 block text-sm font-normal ${kind === 'progress' ? 'text-white/85' : 'text-sc-text3'}`}>Keeps a record of how the sketch grows. Only you see it until you share the final.</span>
+              </Button>
+              <Button variant="choice" selected={kind === 'final'} onClick={() => setKind('final')}>
+                Final sketch
+                <span className={`mt-0.5 block text-sm font-normal ${kind === 'final' ? 'text-white/85' : 'text-sc-text3'}`}>
+                  {hasFinal ? 'Replaces your final sketch, shares it and asks for new feedback.' : 'Shares the sketch publicly and asks for feedback.'}
+                </span>
+              </Button>
+            </>
+          )}
+          {upload && <p className="text-md text-sc-text2">This shares the sketch publicly and asks for feedback on it.</p>}
+
+          {kind === 'final' && (
+            <div className="flex flex-col gap-2">
+              <p className="text-md text-sc-text2">Whose voice gives the feedback?</p>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="pill" active={!voice} onClick={() => setVoice('')}>Your coach</Button>
+                {voices.map((v) => (
+                  <Button key={v.id} variant="pill" active={voice === v.id} onClick={() => setVoice(v.id)}>{v.name}</Button>
+                ))}
+              </div>
+            </div>
+          )}
+          {finalBlocked && <p className="text-base text-sc-text3">Feedback on your last final sketch is still on its way. Add a progress sketch now, or wait a minute.</p>}
+          {error && <p className="text-base text-accent">{error}</p>}
+        </div>
+        <div className="sc-footer">
+          {!upload && shown && (
+            <Button variant="secondaryOnDark" className="mr-auto" onClick={() => libraryRef.current?.click()} disabled={sending}>Choose another</Button>
+          )}
+          {!upload && !shown && (
+            <Button variant="secondaryOnDark" className="mr-auto" onClick={() => libraryRef.current?.click()}>From library</Button>
+          )}
+          <Button variant="action" onClick={submit} disabled={!ready || sending || finalBlocked}>{submitLabel}</Button>
+        </div>
+      </div>
+    </SketchModal>
+  )
+}

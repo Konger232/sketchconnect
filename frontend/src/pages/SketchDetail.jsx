@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import Header from '../components/common/Header'
 import Footer from '../components/common/Footer'
 import Button from '../components/common/Button'
+import ConfirmDialog from '../components/common/ConfirmDialog'
 import Icon from '../components/common/Icon'
 import LocationMap from '../components/common/LocationMap'
 import PaintEditor from '../components/common/PaintEditor'
@@ -14,12 +15,14 @@ import Comments from '../components/sketch/Comments'
 import FeedbackBlock from '../components/sketch/FeedbackBlock'
 import PaletteBars from '../components/sketch/PaletteBars'
 import SharePanel from '../components/sketch/SharePanel'
+import UploadSketchModal from '../components/sketch/UploadSketchModal'
+import { getSketchStatus } from '../lib/sketchStatus'
 import { MEDIA } from '../data/media'
 import { paintById } from '../data/paints'
 import { sceneTypeLabel, STYLES } from '../data/styles'
 import { api } from '../lib/api'
 import { dateLabel, imageUrl, timeLabel } from '../lib/media'
-import { useSketchesVersion } from '../lib/sketchEvents'
+import { notifySketchesChanged, useSketchesVersion } from '../lib/sketchEvents'
 
 const NEARBY_M = 300
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : '')
@@ -49,6 +52,9 @@ function PlanImage({ src, marks }) {
  *   visitor  signed out: reads; Like and comments go to the login page.
  *
  * Others only see a shared sketch, one with a final sketch (item 30).
+ * Before that, the owner uses the same page for every stage (item 38):
+ * Upload sketch adds a progress sketch or the final, which shares the
+ * sketch and runs the critique; the feedback lands in The sketch group.
  */
 export default function SketchDetail() {
   const { sketchId } = useParams()
@@ -63,17 +69,31 @@ export default function SketchDetail() {
   const [sharing, setSharing] = useState(false)
   const [paintEdit, setPaintEdit] = useState(null) // { mode, paintId?, top }
   const [favs, setFavs] = useState([])
+  const [uploading, setUploading] = useState(null) // { upload? } while the Upload sketch modal is open
+  const [picked, setPicked] = useState(null) // the upload shown large in The sketch
+  const [deleting, setDeleting] = useState(null) // the upload to confirm deleting
+  const [actionError, setActionError] = useState(null)
   const paletteBoxRef = useRef(null)
   const sketchGroupRef = useRef(null)
 
+  function reload() {
+    return api.get(`/api/sketches/${sketchId}`).then(({ data }) => setS(data))
+  }
+
   useEffect(() => {
     setError(null)
-    api.get(`/api/sketches/${sketchId}`)
-      .then(({ data }) => setS(data))
+    reload()
       .catch((err) => setError(err.response?.status === 404 ? err.response?.data?.detail || 'not_found' : 'error'))
     api.get(`/api/sketches/${sketchId}/nearby`, { params: { radius_m: NEARBY_M } }).then(({ data }) => setNearby(data)).catch(() => setNearby([]))
   }, [sketchId, user?.id, sketchesVersion])
   useEffect(() => { setFavs(profile?.favorite_paints || []) }, [profile?.favorite_paints])
+
+  // While the critique runs, check back every few seconds until it lands.
+  useEffect(() => {
+    if (s?.critique_status !== 'pending') return
+    const timer = setInterval(() => { reload().catch(() => {}) }, 4000)
+    return () => clearInterval(timer)
+  }, [s?.critique_status, sketchId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const viewer = s?.is_owner ? 'owner' : user ? 'member' : 'visitor'
   const nearbyItems = useMemo(() => nearby.map((n) => ({
@@ -101,7 +121,15 @@ export default function SketchDetail() {
   const reference = imageUrl(s.reference_image_url)
   const style = STYLES.find((x) => x.value === s.style)?.label
   const scene = sceneTypeLabel[s.scene_type]
-  const kicker = ['Sketch', style, scene].filter(Boolean).join(' · ')
+  const shared = Boolean(s.final_sketch_url)
+  // Before the final sketch, only the owner sees this page (design doc, item 38).
+  const kicker = shared ? ['Sketch', style, scene].filter(Boolean).join(' · ') : `${getSketchStatus({ ...s, upload_count: s.uploads?.length || 0 })} · Only you`
+  const uploads = s.uploads || []
+  const finalUpload = uploads.find((u) => u.is_final)
+  const lastUpload = uploads[uploads.length - 1]
+  const shownUpload = uploads.find((u) => u.id === picked) || finalUpload || lastUpload
+  const heroImage = final || imageUrl(lastUpload?.url) || reference
+  const critiquePending = s.critique_status === 'pending'
   const when = s.captured_at || s.created_at
   const scenePaints = (s.palettes?.scene || []).map(paintById).filter(Boolean)
   const sketchPaints = (s.palettes?.sketch || []).map(paintById).filter(Boolean)
@@ -109,7 +137,7 @@ export default function SketchDetail() {
   const carried = (s.plan_read?.principles || []).filter((p) => p.group !== 'none')
   const media = (s.media || [])
   const mediaRows = MEDIA.map((g) => ({ group: g.group, items: g.items.filter(([k]) => media.includes(k)).map(([, label]) => label) })).filter((g) => g.items.length)
-  const imageCount = [final, reference].filter(Boolean).length + (s.marks?.length ? 1 : 0)
+  const imageCount = uploads.length + (reference ? 1 : 0) + (s.marks?.length ? 1 : 0)
   const pageUrl = `${window.location.origin}/sketches/${s.id}`
 
   async function toggleLike() {
@@ -121,6 +149,47 @@ export default function SketchDetail() {
 
   // Edit opens the existing Edit Sketch over this page, on Details. Save
   // closes it and comes back here.
+  // ---- uploads (owner) ----
+  const uploadLabel = (u) => (u.is_final ? 'Final' : `Sketch ${uploads.filter((x) => !x.is_final).indexOf(u) + 1}`)
+  async function moveUpload(u, dir) {
+    const ids = uploads.map((x) => x.id)
+    const i = ids.indexOf(u.id)
+    const j = i + dir
+    if (j < 0 || j >= ids.length) return
+    ;[ids[i], ids[j]] = [ids[j], ids[i]]
+    setActionError(null)
+    try {
+      const { data } = await api.put(`/api/sketches/${s.id}/uploads/order`, { ids })
+      setS((x) => ({ ...x, uploads: data.uploads }))
+    } catch {
+      setActionError('Could not change the order.')
+    }
+  }
+  async function deleteUpload() {
+    const u = deleting
+    setDeleting(null)
+    setActionError(null)
+    try {
+      await api.delete(`/api/sketches/${s.id}/uploads/${u.id}`)
+      if (picked === u.id) setPicked(null)
+      await reload()
+    } catch (err) {
+      const d = err.response?.data?.detail
+      setActionError(typeof d === 'string' ? d : 'Could not delete that upload.')
+    }
+  }
+  async function retryFeedback() {
+    setActionError(null)
+    try {
+      const form = new FormData()
+      form.append('sketch_id', s.id)
+      await api.post('/api/critique', form)
+      setS((x) => ({ ...x, critique_status: 'pending' }))
+    } catch {
+      setActionError('Could not start feedback right now.')
+    }
+  }
+
   const openEdit = () => navigate(`/sketches/${s.id}/edit`, { state: { backgroundLocation: location, tab: 'details', closeOnSave: true } })
 
   // ---- the final sketch's palette (owner) ----
@@ -178,9 +247,14 @@ export default function SketchDetail() {
               )}
             </div>
           </div>
-          <div className="flex shrink-0 gap-2">
-            {likeButton}
+          <div className="flex shrink-0 flex-wrap gap-2">
+            {shared && likeButton}
             {viewer === 'owner' && <Button variant="editorial" onClick={openEdit}>Edit</Button>}
+            {viewer === 'owner' && (
+              <Button variant={shared ? 'editorial' : 'editorialSolid'} onClick={() => setUploading({})}>
+                <Icon name="plus" size={15} /> Upload sketch
+              </Button>
+            )}
             {viewer === 'owner' && final && (
               <Button variant="editorialSolid" onClick={() => setSharing(true)}><Icon name="share" size={15} /> Share</Button>
             )}
@@ -191,7 +265,7 @@ export default function SketchDetail() {
         <section className="flex flex-col gap-2">
           <div className="grid gap-2 md:grid-cols-[2fr_1fr]">
             <div className="photo-placeholder relative flex aspect-[4/5] items-center justify-center overflow-hidden md:aspect-auto md:h-[520px]">
-              {(final || reference) && <img src={final || reference} alt={s.title || 'Sketch'} className="max-h-full max-w-full object-contain" />}
+              {heroImage && <img src={heroImage} alt={s.title || 'Sketch'} className="max-h-full max-w-full object-contain" />}
               {imageCount > 1 && (
                 <button type="button" onClick={() => sketchGroupRef.current?.scrollIntoView({ behavior: 'smooth' })}
                   className="absolute bottom-4 left-4 inline-flex h-10 items-center gap-2 rounded-full bg-ink/70 px-4 text-sm font-bold text-white">
@@ -209,7 +283,11 @@ export default function SketchDetail() {
               </div>
             </div>
           </div>
-          {viewer === 'owner' && <p className="m-0 text-xs text-ink/70">Only you see this: feedback and bookmarks stay private.</p>}
+          {viewer === 'owner' && (
+            <p className="m-0 text-xs text-ink/70">
+              {shared ? 'Only you see this: feedback and bookmarks stay private.' : 'Only you see this sketch. Upload your final sketch to share it and get feedback.'}
+            </p>
+          )}
         </section>
 
         {/* ---- Group 1: The scene ---- */}
@@ -284,46 +362,100 @@ export default function SketchDetail() {
           </section>
         )}
 
-        {/* ---- Group 3: The sketch ---- */}
-        {final && (
+        {/* ---- Group 3: The sketch: progress sketches, the final, feedback ---- */}
+        {(uploads.length > 0 || viewer === 'owner') && (
           <section ref={sketchGroupRef} className="ed-section scroll-mt-6">
             <h2 className="ed-kicker m-0">The sketch</h2>
-            <div className="grid gap-8 md:grid-cols-2 md:gap-14">
-              <div className="flex flex-col gap-3">
-                <span className="photo-placeholder flex items-center justify-center">
-                  <img src={final} alt={s.title || 'Final sketch'} className="block w-full" />
-                </span>
-                <div>
-                  <div className="ed-caption">Final</div>
-                  <div className="text-lg">Finished {timeLabel(s.created_at) && `on ${dateLabel(s.created_at)}`}</div>
-                </div>
-              </div>
-              <div className="flex flex-col gap-6">
-                {(sketchPaints.length > 0 || viewer === 'owner') && (
-                  <div ref={paletteBoxRef} className="relative flex flex-col gap-2">
-                    <span className="ed-caption">Final sketch · closest paint</span>
-                    {sketchPaints.length > 0 && (
-                      <PaletteBars paints={sketchPaints}
-                        onEdit={viewer === 'owner' ? (p, el) => openPaint('edit', p, el) : undefined}
-                        onRemove={viewer === 'owner' ? (p) => savePalette((s.palettes?.sketch || []).filter((x) => x !== p.id)) : undefined} />
-                    )}
-                    {viewer === 'owner' && sketchPaints.length === 0 && (
-                      <p className="m-0 text-sm text-ink/60">Add the paints you used, so others can see what you brought.</p>
-                    )}
+            {uploads.length === 0 ? (
+              <button type="button" onClick={() => setUploading({})}
+                className="flex min-h-[200px] flex-col items-center justify-center gap-2 border-[1.5px] border-dashed border-ink/30 p-6 text-center hover:border-ink">
+                <Icon name="plus" size={22} />
+                <span className="font-heading text-xl font-bold">Sketched it? Upload a photo.</span>
+                <span className="max-w-[420px] text-sm text-ink/70">Add progress sketches as you go. Upload the final sketch to share it and get feedback.</span>
+              </button>
+            ) : (
+              <div className="grid gap-8 md:grid-cols-2 md:gap-14">
+                <div className="flex flex-col gap-3">
+                  <span className="photo-placeholder flex items-center justify-center">
+                    <img src={imageUrl(shownUpload.url)} alt={`${s.title || 'Sketch'}: ${uploadLabel(shownUpload)}`} className="block w-full" />
+                  </span>
+                  <div className="flex flex-wrap items-end justify-between gap-2">
+                    <div>
+                      <div className="ed-caption">{uploadLabel(shownUpload)}</div>
+                      <div className="text-lg">{dateLabel(shownUpload.created_at)} · {timeLabel(shownUpload.created_at)}</div>
+                    </div>
                     {viewer === 'owner' && (
-                      <Button variant="editorial" size="sm" className="self-start" onClick={(e) => openPaint('new', null, e.currentTarget)}>
-                        <Icon name="plus" size={14} /> Add paint
-                      </Button>
-                    )}
-                    {paintEdit && (
-                      <PaintEditor open mode={paintEdit.mode} paintId={paintEdit.paintId} showBrand={false} favs={favs} top={paintEdit.top}
-                        onSave={savePaint} onClose={() => setPaintEdit(null)} onToggleFav={toggleFav} />
+                      <div className="flex flex-wrap gap-2">
+                        {!shownUpload.is_final && (
+                          <Button variant="editorial" size="sm" disabled={critiquePending} onClick={() => setUploading({ upload: shownUpload })}>Make it the final</Button>
+                        )}
+                        <Button variant="editorial" size="sm" disabled={critiquePending && shownUpload.is_final} onClick={() => setDeleting(shownUpload)}>Delete</Button>
+                      </div>
                     )}
                   </div>
-                )}
-                {latestCritique && <FeedbackBlock critique={latestCritique} />}
+                  {uploads.length > 1 && (
+                    <ol className="m-0 flex list-none gap-2 overflow-x-auto p-0 pb-1">
+                      {uploads.map((u, i) => (
+                        <li key={u.id} className="flex shrink-0 flex-col items-center gap-1">
+                          <button type="button" onClick={() => setPicked(u.id)} aria-pressed={u.id === shownUpload.id} aria-label={uploadLabel(u)}
+                            className={`h-[72px] w-[72px] overflow-hidden ${u.id === shownUpload.id ? 'outline outline-2 outline-ink' : 'opacity-80 hover:opacity-100'}`}>
+                            <img src={imageUrl(u.url)} alt="" className="h-full w-full object-cover" />
+                          </button>
+                          <span className="text-2xs font-semibold uppercase tracking-[0.1em] text-ink/70">{uploadLabel(u)}</span>
+                          {viewer === 'owner' && (
+                            <span className="flex">
+                              <button type="button" className="ed-icon-btn h-7 w-7" disabled={i === 0} aria-label={`Move ${uploadLabel(u)} earlier`} onClick={() => moveUpload(u, -1)}>‹</button>
+                              <button type="button" className="ed-icon-btn h-7 w-7" disabled={i === uploads.length - 1} aria-label={`Move ${uploadLabel(u)} later`} onClick={() => moveUpload(u, 1)}>›</button>
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  {actionError && <p className="m-0 text-sm text-accent">{actionError}</p>}
+                </div>
+                <div className="flex flex-col gap-6">
+                  {final && (sketchPaints.length > 0 || viewer === 'owner') && (
+                    <div ref={paletteBoxRef} className="relative flex flex-col gap-2">
+                      <span className="ed-caption">Final sketch · closest paint</span>
+                      {sketchPaints.length > 0 && (
+                        <PaletteBars paints={sketchPaints}
+                          onEdit={viewer === 'owner' ? (p, el) => openPaint('edit', p, el) : undefined}
+                          onRemove={viewer === 'owner' ? (p) => savePalette((s.palettes?.sketch || []).filter((x) => x !== p.id)) : undefined} />
+                      )}
+                      {viewer === 'owner' && sketchPaints.length === 0 && (
+                        <p className="m-0 text-sm text-ink/60">Add the paints you used, so others can see what you brought.</p>
+                      )}
+                      {viewer === 'owner' && (
+                        <Button variant="editorial" size="sm" className="self-start" onClick={(e) => openPaint('new', null, e.currentTarget)}>
+                          <Icon name="plus" size={14} /> Add paint
+                        </Button>
+                      )}
+                      {paintEdit && (
+                        <PaintEditor open mode={paintEdit.mode} paintId={paintEdit.paintId} showBrand={false} favs={favs} top={paintEdit.top}
+                          onSave={savePaint} onClose={() => setPaintEdit(null)} onToggleFav={toggleFav} />
+                      )}
+                    </div>
+                  )}
+                  {viewer === 'owner' && critiquePending && (
+                    <div className="flex flex-col gap-1 border-l-2 border-ink pl-4">
+                      <span className="text-lg font-semibold">Feedback on its way…</span>
+                      <span className="text-sm text-ink/70">The AI is reading your sketch against your photo and plan. This takes about a minute. You can leave this page; it waits here.</span>
+                    </div>
+                  )}
+                  {viewer === 'owner' && !critiquePending && final && s.critique_status === 'failed' && (
+                    <div className="flex flex-col items-start gap-2">
+                      <span className="text-base text-accent">Could not get feedback this time.</span>
+                      <Button variant="editorial" size="sm" onClick={retryFeedback}>Try again</Button>
+                    </div>
+                  )}
+                  {!critiquePending && final && latestCritique && <FeedbackBlock critique={latestCritique} />}
+                  {viewer === 'owner' && !final && (
+                    <p className="m-0 text-sm text-ink/70">Feedback comes when you share your final sketch.</p>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </section>
         )}
 
@@ -381,6 +513,22 @@ export default function SketchDetail() {
       </main>
       <Footer />
 
+      {uploading && (
+        <UploadSketchModal sketch={s} upload={uploading.upload || null} imageUrl={uploading.upload ? imageUrl(uploading.upload.url) : null}
+          onClose={() => setUploading(null)}
+          onDone={() => { setUploading(null); setPicked(null); reload(); notifySketchesChanged() }} />
+      )}
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        title={deleting?.is_final ? 'Delete the final sketch?' : 'Delete this upload?'}
+        message={deleting?.is_final
+          ? 'This unshares the sketch and unlocks your plan. Its feedback stays in the history. Upload a new final sketch to share it again.'
+          : "This removes the photo, and can't be undone."}
+        confirmLabel="Delete"
+        cancelLabel="Keep it"
+        onConfirm={deleteUpload}
+        onCancel={() => setDeleting(null)}
+      />
       {sharing && (
         <SharePanel sketch={s} images={{ final, reference }} palette={sketchPaints} pageUrl={pageUrl} onClose={() => setSharing(false)} />
       )}

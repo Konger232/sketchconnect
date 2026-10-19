@@ -113,10 +113,13 @@ async def list_sketcher_sketches(
     comments = dict(
         db.query(SketchComment.sketch_id, func.count()).filter(SketchComment.sketch_id.in_(ids)).group_by(SketchComment.sketch_id).all()
     ) if ids else {}
+    from app.features.sketches.router import upload_counts
+    uploads = upload_counts(db, ids) if is_owner else {}
     out = []
     for s in rows:
         d = _sketch_to_dict(s, latest.get(s.id))
         d["shared"] = s.final_sketch_url is not None
+        d["upload_count"] = uploads.get(s.id, 0)
         d["place"] = _city(s.location_label)
         d["like_count"] = likes.get(s.id, 0)
         d["comment_count"] = comments.get(s.id, 0)

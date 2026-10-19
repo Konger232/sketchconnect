@@ -9,27 +9,19 @@ import LocationMap from '../components/common/LocationMap'
 import GuideStage, { useGuides } from '../components/analysis/GuideStage'
 import StageStrip, { StripImage } from '../components/analysis/StageStrip'
 import AIGuidance from '../components/analysis/AIGuidance'
-import StylePicker from '../components/analysis/StylePicker'
-import JourneyTrace from '../components/analysis/JourneyTrace'
-import ProgressSteps from '../components/common/ProgressSteps'
-import { useStagedProgress } from '../lib/useStagedProgress'
 import { MarksLayer, markAtPoint } from '../components/analysis/Marks'
 import { pointInOutline } from '../lib/markGeometry'
-import { usePaintedRect } from '../lib/usePaintedRect'
 import { useValueStudy } from '../lib/useValueStudy'
 import { api } from '../lib/api'
 import { runGuideAnalysis } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
-import { previewUrl } from '../lib/previewUrl'
 import { STYLES, sceneTypeLabel } from '../data/styles'
-import cameraWhite from '../assets/images/ico_camera_w.png'
 
 const NOTE_LIMIT = 500
 
 const TABS = [
   { key: 'details', label: 'Details' },
   { key: 'guide', label: 'Plan' }, // key stays 'guide' in code
-  { key: 'feedback', label: 'Feedback' },
 ]
 
 function resolveUrl(url) {
@@ -44,7 +36,8 @@ function locationText(location) {
 
 /**
  * The sketch workspace (design handoff): the photo stage on the left, and
- * a panel on the right with the Details, Sparks and Feedback tabs.
+ * a panel on the right with the Details and Plan tabs. Uploads and
+ * feedback live on the SketchDetail page (design doc, item 38).
  *
  * Opened from a sketch card (Edit Sketch), or straight after New Sketch's
  * scene analysis (router state: mode 'create' and the analysis). In create
@@ -52,10 +45,10 @@ function locationText(location) {
  *
  * Create mode is the end of New Sketch. Closing it asks "Discard this
  * sketch?", and Discard deletes it. Start Sketching shows once the plan
- * read is back, and just closes. The sketch is shared with others once it
- * has a final sketch (design doc, item 30). Edit mode opens on Details (or on Feedback once there
- * is a final sketch); closing with unsaved Details or an un-sent final
- * sketch photo asks "Discard changes?".
+ * read is back, and opens the sketch's SketchDetail page. The sketch is
+ * shared with others once it has a final sketch (design doc, item 30).
+ * Edit mode opens on Details; closing with unsaved Details asks "Discard
+ * changes?". The plan is read-only once the final sketch is in.
  *
  * Someone else's sketch opens read-only: the photo and its details.
  */
@@ -136,23 +129,8 @@ export default function EditSketch() {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleteError, setDeleteError] = useState(null)
 
-  // ===== STATE: FEEDBACK =====
-  // The final sketch photo is only uploaded on "Get feedback"; the upload
-  // starts the critique call in the background.
-  const [finalFile, setFinalFile] = useState(null)
-  const [finalPreview, setFinalPreview] = useState(null)
-  // The style the sketcher drew in, picked with the final sketch. It
-  // chooses the critique's persona. Starts from the sketch's saved style.
-  const [finalStyle, setFinalStyle] = useState(null)
-  const [uploading, setUploading] = useState(false)
-  const [uploadError, setUploadError] = useState(null)
-  const libraryInputRef = useRef(null)
-  const cameraInputRef = useRef(null)
-  const pickRef = useRef(0) // latest final-sketch pick, see handleFinalFile
-  const [planImgRef, planRect] = usePaintedRect()
 
   const isOwner = sketch?.is_owner === true
-  const critiqueProgress = useStagedProgress({ count: 3, stepMs: 9000, active: sketch?.critique_status === 'pending' })
 
   // ===== LOAD =====
 
@@ -161,10 +139,6 @@ export default function EditSketch() {
       try {
         const { data } = await api.get(`/api/sketches/${sketchId}`)
         setSketch(data)
-        // A sketch with a final sketch opens on its feedback.
-        // A sketch with a final sketch opens on its feedback, unless the
-        // page that opened it asked for a tab.
-        if (!askedTab && routerLocation.state?.mode !== 'create' && data.final_sketch_url) setTab('feedback')
       } catch (err) {
         setLoadError(err.response?.status === 404 ? 'not_found' : 'error')
       }
@@ -216,21 +190,6 @@ export default function EditSketch() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sketch?.id, isOwner, mode])
 
-  // While the critique call runs in the background, re-fetch the sketch
-  // every few seconds until its status leaves 'pending'.
-  useEffect(() => {
-    if (sketch?.critique_status !== 'pending') return
-    const timer = setInterval(async () => {
-      try {
-        const { data } = await api.get(`/api/sketches/${sketchId}`)
-        setSketch(data)
-      } catch {
-        // Keep polling. A dropped request shouldn't end the wait.
-      }
-    }, 4000)
-    return () => clearInterval(timer)
-  }, [sketch?.critique_status, sketchId])
-
   // Unsaved Details (title, field notes, location).
   function detailsDirty() {
     return (
@@ -244,7 +203,7 @@ export default function EditSketch() {
   function requestClose() {
     if (!sketch || !isOwner) return closeModal()
     if (mode === 'create') return setConfirmingClose('sketch')
-    if (detailsDirty() || finalFile) return setConfirmingClose('changes')
+    if (detailsDirty()) return setConfirmingClose('changes')
     closeModal()
   }
 
@@ -288,13 +247,16 @@ export default function EditSketch() {
     setMarkTap((prev) => ({ id: hit?.id ?? null, n: (prev?.n || 0) + 1 }))
   }
 
-  // Start Sketching (create mode): saves any unsaved Details, then closes.
+  // Start Sketching (create mode): saves any unsaved Details, then opens
+  // the sketch's SketchDetail page, where its uploads go (design doc,
+  // item 38).
   async function handleStartSketching() {
     if (detailsDirty() && !(await handleSave())) {
       setTab('details') // show the save error instead of closing
       return
     }
-    closeModal()
+    notifySketchesChanged()
+    navigate(`/sketches/${sketchId}`, { replace: true })
   }
 
   // ===== DETAILS: SAVE AND DELETE =====
@@ -339,67 +301,6 @@ export default function EditSketch() {
     }
   }
 
-  // ===== FEEDBACK =====
-
-  // HEIC photos need converting before they can be previewed (previewUrl).
-  // pickRef drops a slow conversion if another photo was picked meanwhile.
-  async function handleFinalFile(e) {
-    const f = e.target.files?.[0]
-    e.target.value = ''
-    if (!f) return
-    const pick = ++pickRef.current
-    setUploadError(null)
-    try {
-      const url = await previewUrl(f)
-      if (pick !== pickRef.current) return URL.revokeObjectURL(url)
-      if (finalPreview) URL.revokeObjectURL(finalPreview)
-      setFinalFile(f)
-      setFinalPreview(url)
-      setFinalStyle((cur) => cur || sketch?.style || null)
-    } catch {
-      if (pick === pickRef.current) setUploadError('Could not open this photo. Try a JPEG or PNG.')
-    }
-  }
-
-  function clearFinal() {
-    pickRef.current++
-    if (finalPreview) URL.revokeObjectURL(finalPreview)
-    setFinalFile(null)
-    setFinalPreview(null)
-  }
-
-  // Saves the final sketch. The backend then starts the critique call on
-  // its own and returns right away with critique_status 'pending'.
-  async function handleGetFeedback() {
-    setUploading(true)
-    setUploadError(null)
-    try {
-      const form = new FormData()
-      form.append('image', finalFile)
-      form.append('style', finalStyle)
-      const { data } = await api.post(`/api/sketches/${sketchId}/final-sketch`, form)
-      setSketch((prev) => ({ ...prev, ...data }))
-      clearFinal()
-      setTimeout(() => stripRef.current?.show('final'), 100) // once its panel exists
-    } catch (err) {
-      setUploadError(err.response?.data?.detail || 'Could not upload your sketch.')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  // After a failed run, or for a sketch uploaded without feedback.
-  async function handleRetryCritique() {
-    try {
-      const form = new FormData()
-      form.append('sketch_id', sketchId)
-      await api.post('/api/critique', form)
-      setSketch((prev) => ({ ...prev, critique_status: 'pending' }))
-    } catch {
-      setUploadError('Could not start feedback right now.')
-    }
-  }
-
   // ===== RENDER: LOADING / ERROR =====
 
   const modalTitle = mode === 'create' ? 'New Sketch' : 'Edit Sketch'
@@ -419,8 +320,6 @@ export default function EditSketch() {
   const referenceImageUrl = resolveUrl(sketch.reference_image_url)
   const originalImageUrl = resolveUrl(sketch.original_image_url || sketch.reference_image_url)
   const finalSketchUrl = resolveUrl(sketch.final_sketch_url)
-  const latestCritique = sketch.critiques?.[sketch.critiques.length - 1] || null
-  const critiquePending = sketch.critique_status === 'pending'
   // Erased marks stay in the data for the critique but are never shown or counted.
   const marks = (sketch.marks || [])
     .filter((m) => !m.erased)
@@ -554,8 +453,8 @@ export default function EditSketch() {
       )}
     </div>
   )
-  // Create mode: Start Sketching, once the plan read is back. Edit mode:
-  // Get Feedback opens the Feedback tab, the next step after the plan.
+  // Create mode: Start Sketching, once the plan read is back. Uploads and
+  // feedback live on the SketchDetail page (design doc, item 38).
   const guideTab = (
     <>
       {guidePanel}
@@ -563,16 +462,6 @@ export default function EditSketch() {
         <div className="sc-footer">
           <Button variant="action" className="ml-auto" onClick={handleStartSketching} disabled={saving}>
             Start Sketching
-          </Button>
-        </div>
-      )}
-      {mode === 'edit' && isOwner && (
-        <div className="sc-footer">
-          <Button variant="action" className="ml-auto" onClick={() => {
-            setTab('feedback')
-            if (finalSketchUrl) stripRef.current?.show('final')
-          }}>
-            Get Feedback
           </Button>
         </div>
       )}
@@ -659,142 +548,8 @@ export default function EditSketch() {
       </div>
       <div className="sc-footer">
         {savedJustNow && <span className="mr-auto text-base text-sc-text3">Saved</span>}
-        <Button variant="secondaryOnDark" className="ml-auto" onClick={() => setTab('feedback')}>See feedback</Button>
-        <Button variant="action" onClick={handleSaveClick} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+        <Button variant="action" className="ml-auto" onClick={handleSaveClick} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
       </div>
-    </>
-  )
-
-  // Photo · Plan · Sketch, side by side, scrolling sideways.
-  const imageStrip = (
-    <div className="-mx-6 flex shrink-0 snap-x snap-mandatory scroll-px-6 gap-2.5 overflow-x-auto px-6 pb-0.5">
-      <figure className="flex w-[150px] shrink-0 snap-start flex-col gap-1.5">
-        <img src={referenceImageUrl} alt="Reference photo" className="h-[200px] w-full rounded-xl bg-black object-cover" />
-        <figcaption className="text-base font-bold text-sc-text2">Photo</figcaption>
-      </figure>
-      <figure className="flex w-[150px] shrink-0 snap-start flex-col gap-1.5">
-        <div className="relative h-[200px] w-full overflow-hidden rounded-xl bg-black">
-          <img ref={planImgRef} src={referenceImageUrl} alt="Your plan" className="h-full w-full object-contain opacity-80" />
-          {planRect && (
-            <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" className="pointer-events-none absolute" style={planRect}>
-              <MarksLayer marks={marks} />
-            </svg>
-          )}
-        </div>
-        <figcaption className="text-base font-bold text-sc-text2">Plan</figcaption>
-      </figure>
-      {finalSketchUrl && (
-        <figure className="flex w-[150px] shrink-0 snap-start flex-col gap-1.5">
-          <img src={finalSketchUrl} alt="Your sketch" className="h-[200px] w-full rounded-xl bg-black object-cover" />
-          <figcaption className="text-base font-bold text-sc-text2">Sketch</figcaption>
-        </figure>
-      )}
-    </div>
-  )
-
-  let feedbackBody
-  let feedbackFooter
-  if (critiquePending) {
-    // Working. Doesn't block the other tabs.
-    feedbackBody = (
-      <>
-        {finalSketchUrl && (
-          // Scans while the AI reads it.
-          <div className="sc-scan relative overflow-hidden rounded-2xl bg-black">
-            <img src={finalSketchUrl} alt="Your sketch" className="max-h-[300px] w-full object-contain" />
-          </div>
-        )}
-        <ProgressSteps
-          heading="Reading your sketch…"
-          current={critiqueProgress.current}
-          seconds={critiqueProgress.seconds}
-          steps={[
-            { label: 'Matching it to your photo' },
-            { label: 'Checking your plan' },
-            { label: 'Writing your feedback' },
-          ]}
-        />
-        <p className="sc-body">This can take a minute. You can switch tabs or keep drawing; the result waits here.</p>
-      </>
-    )
-  } else if (finalPreview) {
-    // Confirm the sketch photo before asking for feedback.
-    feedbackBody = (
-      <>
-        <img src={finalPreview} alt="Your sketch" className="max-h-[360px] w-full rounded-2xl bg-black object-contain" />
-        <p className="text-md text-sc-text2">Is the whole page flat and in focus? Crop out your hand and the table.</p>
-        <div className="flex gap-2">
-          <Button variant="choice" className="flex-1 text-center" onClick={() => cameraInputRef.current?.click()}>Retake</Button>
-          <Button variant="choice" className="flex-1 text-center" onClick={() => libraryInputRef.current?.click()}>Choose another</Button>
-        </div>
-        <p className="text-md text-sc-text2">Which style did you sketch in? Feedback comes from an artist who works in it.</p>
-        <StylePicker style={finalStyle} disabled={uploading} onSelectStyle={setFinalStyle} />
-      </>
-    )
-    feedbackFooter = (
-      <>
-        <Button variant="secondaryOnDark" className="mr-auto" onClick={clearFinal} disabled={uploading}>Back</Button>
-        <Button variant="action" onClick={handleGetFeedback} disabled={uploading || !finalStyle}>{uploading ? 'Uploading…' : 'Get feedback'}</Button>
-      </>
-    )
-  } else if (finalSketchUrl) {
-    // Result (or a failed / missing critique for this photo).
-    feedbackBody = (
-      <>
-        {imageStrip}
-        {latestCritique ? (
-          <>
-            <p className="whitespace-pre-line text-sm font-medium leading-normal text-white/90">{latestCritique.critique}</p>
-            <JourneyTrace trace={latestCritique.decision_trace} />
-          </>
-        ) : sketch.critique_status === 'failed' ? (
-          <p className="text-base text-accent">Could not get feedback this time.</p>
-        ) : (
-          <p className="sc-body">No feedback on this sketch yet.</p>
-        )}
-      </>
-    )
-    feedbackFooter = (
-      <>
-        <Button variant="secondaryOnDark" onClick={() => libraryInputRef.current?.click()}>New sketch photo</Button>
-        {!latestCritique && <Button variant="action" onClick={handleRetryCritique}>Get feedback</Button>}
-      </>
-    )
-  } else {
-    // No sketch yet.
-    feedbackBody = (
-      <>
-      <Button className="w-full h-full flex flex-1 p-0 block reset-button-styles"
-        onClick={() => cameraInputRef.current?.click()}>
-        <div className="sc-dropzone min-h-[260px]">
-          <img src={cameraWhite} alt="camera" className="h-16 w-16 text-white" />
-          <p className="font-heading text-xl font-semibold leading-snug">Photograph your finished sketch</p>
-          <p className="max-w-[280px] text-md text-sc-text3">Feedback compares it with your photo and the plan you made.</p>
-        </div>
-        
-        </Button>
-        <p className="text-sm text-sc-text2">
-          <b className="text-white">Your plan:</b>{' '}
-          {marks.length === 1 ? '1 stroke' : `${marks.length} strokes`}
-          {styleLabel && `, ${styleLabel}`}.
-        </p>
-      </>
-    )
-    feedbackFooter = (
-      <>
-        <Button variant="secondaryOnDark" onClick={() => libraryInputRef.current?.click()}>From library</Button>
-        <Button variant="action" onClick={() => cameraInputRef.current?.click()}>Take photo</Button>
-      </>
-    )
-  }
-
-  const feedbackPanel = (
-    <>
-      <div className="sc-panel-body gap-3.5">
-        {feedbackBody}
-        {uploadError && <p className="text-base text-accent">{uploadError}</p>}
-      </div>
-      {feedbackFooter && <div className="sc-footer">{feedbackFooter}</div>}
     </>
   )
 
@@ -853,11 +608,9 @@ export default function EditSketch() {
         onConfirm={handleDelete}
         onCancel={() => setConfirmingDelete(false)}
       />
-      <input ref={libraryInputRef} type="file" accept="image/*,.heic" onChange={handleFinalFile} className="hidden" />
-      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFinalFile} className="hidden" />
 
       {/* ===== LEFT: PHOTO STAGE (sideways strip) ===== */}
-      <StageStrip ref={stripRef} panels={panels} focusKey={tab === 'feedback' && finalSketchUrl ? 'final' : 'plan'} />
+      <StageStrip ref={stripRef} panels={panels} focusKey="plan" />
 
       {/* ===== RIGHT: TABS ===== */}
       <div className="sc-panel sc-sheet">
@@ -886,7 +639,6 @@ export default function EditSketch() {
                   survives a trip to another tab. */}
               <div className={tab === 'guide' ? 'flex min-h-0 flex-1 flex-col' : 'hidden'}>{guideTab}</div>
               {tab === 'details' && detailsPanel}
-              {tab === 'feedback' && feedbackPanel}
             </div>
           </>
         ) : (

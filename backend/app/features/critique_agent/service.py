@@ -8,7 +8,8 @@ up to three images, in this order (core/composite.py):
   1. the untouched original photo -- always
   2. the planning image: framed photo + focal points + planning marks --
      only when the sketcher reframed, marked focal points or drew marks
-  3. the final sketch, when uploaded
+  3. up to two progress sketches (the first and the last), when uploaded
+  4. the final sketch, when uploaded
 
 Prompt text: prompts/critique_agent.md plus one prompts/*_image.md or
 final_sketch.md sentence per attached image. Starting
@@ -23,7 +24,7 @@ from PIL import Image
 from sqlalchemy.orm import Session
 
 from app.core import debug
-from app.core.models import Sketch, Persona, CritiqueResponse, HelpQuestLog
+from app.core.models import Sketch, Persona, CritiqueResponse, HelpQuestLog, SketchUpload
 from app.core.prompt_loader import render_prompt
 from app.core.composite import (
     describe_focal_points,
@@ -266,6 +267,22 @@ def run_critique(db: Session, sketch: Sketch) -> None:
         images.append(composite)
         note = PROMPTS / ("reframed_image.md" if was_reframed(sketch) else "unchanged_image.md")
         image_notes.append(render_prompt(note, n=len(images), planning_image=planning_image))
+    # Progress sketches (design doc, items 35 and 38): the first and the
+    # last before the final, so the coach sees how the sketch was built.
+    progress = [
+        u for u in db.query(SketchUpload)
+        .filter(SketchUpload.sketch_id == sketch.id)
+        .order_by(SketchUpload.position.asc(), SketchUpload.created_at.asc())
+        .all()
+        if u.url != sketch.final_sketch_url
+    ]
+    picked = [(i, u) for i, u in enumerate(progress) if i in {0, len(progress) - 1}]
+    for i, u in picked:
+        try:
+            images.append(Image.open(UPLOAD_DIR / Path(u.url).name).convert("RGB"))
+        except Exception:
+            continue
+        image_notes.append(render_prompt(PROMPTS / "progress_sketch.md", n=len(images), k=i + 1, total=len(progress)))
     if final_image is not None:
         images.append(final_image)
         image_notes.append(render_prompt(PROMPTS / "final_sketch.md", n=len(images)))

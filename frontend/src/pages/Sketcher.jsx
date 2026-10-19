@@ -15,6 +15,7 @@ import FollowersPanel from '../components/sketcher/FollowersPanel'
 import { paintById, paintForKitItem } from '../data/paints'
 import { api } from '../lib/api'
 import { dateLabel, imageUrl } from '../lib/media'
+import { getSketchStatus } from '../lib/sketchStatus'
 import { useSketchesVersion } from '../lib/sketchEvents'
 
 /**
@@ -389,7 +390,7 @@ export default function Sketcher({ handle: handleProp }) {
               </span>
             </div>
             <SketchListMapView cols={4}
-              items={inProgress.map((s) => toItem(s, { meta: 'Sketching…', href: `/sketches/${s.id}/edit`, linkState: { backgroundLocation: location } }))} />
+              items={inProgress.map((s) => toItem(s, { meta: getSketchStatus(s), href: `/sketches/${s.id}` }))} />
           </section>
         )}
       </main>

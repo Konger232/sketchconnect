@@ -22,8 +22,8 @@ export default function SketchCard({ sketch }) {
   const status = getSketchStatus(sketch)
   const location = useLocation()
   
-  // A shared sketch (one with a final sketch) opens its page. One still in
-  // progress opens Edit Sketch over the current page.
+  // Every sketch opens its SketchDetail page, finished or not (design doc,
+  // item 38). Only shared sketches take likes.
   const shared = Boolean(sketch.final_sketch_url)
   const isOwner = Boolean(sketch.is_owner)
 
@@ -46,11 +46,8 @@ export default function SketchCard({ sketch }) {
       setLike(before)
     }
   }
-  const href = shared ? `/sketches/${sketch.id}` : `/sketches/${sketch.id}/edit`
-  const sketchLinkState = shared ? undefined : { backgroundLocation: location }
-
   return (
-    <Link to={href} state={sketchLinkState} className="flex flex-col text-left">
+    <Link to={`/sketches/${sketch.id}`} className="flex flex-col text-left">
       <div className="photo-placeholder relative aspect-[4/3] overflow-hidden rounded-[4px]">
         {activeImage && <img src={activeImage} alt="" className="absolute inset-0 h-full w-full object-cover" />}
         {shared && (

@@ -183,3 +183,24 @@ create policy "own likes" on sketch_likes for all using (auth.uid() = sketcher_i
 drop policy if exists "own comments" on sketch_comments;
 create policy "own comments" on sketch_comments for all using (auth.uid() = author_id);
 
+-- Sketch uploads: progress sketches and the final (design doc, items 35
+-- and 38, October 19, 2026). Safe to run again.
+create table if not exists sketch_uploads (
+  id uuid primary key default gen_random_uuid(),
+  sketch_id uuid not null references sketches (id) on delete cascade,
+  sketcher_id uuid not null references auth.users (id) on delete cascade,
+  url text not null,
+  position integer not null default 0,
+  created_at timestamptz not null default now()
+);
+create index if not exists sketch_uploads_sketch_idx on sketch_uploads (sketch_id, position);
+alter table sketch_uploads enable row level security;
+drop policy if exists "own uploads" on sketch_uploads;
+create policy "own uploads" on sketch_uploads for all using (auth.uid() = sketcher_id);
+-- Copy each existing final sketch in once, as that sketch's only upload.
+insert into sketch_uploads (sketch_id, sketcher_id, url, position, created_at)
+select s.id, s.sketcher_id, s.final_sketch_url, 0, coalesce(s.created_at, now())
+from sketches s
+where s.final_sketch_url is not null
+  and not exists (select 1 from sketch_uploads u where u.sketch_id = s.id and u.url = s.final_sketch_url);
+

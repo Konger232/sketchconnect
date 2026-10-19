@@ -255,3 +255,17 @@ class SketchComment(Base):
     body = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+class SketchUpload(Base):
+    """One sketch upload: a progress sketch or the final (design doc,
+    items 35 and 38). The final is the upload whose url equals
+    sketches.final_sketch_url. `position` is the sketcher's order."""
+    __tablename__ = "sketch_uploads"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    sketch_id = Column(UUID(as_uuid=False), ForeignKey("sketches.id", ondelete="CASCADE"), nullable=False, index=True)
+    sketcher_id = Column(UUID(as_uuid=False), nullable=False)
+    url = Column(String, nullable=False)
+    position = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
