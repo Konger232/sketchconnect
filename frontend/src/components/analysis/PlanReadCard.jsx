@@ -175,6 +175,12 @@ export default function PlanReadCard({
       <p className="font-heading text-question font-bold text-white">
         {carried.length ? 'Your plan' : 'Ideas for this scene'}
       </p>
+      {/* How to use the tips, in one line. */}
+      <p className="-mt-1 text-sm text-sc-text3">
+        {carried.length
+          ? 'Tap a tip to see the strokes behind it. Bookmark the ones to keep in mind when you pull out your sketchbook.'
+          : 'Bookmark the ones to keep in mind when you pull out your sketchbook.'}
+      </p>
       {carried.length ? top.map(block) : <div className="sc-options">{ideas.slice(0, 2).map(ideaRow)}</div>}
       {hasMore && (
         <button

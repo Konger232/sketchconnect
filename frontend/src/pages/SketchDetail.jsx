@@ -135,6 +135,20 @@ export default function SketchDetail() {
   const sketchPaints = (s.palettes?.sketch || []).map(paintById).filter(Boolean)
   const latestCritique = viewer === 'owner' ? s.critiques?.[s.critiques.length - 1] : null
   const carried = (s.plan_read?.principles || []).filter((p) => p.group !== 'none')
+  // A principle's tips, as the Plan tab lists them (PlanReadCard): its own,
+  // then its relationships' tips, at most 3.
+  const tipsOf = (p) => [
+    ...(p.tips || []),
+    ...(s.plan_read?.relationships || []).filter((r) => r.principle === p.principle).flatMap((r) => r.tips || []),
+  ].slice(0, 3)
+  // The owner's bookmarks: the last choice per tip wins.
+  const bookmarked = new Set()
+  for (const c of s.session_choices || []) {
+    if (c.key !== 'bookmark') continue
+    const k = `${c.principle}:${c.response}`
+    if (c.bookmarked) bookmarked.add(k)
+    else bookmarked.delete(k)
+  }
   const media = (s.media || [])
   const mediaRows = MEDIA.map((g) => ({ group: g.group, items: g.items.filter(([k]) => media.includes(k)).map(([, label]) => label) })).filter((g) => g.items.length)
   const imageCount = uploads.length + (reference ? 1 : 0) + (s.marks?.length ? 1 : 0)
@@ -335,18 +349,28 @@ export default function SketchDetail() {
         {/* ---- Group 2: The plan ---- */}
         {reference && (s.marks?.length > 0 || carried.length > 0 || s.plan_short?.length > 0) && (
           <section className="ed-section">
-            <h2 className="ed-kicker m-0">The plan</h2>
+            <h2 className="ed-kicker m-0">The composition plan</h2>
             <div className="grid gap-8 md:grid-cols-2 md:gap-14">
               <PlanImage src={reference} marks={s.marks || []} />
               <div className="flex flex-col">
-                <h3 className="m-0 font-sans text-lg font-normal">Plan</h3>
+                {viewer === 'owner' && carried.length > 0 && (
+                  <p className="ed-note m-0 pb-2">What the AI read in your strokes. Your bookmarked tips are marked.</p>
+                )}
                 <dl className="m-0">
                   {viewer === 'owner' && carried.map((p) => (
                     <div key={p.principle} className="ed-row">
                       <dt>{p.principle}</dt>
                       <dd className="flex flex-col gap-1">
                         {p.why && <span>{p.why}</span>}
-                        {p.tips?.slice(0, 2).map((t) => <span key={t.name} className="ed-note">{t.name}: {t.tip}</span>)}
+                        {tipsOf(p).map((t) => {
+                          const on = bookmarked.has(`${p.principle}:${t.name}`)
+                          return (
+                            <span key={t.name} className={`ed-note flex items-start gap-2 ${on ? '-ml-2 bg-[var(--ed-field-bg)] py-1 pl-2 pr-2 text-ink/80' : ''}`}>
+                              <span className="flex-1">{t.name}: {t.tip}</span>
+                              {on && <Icon name="bookmark-filled" size={14} className="mt-0.5 shrink-0" aria-label="Bookmarked" />}
+                            </span>
+                          )
+                        })}
                       </dd>
                     </div>
                   ))}
