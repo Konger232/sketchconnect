@@ -15,6 +15,7 @@ import { useValueStudy } from '../lib/useValueStudy'
 import { api } from '../lib/api'
 import ValuePanel from '../components/studies/ValuePanel'
 import ColorPanel from '../components/studies/ColorPanel'
+import { DEFAULT_MASK } from '../components/studies/GamutWheel'
 import { SamplePhoto, MaskedPhoto } from '../components/studies/ColorStage'
 import { PAINTS, paintById, paintForKitItem } from '../data/paints'
 import { runGuideAnalysis } from '../lib/guideAnalysis'
@@ -449,7 +450,7 @@ export default function EditSketch() {
     : tab === 'color'
       ? [
           { key: 'sample', label: 'Tap to sample', content: <SamplePhoto src={referenceImageUrl} onSample={setColorSample} /> },
-          { key: 'mask', label: 'In your colours', content: <MaskedPhoto src={referenceImageUrl} corners={maskCorners} /> },
+          { key: 'mask', label: 'In your colours', content: <MaskedPhoto src={referenceImageUrl} corners={maskCorners.length >= 3 ? maskCorners : DEFAULT_MASK} /> },
         ]
       : null
   const panels = studyPanels || [

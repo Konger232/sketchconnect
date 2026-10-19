@@ -8,9 +8,12 @@ const C = SIZE / 2 // the centre
 const RW = W / 2 // the wheel's radius
 const CORNER_HIT = 24 // about 44px at the wheel's usual size
 const DOT_HIT = 13
-const SNAP = 15
+const SNAP = 9 // a corner dropped this close to a paint dot sits on it
 const REMOVE_AT = RW + 34 // drag a corner past the letters to remove it
 export const MAX_CORNERS = 6
+export const MIN_CORNERS = 3
+// The starting mask: an even triad in the middle (yellow, cyan, magenta).
+export const DEFAULT_MASK = [60, 180, 300].map((h) => ({ h, c: 0.6, paint_id: null }))
 
 // Kept simple, as the reference wheel: 12 hues in 9 rings of flat colour,
 // thin lines between the cells, grey at the centre.
@@ -34,26 +37,22 @@ function cellPath(k, i) {
 }
 const cellFill = (k, i) => `hsl(${k * (360 / SECTORS)} ${Math.round(((i + 0.5) / RINGS) * 85)}% 55%)`
 
-// A free corner snaps to the centre of the cell it falls in.
-function snapToCell({ h, c }) {
-  const k = Math.round(h / (360 / SECTORS)) % SECTORS
-  const i = Math.min(RINGS - 1, Math.floor(Math.min(1, c) * RINGS))
-  return { h: k * (360 / SECTORS), c: (i + 0.5) / RINGS }
-}
 
 /**
  * The gamut mask wheel (design doc, item 37): Tobey Sanford's Yurmby
  * wheel, the sketcher's paints as small dots, and the mask's corners.
- * Each tap does one thing:
- *   tap a paint dot            puts it in the mask, or takes it out
+ * The mask is a shape on the wheel (Gurney): it starts as a triangle in
+ * the middle, and the sketcher shapes it.
+ *   press and drag a corner    moves it anywhere (mouse or finger); it
+ *                              sits on a paint dot when dropped close
+ *   drag a corner off the rim  removes it, down to 3 corners
  *   tap inside the mask        shows the mix there (onSample)
- *   drag a corner              moves it to any cell; it snaps to a paint
- *   drag a corner off the rim  removes it; the others reconnect
+ * Paint dots are guides, not controls. Outside the mask is greyed out.
  *
  *   corners   [{ h, c, paint_id }]   in the order placed
  *   paints    [{ id, name, hex }]    shown as dots
  *   onChange(corners, { done })     done: false while a corner moves
- *   onFocus(item)  the paint or corner last touched, for its label
+ *   onFocus({ index })  the corner last pressed
  *   sample    { h, c } | null       a ring where the shown mix sits
  *   readOnly  no edits (the plan is locked)
  */
@@ -61,7 +60,6 @@ export default function GamutWheel({ corners, paints, onChange, onFocus, onSampl
   const svgRef = useRef(null)
   const drag = useRef(null) // { index, moved }
   const [removing, setRemoving] = useState(false)
-  const [full, setFull] = useState(false)
 
   const dots = useMemo(() => paints.map((p) => {
     const w = hexToWheel(p.hex)
@@ -83,40 +81,28 @@ export default function GamutWheel({ corners, paints, onChange, onFocus, onSampl
   function down(e) {
     if (readOnly) return
     const p = toSvg(e)
-    const hit = pts.findIndex((q) => dist(p, q) < CORNER_HIT)
+    // Press a corner to move it (the nearest one under the finger).
+    let hit = -1, hd = CORNER_HIT
+    pts.forEach((q, i) => { const d = dist(p, q); if (d < hd) { hd = d; hit = i } })
     if (hit >= 0) {
       drag.current = { index: hit, moved: false }
       svgRef.current.setPointerCapture(e.pointerId)
-      const c = corners[hit]
-      onFocus?.(c.paint_id ? { paint: paints.find((x) => x.id === c.paint_id) } : { corner: c })
+      onFocus?.({ index: hit })
       return
     }
-    const dot = nearestDot(p, DOT_HIT)
-    if (dot) {
-      onFocus?.({ paint: dot })
-      if (corners.some((c) => c.paint_id === dot.id)) {
-        onChange(corners.filter((c) => c.paint_id !== dot.id), { done: true })
-        return
-      }
-      if (corners.length >= MAX_CORNERS) return setFull(true)
-      onChange([...corners, { h: dot.h, c: dot.c, paint_id: dot.id }], { done: true })
-      return
-    }
-    if (pts.length >= 3 && pointInPolygon(p, pts)) {
-      onSample?.(xyw(...p))
-      return
-    }
-    // Empty wheel: nothing. Paints are picked from the dots or the list.
+    // Inside the mask: the mix there.
+    if (pts.length >= 3 && pointInPolygon(p, pts)) onSample?.(xyw(...p))
   }
 
   function move(e) {
     if (!drag.current) return
     const p = toSvg(e)
     drag.current.moved = true
-    const out = dist(p, [C, C]) > REMOVE_AT
+    const out = corners.length > MIN_CORNERS && dist(p, [C, C]) > REMOVE_AT
     setRemoving(out)
     const dot = !out && nearestDot(p, SNAP)
-    const next = dot ? { h: dot.h, c: dot.c, paint_id: dot.id } : { ...snapToCell(xyw(...p)), paint_id: null }
+    const w = xyw(...p)
+    const next = dot ? { h: dot.h, c: dot.c, paint_id: dot.id } : { h: w.h, c: Math.min(1, w.c), paint_id: null }
     onChange(corners.map((c, i) => (i === drag.current.index ? next : c)), { done: false })
   }
 
@@ -126,7 +112,6 @@ export default function GamutWheel({ corners, paints, onChange, onFocus, onSampl
     drag.current = null
     if (removing) {
       setRemoving(false)
-      setFull(false)
       onChange(corners.filter((_, i) => i !== index), { done: true })
       onFocus?.(null)
       return
@@ -166,9 +151,9 @@ export default function GamutWheel({ corners, paints, onChange, onFocus, onSampl
             return <text key={letter} x={x} y={y} textAnchor="middle" dominantBaseline="central" fill="#fff" fontSize="14" fontWeight="700">{letter}</text>
           })}
         </g>
-        {veil && <path d={veil} fillRule="evenodd" fill="rgba(10,12,20,0.6)" clipPath="url(#wheel-clip)" />}
+        {veil && <path d={veil} fillRule="evenodd" fill="rgba(150,150,150,0.62)" clipPath="url(#wheel-clip)" />}
         {dots.map((d) => (
-          <g key={d.id} data-paint={d.id}>
+          <g key={d.id} data-paint={d.id} pointerEvents="none">
             <circle cx={d.xy[0]} cy={d.xy[1]} r={8} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth={1.5} />
             <circle cx={d.xy[0]} cy={d.xy[1]} r={6.5} fill={d.hex} stroke="#fff" strokeWidth={1.8} />
           </g>
@@ -189,7 +174,6 @@ export default function GamutWheel({ corners, paints, onChange, onFocus, onSampl
           )
         })}
       </svg>
-      {full && <p className="absolute -bottom-6 inset-x-0 text-center text-sm text-sc-text3">Up to {MAX_CORNERS} corners.</p>}
     </div>
   )
 }
