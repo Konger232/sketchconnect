@@ -4,6 +4,7 @@ import ConfirmDialog from '../common/ConfirmDialog'
 import FloatPanel from '../common/FloatPanel'
 import { api } from '../../lib/api'
 import { supabase } from '../../lib/supabaseClient'
+import { useAuth } from '../common/AuthContext'
 
 const LINKS = [
   { key: 'instagram', label: 'Instagram', placeholder: 'instagram.com/yourname' },
@@ -21,6 +22,12 @@ const MAX_FEATURED = 5
  * before (the old EditProfilePage).
  */
 export default function EditProfilePanel({ profile, shared, userId, onClose, onSaved }) {
+  // The sign-in email, shown read-only. Google owns a Google account's
+  // email; changing an email account's address would need Supabase's
+  // confirm-by-email flow, which is not built. Only the owner sees this.
+  const { user } = useAuth()
+  const providers = user?.app_metadata?.providers || [user?.app_metadata?.provider].filter(Boolean)
+  const signInNote = providers.includes('google') ? 'Signed in with Google' : 'Signed in with email and password'
   const [form, setForm] = useState({
     display_name: profile.display_name || '',
     handle: profile.handle || '',
@@ -108,6 +115,13 @@ export default function EditProfilePanel({ profile, shared, userId, onClose, onS
           <span>Name</span>
           <input className="field-input mt-1.5" value={form.display_name} maxLength={80} onChange={(e) => set('display_name', e.target.value)} />
         </label>
+        {user?.email && (
+          <div className="block">
+            <span className="text-sm font-medium text-ink/70">Email</span>
+            <input className="field-input mt-1.5 cursor-not-allowed bg-ink/5 text-ink/60" value={user.email} readOnly aria-readonly="true" aria-label="Email" tabIndex={-1} />
+            <span className="mt-1 block text-xs text-ink/50">{signInNote}. Only you see this.</span>
+          </div>
+        )}
         <label className="block">
           <span>Handle</span>
           <input className="field-input mt-1.5" value={form.handle} maxLength={31}
