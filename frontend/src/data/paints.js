@@ -20,6 +20,11 @@ export const PAINTS = [
   { id: 'po20', code: 'PO20', codes: ['PO20'], name: 'Cadmium Orange', hex: '#e86f2a' },
   { id: 'pr255', code: 'PR255', codes: ['PR255'], name: 'Pyrrol Scarlet', hex: '#d33a2c' },
   { id: 'pr108', code: 'PR108', codes: ['PR108'], name: 'Cadmium Red', hex: '#c8322b' },
+  // Crimsons: cool reds, leaning toward blue. "Crimson" is a marketing
+  // name; the pigment behind it varies by brand (PR83, PR264, PV19 blends),
+  // so the sketcher picks by the pigment on the tube.
+  { id: 'pr83', code: 'PR83', codes: ['PR83'], name: 'Alizarin Crimson', hex: '#9e1f3a' },
+  { id: 'pr264', code: 'PR264', codes: ['PR264'], name: 'Pyrrole Crimson', hex: '#b22a3c' },
   { id: 'pv19', code: 'PV19', codes: ['PV19'], name: 'Quinacridone Rose', hex: '#c23b6e' },
   { id: 'pr122', code: 'PR122', codes: ['PR122'], name: 'Quinacridone Magenta', hex: '#a8326b' },
   { id: 'pv23', code: 'PV23', codes: ['PV23'], name: 'Dioxazine Violet', hex: '#4b2c6e' },
