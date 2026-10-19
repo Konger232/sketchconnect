@@ -278,7 +278,7 @@ export default function SketchDetail() {
         {/* ---- Hero gallery ---- */}
         <section className="flex flex-col gap-2">
           <div className="grid gap-2 md:grid-cols-[2fr_1fr]">
-            <div className="photo-placeholder relative flex aspect-[4/5] items-center justify-center overflow-hidden md:aspect-auto md:h-[520px]">
+            <div className={`${heroImage ? 'bg-black' : 'photo-placeholder'} relative flex aspect-[4/5] items-center justify-center overflow-hidden md:aspect-auto md:h-[520px]`}>
               {heroImage && <img src={heroImage} alt={s.title || 'Sketch'} className="max-h-full max-w-full object-contain" />}
               {imageCount > 1 && (
                 <button type="button" onClick={() => sketchGroupRef.current?.scrollIntoView({ behavior: 'smooth' })}
