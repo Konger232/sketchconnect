@@ -28,7 +28,9 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
   const [preview, setPreview] = useState(null)
   const [kind, setKind] = useState(upload ? 'final' : hasFinal || pending ? 'progress' : 'final')
   const [voices, setVoices] = useState([])
-  const [voice, setVoice] = useState(sketch.persona_id || '')
+  // Starts on the last voice used (voice_default: this sketch's, else the
+  // one behind the latest feedback). '' is Your coach.
+  const [voice, setVoice] = useState(sketch.voice_default || '')
   const [sending, setSending] = useState(false)
   const [addingVoices, setAddingVoices] = useState(false) // the white Admired sketchers panel, over this modal
   const [error, setError] = useState(null)
@@ -39,7 +41,11 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
   const pickRef = useRef(0)
 
   useEffect(() => {
-    api.get('/api/admired').then(({ data }) => setVoices(data)).catch(() => setVoices([]))
+    api.get('/api/admired').then(({ data }) => {
+      setVoices(data)
+      // A voice since removed from the list falls back to Your coach.
+      setVoice((v) => (v && !data.some((x) => x.id === v) ? '' : v))
+    }).catch(() => setVoices([]))
   }, [])
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview) }, [preview])
 

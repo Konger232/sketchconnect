@@ -1073,6 +1073,19 @@ async def get_sketch(
         data["focal_suggestions"] = focal_list(sketch, sketch.cached_scene_analysis)
     data["uploads"] = uploads_to_list(sketch, _uploads(db, sketch.id))
     data["persona_id"] = sketch.persona_id
+    # The voice Upload sketch starts on: this sketch's, else the one behind
+    # the sketcher's latest feedback (None is "Your coach").
+    if sketch.final_sketch_url:
+        data["voice_default"] = sketch.persona_id
+    else:
+        last = (
+            db.query(Sketch.persona_id)
+            .join(CritiqueResponse, CritiqueResponse.sketch_id == Sketch.id)
+            .filter(Sketch.sketcher_id == sketch.sketcher_id)
+            .order_by(CritiqueResponse.created_at.desc())
+            .first()
+        )
+        data["voice_default"] = last[0] if last else None
     data["is_owner"] = True
     return data
 

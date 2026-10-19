@@ -151,6 +151,16 @@ def _persona_for(db: Session, sketch: Sketch) -> Persona | SimpleNamespace:
         picked = db.query(Persona).filter(
             Persona.id == sketch.persona_id, Persona.sketcher_id == sketch.sketcher_id
         ).first()
+        if picked is not None and not picked.voice and picked.admired_artist_name:
+            # Added moments ago, or its background build failed: build it now.
+            from app.features.persona.router import fill_admired_voice
+            try:
+                fill_admired_voice(picked)
+                db.commit()
+            except Exception as exc:
+                db.rollback()
+                print(f"[critique] voice for {picked.admired_artist_name!r} not ready ({exc}); using the generic coach")
+                return GENERIC_PERSONA
         if picked is not None:
             return picked
     persona = (
