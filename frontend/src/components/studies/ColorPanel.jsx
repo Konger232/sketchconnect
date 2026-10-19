@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import GamutWheel, { DEFAULT_MASK, MAX_CORNERS } from './GamutWheel'
 import {
-  centroid, clampToPolygon, hexToWheel, isStrong, mixHex, pointInPolygon, recipeText, toParts, weightsAt, wheelToXY, xyToWheel,
+  centroid, clampToPolygon, hexToWheel, isStrong, maskSize, mixHex, pointInPolygon, recipeText, resizeMask, toParts, weightsAt, wheelToXY, xyToWheel,
 } from '../../lib/colorWheel'
 
 const UNIT = 2 // the wheel in unit space for the maths: radius 1
+const SIZE_MIN = 0.06 // the mask size slider: mean corner distance from its centre
+const SIZE_MAX = 0.9
 
 // The paint closest to a wheel point: the paint a corner stands for.
 export function nearestPaint(point, paints) {
@@ -62,6 +64,7 @@ export default function ColorPanel({ corners: saved, onChange, paints, fromKit, 
   // Until the sketcher shapes it, the mask is the starting triangle.
   const corners = saved.length >= 3 ? saved : DEFAULT_MASK
   const pts = corners.map((c) => wheelToXY(c, UNIT))
+  const size = maskSize(corners)
 
   // Add a corner in the middle of the longest edge, to drag out from there.
   function addCorner() {
@@ -99,11 +102,24 @@ export default function ColorPanel({ corners: saved, onChange, paints, fromKit, 
       <p className="text-md text-white">
         {readOnly
           ? 'Your gamut mask. It is part of the plan, so it stays as it was when you shared the final sketch.'
-          : 'Drag the corners to shape your mask. The colours inside are the ones you will mix. Tap inside it, or on the photo, to see a mix.'}
+          : 'Drag a corner to reshape your mask, or drag inside it to move it. The colours inside are the ones you will mix. Click inside it, or on the photo, to see a mix.'}
       </p>
 
       <GamutWheel corners={corners} paints={paints} onChange={onChange} onFocus={setFocus}
         onSample={(w) => onSample({ ...w, from: 'wheel' })} sample={sample} readOnly={readOnly} />
+
+      {!readOnly && (
+        <div className="flex items-center gap-2">
+          <span className="w-20 shrink-0 text-sm font-semibold text-white">Mask size</span>
+          <button type="button" aria-label="Smaller mask" onClick={() => onChange(resizeMask(corners, Math.max(SIZE_MIN, size - 0.05)), { done: true })}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white hover:bg-white/10">−</button>
+          <input type="range" min={SIZE_MIN} max={SIZE_MAX} step={0.01} value={Math.min(SIZE_MAX, size)} aria-label="Mask size"
+            onChange={(e) => onChange(resizeMask(corners, Number(e.target.value)), { done: true })}
+            className="h-1.5 min-w-0 flex-1 accent-sc-guide" />
+          <button type="button" aria-label="Bigger mask" onClick={() => onChange(resizeMask(corners, Math.min(SIZE_MAX, size + 0.05)), { done: true })}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white hover:bg-white/10">+</button>
+        </div>
+      )}
 
       {!readOnly && (
         <div className="flex flex-wrap items-center gap-2">
@@ -124,8 +140,8 @@ export default function ColorPanel({ corners: saved, onChange, paints, fromKit, 
         <span className="sc-field-label">Corners · the closest {fromKit ? 'paint in your palette' : 'common paint'}</span>
         <div className="flex flex-wrap gap-2">
           {cornerPaints.map((p, i) => (
-            <span key={i} className="flex min-h-9 items-center gap-2 rounded-full border border-sc-border py-1 pl-1 pr-3 text-sm text-white">
-              <span className="h-7 w-7 shrink-0 rounded-full border border-white/40" style={{ background: p.hex }} />
+            <span key={i} className="flex min-h-9 items-center gap-2 rounded-full border border-sc-border py-1 pl-1.5 pr-3 text-sm text-white">
+              <span className="h-6 w-6 shrink-0 border border-white" style={{ background: p.hex }} />
               {p.name}
             </span>
           ))}
