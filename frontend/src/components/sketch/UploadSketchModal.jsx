@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import Button from '../common/Button'
 import SketchModal from '../common/SketchModal'
 import StageStrip, { StripImage } from '../analysis/StageStrip'
+import PhotoDropzone from '../common/PhotoDropzone'
 import { api } from '../../lib/api'
 import { previewUrl } from '../../lib/previewUrl'
-import cameraWhite from '../../assets/images/ico_camera_w.png'
 
 /**
  * Upload sketch (design doc, item 38): the black modal from New Sketch,
@@ -91,24 +91,19 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={pickFile} className="hidden" />
 
       {/* Left: the photo stage, the same strip as Edit Sketch. Before a
-          photo is picked, the place to take one. key: a new photo remounts
+          photo is picked, New Sketch's dropzone. key: a new photo remounts
           the strip. */}
-      <StageStrip
-        key={shown || 'empty'}
-        panels={[{
-          key: 'sketch',
-          label: upload ? 'Your sketch' : shown ? 'Your sketch' : 'Add a photo',
-          content: shown ? <StripImage src={shown} alt="Your sketch" /> : (
-            <div className="flex min-h-[300px] flex-1 items-center justify-center p-4">
-              <button type="button" className="sc-dropzone w-full max-w-[420px] min-h-[260px]" onClick={() => cameraRef.current?.click()}>
-                <img src={cameraWhite} alt="" className="h-16 w-16" />
-                <span className="font-heading text-xl font-semibold leading-snug">Photograph your sketch</span>
-                <span className="max-w-[280px] text-md text-sc-text3">Flat and in focus. Crop out your hand and the table.</span>
-              </button>
-            </div>
-          ),
-        }]}
-      />
+      {shown ? (
+        <StageStrip key={shown} panels={[{ key: 'sketch', label: 'Your sketch', content: <StripImage src={shown} alt="Your sketch" /> }]} />
+      ) : (
+        <div className="relative flex min-h-[55vh] flex-1 flex-col bg-sc-modal md:min-h-0">
+          <PhotoDropzone
+            title="Photograph your sketch"
+            text="Flat and in focus. Crop out your hand and the table."
+            onClick={() => cameraRef.current?.click()}
+          />
+        </div>
+      )}
 
       {/* Right: one choice, and the voice for a final sketch. */}
       <div className="sc-panel sc-sheet">

@@ -8,6 +8,7 @@ import Button from '../components/common/Button'
 import ProgressSteps from '../components/common/ProgressSteps'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import SketchModal from '../components/common/SketchModal'
+import PhotoDropzone from '../components/common/PhotoDropzone'
 
 import { api } from '../lib/api'
 import { runGuideAnalysis, startSceneAnalysis } from '../lib/guideAnalysis'
@@ -16,7 +17,6 @@ import { previewUrl } from '../lib/previewUrl'
 import { useStagedProgress } from '../lib/useStagedProgress'
 import { ASPECT_RATIO_ORDER, bakeCrop, computeImageBox, reframeToRect, resolveAspectRatio } from '../lib/cropMath'
 
-import cameraWhite from '../assets/images/ico_camera_w.png'
 import { MEDIA } from '../data/media'
 
 const MIN_ZOOM = 0.2
@@ -689,18 +689,11 @@ export default function CreateSketch() {
         style={{ '--frame-ratio': ratio }}
       >
         {step === 'photo' && !preview && (
-          <div className="flex flex-1 p-5 md:p-[var(--stage-inset)]">
-            <Button className="w-full h-full flex flex-1 p-0 block reset-button-styles"
-              onClick={() => cameraInputRef.current?.click()}>
-              <div className="sc-dropzone">
-                <img src={cameraWhite} alt="camera" className="h-16 w-16 text-white" />
-                <p className="font-heading text-xl font-semibold leading-snug">Photograph the scene you'll draw</p>
-                <p className="max-w-[270px] text-base text-sc-text3">
-                  Stand where you'll sketch from. Location and a title come from this photo.
-                </p>
-              </div>
-            </Button>
-          </div>
+          <PhotoDropzone
+            title="Photograph the scene you'll draw"
+            text="Stand where you'll sketch from. Location and a title come from this photo."
+            onClick={() => cameraInputRef.current?.click()}
+          />
         )}
 
         {step === 'photo' && preview && (
