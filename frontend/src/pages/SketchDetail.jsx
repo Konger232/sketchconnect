@@ -353,6 +353,7 @@ export default function SketchDetail() {
             <div className="grid gap-8 md:grid-cols-2 md:gap-14">
               <PlanImage src={reference} marks={s.marks || []} />
               <div className="flex flex-col">
+                <h3 className="m-0 font-sans text-lg font-normal">Design principles</h3>
                 {viewer === 'owner' && carried.length > 0 && (
                   <p className="ed-note m-0 pb-2">What the AI read in your strokes. Your bookmarked tips are marked.</p>
                 )}
