@@ -181,39 +181,3 @@ export function recipeText(parts, names) {
 // Strong stainers carry further in a mix.
 const STRONG = ['pb15', 'pg7', 'pg36', 'pv23', 'pr122', 'pbk']
 export const isStrong = (paintId) => Boolean(paintId) && STRONG.some((s) => paintId.startsWith(s))
-
-// ---- moving and sizing the whole mask (unit space: wheel radius 1) ----
-
-const toUnit = (c) => wheelToXY(c, 2).map((v) => v - 1)
-const fromUnit = ([x, y]) => xyToWheel(x + 1, y + 1, 2)
-// A moved or resized corner no longer sits on a paint.
-const freeCorner = (c, next) => ({ ...next, paint_id: null })
-
-// The mask's size: the mean distance of its corners from their centre.
-export function maskSize(corners) {
-  const pts = corners.map(toUnit)
-  const [cx, cy] = centroid(pts)
-  return pts.reduce((s, [x, y]) => s + Math.hypot(x - cx, y - cy), 0) / pts.length
-}
-
-// Scales the mask about its centre to `size`, keeping it inside the wheel.
-export function resizeMask(corners, size) {
-  const pts = corners.map(toUnit)
-  const [cx, cy] = centroid(pts)
-  const now = maskSize(corners) || 1e-6
-  let f = size / now
-  // Largest factor that keeps every corner on the wheel.
-  for (const [x, y] of pts) {
-    const dx = x - cx, dy = y - cy
-    const a = dx * dx + dy * dy, b = 2 * (cx * dx + cy * dy), c0 = cx * cx + cy * cy - 1
-    if (a > 0) f = Math.min(f, (-b + Math.sqrt(Math.max(0, b * b - 4 * a * c0))) / (2 * a))
-  }
-  return corners.map((c, i) => freeCorner(c, fromUnit([cx + (pts[i][0] - cx) * f, cy + (pts[i][1] - cy) * f])))
-}
-
-// Moves the whole mask by (dx, dy) in unit space; null if it would leave the wheel.
-export function moveMask(corners, dx, dy) {
-  const pts = corners.map(toUnit).map(([x, y]) => [x + dx, y + dy])
-  if (pts.some(([x, y]) => Math.hypot(x, y) > 1.001)) return null
-  return corners.map((c, i) => freeCorner(c, fromUnit(pts[i])))
-}

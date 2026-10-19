@@ -1342,23 +1342,50 @@ async def order_uploads(
 
 # ---- The Value and Color tabs (design doc, item 37) ----
 
-MAX_MASK_CORNERS = 6
-
-
-class MaskCorner(BaseModel):
+class MaskPoint(BaseModel):
     h: float  # hue, 0-360 (the Yurmby wheel is the screen colour wheel)
     c: float  # intensity, 0 (grey centre) to 1 (rim)
-    paint_id: Optional[str] = None
+    paint_id: Optional[str] = None  # older masks only
+
+
+class MaskShape(BaseModel):
+    type: str  # 'polygon' | 'circle'
+    corners: Optional[list[MaskPoint]] = None
+    center: Optional[MaskPoint] = None
+    r: Optional[float] = None
 
 
 class GamutMask(BaseModel):
-    corners: list[MaskCorner]
+    shapes: Optional[list[MaskShape]] = None
+    corners: Optional[list[MaskPoint]] = None  # older masks: one polygon
 
 
 class StudiesRequest(BaseModel):
     value_levels: Optional[int] = None
     gamut_mask: Optional[GamutMask] = None
     clear_mask: bool = False
+
+
+MAX_MASK_SHAPES = 4
+MAX_SHAPE_CORNERS = 8
+
+
+def _clean_point(p: MaskPoint) -> dict:
+    return {"h": round(p.h % 360, 1), "c": round(max(0.0, min(1.0, p.c)), 3)}
+
+
+def _clean_mask(mask: GamutMask) -> dict:
+    """Shapes on the wheel (Krita-style gamut masks, design doc, item 37)."""
+    shapes = mask.shapes or ([MaskShape(type="polygon", corners=mask.corners)] if mask.corners else [])
+    out = []
+    for s in shapes[:MAX_MASK_SHAPES]:
+        if s.type == "polygon" and s.corners and len(s.corners) >= 3:
+            out.append({"type": "polygon", "corners": [_clean_point(c) for c in s.corners[:MAX_SHAPE_CORNERS]]})
+        elif s.type == "circle" and s.center and s.r:
+            out.append({"type": "circle", "center": _clean_point(s.center), "r": round(max(0.02, min(1.0, s.r)), 3)})
+    if not out:
+        raise HTTPException(400, "A mask needs at least one shape")
+    return {"shapes": out}
 
 
 @router.put("/sketches/{sketch_id}/studies")
@@ -1381,15 +1408,7 @@ async def save_studies(
         if body.clear_mask:
             sketch.gamut_mask = None
         else:
-            corners = body.gamut_mask.corners[:MAX_MASK_CORNERS]
-            sketch.gamut_mask = {"corners": [
-                {
-                    "h": round(c.h % 360, 1),
-                    "c": round(max(0.0, min(1.0, c.c)), 3),
-                    "paint_id": c.paint_id if c.paint_id and re.match(r"^[a-z0-9][a-z0-9_-]{0,40}$", c.paint_id) else None,
-                }
-                for c in corners
-            ]}
+            sketch.gamut_mask = _clean_mask(body.gamut_mask)
     db.commit()
     return {"value_levels": sketch.value_levels, "gamut_mask": sketch.gamut_mask}
 

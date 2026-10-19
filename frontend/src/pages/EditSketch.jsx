@@ -15,7 +15,7 @@ import { useValueStudy } from '../lib/useValueStudy'
 import { api } from '../lib/api'
 import ValuePanel from '../components/studies/ValuePanel'
 import ColorPanel from '../components/studies/ColorPanel'
-import { DEFAULT_MASK } from '../components/studies/GamutWheel'
+import { DEFAULT_SHAPES, readMask } from '../lib/gamutMask'
 import { SamplePhoto, MaskedPhoto } from '../components/studies/ColorStage'
 import { PAINTS, paintById, paintForKitItem } from '../data/paints'
 import { runGuideAnalysis } from '../lib/guideAnalysis'
@@ -86,7 +86,7 @@ export default function EditSketch() {
   const [valueLevels, setValueLevels] = useState(5)
   const [valueStudies, setValueStudies] = useState({}) // { levels: study }
   const [valueError, setValueError] = useState(null)
-  const [maskCorners, setMaskCorners] = useState([])
+  const [maskShapes, setMaskShapes] = useState(DEFAULT_SHAPES)
   const [colorSample, setColorSample] = useState(null)
   const [kitPaints, setKitPaints] = useState(null) // null until loaded
   const maskSaveRef = useRef(null)
@@ -156,7 +156,7 @@ export default function EditSketch() {
         const { data } = await api.get(`/api/sketches/${sketchId}`)
         setSketch(data)
         if (data.value_levels) setValueLevels(data.value_levels)
-        setMaskCorners(data.gamut_mask?.corners || [])
+        setMaskShapes(readMask(data.gamut_mask) || DEFAULT_SHAPES)
       } catch (err) {
         setLoadError(err.response?.status === 404 ? 'not_found' : 'error')
       }
@@ -350,12 +350,12 @@ export default function EditSketch() {
   }, [tab, kitPaints, sketch?.is_owner])
 
   // The mask saves itself a moment after a change ends.
-  function changeMask(corners, { done } = {}) {
-    setMaskCorners(corners)
+  function changeMask(shapes, { done } = {}) {
+    setMaskShapes(shapes)
     clearTimeout(maskSaveRef.current)
     if (!done) return
     maskSaveRef.current = setTimeout(() => {
-      const body = corners.length ? { gamut_mask: { corners } } : { clear_mask: true }
+      const body = { gamut_mask: { shapes } }
       api.put(`/api/sketches/${sketchId}/studies`, body).catch(() => {})
     }, 400)
   }
@@ -450,7 +450,7 @@ export default function EditSketch() {
     : tab === 'color'
       ? [
           { key: 'sample', label: 'Tap to sample', content: <SamplePhoto src={referenceImageUrl} onSample={setColorSample} /> },
-          { key: 'mask', label: 'In your colours', content: <MaskedPhoto src={referenceImageUrl} corners={maskCorners.length >= 3 ? maskCorners : DEFAULT_MASK} /> },
+          { key: 'mask', label: 'In your colours', content: <MaskedPhoto src={referenceImageUrl} shapes={maskShapes} /> },
         ]
       : null
   const panels = studyPanels || [
@@ -726,8 +726,8 @@ export default function EditSketch() {
                 <>
                   <div className="sc-panel-body">
                     {kitPaints ? (
-                      <ColorPanel corners={maskCorners} onChange={changeMask} paints={kitPaints.length ? kitPaints : PAINTS}
-                        fromKit={kitPaints.length > 0} sample={colorSample} onSample={setColorSample}
+                      <ColorPanel shapes={maskShapes} onChange={changeMask} paints={kitPaints.length ? kitPaints : PAINTS}
+                        fromKit={kitPaints.length > 0} selected={colorSample} onSelect={setColorSample}
                         readOnly={Boolean(sketch.final_sketch_url)} />
                     ) : <p className="text-md text-sc-text3">Loading your paints…</p>}
                   </div>
