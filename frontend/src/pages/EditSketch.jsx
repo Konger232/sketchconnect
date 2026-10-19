@@ -442,9 +442,9 @@ export default function EditSketch() {
   const studyPanels = tab === 'value'
     ? [
         { key: 'values', label: `${valueLevels} values`, content: tabStudy
-          ? <StripImage src={tabStudy.valueStudyImage} alt={`The photo in ${valueLevels} values`} />
+          ? <StripImage src={tabStudy.valueStudyImage} alt={`The photo in ${valueLevels} values`} grid />
           : <div className="flex min-h-[40vh] flex-1 items-center justify-center text-md text-sc-text3">Reading the values…</div> },
-        { key: 'photo', label: 'Reference photo', content: <StripImage src={referenceImageUrl} alt="Reference photo" /> },
+        { key: 'photo', label: 'Reference photo', content: <StripImage src={referenceImageUrl} alt="Reference photo" grid /> },
       ]
     : tab === 'color'
       ? [

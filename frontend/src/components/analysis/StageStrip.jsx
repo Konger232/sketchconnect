@@ -1,4 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import RuleOfThirdsGrid from './RuleOfThirdsGrid'
+import { usePaintedRect } from '../../lib/usePaintedRect'
 
 /**
  * The photo stage as a sideways-scrolling strip (EditSketch): Reference
@@ -86,11 +88,18 @@ export default StageStrip
 // A plain photo filling a panel: the full width of the stage. On a phone
 // it sits in the flow at its own height (at most 75vh); from 768px it fills
 // the panel, inset top and bottom only.
-export function StripImage({ src, alt }) {
+//   grid     the rule-of-thirds grid over the photo itself (not its box)
+//   onClick  a tap on the photo (the Color tab samples a colour)
+export function StripImage({ src, alt, grid = false, onClick, className = '' }) {
+  const [imgRef, rect] = usePaintedRect()
   return (
     <div className="relative min-h-0 flex-1">
       <div className="relative md:absolute md:inset-x-0 md:inset-y-[var(--stage-inset)]">
-        <img src={src} alt={alt} className="block h-auto max-h-[75vh] w-full object-contain md:h-full md:max-h-none" />
+        <img ref={imgRef} src={src} alt={alt} onClick={onClick}
+          className={`block h-auto max-h-[75vh] w-full object-contain md:h-full md:max-h-none ${className}`} />
+        {grid && rect && (
+          <div className="pointer-events-none absolute" style={rect}><RuleOfThirdsGrid /></div>
+        )}
       </div>
     </div>
   )

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { StripImage } from '../analysis/StageStrip'
 import { clampToPolygon, hslToRgb, rgbToHsl, wheelToXY, xyToWheel } from '../../lib/colorWheel'
 
 const MAX_PX = 720 // the photo is worked on at this size, at most
@@ -30,10 +31,6 @@ function usePhotoPixels(src) {
   return pixels
 }
 
-const box = 'relative min-h-0 flex-1'
-const inner = 'relative md:absolute md:inset-x-0 md:inset-y-[var(--stage-inset)] flex items-center justify-center'
-const imgCls = 'block h-auto max-h-[75vh] w-full object-contain md:h-full md:max-h-none'
-
 /**
  * The reference photo on the Color tab: tap a spot to see its colour on
  * the wheel and the nearest mix in the mask. Laid out as StripImage.
@@ -55,11 +52,7 @@ export function SamplePhoto({ src, onSample }) {
     onSample({ h: hh, c: s, from: 'photo' })
   }
   return (
-    <div className={box}>
-      <div className={inner}>
-        <img src={src} alt="Reference photo: tap a spot to see its mix" onClick={tap} className={`${imgCls} ${pixels ? 'cursor-crosshair' : ''}`} />
-      </div>
-    </div>
+    <StripImage src={src} alt="Reference photo: tap a spot to see its mix" grid onClick={tap} className={pixels ? 'cursor-crosshair' : ''} />
   )
 }
 
@@ -97,16 +90,12 @@ export function MaskedPhoto({ src, corners }) {
     return () => clearTimeout(timer.current)
   }, [pixels, corners])
 
+  if (url) return <StripImage src={url} alt="The reference photo in your mask's colours" grid />
   return (
-    <div className={box}>
-      <div className={inner}>
-        {url ? <img src={url} alt="The reference photo in your mask's colours" className={imgCls} />
-          : (
-            <p className="px-6 py-16 text-center text-md text-sc-text3">
-              {corners.length < 3 ? 'Make a mask of three or more paints to see the photo in its colours.' : 'Working…'}
-            </p>
-          )}
-      </div>
+    <div className="flex min-h-[40vh] flex-1 items-center justify-center">
+      <p className="px-6 py-16 text-center text-md text-sc-text3">
+        {corners.length < 3 ? 'Make a mask of three or more paints to see the photo in its colours.' : 'Working…'}
+      </p>
     </div>
   )
 }

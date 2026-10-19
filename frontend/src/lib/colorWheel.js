@@ -3,8 +3,8 @@
 // The wheel is Tobey Sanford's Yurmby wheel: yellow, red, magenta, blue,
 // cyan and green, evenly spaced. That is the order of the screen colour
 // wheel (hue), so a point on the wheel is { h, c }: h the hue in degrees,
-// c the intensity from 0 (grey centre) to 1 (rim). Yellow sits at the
-// top, and the hues run clockwise yellow, red, magenta, blue, cyan, green.
+// c the intensity from 0 (grey centre) to 1 (rim). The hues run clockwise
+// yellow, green, cyan, blue, magenta, red, as on the printed wheels.
 import { Color, mix } from 'spectral.js'
 
 // ---- colour conversions ----
@@ -47,8 +47,10 @@ export const wheelToHex = ({ h, c }) => toHex(hslToRgb(h, c, 0.5))
 
 // ---- wheel geometry: { h, c } <-> x, y in a square of side `size` ----
 
-// Screen angle in degrees, clockwise from the right: yellow (60) at the top.
-const angleOf = (h) => -90 + (60 - h)
+// Screen angle in degrees, clockwise from the right. As the reference
+// wheel picked on October 19, 2026: magenta at 3 o'clock, then clockwise
+// red, yellow (about 7 o'clock), green, cyan and blue.
+export const angleOf = (h) => h + 60
 
 export function wheelToXY({ h, c }, size) {
   const r = size / 2
@@ -61,7 +63,7 @@ export function xyToWheel(x, y, size) {
   const dx = x - r, dy = y - r
   const c = Math.hypot(dx, dy) / r
   const a = (Math.atan2(dy, dx) * 180) / Math.PI
-  const h = (((60 - (a + 90)) % 360) + 360) % 360
+  const h = (((a - 60) % 360) + 360) % 360
   return { h, c }
 }
 

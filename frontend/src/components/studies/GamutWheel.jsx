@@ -1,29 +1,44 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { hslToRgb, hexToWheel, pointInPolygon, wheelToXY, xyToWheel } from '../../lib/colorWheel'
+import { useMemo, useRef, useState } from 'react'
+import { angleOf, hexToWheel, pointInPolygon, wheelToXY, xyToWheel } from '../../lib/colorWheel'
 
 const SIZE = 300 // viewBox units; the wheel scales to its box
-const R = SIZE / 2
+const PAD = 24 // room outside the rim for the hue letters
+const W = SIZE - 2 * PAD // the wheel's diameter
+const C = SIZE / 2 // the centre
+const RW = W / 2 // the wheel's radius
 const CORNER_HIT = 24 // about 44px at the wheel's usual size
 const DOT_HIT = 13
 const SNAP = 15
-const REMOVE_AT = R + 18 // drag a corner this far out to remove it
+const REMOVE_AT = RW + 34 // drag a corner past the letters to remove it
 export const MAX_CORNERS = 6
 
-// The wheel's colours, painted once: hue by angle, intensity by distance.
-function paintWheel(canvas) {
-  const px = canvas.width
-  const ctx = canvas.getContext('2d')
-  const img = ctx.createImageData(px, px)
-  for (let y = 0; y < px; y++) {
-    for (let x = 0; x < px; x++) {
-      const { h, c } = xyToWheel((x + 0.5) * (SIZE / px), (y + 0.5) * (SIZE / px), SIZE)
-      if (c > 1.004) continue
-      const [r, g, b] = hslToRgb(h, Math.min(1, c), 0.5)
-      const i = (y * px + x) * 4
-      img.data[i] = r; img.data[i + 1] = g; img.data[i + 2] = b; img.data[i + 3] = 255
-    }
-  }
-  ctx.putImageData(img, 0, 0)
+// Kept simple, as the reference wheel: 12 hues in 9 rings of flat colour,
+// thin lines between the cells, grey at the centre.
+const SECTORS = 12
+const RINGS = 9
+const LETTERS = [[60, 'Y'], [120, 'G'], [180, 'C'], [240, 'B'], [300, 'M'], [0, 'R']]
+
+const wxy = (p) => wheelToXY(p, W).map((v) => v + PAD)
+const xyw = (x, y) => xyToWheel(x - PAD, y - PAD, W)
+const polar = (r, deg) => [C + r * Math.cos((deg * Math.PI) / 180), C + r * Math.sin((deg * Math.PI) / 180)]
+
+// One cell: hue sector k, ring i (0 is the centre).
+function cellPath(k, i) {
+  const a0 = angleOf(k * (360 / SECTORS) - 180 / SECTORS)
+  const a1 = a0 + 360 / SECTORS
+  const r0 = (i / RINGS) * RW, r1 = ((i + 1) / RINGS) * RW
+  const [x1, y1] = polar(r1, a0), [x2, y2] = polar(r1, a1)
+  if (i === 0) return `M${C} ${C}L${x1} ${y1}A${r1} ${r1} 0 0 1 ${x2} ${y2}Z`
+  const [x3, y3] = polar(r0, a1), [x4, y4] = polar(r0, a0)
+  return `M${x1} ${y1}A${r1} ${r1} 0 0 1 ${x2} ${y2}L${x3} ${y3}A${r0} ${r0} 0 0 0 ${x4} ${y4}Z`
+}
+const cellFill = (k, i) => `hsl(${k * (360 / SECTORS)} ${Math.round(((i + 0.5) / RINGS) * 85)}% 55%)`
+
+// A free corner snaps to the centre of the cell it falls in.
+function snapToCell({ h, c }) {
+  const k = Math.round(h / (360 / SECTORS)) % SECTORS
+  const i = Math.min(RINGS - 1, Math.floor(Math.min(1, c) * RINGS))
+  return { h: k * (360 / SECTORS), c: (i + 0.5) / RINGS }
 }
 
 /**
@@ -44,19 +59,16 @@ function paintWheel(canvas) {
  *   readOnly  no edits (the plan is locked)
  */
 export default function GamutWheel({ corners, paints, onChange, onFocus, onSample, sample, readOnly = false, className = '' }) {
-  const canvasRef = useRef(null)
   const svgRef = useRef(null)
   const drag = useRef(null) // { index, moved }
   const [removing, setRemoving] = useState(false)
   const [full, setFull] = useState(false)
 
-  useEffect(() => { if (canvasRef.current) paintWheel(canvasRef.current) }, [])
-
   const dots = useMemo(() => paints.map((p) => {
     const w = hexToWheel(p.hex)
-    return { ...p, ...w, xy: wheelToXY(w, SIZE) }
+    return { ...p, ...w, xy: wxy(w) }
   }), [paints])
-  const pts = corners.map((c) => wheelToXY(c, SIZE))
+  const pts = corners.map(wxy)
 
   function toSvg(e) {
     const box = svgRef.current.getBoundingClientRect()
@@ -89,14 +101,14 @@ export default function GamutWheel({ corners, paints, onChange, onFocus, onSampl
       return
     }
     if (pts.length >= 3 && pointInPolygon(p, pts)) {
-      onSample?.(xyToWheel(...p, SIZE))
+      onSample?.(xyw(...p))
       return
     }
-    if (dist(p, [R, R]) > R + 2) return
+    if (dist(p, [C, C]) > RW + 2) return
     if (corners.length >= MAX_CORNERS) return setFull(true)
     // A free corner, which can be dragged on straight away.
-    const w = xyToWheel(...p, SIZE)
-    onChange([...corners, { h: w.h, c: Math.min(1, w.c), paint_id: null }], { done: false })
+    const w = snapToCell(xyw(...p))
+    onChange([...corners, { ...w, paint_id: null }], { done: false })
     drag.current = { index: corners.length, moved: true }
     svgRef.current.setPointerCapture(e.pointerId)
     onFocus?.({ corner: w })
@@ -106,11 +118,10 @@ export default function GamutWheel({ corners, paints, onChange, onFocus, onSampl
     if (!drag.current) return
     const p = toSvg(e)
     drag.current.moved = true
-    const out = dist(p, [R, R]) > REMOVE_AT
+    const out = dist(p, [C, C]) > REMOVE_AT
     setRemoving(out)
     const dot = !out && nearestDot(p, SNAP)
-    const w = xyToWheel(...p, SIZE)
-    const next = dot ? { h: dot.h, c: dot.c, paint_id: dot.id } : { h: w.h, c: Math.min(1, w.c), paint_id: null }
+    const next = dot ? { h: dot.h, c: dot.c, paint_id: dot.id } : { ...snapToCell(xyw(...p)), paint_id: null }
     onChange(corners.map((c, i) => (i === drag.current.index ? next : c)), { done: false })
   }
 
@@ -132,11 +143,10 @@ export default function GamutWheel({ corners, paints, onChange, onFocus, onSampl
   const veil = pts.length >= 3
     ? `M0 0H${SIZE}V${SIZE}H0Z M${pts.map((q) => q.join(' ')).join(' L')} Z`
     : null
-  const sampleXY = sample ? wheelToXY(sample, SIZE) : null
+  const sampleXY = sample ? wxy(sample) : null
 
   return (
     <div className={`relative mx-auto aspect-square w-full max-w-[320px] select-none ${className}`}>
-      <canvas ref={canvasRef} width={480} height={480} className="absolute inset-0 h-full w-full rounded-full" aria-hidden="true" />
       <svg
         ref={svgRef}
         viewBox={`0 0 ${SIZE} ${SIZE}`}
@@ -149,10 +159,19 @@ export default function GamutWheel({ corners, paints, onChange, onFocus, onSampl
         aria-label={`Colour wheel with ${corners.length} mask corners`}
       >
         <defs>
-          <clipPath id="wheel-clip"><circle cx={R} cy={R} r={R} /></clipPath>
+          <clipPath id="wheel-clip"><circle cx={C} cy={C} r={RW} /></clipPath>
         </defs>
-        {veil && <path d={veil} fillRule="evenodd" fill="rgba(10,12,20,0.62)" clipPath="url(#wheel-clip)" />}
-        <circle cx={R} cy={R} r={R - 0.5} fill="none" stroke="rgba(255,255,255,0.25)" />
+        <g aria-hidden="true">
+          {Array.from({ length: SECTORS }, (_, k) => Array.from({ length: RINGS }, (_, i) => (
+            <path key={`${k}-${i}`} d={cellPath(k, i)} fill={cellFill(k, i)} stroke="rgba(0,0,0,0.28)" strokeWidth={0.6} />
+          )))}
+          <circle cx={C} cy={C} r={RW} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth={0.8} />
+          {LETTERS.map(([h, letter]) => {
+            const [x, y] = polar(RW + 13, angleOf(h))
+            return <text key={letter} x={x} y={y} textAnchor="middle" dominantBaseline="central" fill="#fff" fontSize="14" fontWeight="700">{letter}</text>
+          })}
+        </g>
+        {veil && <path d={veil} fillRule="evenodd" fill="rgba(10,12,20,0.6)" clipPath="url(#wheel-clip)" />}
         {dots.map((d) => (
           <g key={d.id} data-paint={d.id}>
             <circle cx={d.xy[0]} cy={d.xy[1]} r={8} fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth={1.5} />
