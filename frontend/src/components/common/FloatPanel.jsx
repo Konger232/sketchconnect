@@ -35,14 +35,24 @@ export default function FloatPanel({
 }) {
   const panelRef = useRef(null)
   const sheet = placement !== 'card'
+  // The latest onClose, so Escape always calls it without re-running the
+  // effects below. A parent often passes a new function on every render.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
+  // Escape closes it.
   useEffect(() => {
     if (!open) return
-    const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
+    const onKey = (e) => { if (e.key === 'Escape') onCloseRef.current?.() }
     window.addEventListener('keydown', onKey)
-    panelRef.current?.focus()
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [open])
+
+  // Focus moves into the panel once, when it opens. Not on every render:
+  // that would pull focus out of a field after each keystroke.
+  useEffect(() => {
+    if (open && !panelRef.current?.contains(document.activeElement)) panelRef.current?.focus()
+  }, [open])
 
   // A modal stops the page scrolling behind it, as SketchModal does.
   useEffect(() => {
