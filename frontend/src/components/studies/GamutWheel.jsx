@@ -44,11 +44,10 @@ function snapToCell({ h, c }) {
 /**
  * The gamut mask wheel (design doc, item 37): Tobey Sanford's Yurmby
  * wheel, the sketcher's paints as small dots, and the mask's corners.
- * One finger, nothing to learn:
- *   tap a paint dot            it becomes a corner
- *   tap empty wheel            a free corner (outside the mask)
+ * Each tap does one thing:
+ *   tap a paint dot            puts it in the mask, or takes it out
  *   tap inside the mask        shows the mix there (onSample)
- *   drag a corner              moves it; it snaps to a paint dot nearby
+ *   drag a corner              moves it to any cell; it snaps to a paint
  *   drag a corner off the rim  removes it; the others reconnect
  *
  *   corners   [{ h, c, paint_id }]   in the order placed
@@ -95,7 +94,10 @@ export default function GamutWheel({ corners, paints, onChange, onFocus, onSampl
     const dot = nearestDot(p, DOT_HIT)
     if (dot) {
       onFocus?.({ paint: dot })
-      if (corners.some((c) => c.paint_id === dot.id)) return
+      if (corners.some((c) => c.paint_id === dot.id)) {
+        onChange(corners.filter((c) => c.paint_id !== dot.id), { done: true })
+        return
+      }
       if (corners.length >= MAX_CORNERS) return setFull(true)
       onChange([...corners, { h: dot.h, c: dot.c, paint_id: dot.id }], { done: true })
       return
@@ -104,14 +106,7 @@ export default function GamutWheel({ corners, paints, onChange, onFocus, onSampl
       onSample?.(xyw(...p))
       return
     }
-    if (dist(p, [C, C]) > RW + 2) return
-    if (corners.length >= MAX_CORNERS) return setFull(true)
-    // A free corner, which can be dragged on straight away.
-    const w = snapToCell(xyw(...p))
-    onChange([...corners, { ...w, paint_id: null }], { done: false })
-    drag.current = { index: corners.length, moved: true }
-    svgRef.current.setPointerCapture(e.pointerId)
-    onFocus?.({ corner: w })
+    // Empty wheel: nothing. Paints are picked from the dots or the list.
   }
 
   function move(e) {

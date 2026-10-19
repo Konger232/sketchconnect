@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import GamutWheel from './GamutWheel'
+import GamutWheel, { MAX_CORNERS } from './GamutWheel'
 import {
   centroid, clampToPolygon, hexToWheel, hueName, isStrong, mixHex, recipeText, toParts, weightsAt, wheelToHex, wheelToXY, xyToWheel,
 } from '../../lib/colorWheel'
@@ -53,19 +53,67 @@ export default function ColorPanel({ corners, onChange, paints, fromKit, sample,
     ? `${focus.paint.name}: ${focus.paint.lean || hueName(hexToWheel(focus.paint.hex))}`
     : focus?.corner ? `A free corner: ${hueName(focus.corner)}` : null
 
+  const inMask = (p) => corners.some((c) => c.paint_id === p.id)
+  function togglePaint(p) {
+    setFocus({ paint: p })
+    if (inMask(p)) return onChange(corners.filter((c) => c.paint_id !== p.id), { done: true })
+    if (corners.length >= MAX_CORNERS) return
+    const w = hexToWheel(p.hex)
+    onChange([...corners, { h: w.h, c: w.c, paint_id: p.id }], { done: true })
+  }
+  const removeCorner = (i) => onChange(corners.filter((_, j) => j !== i), { done: true })
+  const freeCorners = corners.map((c, i) => [c, i]).filter(([c]) => !c.paint_id)
+  const left = Math.max(0, 3 - corners.length)
+  const step = readOnly
+    ? 'Your gamut mask. It is part of the plan, so it stays as it was when you shared the final sketch.'
+    : corners.length === 0
+      ? 'Pick 3 paints from your palette below. They become the corners of your mask.'
+      : left > 0
+        ? `Pick ${left} more ${left === 1 ? 'paint' : 'paints'}.`
+        : 'The colours inside the mask are the mixes these paints make. Tap inside it, or on the photo, to see a mix.'
+
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-md text-sc-text2">
-        {readOnly
-          ? 'Your gamut mask. It is part of the plan, so it stays as it was when you shared the final sketch.'
-          : 'Tap three of your paints to make a mask. Drag a corner to move it, or off the wheel to remove it. Tap inside the mask, or on the photo, to see a mix.'}
-      </p>
+      <p className="text-md text-white">{step}</p>
 
       <GamutWheel corners={corners} paints={paints} onChange={onChange} onFocus={setFocus} onSample={(w) => onSample({ ...w, from: 'wheel' })}
         sample={sample} readOnly={readOnly} />
 
-      <p className="min-h-5 text-sm text-white">{focusText || ' '}</p>
-      {!fromKit && <p className="-mt-2 text-sm text-sc-text3">Showing common paints. Add your own in My kit on your page.</p>}
+      <p className="min-h-5 text-sm text-sc-text2">{focusText || '\u00a0'}</p>
+
+      {/* The palette: the main way to pick the mask. */}
+      <div className="flex flex-col gap-2">
+        <span className="sc-field-label">{fromKit ? 'Your palette' : 'Common paints'} · {corners.length} in the mask</span>
+        <div className="flex flex-wrap gap-2">
+          {paints.map((p) => {
+            const on = inMask(p)
+            return (
+              <button key={p.id} type="button" disabled={readOnly || (!on && corners.length >= MAX_CORNERS)} aria-pressed={on}
+                onClick={() => togglePaint(p)}
+                className={`flex min-h-11 items-center gap-2 rounded-full border-[1.5px] py-1 pl-1.5 pr-3 text-sm font-semibold transition-colors disabled:opacity-40 ${
+                  on ? 'border-white bg-sc-guide text-white' : 'border-sc-border bg-sc-raised text-white hover:border-sc-strong'
+                }`}>
+                <span className="h-7 w-7 shrink-0 rounded-full border border-white/40" style={{ background: p.hex }} />
+                {p.name}
+              </button>
+            )
+          })}
+          {freeCorners.map(([c, i]) => (
+            <span key={`free-${i}`} className="flex min-h-11 items-center gap-2 rounded-full border-[1.5px] border-white bg-sc-guide py-1 pl-1.5 pr-1 text-sm font-semibold text-white">
+              <span className="h-7 w-7 shrink-0 rounded-full border border-white/40" style={{ background: `hsl(${c.h} ${Math.round(c.c * 100)}% 50%)` }} />
+              Free colour: {hueName(c)}
+              {!readOnly && (
+                <button type="button" onClick={() => removeCorner(i)} aria-label="Take this colour out of the mask"
+                  className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/10">×</button>
+              )}
+            </span>
+          ))}
+        </div>
+        {!fromKit && <p className="text-sm text-sc-text3">Add your own paints in My kit on your page.</p>}
+        {!readOnly && corners.length >= 3 && (
+          <p className="text-sm text-sc-text3">To try a colour you don't own, drag a corner to another cell. Drag it off the wheel to take it out.</p>
+        )}
+      </div>
 
       {sampleMix && (
         <div className="flex items-start gap-3 rounded-xl border border-sc-border p-3">
