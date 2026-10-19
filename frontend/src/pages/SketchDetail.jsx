@@ -393,7 +393,7 @@ export default function SketchDetail() {
             <h2 className="ed-kicker m-0">The sketch</h2>
             {uploads.length === 0 ? (
               <button type="button" onClick={() => setUploading({})}
-                className="flex min-h-[200px] flex-col items-center justify-center gap-2 border-[1.5px] border-dashed border-ink/30 p-6 text-center hover:border-ink">
+                className="flex min-h-[200px] flex-col items-center justify-center gap-2 border-[1.5px] rounded-lg border-dashed border-ink/30 p-6 text-center hover:border-ink">
                 <Icon name="plus" size={22} />
                 <span className="font-heading text-xl font-bold">Sketched it? Upload a photo.</span>
                 <span className="max-w-[420px] text-sm text-ink/70">Add progress sketches as you go. Upload the final sketch to share it and get feedback.</span>

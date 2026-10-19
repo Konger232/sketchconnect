@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Button from '../common/Button'
 import SketchModal from '../common/SketchModal'
+import StageStrip, { StripImage } from '../analysis/StageStrip'
 import { api } from '../../lib/api'
 import { previewUrl } from '../../lib/previewUrl'
 import cameraWhite from '../../assets/images/ico_camera_w.png'
@@ -29,6 +30,8 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
   const [voice, setVoice] = useState(sketch.persona_id || '')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState(null)
+  // Phone: the panel is a bottom sheet over the photo, as in Edit Sketch.
+  const [sheetOpen, setSheetOpen] = useState(true)
   const libraryRef = useRef(null)
   const cameraRef = useRef(null)
   const pickRef = useRef(0)
@@ -87,21 +90,38 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
       <input ref={libraryRef} type="file" accept="image/*,.heic" onChange={pickFile} className="hidden" />
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={pickFile} className="hidden" />
 
-      {/* Left: the photo, or the place to take one. */}
-      <div className="flex min-h-[300px] flex-1 items-center justify-center bg-black p-4 md:min-h-0">
-        {shown ? (
-          <img src={shown} alt="Your sketch" className="max-h-full max-w-full object-contain" />
-        ) : (
-          <button type="button" className="sc-dropzone w-full max-w-[420px] min-h-[260px]" onClick={() => cameraRef.current?.click()}>
-            <img src={cameraWhite} alt="" className="h-16 w-16" />
-            <span className="font-heading text-xl font-semibold leading-snug">Photograph your sketch</span>
-            <span className="max-w-[280px] text-md text-sc-text3">Flat and in focus. Crop out your hand and the table.</span>
-          </button>
-        )}
-      </div>
+      {/* Left: the photo stage, the same strip as Edit Sketch. Before a
+          photo is picked, the place to take one. key: a new photo remounts
+          the strip. */}
+      <StageStrip
+        key={shown || 'empty'}
+        panels={[{
+          key: 'sketch',
+          label: upload ? 'Your sketch' : shown ? 'Your sketch' : 'Add a photo',
+          content: shown ? <StripImage src={shown} alt="Your sketch" /> : (
+            <div className="flex min-h-[300px] flex-1 items-center justify-center p-4">
+              <button type="button" className="sc-dropzone w-full max-w-[420px] min-h-[260px]" onClick={() => cameraRef.current?.click()}>
+                <img src={cameraWhite} alt="" className="h-16 w-16" />
+                <span className="font-heading text-xl font-semibold leading-snug">Photograph your sketch</span>
+                <span className="max-w-[280px] text-md text-sc-text3">Flat and in focus. Crop out your hand and the table.</span>
+              </button>
+            </div>
+          ),
+        }]}
+      />
 
       {/* Right: one choice, and the voice for a final sketch. */}
-      <div className="sc-panel">
+      <div className="sc-panel sc-sheet">
+        <button
+          type="button"
+          className="sc-sheet-handle"
+          aria-label={sheetOpen ? 'Fold the panel down' : 'Open the panel'}
+          aria-expanded={sheetOpen}
+          onClick={() => setSheetOpen((v) => !v)}
+        >
+          <span />
+        </button>
+        <div className={`flex min-h-0 flex-1 flex-col ${sheetOpen ? '' : 'max-md:hidden'}`}>
         <div className="sc-panel-body gap-3.5">
           {!upload && (
             <>
@@ -142,6 +162,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
             <Button variant="secondaryOnDark" className="mr-auto" onClick={() => libraryRef.current?.click()}>From library</Button>
           )}
           <Button variant="action" onClick={submit} disabled={!ready || sending || finalBlocked}>{submitLabel}</Button>
+        </div>
         </div>
       </div>
     </SketchModal>
