@@ -1355,8 +1355,15 @@ class MaskShape(BaseModel):
     r: Optional[float] = None
 
 
+class MaskSwatch(BaseModel):
+    h: float
+    c: float
+    hex: str
+
+
 class GamutMask(BaseModel):
     shapes: Optional[list[MaskShape]] = None
+    swatches: Optional[list[MaskSwatch]] = None  # tiles collected from the wheel
     corners: Optional[list[MaskPoint]] = None  # older masks: one polygon
 
 
@@ -1385,7 +1392,15 @@ def _clean_mask(mask: GamutMask) -> dict:
             out.append({"type": "circle", "center": _clean_point(s.center), "r": round(max(0.02, min(1.0, s.r)), 3)})
     if not out:
         raise HTTPException(400, "A mask needs at least one shape")
-    return {"shapes": out}
+    return {"shapes": out, "swatches": _clean_swatches(mask.swatches)}
+
+
+def _clean_swatches(swatches) -> list[dict]:
+    return [
+        {**_clean_point(MaskPoint(h=s.h, c=s.c)), "hex": s.hex.lower()}
+        for s in (swatches or [])[:16]
+        if re.match(r"^#[0-9a-fA-F]{6}$", s.hex)
+    ]
 
 
 @router.put("/sketches/{sketch_id}/studies")
@@ -1404,6 +1419,11 @@ async def save_studies(
         sketch.value_levels = body.value_levels
     if body.gamut_mask is not None or body.clear_mask:
         if sketch.final_sketch_url:
+            # The shapes lock with the plan; the collected colours do not.
+            if body.gamut_mask is not None and sketch.gamut_mask:
+                sketch.gamut_mask = {**sketch.gamut_mask, "swatches": _clean_swatches(body.gamut_mask.swatches)}
+                db.commit()
+                return {"value_levels": sketch.value_levels, "gamut_mask": sketch.gamut_mask}
             raise HTTPException(409, "The plan can't change once the final sketch is uploaded")
         if body.clear_mask:
             sketch.gamut_mask = None

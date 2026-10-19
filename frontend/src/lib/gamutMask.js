@@ -176,3 +176,30 @@ export function recipeLine(recipe) {
   const g = recipe.parts.reduce((a, [, n]) => { let x = a, y = n; while (y) [x, y] = [y, x % y]; return x }, 0)
   return recipe.parts.map(([p, n]) => `${n / g} ${n / g === 1 ? 'part' : 'parts'} ${p.name}`).join(', ')
 }
+
+// ---- the colours inside the mask, by value ----
+
+const SECTORS = 12, RINGS = 9
+
+// The wheel's tiles whose centres fall inside the mask: { k, i, h, c }.
+export function tilesInMask(shapes) {
+  const out = []
+  for (let k = 0; k < SECTORS; k++) {
+    for (let i = 0; i < RINGS; i++) {
+      const p = { h: k * (360 / SECTORS), c: (i + 0.5) / RINGS }
+      if (maskContains(shapes, toUnit(p))) out.push({ k, i, ...p })
+    }
+  }
+  return out
+}
+
+// A colour's lightness (OKLab L, 0 black to 1 white), its value on a scale
+// of 1 (darkest) to 9 (lightest), and the grey of the same lightness.
+export const lightness = (hex) => new Color(hex).OKLab[0]
+export const valueStep = (L) => Math.max(1, Math.min(9, 1 + Math.round(L * 8)))
+export function greyOf(L) {
+  const y = L ** 3 // OKLab L to linear light, for a neutral grey
+  const s = y <= 0.0031308 ? 12.92 * y : 1.055 * y ** (1 / 2.4) - 0.055
+  const v = Math.round(Math.max(0, Math.min(1, s)) * 255).toString(16).padStart(2, '0')
+  return `#${v}${v}${v}`
+}

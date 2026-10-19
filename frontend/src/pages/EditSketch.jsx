@@ -17,6 +17,7 @@ import ValuePanel from '../components/studies/ValuePanel'
 import ColorPanel from '../components/studies/ColorPanel'
 import { DEFAULT_SHAPES, readMask } from '../lib/gamutMask'
 import { SamplePhoto, MaskedPhoto } from '../components/studies/ColorStage'
+import SwatchGrid from '../components/studies/SwatchGrid'
 import { PAINTS, paintById, paintForKitItem } from '../data/paints'
 import { runGuideAnalysis } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
@@ -88,6 +89,7 @@ export default function EditSketch() {
   const [valueError, setValueError] = useState(null)
   const [maskShapes, setMaskShapes] = useState(DEFAULT_SHAPES)
   const [colorSample, setColorSample] = useState(null)
+  const [swatches, setSwatches] = useState([]) // tiles collected from the wheel: [{ h, c, hex }]
   const [kitPaints, setKitPaints] = useState(null) // null until loaded
   const maskSaveRef = useRef(null)
 
@@ -157,6 +159,7 @@ export default function EditSketch() {
         setSketch(data)
         if (data.value_levels) setValueLevels(data.value_levels)
         setMaskShapes(readMask(data.gamut_mask) || DEFAULT_SHAPES)
+        setSwatches(data.gamut_mask?.swatches || [])
       } catch (err) {
         setLoadError(err.response?.status === 404 ? 'not_found' : 'error')
       }
@@ -350,14 +353,30 @@ export default function EditSketch() {
   }, [tab, kitPaints, sketch?.is_owner])
 
   // The mask saves itself a moment after a change ends.
+  function saveMask(shapes, sw) {
+    clearTimeout(maskSaveRef.current)
+    maskSaveRef.current = setTimeout(() => {
+      api.put(`/api/sketches/${sketchId}/studies`, { gamut_mask: { shapes, swatches: sw } }).catch(() => {})
+    }, 400)
+  }
   function changeMask(shapes, { done } = {}) {
     setMaskShapes(shapes)
-    clearTimeout(maskSaveRef.current)
-    if (!done) return
-    maskSaveRef.current = setTimeout(() => {
-      const body = { gamut_mask: { shapes } }
-      api.put(`/api/sketches/${sketchId}/studies`, body).catch(() => {})
-    }, 400)
+    if (done) saveMask(shapes, swatches)
+    else clearTimeout(maskSaveRef.current)
+  }
+  // A tile tapped on the wheel: shown, and collected into "Your colours".
+  function pickTile(sel) {
+    setColorSample(sel)
+    if (swatches.some((s) => s.hex === sel.hex)) return
+    const next = [...swatches, { h: sel.h, c: sel.c, hex: sel.hex }].slice(-16)
+    setSwatches(next)
+    saveMask(maskShapes, next)
+  }
+  function removeSwatch() {
+    const next = swatches.filter((s) => s.hex !== colorSample?.hex)
+    setSwatches(next)
+    setColorSample(null)
+    saveMask(maskShapes, next)
   }
 
   // ===== RENDER: LOADING / ERROR =====
@@ -449,8 +468,18 @@ export default function EditSketch() {
       ]
     : tab === 'color'
       ? [
-          { key: 'sample', label: 'Tap to sample', content: <SamplePhoto src={referenceImageUrl} onSample={setColorSample} /> },
-          { key: 'mask', label: 'In your colours', content: <MaskedPhoto src={referenceImageUrl} shapes={maskShapes} /> },
+          { key: 'sample', label: 'Photo', content: (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <SamplePhoto src={referenceImageUrl} onSample={setColorSample} />
+              <SwatchGrid swatches={swatches} selected={colorSample} onSelect={setColorSample} />
+            </div>
+          ) },
+          { key: 'mask', label: 'In your mask', content: (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <MaskedPhoto src={referenceImageUrl} shapes={maskShapes} />
+              <SwatchGrid swatches={swatches} selected={colorSample} onSelect={setColorSample} />
+            </div>
+          ) },
         ]
       : null
   const panels = studyPanels || [
@@ -728,6 +757,8 @@ export default function EditSketch() {
                     {kitPaints ? (
                       <ColorPanel shapes={maskShapes} onChange={changeMask} paints={kitPaints.length ? kitPaints : PAINTS}
                         fromKit={kitPaints.length > 0} selected={colorSample} onSelect={setColorSample}
+                        onPickTile={pickTile} marked={swatches} onRemoveSwatch={removeSwatch}
+                        isSwatch={colorSample?.from === 'wheel' && swatches.some((s) => s.hex === colorSample.hex)}
                         readOnly={Boolean(sketch.final_sketch_url)} />
                     ) : <p className="text-md text-sc-text3">Loading your paints…</p>}
                   </div>

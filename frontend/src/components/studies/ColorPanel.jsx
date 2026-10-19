@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import GamutWheel, { tileAt, tileHex } from './GamutWheel'
+import MaskValues from './MaskValues'
 import { bestRecipe, maskContains, presetShapes, recipeLine, resizeShape, shapeSize, toUnit } from '../../lib/gamutMask'
 
 const SIZE_MIN = 0.05 // the size slider, in wheel radii
@@ -7,9 +8,9 @@ const SIZE_MAX = 0.9
 
 // The shape icons under the wheel.
 const SHAPES = [
-  { key: 'triangle', label: 'Triangle', icon: <path d="M12 3 21 20H3Z" /> },
+  { key: 'triangle', label: 'Triad', icon: <path d="M12 3 21 20H3Z" /> },
   { key: 'diamond', label: 'Diamond', icon: <path d="M12 2 18 12 12 22 6 12Z" /> },
-  { key: 'circles', label: 'Big and small circle', icon: <><circle cx="9" cy="14" r="7" /><circle cx="19.5" cy="5" r="3" /></> },
+  { key: 'circles', label: 'Mood & Accent', icon: <><circle cx="9" cy="14" r="7" /><circle cx="19.5" cy="5" r="3" /></> },
 ]
 
 /**
@@ -23,7 +24,7 @@ const SHAPES = [
  *   selected { h, c, hex, from } | null  a tile, or a spot on the photo
  *   onSelect(selected)
  */
-export default function ColorPanel({ shapes, onChange, paints, fromKit, selected, onSelect, readOnly }) {
+export default function ColorPanel({ shapes, onChange, paints, fromKit, selected, onSelect, onPickTile, marked, isSwatch, onRemoveSwatch, readOnly }) {
   const [active, setActive] = useState(0)
   const [preset, setPreset] = useState(null)
   const shape = shapes[Math.min(active, shapes.length - 1)]
@@ -45,22 +46,30 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
   return (
     <div className="flex flex-col gap-4">
       <p className="text-md text-white">
-        {readOnly ? 'Your gamut mask, as planned.' : 'Shape your mask, then tap a tile to see how to mix it from your paints.'}
+        {readOnly ? 'Your gamut mask, as planned.' : 'Shape your mask, then tap tiles to collect the colours you want. Each one shows how to mix it from your paints.'}
       </p>
+      {readOnly && (
+        <p className="-mt-2 text-sm text-sc-text3">
+          The mask is locked with the plan, because this sketch is shared. To change it, delete the final sketch on its page. You can still tap tiles to collect colours.
+        </p>
+      )}
 
       <GamutWheel shapes={shapes} onChange={onChange} active={active} onActive={setActive} paints={paints}
-        selected={selected?.from === 'wheel' ? selected : null}
-        onSelect={(w) => onSelect({ ...w, hex: tileHex(tileAt(w)), from: 'wheel' })} readOnly={readOnly} />
+        selected={selected?.from === 'wheel' ? selected : null} marked={marked}
+        onSelect={(w) => onPickTile({ ...w, hex: tileHex(tileAt(w)), from: 'wheel' })} readOnly={readOnly} />
 
       {!readOnly && (
         <>
-          <div className="flex items-center justify-center gap-2" role="group" aria-label="Mask shape">
+          <div className="flex items-start justify-center gap-4" role="group" aria-label="Mask shape">
             {SHAPES.map((s) => (
-              <button key={s.key} type="button" onClick={() => pickPreset(s.key)} aria-pressed={preset === s.key} aria-label={s.label} title={s.label}
-                className={`flex h-11 w-11 items-center justify-center rounded-lg border-[1.5px] transition-colors ${
+              <button key={s.key} type="button" onClick={() => pickPreset(s.key)} aria-pressed={preset === s.key}
+                className="flex w-20 flex-col items-center gap-1">
+                <span className={`flex h-11 w-11 items-center justify-center rounded-lg border-[1.5px] transition-colors ${
                   preset === s.key ? 'border-white bg-white/10' : 'border-sc-border hover:border-sc-strong'
                 }`}>
-                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="#cccccc" strokeWidth="1.8" strokeLinejoin="round">{s.icon}</svg>
+                  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="#cccccc" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true">{s.icon}</svg>
+                </span>
+                <span className="text-xs font-semibold text-sc-text2">{s.label}</span>
               </button>
             ))}
           </div>
@@ -75,6 +84,8 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
           </div>
         </>
       )}
+
+      <MaskValues shapes={shapes} paints={paints} onSelect={onSelect} />
 
       {/* The selected colour, and how to mix it from the sketcher's paints. */}
       {selected && recipe ? (
@@ -92,9 +103,14 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
           {recipe.water && (
             <p className="m-0 text-sm text-sc-text3">{recipe.water === 'more' ? 'Add more water to lighten it.' : 'Use less water, or paint a second layer.'}</p>
           )}
+          {isSwatch && (
+            <button type="button" onClick={onRemoveSwatch} className="self-start text-sm font-semibold text-sc-text2 underline hover:text-white">
+              Remove from your colours
+            </button>
+          )}
         </div>
       ) : (
-        <p className="text-sm text-sc-text3">Tap a tile on the wheel, or a spot on the photo.</p>
+        <p className="text-sm text-sc-text3">Tap a tile on the wheel, a colour above, or a spot on the photo.</p>
       )}
       <p className="text-sm text-sc-text3">
         {fromKit ? 'Mixed from the paints in your kit.' : 'Mixed from common paints. Add yours in My kit on your page.'} Parts are a starting point.

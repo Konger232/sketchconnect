@@ -69,8 +69,9 @@ const shapePath = (s) => {
  *   shapes, onChange(shapes, { done })    the mask
  *   active, onActive(index)               the shape last touched
  *   selected { h, c } | null              the selected colour, ringed
+ *   marked   [{ h, c }]                   the collected tiles, dotted
  */
-export default function GamutWheel({ shapes, onChange, active, onActive, paints, selected, onSelect, readOnly = false, className = '' }) {
+export default function GamutWheel({ shapes, onChange, active, onActive, paints, selected, marked = [], onSelect, readOnly = false, className = '' }) {
   const id = useId().replace(/:/g, '')
   const svgRef = useRef(null)
   // { kind: 'corner' | 'edge' | 'shape' | 'tile', index, corner, last, start, moved }
@@ -194,6 +195,7 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
           const [x, y] = polar(RW + 11, angleOf(h))
           return <text key={letter} x={x} y={y} textAnchor="middle" dominantBaseline="central" fill={GREY80} fontSize="13" fontWeight="700">{letter}</text>
         })}
+        {marked.map((m, n) => { const t = tileAt(m); return t && <path key={n} d={tilePath(t.k, t.i)} fill="none" stroke="#cccccc" strokeWidth={1} strokeDasharray="2 2" /> })}
         {sel && <path d={tilePath(sel.k, sel.i)} fill="none" stroke="#fff" strokeWidth={2.2} strokeLinejoin="round" />}
       </svg>
     </div>
