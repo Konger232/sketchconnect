@@ -57,8 +57,9 @@ export default function FloatPanel({
   // A modal stops the page scrolling behind it, as SketchModal does.
   useEffect(() => {
     if (!open || placement !== 'modal') return
+    const before = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
+    return () => { document.body.style.overflow = before }
   }, [open, placement])
 
   if (!open) return null

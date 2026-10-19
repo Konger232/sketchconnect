@@ -3,6 +3,7 @@ import Button from '../common/Button'
 import SketchModal from '../common/SketchModal'
 import StageStrip, { StripImage } from '../analysis/StageStrip'
 import PhotoDropzone from '../common/PhotoDropzone'
+import AdmiredPanel from '../sketcher/AdmiredPanel'
 import { api } from '../../lib/api'
 import { previewUrl } from '../../lib/previewUrl'
 
@@ -29,6 +30,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
   const [voices, setVoices] = useState([])
   const [voice, setVoice] = useState(sketch.persona_id || '')
   const [sending, setSending] = useState(false)
+  const [addingVoices, setAddingVoices] = useState(false) // the white Admired sketchers panel, over this modal
   const [error, setError] = useState(null)
   // Phone: the panel is a bottom sheet over the photo, as in Edit Sketch.
   const [sheetOpen, setSheetOpen] = useState(true)
@@ -144,6 +146,10 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
                   <Button key={v.id} variant="pill" active={voice === v.id} onClick={() => setVoice(v.id)}>{v.name}</Button>
                 ))}
               </div>
+              <button type="button" onClick={() => setAddingVoices(true)} className="self-start text-sm font-semibold text-white underline">
+                {voices.length ? 'Edit admired sketchers' : 'Add admired sketchers'}
+              </button>
+              <p className="text-sm text-sc-text3">Feedback in the spirit of their public teaching, written by the AI.</p>
             </div>
           )}
           {finalBlocked && <p className="text-base text-sc-text3">Feedback on your last final sketch is still on its way. Add a progress sketch now, or wait a minute.</p>}
@@ -160,6 +166,19 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
         </div>
         </div>
       </div>
+      {addingVoices && (
+        <AdmiredPanel
+          list={voices}
+          onClose={() => setAddingVoices(false)}
+          onChange={(list) => {
+            // A sketcher just added here becomes the pick.
+            const added = list.find((v) => !voices.some((x) => x.id === v.id))
+            setVoices(list)
+            if (added) setVoice(added.id)
+            else if (voice && !list.some((v) => v.id === voice)) setVoice('')
+          }}
+        />
+      )}
     </SketchModal>
   )
 }
