@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { StripImage } from '../analysis/StageStrip'
+import { StripImage } from './StageStrip'
 import { hslToRgb, rgbToHsl, xyToWheel } from '../../lib/colorWheel'
 import { squeezeIntoMask, toUnit } from '../../lib/gamutMask'
 
