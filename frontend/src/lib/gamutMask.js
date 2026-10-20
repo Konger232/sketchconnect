@@ -203,3 +203,23 @@ export function greyOf(L) {
   const v = Math.round(Math.max(0, Math.min(1, s)) * 255).toString(16).padStart(2, '0')
   return `#${v}${v}${v}`
 }
+
+// ---- the photo in the mask's key ----
+
+function shapeCentre(s) {
+  return s.type === 'circle' ? toUnit(s.center) : centroid(unitCorners(s))
+}
+
+/**
+ * Gurney's idea: the whole scene painted in the mask's key. The wheel is
+ * squeezed into the mask, about its largest shape: a colour at the wheel's
+ * centre lands on that shape's centre, and the rim on its edge, so the
+ * photo's colours keep their places relative to each other. Anything still
+ * outside goes to the nearest colour inside. Returns p => q in unit space.
+ */
+export function squeezeIntoMask(shapes) {
+  const main = shapes.reduce((a, b) => (shapeSize(b) > shapeSize(a) ? b : a))
+  const [cx, cy] = shapeCentre(main)
+  const k = main.type === 'circle' ? main.r : shapeSize(main) * 1.25
+  return ([x, y]) => clampToMask(shapes, [cx + x * k, cy + y * k])
+}

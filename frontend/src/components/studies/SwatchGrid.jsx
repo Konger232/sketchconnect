@@ -1,5 +1,5 @@
 /**
- * "Your colours": the tiles the sketcher collected from the wheel, as a
+ * "Your colours": the colours the sketcher collected from the chart, as a
  * swatch grid under the photo (design doc, item 37). Tap one to see how
  * to mix it.
  */
@@ -8,7 +8,7 @@ export default function SwatchGrid({ swatches, selected, onSelect }) {
     <div className="flex shrink-0 flex-col gap-1.5 px-4 pb-1 pt-3">
       <span className="text-xs font-semibold uppercase tracking-[0.12em] text-sc-text3">Your colours</span>
       {swatches.length === 0 ? (
-        <span className="text-sm text-sc-text3">Tap tiles on the wheel to collect them here.</span>
+        <span className="text-sm text-sc-text3">Tap colours in the chart to collect them here.</span>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {swatches.map((s, i) => {

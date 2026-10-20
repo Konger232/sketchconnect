@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import GamutWheel, { tileAt, tileHex } from './GamutWheel'
+import GamutWheel from './GamutWheel'
 import MaskValues from './MaskValues'
 import { bestRecipe, maskContains, presetShapes, recipeLine, resizeShape, shapeSize, toUnit } from '../../lib/gamutMask'
 
@@ -46,17 +46,15 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
   return (
     <div className="flex flex-col gap-4">
       <p className="text-md text-white">
-        {readOnly ? 'Your gamut mask, as planned.' : 'Shape your mask, then tap tiles to collect the colours you want. Each one shows how to mix it from your paints.'}
+        {readOnly ? 'Your gamut mask, as planned.' : 'Shape your mask on the wheel. Then tap colours in the chart to collect them; each one shows how to mix it from your paints.'}
       </p>
       {readOnly && (
         <p className="-mt-2 text-sm text-sc-text3">
-          The mask is locked with the plan, because this sketch is shared. To change it, delete the final sketch on its page. You can still tap tiles to collect colours.
+          The mask is locked with the plan, because this sketch is shared. To change it, delete the final sketch on its page. You can still collect colours from the chart.
         </p>
       )}
 
-      <GamutWheel shapes={shapes} onChange={onChange} active={active} onActive={setActive} paints={paints}
-        selected={selected?.from === 'wheel' ? selected : null} marked={marked}
-        onSelect={(w) => onPickTile({ ...w, hex: tileHex(tileAt(w)), from: 'wheel' })} readOnly={readOnly} />
+      <GamutWheel shapes={shapes} onChange={onChange} active={active} onActive={setActive} paints={paints} readOnly={readOnly} />
 
       {!readOnly && (
         <>
@@ -90,7 +88,7 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
         </>
       )}
 
-      <MaskValues shapes={shapes} paints={paints} onSelect={onSelect} />
+      <MaskValues shapes={shapes} paints={paints} onToggle={onPickTile} marked={marked} />
 
       {/* The selected colour, and how to mix it from the sketcher's paints. */}
       {selected && recipe ? (
@@ -115,7 +113,7 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
           )}
         </div>
       ) : (
-        <p className="text-sm text-sc-text3">Tap a tile on the wheel, a colour above, or a spot on the photo.</p>
+        <p className="text-sm text-sc-text3">Tap a colour in the chart, or a spot on the photo.</p>
       )}
       <p className="text-sm text-sc-text3">
         {fromKit ? 'Mixed from the paints in your kit.' : 'Mixed from common paints. Add yours in My kit on your page.'} Parts are a starting point.

@@ -477,15 +477,15 @@ export default function EditSketch() {
       ]
     : tab === 'color'
       ? [
-          { key: 'sample', label: 'Photo', content: (
-            <div className="flex min-h-0 flex-1 flex-col">
-              <SamplePhoto src={referenceImageUrl} onSample={setColorSample} />
-              <SwatchGrid swatches={swatches} selected={colorSample} onSelect={setColorSample} />
-            </div>
-          ) },
           { key: 'mask', label: 'In your mask', content: (
             <div className="flex min-h-0 flex-1 flex-col">
               <MaskedPhoto src={referenceImageUrl} shapes={maskShapes} />
+              <SwatchGrid swatches={swatches} selected={colorSample} onSelect={setColorSample} />
+            </div>
+          ) },
+          { key: 'sample', label: 'Photo', content: (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <SamplePhoto src={referenceImageUrl} onSample={setColorSample} />
               <SwatchGrid swatches={swatches} selected={colorSample} onSelect={setColorSample} />
             </div>
           ) },

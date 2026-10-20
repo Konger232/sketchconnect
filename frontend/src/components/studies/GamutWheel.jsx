@@ -61,8 +61,8 @@ const shapePath = (s) => {
  *   drag a polygon's corner    reshapes it (a hand over the corner)
  *   drag a circle's edge       resizes it
  *   drag inside a shape        moves it (a hand over it)
- *   click a tile               selects that colour (onSelect), inside the
- *                              mask or not, as Krita's selector
+ * The wheel is only for the mask; colours are picked in the chart under
+ * it (MaskValues).
  * No handles or outlines: the darkening and the cursor show the shapes.
  * Paints are small squares under the darkening, guides only.
  *
@@ -104,7 +104,7 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
     for (let s = shapes.length - 1; s >= 0; s--) if (shapeContains(shapes[s], u)) return { kind: 'shape', index: s }
     return null
   }
-  const cursorFor = (hit) => (!hit ? 'pointer' : hit.kind === 'edge' ? 'nwse-resize' : 'grab')
+  const cursorFor = (hit) => (!hit ? 'default' : hit.kind === 'edge' ? 'nwse-resize' : 'grab')
 
   function down(e) {
     const p = toSvg(e)
@@ -125,7 +125,7 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
         setHover(sq || null)
       }
       const inside = dist(p, [C, C]) <= RW
-      setCursor(inside ? (readOnly ? 'pointer' : cursorFor(hitAt(p, e))) : 'default')
+      setCursor(inside && !readOnly ? cursorFor(hitAt(p, e)) : 'default')
       return
     }
     if (d.kind === 'tile') return
@@ -152,11 +152,9 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
     if (!d) return
     drag.current = null
     if (!d.moved) {
-      // A click: select the tile there.
-      const p = toSvg(e)
-      const w = xyToWheel(p[0] - PAD, p[1] - PAD, W)
-      if (w.c <= 1) onSelect?.(w)
-      setCursor(readOnly ? 'pointer' : cursorFor(hitAt(p, e)))
+      // A click does nothing: the wheel is only for the mask. Colours are
+      // picked in the chart below it (MaskValues).
+      setCursor(readOnly ? 'default' : cursorFor(hitAt(toSvg(e), e)))
       return
     }
     setCursor('grab')

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { StripImage } from '../analysis/StageStrip'
 import { hslToRgb, rgbToHsl, xyToWheel } from '../../lib/colorWheel'
-import { clampToMask, maskContains, toUnit } from '../../lib/gamutMask'
+import { squeezeIntoMask, toUnit } from '../../lib/gamutMask'
 
 const MAX_PX = 720 // the photo is worked on at this size, at most
 
@@ -60,9 +60,11 @@ export function SamplePhoto({ src, onSample }) {
 }
 
 /**
- * "In your colours": the reference photo with every colour moved to the
- * nearest colour inside the mask, lightness kept. In the browser, no AI
- * call. It previews the photo, not a painting.
+ * "In your mask": the reference photo in the mask's key (Gurney). The
+ * whole wheel is squeezed into the mask, so every colour moves into it and
+ * keeps its place relative to the others; lightness is kept. In the
+ * browser, so it follows the mask as it is dragged; no AI call. It
+ * previews the photo, not a painting.
  */
 export function MaskedPhoto({ src, shapes }) {
   const pixels = usePhotoPixels(src)
@@ -73,13 +75,12 @@ export function MaskedPhoto({ src, shapes }) {
     if (!pixels || !shapes.length) { setUrl(null); return }
     clearTimeout(timer.current)
     timer.current = setTimeout(() => {
+      const squeeze = squeezeIntoMask(shapes)
       const out = new ImageData(new Uint8ClampedArray(pixels.data), pixels.width, pixels.height)
       const d = out.data
       for (let i = 0; i < d.length; i += 4) {
         const [h, s, l] = rgbToHsl(d[i], d[i + 1], d[i + 2])
-        const p = toUnit({ h, c: s })
-        if (maskContains(shapes, p)) continue
-        const q = clampToMask(shapes, p)
+        const q = squeeze(toUnit({ h, c: s }))
         const w = xyToWheel(q[0] + 1, q[1] + 1, 2)
         const [r, g, b] = hslToRgb(w.h, Math.min(1, w.c), l)
         d[i] = r; d[i + 1] = g; d[i + 2] = b
