@@ -366,10 +366,17 @@ export default function EditSketch() {
     if (done) saveMask(shapes, swatches)
     else clearTimeout(maskSaveRef.current)
   }
-  // A tile tapped on the wheel: shown, and collected into "Your colours".
+  // A tile tapped on the wheel toggles: collected into "Your colours" and
+  // shown, or, when already collected, taken out.
   function pickTile(sel) {
+    if (swatches.some((s) => s.hex === sel.hex)) {
+      const next = swatches.filter((s) => s.hex !== sel.hex)
+      setSwatches(next)
+      if (colorSample?.hex === sel.hex) setColorSample(null)
+      saveMask(maskShapes, next)
+      return
+    }
     setColorSample(sel)
-    if (swatches.some((s) => s.hex === sel.hex)) return
     const next = [...swatches, { h: sel.h, c: sel.c, hex: sel.hex }].slice(-16)
     setSwatches(next)
     saveMask(maskShapes, next)

@@ -77,6 +77,7 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
   // { kind: 'corner' | 'edge' | 'shape' | 'tile', index, corner, last, start, moved }
   const drag = useRef(null)
   const [cursor, setCursor] = useState('default')
+  const [hover, setHover] = useState(null) // the paint square under the mouse, for its tooltip
 
   const squares = useMemo(() => paints.map((p) => ({ ...p, xy: wxy(hexToWheel(p.hex)) })), [paints])
 
@@ -118,6 +119,11 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
     const p = toSvg(e)
     const d = drag.current
     if (!d) {
+      // A paint square under the mouse shows its tooltip (not on touch).
+      if (e.pointerType === 'mouse') {
+        const sq = squares.find((s) => Math.abs(p[0] - s.xy[0]) <= 7 && Math.abs(p[1] - s.xy[1]) <= 7)
+        setHover(sq || null)
+      }
       const inside = dist(p, [C, C]) <= RW
       setCursor(inside ? (readOnly ? 'pointer' : cursorFor(hitAt(p, e))) : 'default')
       return
@@ -170,7 +176,7 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
         onPointerMove={move}
         onPointerUp={up}
         onPointerCancel={() => { drag.current = null }}
-        onPointerLeave={() => { if (!drag.current) setCursor('default') }}
+        onPointerLeave={() => { setHover(null); if (!drag.current) setCursor('default') }}
         role="img"
         aria-label={`Colour wheel with a gamut mask of ${shapes.length} ${shapes.length === 1 ? 'shape' : 'shapes'}`}
       >
@@ -198,6 +204,13 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
         {marked.map((m, n) => { const t = tileAt(m); return t && <path key={n} d={tilePath(t.k, t.i)} fill="none" stroke="#cccccc" strokeWidth={1} strokeDasharray="2 2" /> })}
         {sel && <path d={tilePath(sel.k, sel.i)} fill="none" stroke="#fff" strokeWidth={2.2} strokeLinejoin="round" />}
       </svg>
+      {hover && (
+        <div role="tooltip" className="pointer-events-none absolute z-10 w-max max-w-[260px] rounded-md bg-black/90 px-2.5 py-1.5 text-xs leading-snug text-white shadow-lg"
+          style={{ left: `${(hover.xy[0] / SIZE) * 100}%`, top: `${(hover.xy[1] / SIZE) * 100}%`, transform: 'translate(-50%, calc(-100% - 12px))' }}>
+          <span className="font-bold">{hover.code}</span> {hover.name}
+          {hover.lean && <span className="block text-[#cccccc]">{hover.lean}</span>}
+        </div>
+      )}
     </div>
   )
 }
