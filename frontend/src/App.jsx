@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage'
 import CreateSketch from './pages/CreateSketch'
 import EditSketch from './pages/EditSketch'
 import SearchPage from './pages/SearchPage'
+import Explore from './pages/Explore'
 import Sketcher from './pages/Sketcher'
 import SketchDetail from './pages/SketchDetail'
 import WorkshopsPage from './pages/WorkshopsPage'
@@ -49,7 +50,8 @@ function Router() {
         <Route path="/sketchers/:handle" element={<Sketcher />} /> {/* public: owner, member and visitor views */}
         <Route path="/sketches/:sketchId" element={<SketchDetail />} /> {/* public: owner, member and visitor views */}
         <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketch /></RequireAuth>} />
-        <Route path="/search" element={<SearchPage />} /> {/* public: logged-out visitors search the public recent feed */}
+        <Route path="/search" element={<SearchPage />} /> {/* public: search shared sketches by sketcher, title or place */}
+        <Route path="/explore" element={<Explore />} /> {/* public: the map of shared sketches */}
         {/* Old pages, now folded into the Sketcher page */}
         <Route path="/profile" element={<Navigate to="/" replace />} />
         <Route path="/profile/edit" element={<Navigate to="/?edit=profile" replace />} />

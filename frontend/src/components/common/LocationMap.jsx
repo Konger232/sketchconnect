@@ -24,7 +24,7 @@ const readOnlyIcon = L.divIcon({
   iconAnchor: [9, 24],
 })
 
-function pinIcon(pin) {
+export function pinIcon(pin) {
   if (pin.variant === 'center') {
     return L.divIcon({ className: '', html: '<span class="ed-pin-center"></span>', iconSize: [14, 14], iconAnchor: [7, 7] })
   }
@@ -42,6 +42,16 @@ function pinIcon(pin) {
     iconSize: [18, 24],
     iconAnchor: [9, 24],
   })
+}
+
+// Flies the map to `focus` { lat, lon, zoom? } when it changes (a place
+// picked in the search over the map).
+function FlyTo({ focus }) {
+  const map = useMap()
+  useEffect(() => {
+    if (focus) map.flyTo([focus.lat, focus.lon], focus.zoom || 13, { duration: 0.8 })
+  }, [focus?.lat, focus?.lon]) // eslint-disable-line react-hooks/exhaustive-deps
+  return null
 }
 
 // Clicks on the map itself, to close an open pin card.
@@ -87,7 +97,7 @@ function FitToMarkers({ markers, zoom }) {
 // dashed circle (radius in metres). onMapClick: a click on empty map.
 export default function LocationMap({
   lat, lon, label, points, zoom = 13, editable = false, onLocationChange, height = 'h-72', hint = true,
-  pins, onPinClick, onMapClick, ring, rounded = true,
+  pins, onPinClick, onMapClick, ring, rounded = true, focus,
 }) {
   const custom = Boolean(pins?.length)
   const markers = custom ? pins : points?.length ? points : (lat != null && lon != null ? [{ lat, lon, label }] : [])
@@ -121,6 +131,7 @@ export default function LocationMap({
         {editable && <ClickToSetLocation onLocationChange={onLocationChange} />}
         {!editable && <FitToMarkers markers={markers} zoom={zoom} />}
         {onMapClick && <MapClicks onMapClick={onMapClick} />}
+        {focus && <FlyTo focus={focus} />}
         {ring && (
           <Circle
             center={[ring.lat, ring.lon]}

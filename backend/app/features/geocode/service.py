@@ -52,3 +52,38 @@ async def reverse_geocode(lat: float, lon: float) -> str | None:
     if resp.status_code != 200:
         return None
     return short_label(resp.json())
+
+
+# Nominatim result types that name an area (a town, a city, a country...),
+# not a single spot: generic search treats these as "sketches in this place".
+AREA_TYPES = {
+    "country", "state", "region", "province", "county", "municipality", "city", "town",
+    "village", "city_district", "district", "borough", "suburb", "quarter", "island",
+}
+
+
+async def place_boxes(q: str, limit: int = 3) -> list[tuple[float, float, float, float]]:
+    """
+    Bounding boxes (south, north, west, east) of the areas a search text
+    names, e.g. "Kyoto" or "Thailand", for the generic search (design doc,
+    Search). Empty when the text names no area or Nominatim is unreachable:
+    the search then matches by text only.
+    """
+    async with httpx.AsyncClient(timeout=8) as client:
+        try:
+            resp = await client.get(
+                f"{NOMINATIM_BASE}/search",
+                params={"q": q, "format": "jsonv2", "limit": limit, "accept-language": "en"},
+                headers=HEADERS,
+            )
+        except httpx.HTTPError:
+            return []
+    if resp.status_code != 200:
+        return []
+    boxes = []
+    for r in resp.json():
+        if (r.get("addresstype") or r.get("type")) not in AREA_TYPES or not r.get("boundingbox"):
+            continue
+        s, n, w, e = (float(v) for v in r["boundingbox"])
+        boxes.append((s, n, w, e))
+    return boxes

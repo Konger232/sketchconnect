@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import FloatPanel from './FloatPanel'
 import Icon from './Icon'
 import LocationMap from './LocationMap'
+import LocationSearchField from './LocationSearchField'
 
 /**
  * GRID / MAP tabs over a list of sketches (design handoff,
@@ -18,6 +19,7 @@ import LocationMap from './LocationMap'
  *              (showCenter in the handoff)
  *   cols       grid columns from 768px (2 on a phone)
  *   onPlaceSelect(place)  place mode: the card's "Show these" link
+ *   searchPlaces          a place search over the map, to move it (Home)
  *
  * Map: the app's LocationMap. Tapping a pin turns it red and opens a card
  * (FloatPanel, placement "card") above pins in the lower half of the map
@@ -35,9 +37,11 @@ export default function SketchListMapView({
   cols = 3,
   emptyText = 'No sketches yet.',
   onPlaceSelect,
+  searchPlaces = false,
 }) {
   const [view, setView] = useState(initialView)
   const [picked, setPicked] = useState(null) // { key, x, y }
+  const [focus, setFocus] = useState(null) // a place picked in the search over the map
   const mapRef = useRef(null)
 
   // A new list (a place filter) or the other tab closes an open card. Keyed
@@ -136,7 +140,13 @@ export default function SketchListMapView({
               ring={center ? { lat: center.lat, lon: center.lon, radius: center.radius } : undefined}
               height="h-[420px] md:h-[520px]"
               rounded={false}
+              focus={focus}
             />
+          )}
+          {searchPlaces && located.length > 0 && (
+            <div className="absolute right-3 top-3 z-[1000] w-[min(320px,calc(100%-24px))] rounded-lg bg-white p-1.5 shadow-lg">
+              <LocationSearchField location={focus} onLocationChange={(loc) => { setFocus(loc); setPicked(null) }} />
+            </div>
           )}
 
           {pickedSketch && (

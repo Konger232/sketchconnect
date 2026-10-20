@@ -11,7 +11,7 @@ import io
 import json
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -20,7 +20,9 @@ from pydantic import BaseModel
 from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, Form, HTTPException
 from PIL import Image, ImageOps
 import pillow_heif
+from sqlalchemy import cast, func, or_
 from sqlalchemy.orm import Session
+from geoalchemy2 import Geometry
 from geoalchemy2.shape import to_shape
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.functions import ST_Distance, ST_DWithin
@@ -43,7 +45,7 @@ from app.core.value_study import compute_value_study
 from app.core.paths import UPLOAD_DIR
 from config import DEBUG, MAX_MARKS, MAX_POINTS_PER_MARK
 from app.features.critique_agent.router import start_critique
-from app.features.geocode.service import reverse_geocode
+from app.features.geocode.service import place_boxes, reverse_geocode
 
 # Registered again here (also done in scene_analysis.py) so this module
 # decodes HEIC/HEIF correctly even if imported before that one — the
@@ -962,6 +964,91 @@ async def list_recent_sketches(
         .all()
     )
     return _with_likes(db, rows, viewer_id, [_sketch_to_dict(s) for s in rows])
+
+
+def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:
+    """Public cards with the sketcher's name and handle, and likes."""
+    ids = {s.sketcher_id for s in rows}
+    owners = {p.id: p for p in db.query(Profile).filter(Profile.id.in_(ids)).all()} if ids else {}
+    dicts = []
+    for s in rows:
+        d = _sketch_to_dict(s)
+        p = owners.get(s.sketcher_id)
+        d["owner"] = {"display_name": p.display_name if p else None, "handle": p.handle if p else None}
+        dicts.append(d)
+    return _with_likes(db, rows, viewer_id, dicts)
+
+
+@router.get("/sketches/search")
+async def search_sketches(
+    q: str = "",
+    limit: int = 60,
+    db: Session = Depends(get_db),
+    viewer_id: str | None = Depends(get_optional_sketcher_id),
+):
+    """
+    Generic search (the Search page): shared sketches whose sketcher's name
+    or handle, title, or place label contains the text, plus the sketches
+    inside any town, city or country the text names (Nominatim's bounding
+    box), so "Japan" finds a sketch labelled "Gion, Kyoto". Newest first.
+    Registered above /sketches/{sketch_id}, like /sketches/recent.
+    """
+    q = q.strip()
+    if len(q) < 2:
+        return []
+    like = f"%{q}%"
+    text = (
+        db.query(Sketch)
+        .outerjoin(Profile, Profile.id == Sketch.sketcher_id)
+        .filter(Sketch.final_sketch_url.isnot(None))
+        .filter(or_(
+            Sketch.title.ilike(like),
+            Sketch.location_label.ilike(like),
+            Profile.display_name.ilike(like),
+            Profile.handle.ilike(like),
+        ))
+    )
+    found = {s.id: s for s in text.all()}
+    boxes = await place_boxes(q)
+    if boxes:
+        geom = cast(Sketch.location, Geometry(srid=4326))
+        inside = or_(*[func.ST_Intersects(geom, func.ST_MakeEnvelope(w, s, e, n, 4326)) for s, n, w, e in boxes])
+        for s in (
+            db.query(Sketch)
+            .filter(Sketch.final_sketch_url.isnot(None), Sketch.location.isnot(None))
+            .filter(inside)
+            .all()
+        ):
+            found[s.id] = s
+    rows = sorted(found.values(), key=lambda s: s.created_at, reverse=True)[: max(1, min(limit, 200))]
+    return _with_owners(db, rows, viewer_id)
+
+
+@router.get("/sketches/explore")
+async def explore_sketches(
+    south: float,
+    west: float,
+    north: float,
+    east: float,
+    since_days: Optional[int] = None,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+    viewer_id: str | None = Depends(get_optional_sketcher_id),
+):
+    """
+    The Explore map: shared sketches inside the map's view, newest first,
+    made in the last since_days days (none: any time).
+    """
+    geom = cast(Sketch.location, Geometry(srid=4326))
+    query = (
+        db.query(Sketch)
+        .filter(Sketch.final_sketch_url.isnot(None), Sketch.location.isnot(None))
+        .filter(func.ST_Intersects(geom, func.ST_MakeEnvelope(west, south, east, north, 4326)))
+    )
+    if since_days:
+        query = query.filter(Sketch.created_at >= datetime.now(timezone.utc) - timedelta(days=since_days))
+    rows = query.order_by(Sketch.created_at.desc()).limit(max(1, min(limit, 500))).all()
+    return _with_owners(db, rows, viewer_id)
 
 
 @router.get("/sketch-media/last")

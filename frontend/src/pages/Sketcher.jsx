@@ -376,7 +376,7 @@ export default function Sketcher({ handle: handleProp }) {
               {place} · <button type="button" className="font-semibold underline" onClick={() => setPlace(null)}>Show all</button>
             </p>
           )}
-          <SketchListMapView items={shownItems} pinMode="place" onPlaceSelect={setPlace}
+          <SketchListMapView items={shownItems} pinMode="place" onPlaceSelect={setPlace} searchPlaces
             emptyText={viewer === 'owner' ? 'Your sketches show here once you upload their final sketch.' : 'No shared sketches yet.'} />
         </section>
 
