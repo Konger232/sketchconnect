@@ -64,7 +64,7 @@ const shapePath = (s) => {
  * The wheel is only for the mask; colours are picked in the chart under
  * it (MaskValues).
  * No handles or outlines: the darkening and the cursor show the shapes.
- * Paints are small squares under the darkening, guides only.
+ * Paints are small circles under the darkening, guides only, with a legend.
  *
  *   shapes, onChange(shapes, { done })    the mask
  *   active, onActive(index)               the shape last touched
@@ -121,7 +121,7 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
     if (!d) {
       // A paint square under the mouse shows its tooltip (not on touch).
       if (e.pointerType === 'mouse') {
-        const sq = squares.find((s) => Math.abs(p[0] - s.xy[0]) <= 7 && Math.abs(p[1] - s.xy[1]) <= 7)
+        const sq = squares.find((s) => Math.hypot(p[0] - s.xy[0], p[1] - s.xy[1]) <= 7.5)
         setHover(sq || null)
       }
       const inside = dist(p, [C, C]) <= RW
@@ -189,9 +189,10 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
         {Array.from({ length: SECTORS }, (_, k) => Array.from({ length: RINGS }, (_, i) => (
           <path key={`${k}-${i}`} d={tilePath(k, i)} fill={tileFill(k, i)} stroke="rgba(0,0,0,0.28)" strokeWidth={0.6} />
         )))}
-        {/* Paints: small squares, under the darkening, so they read as part of the wheel. */}
+        {/* Paints: small circles, under the darkening, so they read as part of
+            the wheel. Squares are the collected colours elsewhere. */}
         {squares.map((d) => (
-          <rect key={d.id} data-paint={d.id} x={d.xy[0] - 6.5} y={d.xy[1] - 6.5} width={13} height={13} fill={d.hex} stroke={GREY80} strokeWidth={1} />
+          <circle key={d.id} data-paint={d.id} cx={d.xy[0]} cy={d.xy[1]} r={6.5} fill={d.hex} stroke={GREY80} strokeWidth={1} />
         ))}
         <rect width={SIZE} height={SIZE} fill="rgba(0,0,0,0.68)" mask={`url(#mask-${id})`} clipPath={`url(#clip-${id})`} />
         <circle cx={C} cy={C} r={RW} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={0.8} />
@@ -202,6 +203,11 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
         {marked.map((m, n) => { const t = tileAt(m); return t && <path key={n} d={tilePath(t.k, t.i)} fill="none" stroke="#cccccc" strokeWidth={1} strokeDasharray="2 2" /> })}
         {sel && <path d={tilePath(sel.k, sel.i)} fill="none" stroke="#fff" strokeWidth={2.2} strokeLinejoin="round" />}
       </svg>
+      {/* The legend: what the small circles are. */}
+      <div className="pointer-events-none absolute -bottom-1 right-0 flex items-center gap-1.5 text-[11px] text-[#cccccc]">
+        <span className="inline-block h-3 w-3 rounded-full border border-[#cccccc] bg-[#808080]" />
+        A paint in your palette
+      </div>
       {hover && (
         <div role="tooltip" className="pointer-events-none absolute z-10 w-max max-w-[260px] rounded-md bg-black/90 px-2.5 py-1.5 text-xs leading-snug text-white shadow-lg"
           style={{ left: `${(hover.xy[0] / SIZE) * 100}%`, top: `${(hover.xy[1] / SIZE) * 100}%`, transform: 'translate(-50%, calc(-100% - 12px))' }}>

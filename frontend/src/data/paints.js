@@ -8,6 +8,10 @@
 // `lean` is which way the paint leans, as painters describe it, for the
 // gamut mask's labels (item 37). Written by hand: the approximate `hex`
 // is not exact enough to work it out.
+// The starter palette when the sketcher has no paints in My kit (design
+// doc, item 37): a split primary, a warm and a cool of each primary.
+export const STARTER_PALETTE = ['py3', 'py97', 'pr255', 'pv19', 'pb29', 'pb15-3']
+
 export const PAINTS = [
   { id: 'py3', code: 'PY3', codes: ['PY3'], name: 'Hansa Yellow Light', hex: '#e6ea3c', lean: 'yellow, leaning green (cool)' },
   { id: 'py97', code: 'PY97', codes: ['PY97'], name: 'Hansa Yellow Medium', hex: '#f2c62b', lean: 'yellow, near the middle' },
@@ -64,3 +68,5 @@ export function paintForKitItem(item) {
     null
   )
 }
+
+export const starterPaints = () => STARTER_PALETTE.map((id) => PAINTS.find((p) => p.id === id))

@@ -18,7 +18,7 @@ import ColorPanel from '../components/studies/ColorPanel'
 import { DEFAULT_SHAPES, readMask } from '../lib/gamutMask'
 import { SamplePhoto, MaskedPhoto } from '../components/studies/ColorStage'
 import SwatchGrid from '../components/studies/SwatchGrid'
-import { PAINTS, paintById, paintForKitItem } from '../data/paints'
+import { paintById, paintForKitItem, starterPaints } from '../data/paints'
 import { runGuideAnalysis } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
 import { STYLES, sceneTypeLabel } from '../data/styles'
@@ -764,7 +764,7 @@ export default function EditSketch() {
                 <>
                   <div className="sc-panel-body">
                     {kitPaints ? (
-                      <ColorPanel shapes={maskShapes} onChange={changeMask} paints={kitPaints.length ? kitPaints : PAINTS}
+                      <ColorPanel shapes={maskShapes} onChange={changeMask} paints={kitPaints.length ? kitPaints : starterPaints()}
                         fromKit={kitPaints.length > 0} selected={colorSample} onSelect={setColorSample}
                         onPickTile={pickTile} marked={swatches} onRemoveSwatch={removeSwatch}
                         isSwatch={colorSample?.from === 'wheel' && swatches.some((s) => s.hex === colorSample.hex)}

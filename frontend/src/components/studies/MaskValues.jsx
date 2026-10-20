@@ -56,7 +56,7 @@ export default function MaskValues({ shapes, paints, onToggle, marked = [] }) {
   if (!bars.some((b) => b.length)) return null
   return (
     <div className="flex flex-col gap-2">
-      <span className="sc-field-label">Colours in your mask, by value</span>
+      <span className="sc-field-label">Selected Color Values</span>
       {/* One row per value, lightest first (1 is the lightest): its number,
           its grey, and the colours on it. `bars` comes darkest first. */}
       <div className="flex flex-col gap-1">

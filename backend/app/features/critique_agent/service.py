@@ -17,6 +17,7 @@ the call, running it in the background and the HTTP route stay in
 features/critique_agent/router.py.
 """
 import json
+import math
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -234,6 +235,76 @@ def plan_read_text(sketch: Sketch) -> str:
     return f"Media: {media}\n" + "\n".join(lines)
 
 
+_HUE_NAMES = [
+    (15, "red"), (45, "orange"), (70, "yellow"), (100, "yellow-green"), (150, "green"), (190, "blue-green"),
+    (250, "blue"), (285, "violet"), (330, "magenta"), (360, "red"),
+]
+
+
+def _hue_name(h: float) -> str:
+    return next(name for end, name in _HUE_NAMES if h % 360 < end)
+
+
+def _unit(p: dict) -> tuple[float, float]:
+    # Same layout as the wheel in the app: angle on screen is the hue + 60.
+    a = math.radians(float(p.get("h", 0)) + 60)
+    c = float(p.get("c", 0))
+    return c * math.cos(a), c * math.sin(a)
+
+
+def _in_shape(s: dict, x: float, y: float) -> bool:
+    if s.get("type") == "circle":
+        cx, cy = _unit(s["center"])
+        return math.hypot(x - cx, y - cy) <= float(s.get("r", 0))
+    pts = [_unit(c) for c in s.get("corners") or []]
+    inside = False
+    for i in range(len(pts)):
+        (xi, yi), (xj, yj) = pts[i], pts[i - 1]
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+            inside = not inside
+    return inside
+
+
+def color_plan_text(sketch: Sketch) -> str:
+    """The sketcher's gamut mask and value plan, in words (design doc, item 37)."""
+    mask = sketch.gamut_mask or {}
+    shapes = mask.get("shapes") or []
+    lines = []
+    if sketch.value_levels:
+        lines.append(f"Value plan: {sketch.value_levels} values.")
+    if shapes:
+        hues, top = {}, 0.0
+        for k in range(12):
+            for i in range(9):
+                h, c = k * 30, (i + 0.5) / 9
+                x, y = _unit({"h": h, "c": c})
+                if any(_in_shape(s, x, y) for s in shapes):
+                    name = _hue_name(h)
+                    hues[name] = max(hues.get(name, 0), c)
+                    top = max(top, c)
+        kinds = ", ".join(f"{len(s.get('corners') or [])}-corner shape" if s.get("type") == "polygon" else "circle" for s in shapes)
+        lines.append(f"Gamut mask: {len(shapes)} shape(s) ({kinds}).")
+        if hues:
+            full = [n for n, c in hues.items() if c >= 0.6]
+            muted = [n for n, c in hues.items() if c < 0.6]
+            lines.append(
+                "Hues inside the mask: "
+                + ", ".join(hues)
+                + f". Strongest intensity reached: {'full' if top >= 0.6 else 'medium' if top >= 0.35 else 'muted'}."
+                + (f" Full strength only in: {', '.join(full)}." if full and muted else "")
+            )
+            lines.append(
+                "The mood is set by which hue families are in and how far out from the grey centre the mask reaches; "
+                "a small separate shape is an accent."
+            )
+    swatches = mask.get("swatches") or []
+    if swatches:
+        lines.append("Colours the sketcher collected: " + ", ".join(
+            f"{'muted ' if float(s.get('c', 0)) < 0.4 else ''}{_hue_name(float(s.get('h', 0)))} ({s.get('hex')})" for s in swatches
+        ) + ".")
+    return "\n".join(lines) if lines else "none — the sketcher did not plan colour or value"
+
+
 def run_critique(db: Session, sketch: Sketch) -> None:
     """Build the journey from the database, call Gemini, store the result."""
     persona = _persona_for(db, sketch)
@@ -312,6 +383,7 @@ def run_critique(db: Session, sketch: Sketch) -> None:
         revisions=summarize_revisions(sketch.marks),
         session_choices=session_choices,
         plan_read=plan_read_text(sketch),
+        color_plan=color_plan_text(sketch),
         help_quest_log=help_quest_log,
         prior_review_summary=prior_review_summary or "none — first critique this session",
         principles=", ".join(principles()),

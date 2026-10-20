@@ -46,7 +46,7 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
   return (
     <div className="flex flex-col gap-4">
       <p className="text-md text-white">
-        {readOnly ? 'Your gamut mask, as planned.' : 'Shape your mask on the wheel. Then tap colours in the chart to collect them; each one shows how to mix it from your paints.'}
+        {readOnly ? 'Your gamut mask, as planned.' : 'Shape your gamut mask on the wheel. Then tap colours in the chart to collect them; each one shows how to mix it from your paints.'}
       </p>
       {readOnly && (
         <p className="-mt-2 text-sm text-sc-text3">
@@ -116,7 +116,7 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
         <p className="text-sm text-sc-text3">Tap a colour in the chart, or a spot on the photo.</p>
       )}
       <p className="text-sm text-sc-text3">
-        {fromKit ? 'Mixed from the paints in your kit.' : 'Mixed from common paints. Add yours in My kit on your page.'} Parts are a starting point.
+        {fromKit ? 'Mixed from the paints in your kit.' : 'Mixed from a starter palette: a warm and a cool of each primary. Add your own paints in My kit on your page.'} Parts are a starting point.
       </p>
     </div>
   )
