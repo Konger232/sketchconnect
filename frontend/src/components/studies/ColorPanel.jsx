@@ -60,27 +60,32 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
 
       {!readOnly && (
         <>
-          <div className="flex items-start justify-center gap-4" role="group" aria-label="Mask shape">
-            {SHAPES.map((s) => (
-              <button key={s.key} type="button" onClick={() => pickPreset(s.key)} aria-pressed={preset === s.key}
-                className="flex w-20 flex-col items-center gap-1">
-                <span className={`flex h-11 w-11 items-center justify-center rounded-lg border-[1.5px] transition-colors ${
-                  preset === s.key ? 'border-white bg-white/10' : 'border-sc-border hover:border-sc-strong'
-                }`}>
-                  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="#cccccc" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true">{s.icon}</svg>
-                </span>
-                <span className="text-xs font-semibold text-sc-text2">{s.label}</span>
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-20 shrink-0 text-sm font-semibold text-white">Mask size</span>
-            <button type="button" aria-label="Smaller" onClick={() => setSize(size - 0.05)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white hover:bg-white/10">−</button>
-            <input type="range" min={SIZE_MIN} max={SIZE_MAX} step={0.01} value={Math.min(SIZE_MAX, size)} aria-label="Mask size"
-              onChange={(e) => setSize(Number(e.target.value))} className="h-1.5 min-w-0 flex-1 accent-sc-guide" />
-            <button type="button" aria-label="Bigger" onClick={() => setSize(size + 0.05)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white hover:bg-white/10">+</button>
+          {/* The shapes and the size, in one row. */}
+          <div className="flex items-start gap-3">
+            <div className="flex shrink-0 gap-1.5" role="group" aria-label="Mask shape">
+              {SHAPES.map((s) => (
+                <button key={s.key} type="button" onClick={() => pickPreset(s.key)} aria-pressed={preset === s.key}
+                  className="flex w-12 flex-col items-center gap-0.5">
+                  <span className={`flex h-10 w-10 items-center justify-center rounded-lg border-[1.5px] transition-colors ${
+                    preset === s.key ? 'border-white bg-white/10' : 'border-sc-border hover:border-sc-strong'
+                  }`}>
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="#cccccc" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true">{s.icon}</svg>
+                  </span>
+                  <span className="text-center text-[10px] font-semibold leading-tight text-sc-text2">{s.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5 pt-1">
+              <span className="text-xs font-semibold text-sc-text2">Mask size</span>
+              <div className="flex items-center gap-1">
+                <button type="button" aria-label="Smaller" onClick={() => setSize(size - 0.05)}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white hover:bg-white/10">−</button>
+                <input type="range" min={SIZE_MIN} max={SIZE_MAX} step={0.01} value={Math.min(SIZE_MAX, size)} aria-label="Mask size"
+                  onChange={(e) => setSize(Number(e.target.value))} className="h-1.5 min-w-0 flex-1 accent-sc-guide" />
+                <button type="button" aria-label="Bigger" onClick={() => setSize(size + 0.05)}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white hover:bg-white/10">+</button>
+              </div>
+            </div>
           </div>
         </>
       )}

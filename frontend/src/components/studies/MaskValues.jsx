@@ -57,19 +57,20 @@ export default function MaskValues({ shapes, paints, onSelect }) {
   return (
     <div className="flex flex-col gap-2">
       <span className="sc-field-label">Colours in your mask, by value</span>
-      <div className="flex items-end gap-1">
+      {/* One row per value, darkest first: its number, its grey, and the colours on it. */}
+      <div className="flex flex-col gap-1">
         {bars.map((chips, i) => (
-          <div key={i} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-            <div className="flex w-full flex-col-reverse">
+          <div key={i} className="flex items-center gap-2">
+            <span className="w-4 shrink-0 text-right text-xs text-sc-text3">{i + 1}</span>
+            <span className="h-6 w-6 shrink-0 border border-[#cccccc]/60" style={{ background: greyOf(i / 8) }} />
+            <div className="flex min-h-6 min-w-0 flex-1 flex-wrap">
               {chips.map((c, j) => (
                 <button key={j} type="button" title={c.strength === 'full' ? 'Full strength' : c.strength === 'half' ? 'With water' : 'A thin wash'}
                   onClick={() => onSelect({ h: c.tile.h, c: c.tile.c, hex: c.hex, from: 'wheel' })}
-                  className="h-3 w-full border-t border-black/30 first:border-t-0 hover:outline hover:outline-1 hover:outline-white"
+                  className="h-6 w-6 border-l border-black/30 first:border-l-0 hover:outline hover:outline-1 hover:outline-white"
                   style={{ background: c.hex }} aria-label={`A colour at value ${i + 1}`} />
               ))}
             </div>
-            <span className="h-4 w-full border border-[#cccccc]/60" style={{ background: greyOf((i) / 8) }} />
-            <span className="text-xs text-sc-text3">{i + 1}</span>
           </div>
         ))}
       </div>

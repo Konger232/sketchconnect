@@ -31,17 +31,20 @@ export default function ValuePanel({ levels, onLevels, study, loading, error }) 
         {error && <p className="text-base text-accent">{error}</p>}
         {!study && !error && <p className="text-sm text-sc-text3">{loading ? 'Reading the values…' : ''}</p>}
         {study && (
-          <div className="flex items-end gap-1.5" aria-label="How much of the photo is in each value, darkest first">
+          // One row per value, darkest first: its number, its grey, and a bar
+          // as long as its share of the photo.
+          <div className="flex flex-col gap-1" aria-label="How much of the photo is in each value, darkest first">
             {study.distribution.map((pct, i) => {
               const tone = study.toneValues[i]
+              const grey = `rgb(${tone},${tone},${tone})`
               return (
-                <div key={i} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-                  <span className="text-xs font-semibold text-sc-text2">{pct.toFixed(pct < 10 ? 1 : 0)}</span>
-                  <span className="flex h-16 w-full items-end">
-                    <span className="block w-full rounded-sm border border-white/15" style={{ height: `${Math.max(2, (pct / max) * 64)}px`, background: `rgb(${tone},${tone},${tone})` }} />
+                <div key={i} className="flex items-center gap-2">
+                  <span className="w-4 shrink-0 text-right text-xs text-sc-text3">{i + 1}</span>
+                  <span className="h-6 w-6 shrink-0 border border-[#cccccc]/60" style={{ background: grey }} />
+                  <span className="flex h-6 min-w-0 flex-1 items-center">
+                    <span className="block h-4 border border-white/15" style={{ width: `${Math.max(1, (pct / max) * 100)}%`, background: grey }} />
                   </span>
-                  <span className="h-6 w-full rounded-sm border border-white/15" style={{ background: `rgb(${tone},${tone},${tone})` }} />
-                  <span className="text-xs text-sc-text3">{i + 1}</span>
+                  <span className="w-10 shrink-0 text-right text-xs font-semibold text-sc-text2">{pct.toFixed(pct < 10 ? 1 : 0)}%</span>
                 </div>
               )
             })}

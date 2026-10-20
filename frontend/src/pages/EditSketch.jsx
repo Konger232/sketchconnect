@@ -22,6 +22,7 @@ import { PAINTS, paintById, paintForKitItem } from '../data/paints'
 import { runGuideAnalysis } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
 import { STYLES, sceneTypeLabel } from '../data/styles'
+import { useSheetDrag } from '../lib/useSheetDrag'
 
 const NOTE_LIMIT = 500
 
@@ -77,6 +78,7 @@ export default function EditSketch() {
   // Phone: the panel is a bottom sheet over the photo (.sc-sheet). The
   // handle folds it down to the tabs, to see the whole photo; a tab opens it.
   const [sheetOpen, setSheetOpen] = useState(true)
+  const sheet = useSheetDrag(sheetOpen, setSheetOpen)
   // The close dialog: 'sketch' (create mode: delete the sketch) or
   // 'changes' (edit mode: drop unsaved edits), or null.
   const [confirmingClose, setConfirmingClose] = useState(null)
@@ -717,13 +719,13 @@ export default function EditSketch() {
       <StageStrip key={stripKey} ref={stripRef} panels={panels} focusKey={studyPanels ? panels[0].key : 'plan'} />
 
       {/* ===== RIGHT: TABS ===== */}
-      <div className="sc-panel sc-sheet">
+      <div ref={sheet.ref} className={`sc-panel sc-sheet ${sheet.className}`} style={sheet.style}>
         <button
           type="button"
-          className="sc-sheet-handle"
+          className="sc-sheet-handle touch-none"
+          {...sheet.handleProps}
           aria-label={sheetOpen ? 'Fold the panel down' : 'Open the panel'}
           aria-expanded={sheetOpen}
-          onClick={() => setSheetOpen((v) => !v)}
         >
           <span />
         </button>

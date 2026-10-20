@@ -6,6 +6,7 @@ import PhotoDropzone from '../common/PhotoDropzone'
 import AdmiredPanel from '../sketcher/AdmiredPanel'
 import { api } from '../../lib/api'
 import { previewUrl } from '../../lib/previewUrl'
+import { useSheetDrag } from '../../lib/useSheetDrag'
 
 /**
  * Upload sketch (design doc, item 38): the black modal from New Sketch,
@@ -36,6 +37,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
   const [error, setError] = useState(null)
   // Phone: the panel is a bottom sheet over the photo, as in Edit Sketch.
   const [sheetOpen, setSheetOpen] = useState(true)
+  const sheet = useSheetDrag(sheetOpen, setSheetOpen)
   const libraryRef = useRef(null)
   const cameraRef = useRef(null)
   const pickRef = useRef(0)
@@ -114,13 +116,13 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
       )}
 
       {/* Right: one choice, and the voice for a final sketch. */}
-      <div className="sc-panel sc-sheet">
+      <div ref={sheet.ref} className={`sc-panel sc-sheet ${sheet.className}`} style={sheet.style}>
         <button
           type="button"
-          className="sc-sheet-handle"
+          className="sc-sheet-handle touch-none"
+          {...sheet.handleProps}
           aria-label={sheetOpen ? 'Fold the panel down' : 'Open the panel'}
           aria-expanded={sheetOpen}
-          onClick={() => setSheetOpen((v) => !v)}
         >
           <span />
         </button>
