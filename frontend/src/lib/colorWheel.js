@@ -45,6 +45,16 @@ export function hexToWheel(hex) {
 }
 export const wheelToHex = ({ h, c }) => toHex(hslToRgb(h, c, 0.5))
 
+// Where a paint sits on the wheel: its hue, and a distance from the centre
+// that matches its chroma (max - min of R, G, B) to the tiles', which are
+// drawn at 55% lightness. HSL saturation alone pushes whites, darks and
+// earths too far out (Titanium White landed among the oranges).
+export function paintToWheel(hex) {
+  const rgb = hexToRgb(hex)
+  const chroma = (Math.max(...rgb) - Math.min(...rgb)) / 255
+  return { h: rgbToHsl(...rgb)[0], c: Math.min(1, chroma / 0.9) }
+}
+
 // ---- wheel geometry: { h, c } <-> x, y in a square of side `size` ----
 
 // Screen angle in degrees, clockwise from the right. As the reference
@@ -72,7 +82,7 @@ export function xyToWheel(x, y, size) {
 // dropped on empty wheel just gets its hue's name.
 const HUE_NAMES = [
   [15, 'red'], [45, 'orange'], [70, 'yellow'], [100, 'yellow-green'], [150, 'green'], [190, 'blue-green'],
-  [250, 'blue'], [285, 'violet'], [330, 'magenta'], [360, 'red'],
+  [250, 'blue'], [285, 'violet'], [335, 'magenta'], [360, 'red'],
 ]
 export function hueName({ h, c }) {
   if (c < 0.12) return 'grey'

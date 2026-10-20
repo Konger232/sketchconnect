@@ -1390,8 +1390,7 @@ def _clean_mask(mask: GamutMask) -> dict:
             out.append({"type": "polygon", "corners": [_clean_point(c) for c in s.corners[:MAX_SHAPE_CORNERS]]})
         elif s.type == "circle" and s.center and s.r:
             out.append({"type": "circle", "center": _clean_point(s.center), "r": round(max(0.02, min(1.0, s.r)), 3)})
-    if not out:
-        raise HTTPException(400, "A mask needs at least one shape")
+    # No shapes: the sketcher removed the mask.
     return {"shapes": out, "swatches": _clean_swatches(mask.swatches)}
 
 

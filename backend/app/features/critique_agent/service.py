@@ -237,7 +237,7 @@ def plan_read_text(sketch: Sketch) -> str:
 
 _HUE_NAMES = [
     (15, "red"), (45, "orange"), (70, "yellow"), (100, "yellow-green"), (150, "green"), (190, "blue-green"),
-    (250, "blue"), (285, "violet"), (330, "magenta"), (360, "red"),
+    (250, "blue"), (285, "violet"), (335, "magenta"), (360, "red"),
 ]
 
 
@@ -272,6 +272,8 @@ def color_plan_text(sketch: Sketch) -> str:
     lines = []
     if sketch.value_levels:
         lines.append(f"Value plan: {sketch.value_levels} values.")
+    if not shapes and mask:
+        lines.append("Gamut mask: none; the sketcher removed it.")
     if shapes:
         hues, top = {}, 0.0
         for k in range(12):

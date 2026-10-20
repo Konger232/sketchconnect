@@ -1,5 +1,5 @@
 import { useId, useMemo, useRef, useState } from 'react'
-import { angleOf, hexToWheel, wheelToXY, xyToWheel } from '../../lib/colorWheel'
+import { angleOf, paintToWheel, wheelToXY, xyToWheel } from '../../lib/colorWheel'
 import { moveShape, shapeContains, toUnit } from '../../lib/gamutMask'
 
 const SIZE = 300 // viewBox units; the wheel scales to its box
@@ -79,7 +79,7 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
   const [cursor, setCursor] = useState('default')
   const [hover, setHover] = useState(null) // the paint square under the mouse, for its tooltip
 
-  const squares = useMemo(() => paints.map((p) => ({ ...p, xy: wxy(hexToWheel(p.hex)) })), [paints])
+  const squares = useMemo(() => paints.map((p) => ({ ...p, xy: wxy(paintToWheel(p.hex)) })), [paints])
 
   function toSvg(e) {
     const box = svgRef.current.getBoundingClientRect()
@@ -194,7 +194,7 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
         {squares.map((d) => (
           <circle key={d.id} data-paint={d.id} cx={d.xy[0]} cy={d.xy[1]} r={6.5} fill={d.hex} stroke={GREY80} strokeWidth={1} />
         ))}
-        <rect width={SIZE} height={SIZE} fill="rgba(0,0,0,0.68)" mask={`url(#mask-${id})`} clipPath={`url(#clip-${id})`} />
+        {shapes.length > 0 && <rect width={SIZE} height={SIZE} fill="rgba(0,0,0,0.68)" mask={`url(#mask-${id})`} clipPath={`url(#clip-${id})`} />}
         <circle cx={C} cy={C} r={RW} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={0.8} />
         {LETTERS.map(([h, letter]) => {
           const [x, y] = polar(RW + 11, angleOf(h))

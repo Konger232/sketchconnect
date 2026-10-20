@@ -34,7 +34,8 @@ export const DEFAULT_SHAPES = presetShapes('triangle')
 
 // An older saved mask ({ corners }) is one polygon.
 export function readMask(saved) {
-  if (saved?.shapes?.length) return saved.shapes
+  // An empty list is a removed mask, kept as is.
+  if (Array.isArray(saved?.shapes)) return saved.shapes
   if (saved?.corners?.length >= 3) return [{ type: 'polygon', corners: saved.corners }]
   return null
 }
