@@ -120,7 +120,7 @@ function StepArt({ kind }) {
  * (different grid caps, different map source) that sharing it wasn't
  * actually saving anything.
  */
-export default function LoggedOutHome() {
+export default function VisitorHome() {
   const { coords, status } = useGeolocation()
   const [sketches, setSketches] = useState([])
   const [loaded, setLoaded] = useState(false)

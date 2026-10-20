@@ -5,6 +5,7 @@ import FloatPanel from '../common/FloatPanel'
 import { api } from '../../lib/api'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../common/AuthContext'
+import Avatar from '../common/Avatar'
 
 const LINKS = [
   { key: 'instagram', label: 'Instagram', placeholder: 'instagram.com/yourname' },
@@ -102,7 +103,7 @@ export default function EditProfilePanel({ profile, shared, userId, onClose, onS
         }
       >
         <div className="flex items-center gap-4">
-          <span className="ed-avatar h-16 w-16">{form.avatar_url && <img src={form.avatar_url} alt="" className="h-full w-full object-cover" />}</span>
+          <Avatar url={form.avatar_url} className="h-16 w-16" />
           <label className="cursor-pointer">
             <span className="inline-flex min-h-10 items-center border-[1.5px] border-ink px-3.5 text-sm font-bold text-ink">
               {uploading ? 'Uploading…' : 'Change photo'}

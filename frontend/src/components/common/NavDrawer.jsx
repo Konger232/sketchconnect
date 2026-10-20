@@ -4,6 +4,7 @@ import icoCamera from '../../assets/images/ico-camera.png'
 import icoCalendar from '../../assets/images/ico-calendar.png'
 import icoHome from '../../assets/images/ico-home.png'
 import icoProfile from '../../assets/images/ico-profile.png' //smiley face
+import Avatar from './Avatar'
 
 const linkStyle = 'flex items-center gap-2.5 text-base font-semibold text-ink no-underline py-3 border-b border-[#eee]'
 // Text-only rows (no icon) reuse the same look via this variant instead of
@@ -50,14 +51,10 @@ export default function NavDrawer({ open, onClose }) {
             <button onClick={onClose} aria-label="Close menu" className="absolute right-4 top-3 px-2 py-1 text-2xl leading-none text-white transition-colors hover:text-white/70">
               &times;
             </button>
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10">
-              {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span className="font-mono text-3xs text-white/60">photo</span>
-              )}
-            </div>
-            <span className="text-lg font-semibold text-white">{displayName}</span>
+            <Link to={profile?.handle ? `/sketchers/${profile.handle}` : '/'} onClick={onClose} className="flex items-center gap-4 text-white no-underline">
+              <Avatar url={profile?.avatar_url} className="h-14 w-14 bg-white" />
+              <span className="text-lg font-semibold text-white">{displayName}</span>
+            </Link>
           </div>
         ) : (
           <div className="flex flex-shrink-0 justify-end px-6 pt-4">
@@ -76,7 +73,10 @@ export default function NavDrawer({ open, onClose }) {
               <Link to="/workshops" onClick={onClose} className={linkStyle}>
                 <img src={icoCalendar} alt="" className="h-5 w-5" /> Workshop Calendar
               </Link>
-              <Link to="/?edit=profile" onClick={onClose} className={textLinkStyle}>
+              <Link to={profile?.handle ? `/sketchers/${profile.handle}` : '/'} onClick={onClose} className={textLinkStyle}>
+                My page
+              </Link>
+              <Link to={profile?.handle ? `/sketchers/${profile.handle}?edit=profile` : '/'} onClick={onClose} className={textLinkStyle}>
                 Edit Profile
               </Link>
               <button

@@ -5,7 +5,8 @@ import logo from '../../assets/images/logo-black-on-white.png'
 import icoCamera from '../../assets/images/ico-camera.png'
 import icoAnchor from '../../assets/images/ico-anchor.png'
 import icoCalendar from '../../assets/images/ico-calendar.png'
-import icoProfile from '../../assets/images/ico-profile.png'
+import Avatar from './Avatar'
+import { useAuth } from './AuthContext'
 
 /**
  * Ported directly from SketchConnect_ClaudeDesign/Header.dc.html (the
@@ -17,13 +18,15 @@ import icoProfile from '../../assets/images/ico-profile.png'
  *
  * Mobile: logo left, camera("Add")+menu icons right.
  * Wide (md+): camera/anchor("Explore")/calendar("Workshops") icons left,
- * centered logo, profile icon right (opens the same nav drawer as menu).
+ * centered logo, your avatar right (your page). The hamburger and its
+ * drawer are mobile only.
  * showAdd is always true here — neither Home page in the source passes it
  * false — and /explore has no page yet, matching /workshops' route name
  * but not (yet) implemented.
  */
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const { user, profile } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   // The create-sketch flow (CreateSketch) renders as a modal overlay on top
@@ -94,9 +97,11 @@ export default function Header() {
                 <line x1="21" y1="21" x2="16.2" y2="16.2" />
               </svg>
             </button>
-            <button onClick={() => setMenuOpen(true)} aria-label="Account menu" className="flex items-center justify-center">
-              <img src={icoProfile} alt="Account" className="h-9 w-9 object-contain" />
-            </button>
+            {/* Your page, by your avatar (the smiley face without one). The
+                menu drawer is for phones only. */}
+            <Link to={user && profile?.handle ? `/sketchers/${profile.handle}` : '/login'} aria-label={user ? 'My page' : 'Login'} className="flex items-center justify-center">
+              <Avatar url={user ? profile?.avatar_url : null} className="h-9 w-9" />
+            </Link>
           </div>
         </div>
       </header>

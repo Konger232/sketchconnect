@@ -1,24 +1,21 @@
 import Header from '../components/common/Header'
 import Footer from '../components/common/Footer'
-import LoggedOutHome from './LoggedOutHome'
-import Sketcher from './Sketcher'
+import VisitorHome from './VisitorHome'
+import RegisteredUserHome from './RegisteredUserHome'
 import { useAuth } from '../components/common/AuthContext'
 
-// Home. A signed-in sketcher lands on their own Sketcher page (design doc,
-// item 36). Everyone else sees the public, GPS-aware recent sketches.
+// Home. A registered sketcher sees sketches near them, with search
+// (RegisteredUserHome); their own page is behind their avatar. A visitor
+// sees the public story and recent sketches (VisitorHome).
 export default function HomePage() {
-  const { user, profile, loading } = useAuth()
+  const { user, loading } = useAuth()
 
-  if (user && profile?.handle) return <Sketcher handle={profile.handle} />
+  if (user) return <RegisteredUserHome />
 
   return (
     <div>
       <Header />
-      {loading || (user && !profile) ? (
-        <p className="mt-10 text-center text-ink/50">Loading…</p>
-      ) : (
-        <LoggedOutHome />
-      )}
+      {loading ? <main className="ed-page"><p className="text-ink/50">Loading…</p></main> : <VisitorHome />}
       <Footer />
     </div>
   )

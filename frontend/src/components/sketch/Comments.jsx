@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import Button from '../common/Button'
 import { api } from '../../lib/api'
 import { relativeTime } from '../../lib/relativeTime'
+import Avatar from '../common/Avatar'
 
 /**
  * Comments on a shared sketch (design doc, item 32). Visitors read and get
@@ -49,7 +50,7 @@ export default function Comments({ sketchId, viewer, userId, onCount }) {
       <ul className="flex flex-col gap-4">
         {list?.map((c) => (
           <li key={c.id} className="flex gap-3">
-            <span className="ed-avatar h-9 w-9">{c.author.avatar_url && <img src={c.author.avatar_url} alt="" className="h-full w-full object-cover" />}</span>
+            <Avatar url={c.author.avatar_url} className="h-9 w-9" />
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="text-sm">
                 {c.author.handle ? (

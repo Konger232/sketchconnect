@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import FloatPanel from '../common/FloatPanel'
 import { api } from '../../lib/api'
+import Avatar from '../common/Avatar'
 
 // Who follows a sketcher, newest first (GET /api/sketchers/{handle}/followers).
 export default function FollowersPanel({ handle, onClose }) {
@@ -18,7 +19,7 @@ export default function FollowersPanel({ handle, onClose }) {
         {list?.map((p) => (
           <li key={p.handle}>
             <Link to={`/sketchers/${p.handle}`} onClick={onClose} className="flex items-center gap-3 py-2.5 text-ink no-underline hover:text-ink/70">
-              <span className="ed-avatar h-9 w-9">{p.avatar_url && <img src={p.avatar_url} alt="" className="h-full w-full object-cover" />}</span>
+              <Avatar url={p.avatar_url} className="h-9 w-9" />
               <span className="flex flex-col">
                 <span className="text-base font-semibold">{p.display_name || p.handle}</span>
                 <span className="text-xs text-ink/50">@{p.handle}</span>

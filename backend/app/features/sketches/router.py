@@ -920,7 +920,7 @@ async def list_recent_sketches(
     lat: Optional[float] = None,
     lon: Optional[float] = None,
     radius_km: float = 50.0,
-    limit: int = 10,
+    limit: int = 10,  # at most 60
     db: Session = Depends(get_db),
     viewer_id: str | None = Depends(get_optional_sketcher_id),
 ):
@@ -950,20 +950,20 @@ async def list_recent_sketches(
             .filter(Sketch.location.isnot(None))
             .filter(ST_DWithin(Sketch.location, point, radius_km * 1000))
             .order_by(ST_Distance(Sketch.location, point))
-            .limit(limit)
+            .limit(max(1, min(limit, 60)))
             .all()
         )
         if nearby:
-            return _with_likes(db, nearby, viewer_id, [_sketch_to_dict(s) for s in nearby])
+            return _with_owners(db, nearby, viewer_id)
 
     rows = (
         db.query(Sketch)
         .filter(Sketch.final_sketch_url.isnot(None))
         .order_by(Sketch.created_at.desc())
-        .limit(limit)
+        .limit(max(1, min(limit, 60)))
         .all()
     )
-    return _with_likes(db, rows, viewer_id, [_sketch_to_dict(s) for s in rows])
+    return _with_owners(db, rows, viewer_id)
 
 
 def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:

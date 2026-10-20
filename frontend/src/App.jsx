@@ -18,6 +18,23 @@ function RequireAuth({ children }) {
   return children
 }
 
+// Pages for registered sketchers only. A visitor goes to the Register
+// page, and comes back here after joining (design doc: visitors see the
+// visitor Home only).
+function MembersOnly({ children }) {
+  const { user, loading } = useAuth()
+  const location = useLocation()
+  if (loading) return <div className="p-8 text-center text-ink/50">Loading…</div>
+  if (!user) return <Navigate to="/login?mode=register" replace state={{ from: location.pathname }} />
+  return children
+}
+
+// The old Edit Profile address: your own page, with the panel open.
+function EditProfileRedirect() {
+  const { profile } = useAuth()
+  return <Navigate to={profile?.handle ? `/sketchers/${profile.handle}?edit=profile` : '/'} replace />
+}
+
 // Universal error message for DB 
 function ConfigWarningBanner() {
   if (supabaseConfigured) return null
@@ -47,14 +64,14 @@ function Router() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/capture" element={<RequireAuth><CreateSketch /></RequireAuth>} />
-        <Route path="/sketchers/:handle" element={<Sketcher />} /> {/* public: owner, member and visitor views */}
-        <Route path="/sketches/:sketchId" element={<SketchDetail />} /> {/* public: owner, member and visitor views */}
+        <Route path="/sketchers/:handle" element={<MembersOnly><Sketcher /></MembersOnly>} /> {/* owner and member views */}
+        <Route path="/sketches/:sketchId" element={<MembersOnly><SketchDetail /></MembersOnly>} /> {/* owner and member views */}
         <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketch /></RequireAuth>} />
-        <Route path="/search" element={<SearchPage />} /> {/* public: search shared sketches by sketcher, title or place */}
-        <Route path="/explore" element={<Explore />} /> {/* public: the map of shared sketches */}
+        <Route path="/search" element={<MembersOnly><SearchPage /></MembersOnly>} /> {/* search sketches by sketcher, title or place */}
+        <Route path="/explore" element={<MembersOnly><Explore /></MembersOnly>} /> {/* the map of sketches */}
         {/* Old pages, now folded into the Sketcher page */}
         <Route path="/profile" element={<Navigate to="/" replace />} />
-        <Route path="/profile/edit" element={<Navigate to="/?edit=profile" replace />} />
+        <Route path="/profile/edit" element={<RequireAuth><EditProfileRedirect /></RequireAuth>} />
         <Route path="/settings" element={<Navigate to="/" replace />} />
         <Route path="/workshops" element={<RequireAuth><WorkshopsPage /></RequireAuth>} />
       </Routes>

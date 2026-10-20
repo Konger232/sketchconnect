@@ -16,6 +16,7 @@ import { paintById, paintForKitItem } from '../data/paints'
 import { api } from '../lib/api'
 import { dateLabel, imageUrl } from '../lib/media'
 import { useSketchesVersion } from '../lib/sketchEvents'
+import Avatar from '../components/common/Avatar'
 
 /**
  * The sketcher page (design handoff, "Sketcher Page - Editorial"; design
@@ -33,7 +34,7 @@ import { useSketchesVersion } from '../lib/sketchEvents'
 export default function Sketcher({ handle: handleProp }) {
   const params = useParams()
   const handle = handleProp || params.handle
-  const { user, refreshProfile } = useAuth()
+  const { user, refreshProfile, signOut } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [search, setSearch] = useSearchParams()
@@ -66,7 +67,7 @@ export default function Sketcher({ handle: handleProp }) {
 
   useEffect(() => { if (handle) load() }, [handle, user?.id, sketchesVersion]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // NavDrawer's "Edit Profile" opens the panel: /?edit=profile.
+  // NavDrawer's "Edit Profile" opens the panel: ?edit=profile.
   useEffect(() => {
     if (page?.is_owner && search.get('edit') === 'profile') {
       setPanel('profile')
@@ -193,12 +194,8 @@ export default function Sketcher({ handle: handleProp }) {
         {/* ---- 1. Hero ---- */}
         <section className="grid items-center gap-7 md:grid-cols-2 md:gap-14">
           <div className="flex flex-col items-center gap-4 text-center md:px-6">
-            {/* The profile photo, 80px. Without one, the first letter of the name. */}
-            <span className="ed-avatar flex h-20 w-20 items-center justify-center">
-              {page.avatar_url
-                ? <img src={page.avatar_url} alt="" className="h-full w-full object-cover" />
-                : <span className="font-heading text-3xl font-bold text-ink/60">{(page.display_name || page.handle || '?')[0].toUpperCase()}</span>}
-            </span>
+            {/* The profile photo, 80px; the smiley face without one. */}
+            <Avatar url={page.avatar_url} className="h-20 w-20" />
             <span className="ed-kicker">Sketcher{page.location ? ` · ${page.location}` : ''}</span>
             <h1 className="ed-title">{page.display_name || `@${page.handle}`}</h1>
             {page.bio && <p className="m-0 max-w-[420px] text-base leading-normal text-ink/90">{page.bio}</p>}
@@ -206,7 +203,10 @@ export default function Sketcher({ handle: handleProp }) {
             {counts}
             <div className="mt-2 flex flex-wrap justify-center gap-2.5">
               {viewer === 'owner' ? (
-                <Button variant="editorialSolid" className="min-w-[180px]" onClick={() => setPanel('profile')}>Edit profile</Button>
+                <>
+                  <Button variant="editorialSolid" className="min-w-[180px]" onClick={() => setPanel('profile')}>Edit profile</Button>
+                  <Button variant="editorial" className="min-w-[120px]" onClick={async () => { await signOut(); navigate('/') }}>Sign out</Button>
+                </>
               ) : (
                 <Button variant="editorialSolid" active={page.is_following} className="min-w-[180px]" onClick={toggleFollow} disabled={busyFollow}>
                   {page.is_following ? 'Following' : 'Follow'}

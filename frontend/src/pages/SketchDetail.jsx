@@ -24,6 +24,7 @@ import { sceneTypeLabel, STYLES } from '../data/styles'
 import { api } from '../lib/api'
 import { dateLabel, imageUrl, timeLabel } from '../lib/media'
 import { notifySketchesChanged, useSketchesVersion } from '../lib/sketchEvents'
+import Avatar from '../components/common/Avatar'
 
 const NEARBY_M = 300
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : '')
@@ -252,7 +253,7 @@ export default function SketchDetail() {
             <h1 className="ed-title">{s.title || 'Untitled sketch'}</h1>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-base">
               <Link to={s.owner?.handle ? `/sketchers/${s.owner.handle}` : '#'} className="flex items-center gap-2 font-semibold text-ink no-underline hover:underline">
-                <span className="ed-avatar h-8 w-8">{s.owner?.avatar_url && <img src={s.owner.avatar_url} alt="" className="h-full w-full object-cover" />}</span>
+                <Avatar url={s.owner?.avatar_url} className="h-8 w-8" />
                 {s.owner?.display_name || s.owner?.handle || 'A sketcher'}
               </Link>
               <span className="text-ink/80">{dateLabel(when)} · {timeLabel(when)}</span>
