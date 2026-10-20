@@ -6,13 +6,19 @@ import { squeezeIntoMask, toUnit } from '../../lib/gamutMask'
 const MAX_PX = 720 // the photo is worked on at this size, at most
 
 // The reference photo's pixels, loaded once (CORS, as FocalFrameEditor).
+// The photo's pixels, or `false` when they can't be read. The request gets
+// its own URL: the page may already have this photo cached from a plain
+// <img> (no CORS header), and the browser would reuse that copy and block
+// the read.
 function usePhotoPixels(src) {
   const [pixels, setPixels] = useState(null)
   useEffect(() => {
     if (!src) return
     let alive = true
+    setPixels(null)
     const img = new Image()
     img.crossOrigin = 'anonymous'
+    img.onerror = () => { if (alive) setPixels(false) }
     img.onload = () => {
       const scale = Math.min(1, MAX_PX / Math.max(img.naturalWidth, img.naturalHeight))
       const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale)
@@ -24,9 +30,10 @@ function usePhotoPixels(src) {
         if (alive) setPixels(ctx.getImageData(0, 0, w, h))
       } catch {
         // A photo without CORS: sampling and the recolour are not available.
+        if (alive) setPixels(false)
       }
     }
-    img.src = src
+    img.src = src.startsWith('blob:') || src.startsWith('data:') ? src : `${src}${src.includes('?') ? '&' : '?'}px=1`
     return () => { alive = false }
   }, [src])
   return pixels
@@ -95,7 +102,8 @@ export function MaskedPhoto({ src, shapes, overlay }) {
 
   if (url) return <StripImage src={url} alt="The reference photo in your mask's colours" grid overlay={overlay} />
   // No mask: the photo as it is.
-  if (!shapes.length) return <StripImage src={src} alt="Reference photo" grid overlay={overlay} />
+  // No mask, or the photo can't be read: the photo as it is.
+  if (!shapes.length || pixels === false) return <StripImage src={src} alt="Reference photo" grid overlay={overlay} />
   return (
     <div className="flex min-h-[40vh] flex-1 items-center justify-center">
       <p className="px-6 py-16 text-center text-md text-sc-text3">
