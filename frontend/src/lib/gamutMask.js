@@ -128,7 +128,12 @@ const SIMPLER = 0.012 // a mix of more paints must beat a simpler one by this mu
  * { parts: [[paint, n]], hex, delta, water } with delta the OKLab distance
  * (lightness weighted down) and water 'more' | 'less' | null.
  */
-export function bestRecipe(hex, paints) {
+// White and Payne's Gray are for highlights and value control, never
+// for the colour recipes (Chan's rule). Lighten with water instead.
+export const NOT_FOR_MIXING = new Set(['pw6', 'paynes-gray'])
+
+export function bestRecipe(hex, allPaints) {
+  const paints = allPaints.filter((p) => !NOT_FOR_MIXING.has(p.id))
   if (!paints.length) return null
   const target = oklab(hex)
   const colors = paints.map((p) => new Color(p.hex))
