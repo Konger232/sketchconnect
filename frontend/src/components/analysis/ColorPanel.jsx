@@ -11,7 +11,7 @@ const SHAPES = [
   { key: 'triangle', label: 'Triad', icon: <path d="M12 3 21 20H3Z" /> },
   { key: 'diamond', label: 'Diamond', icon: <path d="M12 2 18 12 12 22 6 12Z" /> },
   { key: 'circles', label: 'Mood & Accent', icon: <><circle cx="9" cy="14" r="7" /><circle cx="19.5" cy="5" r="3" /></> },
-  { key: 'none', label: 'No mask', icon: <><circle cx="12" cy="12" r="9" /><path d="M5.6 18.4 18.4 5.6" /></> },
+  { key: 'none', label: 'No\u00a0mask', icon: <><circle cx="12" cy="12" r="9" /><path d="M5.6 18.4 18.4 5.6" /></> },
 ]
 
 /**
@@ -65,7 +65,7 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
             <div className="flex shrink-0 gap-1.5" role="group" aria-label="Mask shape">
               {SHAPES.map((s) => (
                 <button key={s.key} type="button" onClick={() => pickPreset(s.key)} aria-pressed={preset === s.key || (s.key === 'none' && !shapes.length)}
-                  className="flex w-12 flex-col items-center gap-0.5">
+                  className="flex w-10 flex-col items-center gap-0.5">
                   <span className={`flex h-10 w-10 items-center justify-center rounded-lg border-[1.5px] transition-colors ${
                     preset === s.key || (s.key === 'none' && !shapes.length) ? 'border-white bg-white/10' : 'border-sc-border hover:border-sc-strong'
                   }`}>
