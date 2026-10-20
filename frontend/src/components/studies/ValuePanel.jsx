@@ -1,7 +1,7 @@
 /**
  * The Value tab's right panel (design doc, item 37): how many values to
  * see (3, 5, 7 or 9), and the value distribution, as a value scale from
- * black to white: how much of the photo falls in each value.
+ * light to dark (1 is the lightest): how much of the photo falls in each value.
  *
  *   levels, onLevels(n)
  *   study   { toneValues, distribution } | null
@@ -31,11 +31,12 @@ export default function ValuePanel({ levels, onLevels, study, loading, error }) 
         {error && <p className="text-base text-accent">{error}</p>}
         {!study && !error && <p className="text-sm text-sc-text3">{loading ? 'Reading the values…' : ''}</p>}
         {study && (
-          // One row per value, darkest first: its number, its grey, and a bar
-          // as long as its share of the photo.
-          <div className="flex flex-col gap-1" aria-label="How much of the photo is in each value, darkest first">
-            {study.distribution.map((pct, i) => {
-              const tone = study.toneValues[i]
+          // One row per value, lightest first (1 is the lightest, as on a
+          // drawing value scale): its number, its grey, and a bar as long as
+          // its share of the photo. The study comes darkest first.
+          <div className="flex flex-col gap-1" aria-label="How much of the photo is in each value, lightest first">
+            {[...study.distribution].reverse().map((pct, i) => {
+              const tone = [...study.toneValues].reverse()[i]
               const grey = `rgb(${tone},${tone},${tone})`
               return (
                 <div key={i} className="flex items-center gap-2">
@@ -50,7 +51,7 @@ export default function ValuePanel({ levels, onLevels, study, loading, error }) 
             })}
           </div>
         )}
-        <p className="text-sm text-sc-text3">1 is the darkest. A good sketch usually has one value that clearly leads.</p>
+        <p className="text-sm text-sc-text3">1 is the lightest, the white of the paper. A good sketch usually has one value that clearly leads.</p>
       </div>
     </div>
   )
