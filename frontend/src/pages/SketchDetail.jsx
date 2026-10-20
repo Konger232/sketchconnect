@@ -16,6 +16,7 @@ import FeedbackBlock from '../components/sketch/FeedbackBlock'
 import PaletteBars from '../components/sketch/PaletteBars'
 import SharePanel from '../components/sketch/SharePanel'
 import UploadSketchModal from '../components/sketch/UploadSketchModal'
+import StudiesSection from '../components/sketch/StudiesSection'
 import { getSketchStatus } from '../lib/sketchStatus'
 import { MEDIA } from '../data/media'
 import { paintById } from '../data/paints'
@@ -204,7 +205,7 @@ export default function SketchDetail() {
     }
   }
 
-  const openEdit = () => navigate(`/sketches/${s.id}/edit`, { state: { backgroundLocation: location, tab: 'details', closeOnSave: true } })
+  const openEdit = () => navigate(`/sketches/${s.id}/edit`, { state: { backgroundLocation: location, tab: 'details' } })
 
   // ---- the final sketch's palette (owner) ----
   function openPaint(mode, paint, el) {
@@ -386,6 +387,9 @@ export default function SketchDetail() {
             </div>
           </section>
         )}
+
+        {/* ---- Values and colour: only when the sketcher used those tabs ---- */}
+        <StudiesSection sketch={s} reference={reference} />
 
         {/* ---- Group 3: The sketch: progress sketches, the final, feedback ---- */}
         {(uploads.length > 0 || viewer === 'owner') && (

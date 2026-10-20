@@ -71,17 +71,14 @@ export default function EditSketch() {
   // Create mode: straight from New Sketch. Any other opening is Edit
   // Sketch, including a sketch left in New Sketch without Discard.
   const mode = routerLocation.state?.mode === 'create' ? 'create' : 'edit'
-  // A page can ask for a tab (the Sketch page asks for Details) and for
-  // Save to close the modal (state.tab, state.closeOnSave).
+  // A page can ask for a tab (state.tab; the Sketch page asks for Details).
   const askedTab = routerLocation.state?.tab
-  const closeOnSave = routerLocation.state?.closeOnSave === true
   const [tab, setTab] = useState(askedTab || (mode === 'create' ? 'guide' : 'details'))
   // Phone: the panel is a bottom sheet over the photo (.sc-sheet). The
   // handle folds it down to the tabs, to see the whole photo; a tab opens it.
   const [sheetOpen, setSheetOpen] = useState(true)
   const sheet = useSheetDrag(sheetOpen, setSheetOpen)
-  // The close dialog: 'sketch' (create mode: delete the sketch) or
-  // 'changes' (edit mode: drop unsaved edits), or null.
+  // The close dialog: 'sketch' (create mode: delete the sketch), or null.
   const [confirmingClose, setConfirmingClose] = useState(null)
   // The photo stage strip (StageStrip): show('plan' | 'photo' | 'final').
   const stripRef = useRef(null)
@@ -229,7 +226,12 @@ export default function EditSketch() {
   function requestClose() {
     if (!sketch || !isOwner) return closeModal()
     if (mode === 'create') return setConfirmingClose('sketch')
-    if (detailsDirty()) return setConfirmingClose('changes')
+    // Details autosave; a change still waiting is saved before closing.
+    if (detailsDirty()) {
+      clearTimeout(detailsTimer.current)
+      handleSave().then((ok) => (ok ? closeModal() : setTab('details')))
+      return
+    }
     closeModal()
   }
 
@@ -310,10 +312,6 @@ export default function EditSketch() {
     }
   }
 
-  // The Details Save button. Closes the modal when the opening page asked.
-  async function handleSaveClick() {
-    if ((await handleSave()) && closeOnSave) closeModal()
-  }
 
   async function handleDelete() {
     setDeleteError(null)
@@ -337,6 +335,16 @@ export default function EditSketch() {
       .then(({ data }) => setValueStudies((m) => ({ ...m, [valueLevels]: data })))
       .catch(() => setValueError('Could not read the values right now.'))
   }, [tab, valueLevels, sketch?.is_owner]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Details autosave: a moment after typing stops, like the Value and
+  // Color tabs save as they change.
+  const detailsTimer = useRef(null)
+  useEffect(() => {
+    if (!sketch || !isOwner || !detailsDirty()) return
+    clearTimeout(detailsTimer.current)
+    detailsTimer.current = setTimeout(() => { handleSave() }, 1000)
+    return () => clearTimeout(detailsTimer.current)
+  }, [title, fieldNotes, sketchLocation]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function pickValueLevels(n) {
     setValueLevels(n)
@@ -485,7 +493,7 @@ export default function EditSketch() {
     ? [
         { key: 'values', label: `${valueLevels} values`, content: tabStudy
           ? <StripImage src={tabStudy.valueStudyImage} alt={`The photo in ${valueLevels} values`} grid />
-          : <div className="flex min-h-[40vh] flex-1 items-center justify-center text-md text-sc-text3">Reading the values…</div> },
+          : <div className="flex min-h-[40vh] flex-1 animate-pulse items-center justify-center text-md text-sc-text3">Reading the values…</div> },
         { key: 'photo', label: 'Reference photo', content: <StripImage src={referenceImageUrl} alt="Reference photo" grid /> },
       ]
     : tab === 'color'
@@ -671,8 +679,10 @@ export default function EditSketch() {
         
       </div>
       <div className="sc-footer">
-        {savedJustNow && <span className="mr-auto text-base text-sc-text3">Saved</span>}
-        <Button variant="action" className="ml-auto" onClick={handleSaveClick} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+        {/* Details save as you type, like the other tabs. */}
+        <span className={`text-base text-sc-text3 ${saving ? 'animate-pulse' : ''}`}>
+          {saving ? 'Saving…' : savedJustNow ? 'Saved' : 'Changes save as you type.'}
+        </span>
       </div>
     </>
   )
@@ -712,15 +722,6 @@ export default function EditSketch() {
         confirmLabel="Discard"
         cancelLabel="Keep editing"
         onConfirm={discardSketch}
-        onCancel={() => setConfirmingClose(null)}
-      />
-      <ConfirmDialog
-        open={confirmingClose === 'changes'}
-        title="Discard changes?"
-        message="Your unsaved changes to this sketch will be lost."
-        confirmLabel="Discard"
-        cancelLabel="Keep editing"
-        onConfirm={() => { setConfirmingClose(null); closeModal() }}
         onCancel={() => setConfirmingClose(null)}
       />
       <ConfirmDialog
@@ -780,7 +781,7 @@ export default function EditSketch() {
                         onPickTile={pickTile} marked={swatches} onRemoveSwatch={removeSwatch}
                         isSwatch={colorSample?.from === 'wheel' && swatches.some((s) => s.hex === colorSample.hex)}
                         readOnly={Boolean(sketch.final_sketch_url)} />
-                    ) : <p className="text-md text-sc-text3">Loading your paints…</p>}
+                    ) : <p className="animate-pulse text-md text-sc-text3">Loading your paints…</p>}
                   </div>
                   {startSketchingFooter}
                 </>

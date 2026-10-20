@@ -791,7 +791,7 @@ async def sketch_value_study(
     levels: int = 4,
     scale: bool = False,
     db: Session = Depends(get_db),
-    sketcher_id: str = Depends(get_current_sketcher_id),
+    sketcher_id: str | None = Depends(get_optional_sketcher_id),
 ):
     """
     scale=true: equal steps of lightness, black to white, for the Value
@@ -800,10 +800,9 @@ async def sketch_value_study(
 
     On-demand "dominant value shapes" toggle for SketchDetailPage's
     edit-mode view (see core/value_study.py's docstring for the
-    algorithm -- deterministic OpenCV, not a Gemini call). Scoped to the
-    sketch's owner, same as update_sketch/delete_sketch: this is a
-    working aid for the sketcher's own in-progress sketch, not a public
-    sketch-detail field.
+    algorithm -- deterministic OpenCV, not a Gemini call). Readable by the
+    owner, and by anyone once the sketch is shared, since SketchDetail
+    shows the value study the sketcher chose on the Value tab.
 
     Computed fresh on every call rather than cached alongside
     cached_scene_analysis: it's a single deterministic pass over an
@@ -811,10 +810,10 @@ async def sketch_value_study(
     few different `levels` values, which a cached single result
     couldn't serve anyway.
     """
-    sketch = db.query(Sketch).filter(
-        Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
-    ).first()
-    if sketch is None:
+    # The owner, always; anyone else once the sketch is shared, for the
+    # value study on SketchDetail.
+    sketch = db.query(Sketch).filter(Sketch.id == sketch_id).first()
+    if sketch is None or (sketch.sketcher_id != sketcher_id and not sketch.final_sketch_url):
         raise HTTPException(404, "Sketch not found")
 
     image_path = UPLOAD_DIR / Path(sketch.reference_image_url).name

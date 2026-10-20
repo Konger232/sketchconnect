@@ -204,10 +204,10 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
         {sel && <path d={tilePath(sel.k, sel.i)} fill="none" stroke="#fff" strokeWidth={2.2} strokeLinejoin="round" />}
       </svg>
       {/* The legend: what the small circles are. */}
-      <div className="pointer-events-none absolute -bottom-1 right-0 flex items-center gap-1.5 text-[11px] text-[#cccccc]">
+      {paints.length > 0 && <div className="pointer-events-none absolute -bottom-1 right-0 flex items-center gap-1.5 text-[11px] text-[#cccccc]">
         <span className="inline-block h-3 w-3 rounded-full border border-[#cccccc] bg-[#808080]" />
         A paint in your palette
-      </div>
+      </div>}
       {hover && (
         <div role="tooltip" className="pointer-events-none absolute z-10 w-max max-w-[260px] rounded-md bg-black/90 px-2.5 py-1.5 text-xs leading-snug text-white shadow-lg"
           style={{ left: `${(hover.xy[0] / SIZE) * 100}%`, top: `${(hover.xy[1] / SIZE) * 100}%`, transform: 'translate(-50%, calc(-100% - 12px))' }}>

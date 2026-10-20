@@ -106,7 +106,7 @@ export function MaskedPhoto({ src, shapes, overlay }) {
   if (!shapes.length || pixels === false) return <StripImage src={src} alt="Reference photo" grid overlay={overlay} />
   return (
     <div className="flex min-h-[40vh] flex-1 items-center justify-center">
-      <p className="px-6 py-16 text-center text-md text-sc-text3">
+      <p className="animate-pulse px-6 py-16 text-center text-md text-sc-text3">
         {'Working…'}
       </p>
     </div>

@@ -56,9 +56,16 @@ export default function MaskValues({ shapes, paints, onToggle, marked = [] }) {
   if (!bars.some((b) => b.length)) return null
   return (
     <div className="flex flex-col gap-2">
-      <span className="sc-field-label">Selected Color Values</span>
+      <h3 className="text-white">Selected Color Values</h3>
+      {/* <span className="sc-field-label">Selected Color Values</span> */}
+      <p className="text-sm text-sc-text3">
+        Each mix at full strength, with water, and as a thin wash. 1 is the lightest, 9 the darkest. 
+        Tap a colour to collect it and see how to mix it; tap it again to take it out.</p>
+        <p className="m-0 text-sm text-sc-text3">Tap a colour in the chart, or a spot on the photo, to see how to mix it.</p>
+     
       {/* One row per value, lightest first (1 is the lightest): its number,
           its grey, and the colours on it. `bars` comes darkest first. */}
+      
       <div className="flex flex-col gap-1">
         {bars.map((chips, i) => ({ chips, i })).reverse().map(({ chips, i }) => (
           <div key={i} className="flex items-start gap-2">
@@ -82,7 +89,6 @@ export default function MaskValues({ shapes, paints, onToggle, marked = [] }) {
           </div>
         ))}
       </div>
-      <p className="text-sm text-sc-text3">Each mix at full strength, with water, and as a thin wash. 1 is the lightest, 9 the darkest. Tap a colour to collect it and see how to mix it; tap it again to take it out.</p>
-    </div>
+      </div>
   )
 }

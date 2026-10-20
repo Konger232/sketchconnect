@@ -52,7 +52,8 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-md text-white">
+      <h3 className="text-white">Gamut Mask</h3>
+      <p className="text-sm text-sc-text3">
         {readOnly ? <>Your {gamutLink}, as planned.</> : <>Shape your {gamutLink} on the wheel. Then tap colours in the chart to collect them; each one shows how to mix it from your paints.</>}
       </p>
       {readOnly && (
@@ -102,10 +103,9 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
       )}
       <MaskValues shapes={shapes} paints={paints} onToggle={onPickTile} marked={marked} />
 
-      <p className="m-0 text-sm text-sc-text3">Tap a colour in the chart, or a spot on the photo, to see how to mix it.</p>
-      <p className="text-sm text-sc-text3">
+       {/* <p className="text-sm text-sc-text3">
         {fromKit ? 'Mixed from the paints in your kit.' : 'Mixed from the starter palette. Add your own paints in My kit on your page.'} Parts are a starting point.
-      </p>
+      </p> */}
     </div>
   )
 }
