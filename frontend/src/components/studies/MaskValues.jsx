@@ -61,10 +61,11 @@ export default function MaskValues({ shapes, paints, onSelect }) {
           its grey, and the colours on it. `bars` comes darkest first. */}
       <div className="flex flex-col gap-1">
         {bars.map((chips, i) => ({ chips, i })).reverse().map(({ chips, i }) => (
-          <div key={i} className="flex items-center gap-2">
-            <span className="w-4 shrink-0 text-right text-xs text-sc-text3">{9 - i}</span>
+          <div key={i} className="flex items-start gap-2">
+            <span className="flex h-6 w-4 shrink-0 items-center justify-end text-xs text-sc-text3">{9 - i}</span>
             <span className="h-6 w-6 shrink-0 border border-[#cccccc]/60" style={{ background: greyOf(i / 8) }} />
-            <div className="flex min-h-6 min-w-0 flex-1 flex-wrap">
+            {/* Tiled from the top left; a long row wraps under itself. */}
+            <div className="flex min-h-6 min-w-0 flex-1 flex-wrap content-start items-start">
               {chips.map((c, j) => (
                 <button key={j} type="button" title={c.strength === 'full' ? 'Full strength' : c.strength === 'half' ? 'With water' : 'A thin wash'}
                   onClick={() => onSelect({ h: c.tile.h, c: c.tile.c, hex: c.hex, from: 'wheel' })}
