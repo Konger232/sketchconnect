@@ -71,3 +71,10 @@ export function paintForKitItem(item) {
 }
 
 export const starterPaints = () => STARTER_PALETTE.map((id) => PAINTS.find((p) => p.id === id))
+
+// The paints a sketcher mixes from: the colours in their kit and their
+// favourite palette, without repeats. Empty means use starterPaints().
+export function kitPaintList(kit = [], favorites = []) {
+  const found = [...kit.filter((i) => i.kind === 'color').map(paintForKitItem), ...favorites.map(paintById)].filter(Boolean)
+  return [...new Map(found.map((p) => [p.id, p])).values()]
+}

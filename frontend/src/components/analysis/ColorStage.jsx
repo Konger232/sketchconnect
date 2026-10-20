@@ -74,6 +74,22 @@ export function SamplePhoto({ src, onSample, overlay }) {
  * previews the photo, not a painting.
  */
 export function MaskedPhoto({ src, shapes, overlay }) {
+  const { url, pixels } = useMaskedPhoto(src, shapes)
+  if (url) return <StripImage src={url} alt="The reference photo in your mask's colours" grid overlay={overlay} />
+  // No mask, or the photo can't be read: the photo as it is.
+  if (!shapes.length || pixels === false) return <StripImage src={src} alt="Reference photo" grid overlay={overlay} />
+  return (
+    <div className="flex min-h-[40vh] flex-1 items-center justify-center">
+      <p className="animate-pulse px-6 py-16 text-center text-md text-sc-text3">
+        {'Working…'}
+      </p>
+    </div>
+  )
+}
+
+// The recolour itself, for MaskedPhoto and SketchDetail: { url, pixels },
+// url null until ready (or with no mask), pixels false if unreadable.
+export function useMaskedPhoto(src, shapes) {
   const pixels = usePhotoPixels(src)
   const [url, setUrl] = useState(null)
   const timer = useRef(null)
@@ -99,16 +115,5 @@ export function MaskedPhoto({ src, shapes, overlay }) {
     }, 120)
     return () => clearTimeout(timer.current)
   }, [pixels, shapes])
-
-  if (url) return <StripImage src={url} alt="The reference photo in your mask's colours" grid overlay={overlay} />
-  // No mask: the photo as it is.
-  // No mask, or the photo can't be read: the photo as it is.
-  if (!shapes.length || pixels === false) return <StripImage src={src} alt="Reference photo" grid overlay={overlay} />
-  return (
-    <div className="flex min-h-[40vh] flex-1 items-center justify-center">
-      <p className="animate-pulse px-6 py-16 text-center text-md text-sc-text3">
-        {'Working…'}
-      </p>
-    </div>
-  )
+  return { url, pixels }
 }

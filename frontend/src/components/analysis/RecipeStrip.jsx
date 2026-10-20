@@ -14,7 +14,7 @@ const same = (a, b) => a.toLowerCase() === b.toLowerCase()
 
 // The recipe for a selected colour. A chart colour is a known mix at a known
 // strength, so it says that; a spot on the photo gets the closest mix.
-function recipeFor(selected, paints) {
+export function recipeFor(selected, paints) {
   const tile = selected.from === 'wheel' ? tileAt(selected) : null
   if (tile) {
     const recipe = bestRecipe(tileHex(tile), paints)

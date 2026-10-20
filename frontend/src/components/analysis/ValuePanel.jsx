@@ -8,8 +8,35 @@
  */
 export const VALUE_LEVELS = [3, 5, 7, 9]
 
+/**
+ * The value distribution chart, for the Value tab and SketchDetail. One row
+ * per value, lightest first (1 is the lightest, as on a drawing value
+ * scale): its number, its grey, and a bar as long as its share of the
+ * photo. The study comes darkest first. Dark backgrounds.
+ */
+export function ValueChart({ study }) {
+  const max = Math.max(1, ...study.distribution)
+  return (
+    <div className="flex flex-col gap-1" aria-label="How much of the photo is in each value, lightest first">
+      {[...study.distribution].reverse().map((pct, i) => {
+        const tone = [...study.toneValues].reverse()[i]
+        const grey = `rgb(${tone},${tone},${tone})`
+        return (
+          <div key={i} className="flex items-center gap-2">
+            <span className="w-4 shrink-0 text-right text-xs text-sc-text3">{i + 1}</span>
+            <span className="h-6 w-6 shrink-0 border border-[#cccccc]/60" style={{ background: grey }} />
+            <span className="flex h-6 min-w-0 flex-1 items-center">
+              <span className="block h-4 border border-white/15" style={{ width: `${Math.max(1, (pct / max) * 100)}%`, background: grey }} />
+            </span>
+            <span className="w-10 shrink-0 text-right text-xs font-semibold text-sc-text2">{pct.toFixed(pct < 10 ? 1 : 0)}%</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function ValuePanel({ levels, onLevels, study, loading, error }) {
-  const max = Math.max(1, ...(study?.distribution || [1]))
   return (
     <div className="flex flex-col gap-5">
       <p className="text-md text-sc-text2">
@@ -30,27 +57,7 @@ export default function ValuePanel({ levels, onLevels, study, loading, error }) 
         <span className="sc-field-label">Value distribution, %</span>
         {error && <p className="text-base text-accent">{error}</p>}
         {!study && !error && <p className="text-sm text-sc-text3">{loading ? 'Reading the values…' : ''}</p>}
-        {study && (
-          // One row per value, lightest first (1 is the lightest, as on a
-          // drawing value scale): its number, its grey, and a bar as long as
-          // its share of the photo. The study comes darkest first.
-          <div className="flex flex-col gap-1" aria-label="How much of the photo is in each value, lightest first">
-            {[...study.distribution].reverse().map((pct, i) => {
-              const tone = [...study.toneValues].reverse()[i]
-              const grey = `rgb(${tone},${tone},${tone})`
-              return (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="w-4 shrink-0 text-right text-xs text-sc-text3">{i + 1}</span>
-                  <span className="h-6 w-6 shrink-0 border border-[#cccccc]/60" style={{ background: grey }} />
-                  <span className="flex h-6 min-w-0 flex-1 items-center">
-                    <span className="block h-4 border border-white/15" style={{ width: `${Math.max(1, (pct / max) * 100)}%`, background: grey }} />
-                  </span>
-                  <span className="w-10 shrink-0 text-right text-xs font-semibold text-sc-text2">{pct.toFixed(pct < 10 ? 1 : 0)}%</span>
-                </div>
-              )
-            })}
-          </div>
-        )}
+        {study && <ValueChart study={study} />}
         <p className="text-sm text-sc-text3">1 is the lightest, the white of the paper. A good sketch usually has one value that clearly leads.</p>
       </div>
     </div>

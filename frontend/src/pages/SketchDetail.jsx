@@ -16,7 +16,7 @@ import FeedbackBlock from '../components/sketch/FeedbackBlock'
 import PaletteBars from '../components/sketch/PaletteBars'
 import SharePanel from '../components/sketch/SharePanel'
 import UploadSketchModal from '../components/sketch/UploadSketchModal'
-import StudiesSection from '../components/sketch/StudiesSection'
+import { ColorSection, ValueSection } from '../components/sketch/StudiesSection'
 import { getSketchStatus } from '../lib/sketchStatus'
 import { MEDIA } from '../data/media'
 import { paintById } from '../data/paints'
@@ -388,8 +388,9 @@ export default function SketchDetail() {
           </section>
         )}
 
-        {/* ---- Values and colour: only when the sketcher used those tabs ---- */}
-        <StudiesSection sketch={s} reference={reference} />
+        {/* ---- The value and colour studies: each only when the sketcher used that tab ---- */}
+        <ValueSection sketch={s} />
+        <ColorSection sketch={s} reference={reference} />
 
         {/* ---- Group 3: The sketch: progress sketches, the final, feedback ---- */}
         {(uploads.length > 0 || viewer === 'owner') && (

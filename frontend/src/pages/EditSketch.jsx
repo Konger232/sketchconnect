@@ -19,7 +19,7 @@ import { DEFAULT_SHAPES, readMask } from '../lib/gamutMask'
 import { SamplePhoto, MaskedPhoto } from '../components/analysis/ColorStage'
 import SwatchOverlay from '../components/analysis/SwatchOverlay'
 import RecipeStrip from '../components/analysis/RecipeStrip'
-import { paintById, paintForKitItem, starterPaints } from '../data/paints'
+import { kitPaintList, starterPaints } from '../data/paints'
 import { runGuideAnalysis } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
 import { STYLES, sceneTypeLabel } from '../data/styles'
@@ -356,13 +356,7 @@ export default function EditSketch() {
   useEffect(() => {
     if (tab !== 'color' || kitPaints || !sketch?.is_owner) return
     Promise.all([api.get('/api/kit').catch(() => ({ data: [] })), api.get('/api/profile').catch(() => ({ data: {} }))])
-      .then(([kit, prof]) => {
-        const found = [
-          ...kit.data.filter((i) => i.kind === 'color').map(paintForKitItem),
-          ...(prof.data.favorite_paints || []).map(paintById),
-        ].filter(Boolean)
-        setKitPaints([...new Map(found.map((p) => [p.id, p])).values()])
-      })
+      .then(([kit, prof]) => setKitPaints(kitPaintList(kit.data, prof.data.favorite_paints || [])))
   }, [tab, kitPaints, sketch?.is_owner])
 
   // The mask saves itself a moment after a change ends.
