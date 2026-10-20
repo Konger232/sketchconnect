@@ -21,7 +21,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, Form,
 from PIL import Image, ImageOps
 import pillow_heif
 from sqlalchemy import cast, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 from geoalchemy2 import Geometry
 from geoalchemy2.shape import to_shape
 from geoalchemy2.elements import WKTElement
@@ -96,6 +96,41 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
         # "no feedback yet" apart from "feedback text that happens to be
         # empty" via a null check rather than string truthiness.
         "critique": latest_critique,
+    }
+
+
+# The columns a sketch card needs (SketchCard, SketchListMapView). Lists load
+# only these: a full row carries the stored scene analysis, strokes and plan,
+# which made the Sketcher page's list ~176 KB and slow over the network.
+CARD_COLUMNS = (
+    Sketch.id, Sketch.sketcher_id, Sketch.title, Sketch.field_notes, Sketch.style, Sketch.scene_type,
+    Sketch.reference_image_url, Sketch.final_sketch_url, Sketch.location, Sketch.location_label,
+    Sketch.captured_at, Sketch.created_at,
+)
+
+
+def card_query(db: Session, *extra):
+    """A Sketch query that loads only the card columns."""
+    return db.query(Sketch, *extra).options(load_only(*CARD_COLUMNS))
+
+
+def _sketch_card(s: Sketch) -> dict:
+    """A sketch for a card: no plan, strokes or analysis."""
+    location = None
+    if s.location is not None:
+        point = to_shape(s.location)
+        location = {"lat": point.y, "lon": point.x, "label": s.location_label}
+    return {
+        "id": s.id,
+        "title": s.title,
+        "field_notes": s.field_notes,
+        "style": s.style,
+        "scene_type": s.scene_type,
+        "reference_image_url": s.reference_image_url,
+        "final_sketch_url": s.final_sketch_url,
+        "location": location,
+        "captured_at": s.captured_at,
+        "created_at": s.created_at,
     }
 
 
@@ -916,7 +951,7 @@ async def list_sketches(
 
 
 @router.get("/sketches/recent")
-async def list_recent_sketches(
+def list_recent_sketches(
     lat: Optional[float] = None,
     lon: Optional[float] = None,
     radius_km: float = 50.0,
@@ -945,7 +980,7 @@ async def list_recent_sketches(
     if lat is not None and lon is not None:
         point = WKTElement(f"POINT({lon} {lat})", srid=4326)
         nearby = (
-            db.query(Sketch)
+            card_query(db)
             .filter(Sketch.final_sketch_url.isnot(None))
             .filter(Sketch.location.isnot(None))
             .filter(ST_DWithin(Sketch.location, point, radius_km * 1000))
@@ -957,7 +992,7 @@ async def list_recent_sketches(
             return _with_owners(db, nearby, viewer_id)
 
     rows = (
-        db.query(Sketch)
+        card_query(db)
         .filter(Sketch.final_sketch_url.isnot(None))
         .order_by(Sketch.created_at.desc())
         .limit(max(1, min(limit, 60)))
@@ -970,9 +1005,11 @@ def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:
     """Public cards with the sketcher's name and handle, and likes."""
     ids = {s.sketcher_id for s in rows}
     owners = {p.id: p for p in db.query(Profile).filter(Profile.id.in_(ids)).all()} if ids else {}
+    drafts = upload_counts(db, [s.id for s in rows if not s.final_sketch_url])
     dicts = []
     for s in rows:
-        d = _sketch_to_dict(s)
+        d = _sketch_card(s)
+        d["upload_count"] = drafts.get(s.id, 0)
         p = owners.get(s.sketcher_id)
         d["owner"] = {"display_name": p.display_name if p else None, "handle": p.handle if p else None}
         dicts.append(d)
@@ -1005,7 +1042,7 @@ async def search_sketches(
         return []
     like = f"%{q}%"
     text = (
-        db.query(Sketch)
+        card_query(db)
         .outerjoin(Profile, Profile.id == Sketch.sketcher_id)
         .filter(_visible_to(viewer_id))
         .filter(or_(
@@ -1021,7 +1058,7 @@ async def search_sketches(
         geom = cast(Sketch.location, Geometry(srid=4326))
         inside = or_(*[func.ST_Intersects(geom, func.ST_MakeEnvelope(w, s, e, n, 4326)) for s, n, w, e in boxes])
         for s in (
-            db.query(Sketch)
+            card_query(db)
             .filter(_visible_to(viewer_id), Sketch.location.isnot(None))
             .filter(inside)
             .all()
@@ -1032,7 +1069,7 @@ async def search_sketches(
 
 
 @router.get("/sketches/explore")
-async def explore_sketches(
+def explore_sketches(
     south: float,
     west: float,
     north: float,
@@ -1048,7 +1085,7 @@ async def explore_sketches(
     """
     geom = cast(Sketch.location, Geometry(srid=4326))
     query = (
-        db.query(Sketch)
+        card_query(db)
         .filter(_visible_to(viewer_id), Sketch.location.isnot(None))
         .filter(func.ST_Intersects(geom, func.ST_MakeEnvelope(west, south, east, north, 4326)))
     )
@@ -1195,7 +1232,7 @@ MAX_PALETTE = 12
 
 
 @router.get("/sketches/{sketch_id}/nearby")
-async def nearby_sketches(
+def nearby_sketches(
     sketch_id: str,
     radius_m: int = NEARBY_RADIUS_M,
     limit: int = 24,
@@ -1212,7 +1249,7 @@ async def nearby_sketches(
     radius_m = max(50, min(radius_m, 5000))
     dist = ST_Distance(Sketch.location, sketch.location)
     rows = (
-        db.query(Sketch, dist.label("distance_m"), Profile)
+        card_query(db, dist.label("distance_m"), Profile)
         .outerjoin(Profile, Profile.id == Sketch.sketcher_id)
         .filter(Sketch.id != sketch.id, Sketch.final_sketch_url.isnot(None), Sketch.location.isnot(None))
         .filter(ST_DWithin(Sketch.location, sketch.location, radius_m))
@@ -1222,7 +1259,7 @@ async def nearby_sketches(
     )
     out = []
     for s, d, p in rows:
-        item = _sketch_to_dict(s)
+        item = _sketch_card(s)
         item["distance_m"] = round(d or 0)
         item["owner"] = {"display_name": p.display_name if p else None, "handle": p.handle if p else None}
         out.append(item)

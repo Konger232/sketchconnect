@@ -23,7 +23,7 @@ from app.core.models import KitItem, Profile, Sketch, SketchComment, SketchLike
 from app.features.community.router import follow_counts, is_following
 from app.features.kit.router import KIND_ORDER, _to_dict as kit_item_to_dict
 from app.features.persona.router import admired_list, admired_to_dict
-from app.features.sketches.router import _latest_critiques_by_sketch, _sketch_to_dict
+from app.features.sketches.router import _sketch_card, card_query
 
 router = APIRouter(prefix="/api", tags=["sketchers"])
 
@@ -45,7 +45,7 @@ def _city(location_label: str | None) -> str | None:
 
 
 @router.get("/sketchers/{handle}")
-async def get_sketcher(
+def get_sketcher(
     handle: str,
     db: Session = Depends(get_db),
     viewer_id: str | None = Depends(get_optional_sketcher_id),
@@ -54,7 +54,7 @@ async def get_sketcher(
     is_owner = viewer_id == profile.id
 
     shared = (
-        db.query(Sketch)
+        card_query(db)
         .filter(Sketch.sketcher_id == profile.id, Sketch.final_sketch_url.isnot(None))
         .all()
     )
@@ -80,7 +80,7 @@ async def get_sketcher(
             **follow_counts(db, profile.id),
         },
         "is_following": is_following(db, viewer_id, profile.id),
-        "featured": [_sketch_to_dict(s) for s in featured],
+        "featured": [_sketch_card(s) for s in featured],
         "kit_photo_url": profile.kit_photo_url,
         "kit": [kit_item_to_dict(i) for i in kit_rows],
         # My favorite palette: paint ids from the paint list (data/paints.js).
@@ -92,21 +92,20 @@ async def get_sketcher(
 
 
 @router.get("/sketchers/{handle}/sketches")
-async def list_sketcher_sketches(
+def list_sketcher_sketches(
     handle: str,
     db: Session = Depends(get_db),
     viewer_id: str | None = Depends(get_optional_sketcher_id),
 ):
-    """Shared sketches, newest first. The sketcher also gets their sketches
-    in progress, each marked `shared: false`, and their feedback text."""
+    """Shared sketches, newest first, as cards. The sketcher also gets their
+    sketches in progress, each marked `shared: false`."""
     profile = _profile_by_handle(db, handle)
     is_owner = viewer_id == profile.id
-    q = db.query(Sketch).filter(Sketch.sketcher_id == profile.id)
+    q = card_query(db).filter(Sketch.sketcher_id == profile.id)
     if not is_owner:
         q = q.filter(Sketch.final_sketch_url.isnot(None))
     rows = q.order_by(Sketch.created_at.desc()).all()
     ids = [s.id for s in rows]
-    latest = _latest_critiques_by_sketch(db, ids) if is_owner else {}
     likes = dict(
         db.query(SketchLike.sketch_id, func.count()).filter(SketchLike.sketch_id.in_(ids)).group_by(SketchLike.sketch_id).all()
     ) if ids else {}
@@ -117,7 +116,7 @@ async def list_sketcher_sketches(
     uploads = upload_counts(db, ids) if is_owner else {}
     out = []
     for s in rows:
-        d = _sketch_to_dict(s, latest.get(s.id))
+        d = _sketch_card(s)
         d["shared"] = s.final_sketch_url is not None
         d["upload_count"] = uploads.get(s.id, 0)
         d["place"] = _city(s.location_label)
