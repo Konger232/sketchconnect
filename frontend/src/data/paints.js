@@ -35,7 +35,7 @@ export const PAINTS = [
   { id: 'pv19', code: 'PV19', codes: ['PV19'], name: 'Quinacridone Rose', hex: '#c23b6e', lean: 'pink-red, leaning blue (cool)' },
   { id: 'pr122', code: 'PR122', codes: ['PR122'], name: 'Quinacridone Magenta', hex: '#a8326b', lean: 'magenta, leaning violet (cool)' },
   { id: 'pv23', code: 'PV23', codes: ['PV23'], name: 'Dioxazine Violet', hex: '#4b2c6e', lean: 'violet, leaning blue (cool)' },
-  { id: 'pb29', code: 'PB29', codes: ['PB29'], name: 'Ultramarine Blue', hex: '#3a2f97', lean: 'blue, leaning violet (warm)' },
+  { id: 'pb29', code: 'PB29', codes: ['PB29'], name: 'Ultramarine Blue', hex: '#24359a', lean: 'blue, leaning violet (warm)' },
   { id: 'pb28', code: 'PB28', codes: ['PB28'], name: 'Cobalt Blue', hex: '#2f5aa8', lean: 'blue, near the middle' },
   { id: 'pb35', code: 'PB35', codes: ['PB35'], name: 'Cerulean Blue', hex: '#3a86b8', lean: 'blue, leaning green (cool)' },
   { id: 'pb15-3', code: 'PB15:3', codes: ['PB15:3'], name: 'Phthalo Blue', hex: '#0f5e9c', lean: 'blue, leaning green (cool)' },

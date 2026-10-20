@@ -74,7 +74,7 @@ export default function MaskValues({ shapes, paints, onToggle, marked = [] }) {
                   style={{
                     background: c.hex,
                     // Collected into "Your colours": a thin white border.
-                    boxShadow: marked.some((m) => m.hex === c.hex) ? 'inset 0 0 0 0.75px rgba(255,255,255,0.9), 0 0 0 0.75px rgba(255,255,255,0.9)' : undefined,
+                    boxShadow: marked.some((m) => m.hex === c.hex) ? 'inset 0 0 0 1px var(--accent-guide), 0 0 0 1.5px var(--accent-guide)' : undefined,
                   }}
                   aria-label={`A colour at value ${9 - i}`} />
               ))}
