@@ -116,7 +116,7 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
         <p className="text-sm text-sc-text3">Tap a colour in the chart, or a spot on the photo.</p>
       )}
       <p className="text-sm text-sc-text3">
-        {fromKit ? 'Mixed from the paints in your kit.' : 'Mixed from a starter palette: a warm and a cool of each primary. Add your own paints in My kit on your page.'} Parts are a starting point.
+        {fromKit ? 'Mixed from the paints in your kit.' : 'Mixed from the starter palette. Add your own paints in My kit on your page.'} Parts are a starting point.
       </p>
     </div>
   )

@@ -9,8 +9,9 @@
 // gamut mask's labels (item 37). Written by hand: the approximate `hex`
 // is not exact enough to work it out.
 // The starter palette when the sketcher has no paints in My kit (design
-// doc, item 37): a split primary, a warm and a cool of each primary.
-export const STARTER_PALETTE = ['py3', 'py97', 'pr255', 'pv19', 'pb29', 'pb15-3']
+// doc, item 37). Chan's pick: a warm and a cool of each primary, two
+// earths, a white and a grey.
+export const STARTER_PALETTE = ['pb29', 'pb35', 'py35', 'py43', 'pr108', 'pr83', 'pbr7-raw-sienna', 'pw6', 'paynes-gray']
 
 export const PAINTS = [
   { id: 'py3', code: 'PY3', codes: ['PY3'], name: 'Hansa Yellow Light', hex: '#e6ea3c', lean: 'yellow, leaning green (cool)' },
