@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import FloatPanel from './FloatPanel'
 import Icon from './Icon'
-import SketchCard from './SketchCard'
+import SketchCard, { RATIOS } from './SketchCard'
 import LocationMap from './LocationMap'
 import LocationSearchField from './LocationSearchField'
 
@@ -19,7 +19,10 @@ import LocationSearchField from './LocationSearchField'
  *   pinMode    'sketch': one pin per sketch; 'place': one count pin per place
  *   center     { lat, lon, radius }: "this sketch" dot and a dashed ring
  *              (showCenter in the handoff)
- *   cols       grid columns from 768px (2 on a phone)
+ *   cols       grid columns from 768px (2 on a phone); 3 by default
+ *   ratio      the card image: 'square' (default) or 'portrait' (4:5).
+ *              The app's standard is the defaults; pass these only to
+ *              differ.
  *   onPlaceSelect(place)  place mode: the card's "Show these" link
  *   searchPlaces          a place search over the map, to move it (Home)
  *
@@ -37,6 +40,7 @@ export default function SketchListMapView({
   pinMode = 'sketch',
   center,
   cols = 3,
+  ratio = 'square',
   emptyText = 'No sketches yet.',
   onPlaceSelect,
   searchPlaces = false,
@@ -115,10 +119,10 @@ export default function SketchListMapView({
         <div className={`grid grid-cols-2 gap-x-4 gap-y-6 md:gap-x-7 md:gap-y-8 ${COLS[cols] || COLS[3]}`}>
           {items.map((it) => it.sketch ? (
             // A sketch: the shared card, with its status and like.
-            <SketchCard key={it.id} sketch={it.sketch} meta={it.meta} href={it.href} linkState={it.linkState} image={it.image} multi={it.multi} />
+            <SketchCard key={it.id} sketch={it.sketch} meta={it.meta} href={it.href} linkState={it.linkState} image={it.image} multi={it.multi} ratio={ratio} />
           ) : (
             <Link key={it.id} to={it.href || `/sketches/${it.id}`} state={it.linkState} className="group flex flex-col gap-2 text-ink no-underline">
-              <span className="ed-slide">
+              <span className="ed-slide" style={{ aspectRatio: RATIOS[ratio] || RATIOS.square }}>
                 {it.image && <img src={it.image} alt="" loading="lazy" />}
                 {it.multi && (
                   <span className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-ink" aria-label="More than one image">

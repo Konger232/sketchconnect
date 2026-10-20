@@ -156,7 +156,7 @@ export default function VisitorHome() {
 
       <section className="ed-section">
         {loaded ? (
-          <SketchListMapView items={items.slice(0, 8)} cols={4} emptyText="No sketches shared yet. Be the first!" />
+          <SketchListMapView items={items.slice(0, 9)} emptyText="No sketches shared yet. Be the first!" />
         ) : (
           <p className="m-0 animate-pulse text-sm text-ink/60">Finding sketches…</p>
         )}

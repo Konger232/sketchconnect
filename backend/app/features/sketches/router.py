@@ -1017,10 +1017,9 @@ def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:
 
 
 def _visible_to(viewer_id: str | None):
-    """Shared sketches, plus the viewer's own unfinished ones (Search and
-    Explore show a sketcher their drafts too)."""
-    shared = Sketch.final_sketch_url.isnot(None)
-    return or_(shared, Sketch.sketcher_id == viewer_id) if viewer_id else shared
+    """Search and Explore are public: completed (shared) sketches only, for
+    everyone. A sketcher's drafts stay on their own page."""
+    return Sketch.final_sketch_url.isnot(None)
 
 
 @router.get("/sketches/search")
@@ -1031,7 +1030,7 @@ async def search_sketches(
     viewer_id: str | None = Depends(get_optional_sketcher_id),
 ):
     """
-    Generic search (the Search page): shared sketches (and the viewer's own drafts) whose sketcher's name
+    Generic search (the Search page): shared sketches whose sketcher's name
     or handle, title, or place label contains the text, plus the sketches
     inside any town, city or country the text names (Nominatim's bounding
     box), so "Japan" finds a sketch labelled "Gion, Kyoto". Newest first.
@@ -1080,7 +1079,7 @@ def explore_sketches(
     viewer_id: str | None = Depends(get_optional_sketcher_id),
 ):
     """
-    The Explore map: shared sketches (and the viewer's own drafts) inside the map's view, newest first,
+    The Explore map: shared sketches inside the map's view, newest first,
     made in the last since_days days (none: any time).
     """
     geom = cast(Sketch.location, Geometry(srid=4326))

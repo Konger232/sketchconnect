@@ -9,8 +9,7 @@ import { dateLabel, imageUrl } from '../../lib/media'
 export const toListItem = (s) => ({
   id: s.id,
   title: s.title,
-  // Your own drafts come back too; the card's status says so.
-  meta: [s.final_sketch_url ? null : 'Only you', s.owner?.display_name || s.owner?.handle, s.location?.label].filter(Boolean).join(' · '),
+  meta: [s.owner?.display_name || s.owner?.handle, s.location?.label].filter(Boolean).join(' · '),
   date: dateLabel(s.created_at),
   place: s.location?.label,
   lat: s.location?.lat,
@@ -76,7 +75,7 @@ export default function SketchSearch({ initial = null, initialLabel, autoFocus =
       )}
       {!loading && !searching && initialLabel && initial !== null && <span className="ed-kicker -mb-2">{initialLabel}</span>}
       {!loading && shown !== null && (
-        <SketchListMapView items={shown.map(toListItem)} cols={4}
+        <SketchListMapView items={shown.map(toListItem)}
           emptyText={searching ? `No sketches match "${query.trim()}".` : 'No sketches yet.'} />
       )}
     </div>

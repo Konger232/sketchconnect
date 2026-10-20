@@ -7,6 +7,8 @@ import { getSketchStatus } from '../../lib/sketchStatus'
 import { imageUrl } from '../../lib/media'
 import { api } from '../../lib/api'
 
+export const RATIOS = { square: '1 / 1', portrait: '4 / 5' }
+
 /**
  * A sketch card, in the SketchListMapView style (design handoff): a 4:5
  * image with the status (top left) and the like (top right) over it, a
@@ -18,10 +20,11 @@ import { api } from '../../lib/api'
  *   href, linkState   where the card goes (default: its SketchDetail page)
  *   image      the picture; default: the final sketch, else the reference
  *   multi      more than one image (a stack icon)
+ *   ratio      'square' | 'portrait' (4:5), the image shape
  *   details    the Explore popup: also the sketcher, the field notes, the
  *              place and the date
  */
-export default function SketchCard({ sketch, meta, href, linkState, image, multi = false, details = false }) {
+export default function SketchCard({ sketch, meta, href, linkState, image, multi = false, details = false, ratio = 'square' }) {
   const [like, setLike] = useState({ liked: Boolean(sketch.liked), count: sketch.like_count || 0 })
   useEffect(() => { setLike({ liked: Boolean(sketch.liked), count: sketch.like_count || 0 }) }, [sketch.id, sketch.liked, sketch.like_count])
   const { user } = useAuth()
@@ -55,7 +58,7 @@ export default function SketchCard({ sketch, meta, href, linkState, image, multi
 
   return (
     <Link to={href || `/sketches/${sketch.id}`} state={linkState} className="group flex flex-col gap-2 text-ink no-underline">
-      <span className="ed-slide">
+      <span className="ed-slide" style={{ aspectRatio: RATIOS[ratio] || RATIOS.square }}>
         {src && <img src={src} alt="" loading="lazy" />}
         <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-3xs font-medium text-white">
           {getSketchStatus(sketch)}

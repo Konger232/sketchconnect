@@ -45,6 +45,7 @@ export default function Sketcher({ handle: handleProp }) {
   const [error, setError] = useState(null)
   const [panel, setPanel] = useState(null) // 'profile' | 'kit' | 'admired' | 'followers'
   const [place, setPlace] = useState(null)
+  const [filter, setFilter] = useState('') // the search bar over the sketches
   const [busyFollow, setBusyFollow] = useState(false)
   const [paintEdit, setPaintEdit] = useState(null) // { mode, item?, top }
   const paintBoxRef = useRef(null)
@@ -90,19 +91,27 @@ export default function Sketcher({ handle: handleProp }) {
     sketch: s,
     ...extra,
   })
-  const sharedItems = useMemo(() => shared.map((s) => toItem(s)), [shared]) // eslint-disable-line react-hooks/exhaustive-deps
+  // One list: the shared sketches, and for the owner their drafts too
+  // (each card's status tells them apart). Search and Explore show shared
+  // sketches only, so this is where a sketcher finds their drafts.
+  const listed = viewer === 'owner' ? sketches : shared
+  const listItems = useMemo(() => listed.map((s) => toItem(s)), [listed]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Location circles: places by number of sketches, most first.
   const places = useMemo(() => {
     const by = new Map()
-    for (const s of shared) {
+    for (const s of listed) {
       if (!s.place) continue
       if (!by.has(s.place)) by.set(s.place, { name: s.place, count: 0, image: imageUrl(s.final_sketch_url || s.reference_image_url) })
       by.get(s.place).count += 1
     }
     return [...by.values()].sort((a, b) => b.count - a.count)
-  }, [shared])
-  const shownItems = place ? sharedItems.filter((it) => it.place === place) : sharedItems
+  }, [listed])
+  // The search bar over the list: a title or a place.
+  const q = filter.trim().toLowerCase()
+  const shownItems = listItems
+    .filter((it) => !place || it.place === place)
+    .filter((it) => !q || [it.title, it.sketch.location?.label, it.place].some((v) => v?.toLowerCase().includes(q)))
 
   if (error === 'not_found') {
     return (
@@ -356,7 +365,19 @@ export default function Sketcher({ handle: handleProp }) {
 
         {/* ---- 4. The sketches ---- */}
         <section className="ed-section">
-          <h2 className="ed-kicker m-0">The sketches</h2>
+          <div className="ed-section-head">
+            <h2 className="ed-kicker m-0">The sketches</h2>
+            {viewer === 'owner' && inProgress.length > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-ink/60">
+                <Icon name="lock" size={13} /> Drafts: only you
+              </span>
+            )}
+          </div>
+          <label className="flex items-center gap-3 border-b border-ink/40 pb-2 focus-within:border-ink">
+            <Icon name="search" size={16} className="text-ink/60" />
+            <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Search by title or place"
+              aria-label="Search these sketches by title or place" className="w-full bg-transparent py-1 text-base outline-none placeholder:text-ink/40" />
+          </label>
           {places.length > 0 && (
             <div className="flex gap-5 overflow-x-auto pb-1">
               {places.map((p) => (
@@ -377,22 +398,9 @@ export default function Sketcher({ handle: handleProp }) {
             </p>
           )}
           <SketchListMapView items={shownItems} pinMode="place" onPlaceSelect={setPlace} searchPlaces
-            emptyText={viewer === 'owner' ? 'Your sketches show here once you upload their final sketch.' : 'No shared sketches yet.'} />
+            emptyText={q ? `No sketches match "${filter.trim()}".` : viewer === 'owner' ? 'Your sketches show here.' : 'No shared sketches yet.'} />
         </section>
 
-        {/* ---- 5. In progress (owner only) ---- */}
-        {viewer === 'owner' && inProgress.length > 0 && (
-          <section className="ed-section">
-            <div className="ed-section-head">
-              <h2 className="ed-kicker m-0">In progress</h2>
-              <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-ink/60">
-                <Icon name="lock" size={13} /> Only you
-              </span>
-            </div>
-            <SketchListMapView cols={4}
-              items={inProgress.map((s) => toItem(s, { href: `/sketches/${s.id}` }))} />
-          </section>
-        )}
       </main>
       <Footer />
 
