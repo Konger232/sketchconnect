@@ -979,6 +979,13 @@ def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:
     return _with_likes(db, rows, viewer_id, dicts)
 
 
+def _visible_to(viewer_id: str | None):
+    """Shared sketches, plus the viewer's own unfinished ones (Search and
+    Explore show a sketcher their drafts too)."""
+    shared = Sketch.final_sketch_url.isnot(None)
+    return or_(shared, Sketch.sketcher_id == viewer_id) if viewer_id else shared
+
+
 @router.get("/sketches/search")
 async def search_sketches(
     q: str = "",
@@ -987,7 +994,7 @@ async def search_sketches(
     viewer_id: str | None = Depends(get_optional_sketcher_id),
 ):
     """
-    Generic search (the Search page): shared sketches whose sketcher's name
+    Generic search (the Search page): shared sketches (and the viewer's own drafts) whose sketcher's name
     or handle, title, or place label contains the text, plus the sketches
     inside any town, city or country the text names (Nominatim's bounding
     box), so "Japan" finds a sketch labelled "Gion, Kyoto". Newest first.
@@ -1000,7 +1007,7 @@ async def search_sketches(
     text = (
         db.query(Sketch)
         .outerjoin(Profile, Profile.id == Sketch.sketcher_id)
-        .filter(Sketch.final_sketch_url.isnot(None))
+        .filter(_visible_to(viewer_id))
         .filter(or_(
             Sketch.title.ilike(like),
             Sketch.location_label.ilike(like),
@@ -1015,7 +1022,7 @@ async def search_sketches(
         inside = or_(*[func.ST_Intersects(geom, func.ST_MakeEnvelope(w, s, e, n, 4326)) for s, n, w, e in boxes])
         for s in (
             db.query(Sketch)
-            .filter(Sketch.final_sketch_url.isnot(None), Sketch.location.isnot(None))
+            .filter(_visible_to(viewer_id), Sketch.location.isnot(None))
             .filter(inside)
             .all()
         ):
@@ -1036,13 +1043,13 @@ async def explore_sketches(
     viewer_id: str | None = Depends(get_optional_sketcher_id),
 ):
     """
-    The Explore map: shared sketches inside the map's view, newest first,
+    The Explore map: shared sketches (and the viewer's own drafts) inside the map's view, newest first,
     made in the last since_days days (none: any time).
     """
     geom = cast(Sketch.location, Geometry(srid=4326))
     query = (
         db.query(Sketch)
-        .filter(Sketch.final_sketch_url.isnot(None), Sketch.location.isnot(None))
+        .filter(_visible_to(viewer_id), Sketch.location.isnot(None))
         .filter(func.ST_Intersects(geom, func.ST_MakeEnvelope(west, south, east, north, 4326)))
     )
     if since_days:

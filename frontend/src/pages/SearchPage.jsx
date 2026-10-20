@@ -9,8 +9,8 @@ import { dateLabel, imageUrl } from '../lib/media'
 
 /**
  * Generic search (design doc, Search): one box for a sketcher's name, a
- * sketch title, or a place (a town, a city, a country). Shared sketches
- * only, newest first, in the same GRID / MAP view as the Sketcher page.
+ * sketch title, or a place (a town, a city, a country). Shared sketches,
+ * and the sketcher's own drafts, newest first, in the same GRID / MAP view as the Sketcher page.
  * The map-first search by place is Explore (/explore).
  */
 export default function SearchPage() {
@@ -40,7 +40,8 @@ export default function SearchPage() {
   const items = (results || []).map((s) => ({
     id: s.id,
     title: s.title,
-    meta: [s.owner?.display_name || s.owner?.handle, s.location?.label].filter(Boolean).join(' · '),
+    // Your own drafts come back too; their status says so.
+    meta: [s.final_sketch_url ? null : 'Only you · In progress', s.owner?.display_name || s.owner?.handle, s.location?.label].filter(Boolean).join(' · '),
     date: dateLabel(s.created_at),
     place: s.location?.label,
     lat: s.location?.lat,
