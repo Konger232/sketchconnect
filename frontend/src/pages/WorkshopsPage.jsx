@@ -6,7 +6,7 @@ export default function WorkshopsPage() {
   return (
     <div>
       <Header />
-      <main className="mx-auto max-w-2xl px-4 py-16 text-center text-ink/50">
+      <main className="ed-page text-center text-ink/50">
         Workshop Calendar — coming soon.
       </main>
     </div>

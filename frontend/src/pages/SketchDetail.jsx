@@ -105,6 +105,7 @@ export default function SketchDetail() {
     lat: n.location?.lat,
     lon: n.location?.lon,
     image: imageUrl(n.final_sketch_url || n.reference_image_url),
+    sketch: n,
   })), [nearby])
 
   if (error) {

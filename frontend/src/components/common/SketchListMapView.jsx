@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import FloatPanel from './FloatPanel'
 import Icon from './Icon'
+import SketchCard from './SketchCard'
 import LocationMap from './LocationMap'
 import LocationSearchField from './LocationSearchField'
 
@@ -10,7 +11,8 @@ import LocationSearchField from './LocationSearchField'
  * SketchListMapView). Used on the Sketcher page and Sketch Detail, later
  * on Home and search.
  *
- *   items      [{ id, title, meta, date, place, lat, lon, image, multi, href, linkState }]
+ *   items      [{ id, title, meta, date, place, lat, lon, image, multi, href, linkState, sketch }]
+ *              sketch: the sketch itself, for SketchCard (status and like)
  *              linkState: router state for the link (e.g. backgroundLocation,
  *              to open Edit Sketch as a modal)
  *   view       'grid' | 'map', the tab it opens on
@@ -111,7 +113,10 @@ export default function SketchListMapView({
 
       {items.length > 0 && view === 'grid' && (
         <div className={`grid grid-cols-2 gap-x-4 gap-y-6 md:gap-x-7 md:gap-y-8 ${COLS[cols] || COLS[3]}`}>
-          {items.map((it) => (
+          {items.map((it) => it.sketch ? (
+            // A sketch: the shared card, with its status and like.
+            <SketchCard key={it.id} sketch={it.sketch} meta={it.meta} href={it.href} linkState={it.linkState} image={it.image} multi={it.multi} />
+          ) : (
             <Link key={it.id} to={it.href || `/sketches/${it.id}`} state={it.linkState} className="group flex flex-col gap-2 text-ink no-underline">
               <span className="ed-slide">
                 {it.image && <img src={it.image} alt="" loading="lazy" />}

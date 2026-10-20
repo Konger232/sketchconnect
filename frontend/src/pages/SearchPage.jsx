@@ -40,19 +40,20 @@ export default function SearchPage() {
   const items = (results || []).map((s) => ({
     id: s.id,
     title: s.title,
-    // Your own drafts come back too; their status says so.
-    meta: [s.final_sketch_url ? null : 'Only you · In progress', s.owner?.display_name || s.owner?.handle, s.location?.label].filter(Boolean).join(' · '),
+    // Your own drafts come back too; the card's status says so.
+    meta: [s.final_sketch_url ? null : 'Only you', s.owner?.display_name || s.owner?.handle, s.location?.label].filter(Boolean).join(' · '),
     date: dateLabel(s.created_at),
     place: s.location?.label,
     lat: s.location?.lat,
     lon: s.location?.lon,
     image: imageUrl(s.final_sketch_url || s.reference_image_url),
+    sketch: s,
   }))
 
   return (
     <div className="bg-white">
       <Header />
-      <main className="ed-page flex flex-col gap-6">
+      <main className="ed-page">
         <label className="flex items-center gap-3 border-b border-ink/40 pb-2 focus-within:border-ink">
           <Icon name="search" size={18} className="text-ink/60" />
           <input
