@@ -90,7 +90,7 @@ export default StageStrip
 // the panel, inset top and bottom only.
 //   grid     the rule-of-thirds grid over the photo itself (not its box)
 //   onClick  a tap on the photo (the Color tab samples a colour)
-export function StripImage({ src, alt, grid = false, onClick, className = '' }) {
+export function StripImage({ src, alt, grid = false, onClick, overlay = null, className = '' }) {
   const [imgRef, rect] = usePaintedRect()
   return (
     <div className="relative min-h-0 flex-1">
@@ -100,6 +100,8 @@ export function StripImage({ src, alt, grid = false, onClick, className = '' }) 
         {grid && rect && (
           <div className="pointer-events-none absolute" style={rect}><RuleOfThirdsGrid /></div>
         )}
+        {/* Anything laid over the painted photo, e.g. the colour swatches. */}
+        {overlay && rect && <div className="pointer-events-none absolute" style={rect}>{overlay}</div>}
       </div>
     </div>
   )

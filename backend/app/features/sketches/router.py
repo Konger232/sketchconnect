@@ -1359,6 +1359,8 @@ class MaskSwatch(BaseModel):
     h: float
     c: float
     hex: str
+    x: Optional[float] = None  # where it was dropped on the reference, 0-1 from the top left
+    y: Optional[float] = None
 
 
 class GamutMask(BaseModel):
@@ -1396,7 +1398,11 @@ def _clean_mask(mask: GamutMask) -> dict:
 
 def _clean_swatches(swatches) -> list[dict]:
     return [
-        {**_clean_point(MaskPoint(h=s.h, c=s.c)), "hex": s.hex.lower()}
+        {
+            **_clean_point(MaskPoint(h=s.h, c=s.c)),
+            "hex": s.hex.lower(),
+            **({"x": round(min(1.0, max(0.0, s.x)), 3), "y": round(min(1.0, max(0.0, s.y)), 3)} if s.x is not None and s.y is not None else {}),
+        }
         for s in (swatches or [])[:16]
         if re.match(r"^#[0-9a-fA-F]{6}$", s.hex)
     ]

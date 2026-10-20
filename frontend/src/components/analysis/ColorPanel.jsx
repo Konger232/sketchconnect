@@ -11,7 +11,7 @@ const SHAPES = [
   { key: 'triangle', label: 'Triad', icon: <path d="M12 3 21 20H3Z" /> },
   { key: 'diamond', label: 'Diamond', icon: <path d="M12 2 18 12 12 22 6 12Z" /> },
   { key: 'circles', label: 'Mood & Accent', icon: <><circle cx="9" cy="14" r="7" /><circle cx="19.5" cy="5" r="3" /></> },
-  { key: 'none', label: 'No\u00a0mask', icon: <><circle cx="12" cy="12" r="9" /><path d="M5.6 18.4 18.4 5.6" /></> },
+  { key: 'none', label: 'No mask', icon: <><circle cx="12" cy="12" r="9" /><path d="M5.6 18.4 18.4 5.6" /></> },
 ]
 
 /**
@@ -25,6 +25,13 @@ const SHAPES = [
  *   selected { h, c, hex, from } | null  a tile, or a spot on the photo
  *   onSelect(selected)
  */
+// James Gurney's method, which the Color tab follows.
+const GURNEY = 'https://gurneyjourney.blogspot.com/2011/09/part-1-gamut-masking-method.html'
+const gamutLink = (
+  <a href={GURNEY} target="_blank" rel="noreferrer" className="underline decoration-white/40 underline-offset-2 hover:decoration-white">gamut mask</a>
+)
+const LABEL = 'text-xs font-semibold text-sc-text2'
+
 export default function ColorPanel({ shapes, onChange, paints, fromKit, selected, onSelect, onPickTile, marked, isSwatch, onRemoveSwatch, readOnly }) {
   const [active, setActive] = useState(0)
   const [preset, setPreset] = useState(null)
@@ -48,7 +55,7 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
   return (
     <div className="flex flex-col gap-4">
       <p className="text-md text-white">
-        {readOnly ? 'Your gamut mask, as planned.' : 'Shape your gamut mask on the wheel. Then tap colours in the chart to collect them; each one shows how to mix it from your paints.'}
+        {readOnly ? <>Your {gamutLink}, as planned.</> : <>Shape your {gamutLink} on the wheel. Then tap colours in the chart to collect them; each one shows how to mix it from your paints.</>}
       </p>
       {readOnly && (
         <p className="-mt-2 text-sm text-sc-text3">
@@ -62,29 +69,31 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
         <>
           {/* The shapes and the size, in one row. */}
           <div className="flex items-start gap-3">
-            <div className="flex shrink-0 gap-1.5" role="group" aria-label="Mask shape">
+            <div className="flex shrink-0 flex-col gap-1">
+            <span className={LABEL}>Mask Shape</span>
+            <div className="flex gap-1.5" role="group" aria-label="Mask shape">
               {SHAPES.map((s) => (
                 <button key={s.key} type="button" onClick={() => pickPreset(s.key)} aria-pressed={preset === s.key || (s.key === 'none' && !shapes.length)}
-                  className="flex w-10 flex-col items-center gap-0.5">
+                  title={s.label} aria-label={s.label} className="flex w-10 flex-col items-center">
                   <span className={`flex h-10 w-10 items-center justify-center rounded-lg border-[1.5px] transition-colors ${
                     preset === s.key || (s.key === 'none' && !shapes.length) ? 'border-white bg-white/10' : 'border-sc-border hover:border-sc-strong'
                   }`}>
                     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="#cccccc" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true">{s.icon}</svg>
                   </span>
-                  <span className="text-center text-[10px] font-semibold leading-tight text-sc-text2">{s.label}</span>
                 </button>
               ))}
             </div>
-            <div className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 pt-1 ${shape ? '' : 'pointer-events-none opacity-40'}`}>
-              <div className="flex w-full items-center gap-1">
+            </div>
+            <div className={`flex min-w-0 flex-1 flex-col gap-1 ${shape ? '' : 'pointer-events-none opacity-40'}`}>
+              <span className={LABEL}>Mask Size</span>
+              <div className="flex h-10 w-full items-center gap-1">
                 <button type="button" aria-label="Smaller" onClick={() => setSize(size - 0.05)}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white hover:bg-white/10">−</button>
+                  className="flex h-8 w-4 shrink-0 items-center justify-center text-lg font-bold text-white hover:text-sc-guide">−</button>
                 <input type="range" min={SIZE_MIN} max={SIZE_MAX} step={0.01} value={Math.min(SIZE_MAX, size)} aria-label="Mask size"
                   onChange={(e) => setSize(Number(e.target.value))} className="h-1.5 min-w-0 flex-1 accent-sc-guide" />
                 <button type="button" aria-label="Bigger" onClick={() => setSize(size + 0.05)}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white hover:bg-white/10">+</button>
+                  className="flex h-8 w-4 shrink-0 items-center justify-center text-lg font-bold text-white hover:text-sc-guide">+</button>
               </div>
-              <span className="text-center text-[10px] font-semibold leading-tight text-sc-text2">Mask size</span>
             </div>
           </div>
         </>

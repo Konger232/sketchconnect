@@ -17,7 +17,7 @@ import ValuePanel from '../components/analysis/ValuePanel'
 import ColorPanel from '../components/analysis/ColorPanel'
 import { DEFAULT_SHAPES, readMask } from '../lib/gamutMask'
 import { SamplePhoto, MaskedPhoto } from '../components/analysis/ColorStage'
-import SwatchGrid from '../components/analysis/SwatchGrid'
+import SwatchOverlay from '../components/analysis/SwatchOverlay'
 import { paintById, paintForKitItem, starterPaints } from '../data/paints'
 import { runGuideAnalysis } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
@@ -369,22 +369,24 @@ export default function EditSketch() {
   // A tile tapped on the wheel toggles: collected into "Your colours" and
   // shown, or, when already collected, taken out.
   function pickTile(sel) {
-    if (swatches.some((s) => s.hex === sel.hex)) {
-      const next = swatches.filter((s) => s.hex !== sel.hex)
-      setSwatches(next)
-      if (colorSample?.hex === sel.hex) setColorSample(null)
-      saveMask(maskShapes, next)
-      return
-    }
+    if (swatches.some((s) => s.hex === sel.hex)) { dropSwatch(sel.hex); return }
     setColorSample(sel)
     const next = [...swatches, { h: sel.h, c: sel.c, hex: sel.hex }].slice(-16)
     setSwatches(next)
     saveMask(maskShapes, next)
   }
-  function removeSwatch() {
-    const next = swatches.filter((s) => s.hex !== colorSample?.hex)
+  function dropSwatch(hex) {
+    const next = swatches.filter((s) => s.hex !== hex)
     setSwatches(next)
-    setColorSample(null)
+    if (colorSample?.hex === hex) setColorSample(null)
+    saveMask(maskShapes, next)
+  }
+  const removeSwatch = () => dropSwatch(colorSample?.hex)
+  // A swatch dragged onto the photo: its place (0 to 1, from the top left)
+  // is kept for the critique.
+  function placeSwatch(hex, { x, y }) {
+    const next = swatches.map((s) => (s.hex === hex ? { ...s, x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000 } : s))
+    setSwatches(next)
     saveMask(maskShapes, next)
   }
 
@@ -468,6 +470,10 @@ export default function EditSketch() {
     ),
   })
   const tabStudy = valueStudies[valueLevels]
+  const swatchOverlay = (
+    <SwatchOverlay swatches={swatches} selected={colorSample} onSelect={setColorSample}
+      onPlace={placeSwatch} onRemove={(hex) => dropSwatch(hex)} />
+  )
   const studyPanels = tab === 'value'
     ? [
         { key: 'values', label: `${valueLevels} values`, content: tabStudy
@@ -479,14 +485,12 @@ export default function EditSketch() {
       ? [
           { key: 'mask', label: 'In your mask', content: (
             <div className="flex min-h-0 flex-1 flex-col">
-              <MaskedPhoto src={referenceImageUrl} shapes={maskShapes} />
-              <SwatchGrid swatches={swatches} selected={colorSample} onSelect={setColorSample} />
+              <MaskedPhoto src={referenceImageUrl} shapes={maskShapes} overlay={swatchOverlay} />
             </div>
           ) },
           { key: 'sample', label: 'Photo', content: (
             <div className="flex min-h-0 flex-1 flex-col">
-              <SamplePhoto src={referenceImageUrl} onSample={setColorSample} />
-              <SwatchGrid swatches={swatches} selected={colorSample} onSelect={setColorSample} />
+              <SamplePhoto src={referenceImageUrl} onSample={setColorSample} overlay={swatchOverlay} />
             </div>
           ) },
         ]

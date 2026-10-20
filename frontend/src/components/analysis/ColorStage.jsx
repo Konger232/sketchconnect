@@ -36,7 +36,7 @@ function usePhotoPixels(src) {
  * The reference photo on the Color tab: tap a spot to see its colour on
  * the wheel and the nearest mix in the mask. Laid out as StripImage.
  */
-export function SamplePhoto({ src, onSample }) {
+export function SamplePhoto({ src, onSample, overlay }) {
   const pixels = usePhotoPixels(src)
   function tap(e) {
     if (!pixels) return
@@ -55,7 +55,7 @@ export function SamplePhoto({ src, onSample }) {
     onSample({ h: hh, c: s, hex, from: 'photo' })
   }
   return (
-    <StripImage src={src} alt="Reference photo: tap a spot to see its mix" grid onClick={tap} className={pixels ? 'cursor-crosshair' : ''} />
+    <StripImage src={src} alt="Reference photo: tap a spot to see its mix" grid onClick={tap} overlay={overlay} className={pixels ? 'cursor-crosshair' : ''} />
   )
 }
 
@@ -66,7 +66,7 @@ export function SamplePhoto({ src, onSample }) {
  * browser, so it follows the mask as it is dragged; no AI call. It
  * previews the photo, not a painting.
  */
-export function MaskedPhoto({ src, shapes }) {
+export function MaskedPhoto({ src, shapes, overlay }) {
   const pixels = usePhotoPixels(src)
   const [url, setUrl] = useState(null)
   const timer = useRef(null)
@@ -93,7 +93,9 @@ export function MaskedPhoto({ src, shapes }) {
     return () => clearTimeout(timer.current)
   }, [pixels, shapes])
 
-  if (url) return <StripImage src={url} alt="The reference photo in your mask's colours" grid />
+  if (url) return <StripImage src={url} alt="The reference photo in your mask's colours" grid overlay={overlay} />
+  // No mask: the photo as it is.
+  if (!shapes.length) return <StripImage src={src} alt="Reference photo" grid overlay={overlay} />
   return (
     <div className="flex min-h-[40vh] flex-1 items-center justify-center">
       <p className="px-6 py-16 text-center text-md text-sc-text3">

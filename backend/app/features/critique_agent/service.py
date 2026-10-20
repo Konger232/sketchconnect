@@ -301,8 +301,12 @@ def color_plan_text(sketch: Sketch) -> str:
             )
     swatches = mask.get("swatches") or []
     if swatches:
-        lines.append("Colours the sketcher collected: " + ", ".join(
-            f"{'muted ' if float(s.get('c', 0)) < 0.4 else ''}{_hue_name(float(s.get('h', 0)))} ({s.get('hex')})" for s in swatches
+        def where(s):
+            if s.get("x") is None:
+                return ""
+            return f", held up to the reference at {round(s['x'] * 100)}% across and {round(s['y'] * 100)}% down"
+        lines.append("Colours the sketcher collected (the place is where they held the swatch up to the photo, to compare): " + "; ".join(
+            f"{'muted ' if float(s.get('c', 0)) < 0.4 else ''}{_hue_name(float(s.get('h', 0)))} ({s.get('hex')}){where(s)}" for s in swatches
         ) + ".")
     return "\n".join(lines) if lines else "none — the sketcher did not plan colour or value"
 

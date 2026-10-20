@@ -73,8 +73,8 @@ export default function MaskValues({ shapes, paints, onToggle, marked = [] }) {
                   className="relative h-6 w-6 border-l border-black/30 first:border-l-0 hover:z-10 hover:outline hover:outline-1 hover:outline-white/60"
                   style={{
                     background: c.hex,
-                    // Collected into "Your colours": a thin white border.
-                    boxShadow: marked.some((m) => m.hex === c.hex) ? 'inset 0 0 0 1px var(--accent-guide), 0 0 0 1.5px var(--accent-guide)' : undefined,
+                    // Collected into "Your colours": a 1px white border.
+                    boxShadow: marked.some((m) => m.hex === c.hex) ? '0 0 0 1px #ffffff' : undefined,
                   }}
                   aria-label={`A colour at value ${9 - i}`} />
               ))}
