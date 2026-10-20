@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import GamutWheel from './GamutWheel'
 import MaskValues from './MaskValues'
-import { bestRecipe, maskContains, presetShapes, recipeLine, resizeShape, shapeSize, toUnit } from '../../lib/gamutMask'
+import { presetShapes, resizeShape, shapeSize } from '../../lib/gamutMask'
 
 const SIZE_MIN = 0.05 // the size slider, in wheel radii
 const SIZE_MAX = 0.9
@@ -18,7 +18,7 @@ const SHAPES = [
  * The Color tab's right panel (design doc, item 37). The sketcher shapes
  * the gamut mask freely; SketchConnect then says how to mix a colour from
  * the paints they have. Kept short: the wheel, the shape icons, the size
- * slider, and the selected colour with its recipe.
+ * slider and the chart. The recipe shows on the photo (RecipeStrip).
  *
  *   shapes, onChange(shapes, { done })   the mask
  *   paints, fromKit                      the sketcher's paints (or common ones)
@@ -49,8 +49,6 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
     onChange(key === 'none' ? [] : presetShapes(key), { done: true })
   }
 
-  const recipe = useMemo(() => (selected ? bestRecipe(selected.hex, paints) : null), [selected, paints])
-  const inside = selected ? maskContains(shapes, toUnit(selected)) : true
 
   return (
     <div className="flex flex-col gap-4">
@@ -104,31 +102,7 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
       )}
       <MaskValues shapes={shapes} paints={paints} onToggle={onPickTile} marked={marked} />
 
-      {/* The selected colour, and how to mix it from the sketcher's paints. */}
-      {selected && recipe ? (
-        <div className="flex flex-col gap-2 rounded-xl border border-sc-border p-3">
-          <div className="flex items-center gap-3">
-            <span className="h-12 w-12 shrink-0 border border-[#cccccc]" style={{ background: selected.hex }} title="The colour" />
-            <span className="text-lg text-sc-text3">≈</span>
-            <span className="h-12 w-12 shrink-0 border border-[#cccccc]" style={{ background: recipe.hex }} title="Your mix" />
-            <span className="text-sm text-sc-text2">
-              {selected.from === 'photo' ? 'This spot in the photo' : 'This colour'}
-              {!inside && <span className="block text-sc-text3">Outside your mask</span>}
-            </span>
-          </div>
-          <p className="m-0 text-md font-semibold text-white">{recipeLine(recipe)}</p>
-          {recipe.water && (
-            <p className="m-0 text-sm text-sc-text3">{recipe.water === 'more' ? 'Add more water to lighten it.' : 'Use less water, or paint a second layer.'}</p>
-          )}
-          {isSwatch && (
-            <button type="button" onClick={onRemoveSwatch} className="self-start text-sm font-semibold text-sc-text2 underline hover:text-white">
-              Remove from your colours
-            </button>
-          )}
-        </div>
-      ) : (
-        <p className="text-sm text-sc-text3">Tap a colour in the chart, or a spot on the photo.</p>
-      )}
+      <p className="m-0 text-sm text-sc-text3">Tap a colour in the chart, or a spot on the photo, to see how to mix it.</p>
       <p className="text-sm text-sc-text3">
         {fromKit ? 'Mixed from the paints in your kit.' : 'Mixed from the starter palette. Add your own paints in My kit on your page.'} Parts are a starting point.
       </p>

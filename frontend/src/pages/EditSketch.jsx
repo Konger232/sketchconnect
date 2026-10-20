@@ -18,6 +18,7 @@ import ColorPanel from '../components/analysis/ColorPanel'
 import { DEFAULT_SHAPES, readMask } from '../lib/gamutMask'
 import { SamplePhoto, MaskedPhoto } from '../components/analysis/ColorStage'
 import SwatchOverlay from '../components/analysis/SwatchOverlay'
+import RecipeStrip from '../components/analysis/RecipeStrip'
 import { paintById, paintForKitItem, starterPaints } from '../data/paints'
 import { runGuideAnalysis } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
@@ -93,6 +94,8 @@ export default function EditSketch() {
   const [colorSample, setColorSample] = useState(null)
   const [swatches, setSwatches] = useState([]) // tiles collected from the wheel: [{ h, c, hex }]
   const [kitPaints, setKitPaints] = useState(null) // null until loaded
+  // The paints the recipes mix from: the kit, or the starter palette.
+  const mixPaints = useMemo(() => (kitPaints?.length ? kitPaints : starterPaints()), [kitPaints])
   const maskSaveRef = useRef(null)
 
   // ===== STATE: GUIDE =====
@@ -470,9 +473,13 @@ export default function EditSketch() {
     ),
   })
   const tabStudy = valueStudies[valueLevels]
+  // Over the photo: the recipe strip at the bottom, the swatches above it.
   const swatchOverlay = (
-    <SwatchOverlay swatches={swatches} selected={colorSample} onSelect={setColorSample}
-      onPlace={placeSwatch} onRemove={(hex) => dropSwatch(hex)} />
+    <>
+      <RecipeStrip selected={colorSample} paints={mixPaints} onClose={() => setColorSample(null)} />
+      <SwatchOverlay swatches={swatches} selected={colorSample} onSelect={setColorSample}
+        onPlace={placeSwatch} onRemove={(hex) => dropSwatch(hex)} />
+    </>
   )
   const studyPanels = tab === 'value'
     ? [
@@ -768,7 +775,7 @@ export default function EditSketch() {
                 <>
                   <div className="sc-panel-body">
                     {kitPaints ? (
-                      <ColorPanel shapes={maskShapes} onChange={changeMask} paints={kitPaints.length ? kitPaints : starterPaints()}
+                      <ColorPanel shapes={maskShapes} onChange={changeMask} paints={mixPaints}
                         fromKit={kitPaints.length > 0} selected={colorSample} onSelect={setColorSample}
                         onPickTile={pickTile} marked={swatches} onRemoveSwatch={removeSwatch}
                         isSwatch={colorSample?.from === 'wheel' && swatches.some((s) => s.hex === colorSample.hex)}
