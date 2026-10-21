@@ -126,13 +126,28 @@ alter table kit_items enable row level security;
 drop policy if exists "own kit" on kit_items;
 create policy "own kit" on kit_items for all using (auth.uid() = sketcher_id);
 
+-- Handle renamed to username (October 21, 2026): the word sketchers see.
+-- Renames the column and its index once; does nothing after that.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_name = 'profiles' and column_name = 'handle')
+     and not exists (select 1 from information_schema.columns
+             where table_name = 'profiles' and column_name = 'username') then
+    alter table profiles rename column handle to username;
+  end if;
+  if exists (select 1 from pg_indexes where indexname = 'profiles_handle_key') then
+    alter index profiles_handle_key rename to profiles_username_key;
+  end if;
+end $$;
+
 -- The sketcher page (design doc, item 36, October 17, 2026). Safe to run again.
-alter table profiles add column if not exists handle text;
+alter table profiles add column if not exists username text;
 alter table profiles add column if not exists bio text;
 alter table profiles add column if not exists links jsonb;
 alter table profiles add column if not exists featured_sketch_ids jsonb;
 alter table profiles add column if not exists kit_photo_url text;
-create unique index if not exists profiles_handle_key on profiles (handle);
+create unique index if not exists profiles_username_key on profiles (username);
 -- Admired sketchers are a list: one persona per name, with no style.
 alter table personas alter column style drop not null;
 -- Whose voice gives a sketch's feedback, picked with the final sketch.

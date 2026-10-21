@@ -1,4 +1,4 @@
-import Icon from '../common/Icon'
+import Icon from './Icon'
 import { readableInk, warmToCool } from '../../lib/color'
 
 /**

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import Button from '../common/Button'
-import FloatPanel from '../common/FloatPanel'
-import Icon from '../common/Icon'
+import Button from './Button'
+import FloatPanel from './FloatPanel'
+import Icon from './Icon'
 import { api } from '../../lib/api'
 
 const MAX_ADMIRED = 5

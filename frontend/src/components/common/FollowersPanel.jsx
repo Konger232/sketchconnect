@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import FloatPanel from '../common/FloatPanel'
+import FloatPanel from './FloatPanel'
 import { api } from '../../lib/api'
-import Avatar from '../common/Avatar'
+import Avatar from './Avatar'
 
-// Who follows a sketcher, newest first (GET /api/sketchers/{handle}/followers).
-export default function FollowersPanel({ handle, onClose }) {
+// Who follows a sketcher, newest first (GET /api/sketchers/{username}/followers).
+export default function FollowersPanel({ username, onClose }) {
   const [list, setList] = useState(null)
   useEffect(() => {
-    api.get(`/api/sketchers/${handle}/followers`).then(({ data }) => setList(data)).catch(() => setList([]))
-  }, [handle])
+    api.get(`/api/sketchers/${username}/followers`).then(({ data }) => setList(data)).catch(() => setList([]))
+  }, [username])
 
   return (
     <FloatPanel placement="modal" title="Followers" onClose={onClose} width="420px">
@@ -17,12 +17,12 @@ export default function FollowersPanel({ handle, onClose }) {
       {list?.length === 0 && <p className="text-sm text-ink/50">No followers yet.</p>}
       <ul className="flex flex-col">
         {list?.map((p) => (
-          <li key={p.handle}>
-            <Link to={`/sketchers/${p.handle}`} onClick={onClose} className="flex items-center gap-3 py-2.5 text-ink no-underline hover:text-ink/70">
+          <li key={p.username}>
+            <Link to={`/sketchers/${p.username}`} onClick={onClose} className="flex items-center gap-3 py-2.5 text-ink no-underline hover:text-ink/70">
               <Avatar url={p.avatar_url} className="h-9 w-9" />
               <span className="flex flex-col">
-                <span className="text-base font-semibold">{p.display_name || p.handle}</span>
-                <span className="text-xs text-ink/50">@{p.handle}</span>
+                <span className="text-base font-semibold">{p.display_name || p.username}</span>
+                <span className="text-xs text-ink/50">@{p.username}</span>
               </span>
             </Link>
           </li>

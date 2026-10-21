@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import Header from '../components/common/Header'
+import BasePage from '../components/common/BasePage'
 import SketchSearch from '../components/common/SketchSearch'
 import { useGeolocation } from '../lib/useGeolocation'
 import { api } from '../lib/api'
@@ -24,15 +24,12 @@ export default function RegisteredUserHome() {
   }, [status, coords])
 
   return (
-    <div className="min-h-[100dvh] bg-white">
-      <Header />
-      <main className="ed-page">
-        {near === null ? (
-          <p className="m-0 animate-pulse text-sm text-ink/60">Finding sketches near you…</p>
-        ) : (
-          <SketchSearch initial={near} initialLabel={coords ? 'Sketches near you' : 'Recent sketches'} />
-        )}
-      </main>
-    </div>
+    <BasePage footer={false}>
+      {near === null ? (
+        <p className="m-0 animate-pulse text-sm text-ink/60">Finding sketches near you…</p>
+      ) : (
+        <SketchSearch initial={near} initialLabel={coords ? 'Sketches near you' : 'Recent sketches'} />
+      )}
+    </BasePage>
   )
 }

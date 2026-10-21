@@ -1,5 +1,4 @@
-import Header from '../components/common/Header'
-import Footer from '../components/common/Footer'
+import BasePage from '../components/common/BasePage'
 import SketchSearch from '../components/common/SketchSearch'
 
 /**
@@ -9,12 +8,8 @@ import SketchSearch from '../components/common/SketchSearch'
  */
 export default function SearchPage() {
   return (
-    <div className="bg-white">
-      <Header />
-      <main className="ed-page">
-        <SketchSearch autoFocus />
-      </main>
-      <Footer />
-    </div>
+    <BasePage>
+      <SketchSearch autoFocus />
+    </BasePage>
   )
 }

@@ -51,7 +51,7 @@ export default function NavDrawer({ open, onClose }) {
             <button onClick={onClose} aria-label="Close menu" className="absolute right-4 top-3 px-2 py-1 text-2xl leading-none text-white transition-colors hover:text-white/70">
               &times;
             </button>
-            <Link to={profile?.handle ? `/sketchers/${profile.handle}` : '/'} onClick={onClose} className="flex items-center gap-4 text-white no-underline">
+            <Link to={profile?.username ? `/sketchers/${profile.username}` : '/'} onClick={onClose} className="flex items-center gap-4 text-white no-underline">
               <Avatar url={profile?.avatar_url} className="h-14 w-14 bg-white" />
               <span className="text-lg font-semibold text-white">{displayName}</span>
             </Link>
@@ -73,10 +73,10 @@ export default function NavDrawer({ open, onClose }) {
               <Link to="/workshops" onClick={onClose} className={linkStyle}>
                 <img src={icoCalendar} alt="" className="h-5 w-5" /> Workshop Calendar
               </Link>
-              <Link to={profile?.handle ? `/sketchers/${profile.handle}` : '/'} onClick={onClose} className={textLinkStyle}>
+              <Link to={profile?.username ? `/sketchers/${profile.username}` : '/'} onClick={onClose} className={textLinkStyle}>
                 My page
               </Link>
-              <Link to={profile?.handle ? `/sketchers/${profile.handle}?edit=profile` : '/'} onClick={onClose} className={textLinkStyle}>
+              <Link to={profile?.username ? `/sketchers/${profile.username}?edit=profile` : '/'} onClick={onClose} className={textLinkStyle}>
                 Edit Profile
               </Link>
               <button

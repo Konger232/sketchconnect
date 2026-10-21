@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, Marker, Popup, TileLayer, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-import Header from '../components/common/Header'
+import BasePage from '../components/common/BasePage'
 import LocationSearchField from '../components/common/LocationSearchField'
 import SketchCard from '../components/common/SketchCard'
 import { pinIcon } from '../components/common/LocationMap'
@@ -95,9 +95,7 @@ export default function Explore() {
   )
 
   return (
-    <div className="flex h-[100dvh] flex-col">
-      <Header />
-      <main className="relative min-h-0 flex-1">
+    <BasePage fullBleed className="">
         <MapContainer center={[20, 0]} zoom={2} zoomControl={false} scrollWheelZoom className="absolute inset-0 h-full w-full">
           <TileLayer
             attribution='Tiles &copy; Esri &mdash; Sources: Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
@@ -127,7 +125,6 @@ export default function Explore() {
           <div className="md:hidden">{pills}</div>
         </div>
         <div className="absolute left-[388px] top-3 z-[1000] hidden md:block">{pills}</div>
-      </main>
-    </div>
+    </BasePage>
   )
 }

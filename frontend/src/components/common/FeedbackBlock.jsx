@@ -1,4 +1,4 @@
-import Icon from '../common/Icon'
+import Icon from './Icon'
 
 const EVIDENCE = { plan: 'From your plan', intended: 'From your plan', prompted: 'From a guide question', instinct: 'By instinct', stages: 'Across stages' }
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : '')

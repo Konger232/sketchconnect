@@ -99,7 +99,7 @@ export default function Header() {
             </button>
             {/* Your page, by your avatar (the smiley face without one). The
                 menu drawer is for phones only. */}
-            <Link to={user && profile?.handle ? `/sketchers/${profile.handle}` : '/login'} aria-label={user ? 'My page' : 'Login'} className="flex items-center justify-center">
+            <Link to={user && profile?.username ? `/sketchers/${profile.username}` : '/login'} aria-label={user ? 'My page' : 'Login'} className="flex items-center justify-center">
               <Avatar url={user ? profile?.avatar_url : null} className="h-9 w-9" />
             </Link>
           </div>

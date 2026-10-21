@@ -1,11 +1,11 @@
 """
-The sketcher page (design doc, item 36): one page per sketcher, at /@handle.
+The sketcher page (design doc, item 36): one page per sketcher, at /@username.
 Readable by anyone. The sketcher sees more on their own page.
 
-GET /api/sketchers/{handle}           the page's header, stats, featured
+GET /api/sketchers/{username}           the page's header, stats, featured
                                       sketches, kit, usual palette, and for
                                       the sketcher only, admired sketchers
-GET /api/sketchers/{handle}/sketches  shared sketches, newest first, and for
+GET /api/sketchers/{username}/sketches  shared sketches, newest first, and for
                                       the sketcher, their sketches in
                                       progress too
 
@@ -30,8 +30,8 @@ router = APIRouter(prefix="/api", tags=["sketchers"])
 MAX_FEATURED = 5
 
 
-def _profile_by_handle(db: Session, handle: str) -> Profile:
-    profile = db.query(Profile).filter(Profile.handle == handle.strip().lstrip("@").lower()).first()
+def _profile_by_username(db: Session, username: str) -> Profile:
+    profile = db.query(Profile).filter(Profile.username == username.strip().lstrip("@").lower()).first()
     if profile is None:
         raise HTTPException(404, "Sketcher not found")
     return profile
@@ -44,13 +44,13 @@ def _city(location_label: str | None) -> str | None:
     return location_label.split(",")[-1].strip() or None
 
 
-@router.get("/sketchers/{handle}")
+@router.get("/sketchers/{username}")
 def get_sketcher(
-    handle: str,
+    username: str,
     db: Session = Depends(get_db),
     viewer_id: str | None = Depends(get_optional_sketcher_id),
 ):
-    profile = _profile_by_handle(db, handle)
+    profile = _profile_by_username(db, username)
     is_owner = viewer_id == profile.id
 
     shared = (
@@ -67,7 +67,7 @@ def get_sketcher(
     kit_rows.sort(key=lambda i: (KIND_ORDER.index(i.kind), not i.pinned, i.created_at))
 
     data = {
-        "handle": profile.handle,
+        "username": profile.username,
         "display_name": profile.display_name,
         "avatar_url": profile.avatar_url,
         "bio": profile.bio,
@@ -91,15 +91,15 @@ def get_sketcher(
     return data
 
 
-@router.get("/sketchers/{handle}/sketches")
+@router.get("/sketchers/{username}/sketches")
 def list_sketcher_sketches(
-    handle: str,
+    username: str,
     db: Session = Depends(get_db),
     viewer_id: str | None = Depends(get_optional_sketcher_id),
 ):
     """Shared sketches, newest first, as cards. The sketcher also gets their
     sketches in progress, each marked `shared: false`."""
-    profile = _profile_by_handle(db, handle)
+    profile = _profile_by_username(db, username)
     is_owner = viewer_id == profile.id
     q = card_query(db).filter(Sketch.sketcher_id == profile.id)
     if not is_owner:

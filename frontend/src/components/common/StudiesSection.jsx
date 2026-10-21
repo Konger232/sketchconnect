@@ -72,18 +72,18 @@ export function ColorSection({ sketch, reference }) {
   const { url } = useMaskedPhoto(reference, shapes)
 
   // The owner's paints, as on the Color tab; else the starter palette.
-  const handle = sketch.owner?.handle
+  const username = sketch.owner?.username
   useEffect(() => {
     if (!shapes.length && !swatches.length) return
     const fallback = () => setPaints(starterPaints())
-    if (!handle) return fallback()
-    api.get(`/api/sketchers/${handle}`)
+    if (!username) return fallback()
+    api.get(`/api/sketchers/${username}`)
       .then(({ data }) => {
         const list = kitPaintList(data.kit || [], data.favorite_paints || [])
         setPaints(list.length ? list : starterPaints())
       })
       .catch(fallback)
-  }, [handle, shapes.length, swatches.length])
+  }, [username, shapes.length, swatches.length])
 
   if (!shapes.length && !swatches.length) return null
   let slot = 0

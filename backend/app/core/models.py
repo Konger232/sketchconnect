@@ -192,10 +192,10 @@ class Profile(Base):
     display_name = Column(String, nullable=True)
     avatar_url = Column(String, nullable=True)
     location = Column(String, nullable=True)
-    # The sketcher page (design doc, item 36): its address (/@handle), a
+    # The sketcher page (design doc, item 36): its address (/@username), a
     # short self-introduction, links to their social pages, up to 6 pinned
     # sketches, and the photo of their kit (item 28).
-    handle = Column(String, nullable=True, unique=True)
+    username = Column(String, nullable=True, unique=True)
     bio = Column(Text, nullable=True)
     links = Column(JSON, nullable=True)
     featured_sketch_ids = Column(JSON, nullable=True)

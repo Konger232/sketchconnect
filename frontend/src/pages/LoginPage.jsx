@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
-import Header from '../components/common/Header'
-import Footer from '../components/common/Footer'
+import BasePage from '../components/common/BasePage'
 import Button from '../components/common/Button'
 
 // Matches the Claude Design Login screen: shared Header/Footer templates
@@ -83,10 +82,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div>
-      <Header />
-
-      <main className="mx-auto max-w-sm px-6 py-10 pt-4">
+    <BasePage className="" mainClassName="mx-auto max-w-sm px-6 py-10 pt-4">
         <h1>{mode === 'sign_in' ? 'Login' : 'Register'}</h1>
         
         {error && <p className="text-sm text-accent">{error}</p>}
@@ -143,9 +139,6 @@ export default function LoginPage() {
             </button>
           )}
         </div>
-      </main>
-
-      <Footer />
-    </div>
+    </BasePage>
   )
 }

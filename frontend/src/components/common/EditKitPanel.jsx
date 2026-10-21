@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import Button from '../common/Button'
-import ConfirmDialog from '../common/ConfirmDialog'
-import FloatPanel from '../common/FloatPanel'
-import Icon from '../common/Icon'
+import Button from './Button'
+import ConfirmDialog from './ConfirmDialog'
+import FloatPanel from './FloatPanel'
+import Icon from './Icon'
 import { api } from '../../lib/api'
 import { imageUrl } from '../../lib/media'
 

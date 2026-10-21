@@ -1002,7 +1002,7 @@ def list_recent_sketches(
 
 
 def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:
-    """Public cards with the sketcher's name and handle, and likes."""
+    """Public cards with the sketcher's name and username, and likes."""
     ids = {s.sketcher_id for s in rows}
     owners = {p.id: p for p in db.query(Profile).filter(Profile.id.in_(ids)).all()} if ids else {}
     drafts = upload_counts(db, [s.id for s in rows if not s.final_sketch_url])
@@ -1011,7 +1011,7 @@ def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:
         d = _sketch_card(s)
         d["upload_count"] = drafts.get(s.id, 0)
         p = owners.get(s.sketcher_id)
-        d["owner"] = {"display_name": p.display_name if p else None, "handle": p.handle if p else None}
+        d["owner"] = {"display_name": p.display_name if p else None, "username": p.username if p else None}
         dicts.append(d)
     return _with_likes(db, rows, viewer_id, dicts)
 
@@ -1031,7 +1031,7 @@ async def search_sketches(
 ):
     """
     Generic search (the Search page): shared sketches whose sketcher's name
-    or handle, title, or place label contains the text, plus the sketches
+    or username, title, or place label contains the text, plus the sketches
     inside any town, city or country the text names (Nominatim's bounding
     box), so "Japan" finds a sketch labelled "Gion, Kyoto". Newest first.
     Registered above /sketches/{sketch_id}, like /sketches/recent.
@@ -1048,7 +1048,7 @@ async def search_sketches(
             Sketch.title.ilike(like),
             Sketch.location_label.ilike(like),
             Profile.display_name.ilike(like),
-            Profile.handle.ilike(like),
+            Profile.username.ilike(like),
         ))
     )
     found = {s.id: s for s in text.all()}
@@ -1149,10 +1149,12 @@ async def get_sketch(
     owner = {
         "display_name": owner_profile.display_name if owner_profile else None,
         "avatar_url": owner_profile.avatar_url if owner_profile else None,
-        "handle": owner_profile.handle if owner_profile else None,
+        "username": owner_profile.username if owner_profile else None,
     }
     # Likes and comments (design doc, items 32 and 33), for everyone.
-    from app.features.community.router import comment_count, like_count, liked_by
+    from app.features.community.router import comment_count, is_following, like_count, liked_by
+    # For the Follow button beside the owner's name.
+    owner["is_following"] = bool(owner_profile) and not is_owner and is_following(db, sketcher_id, owner_profile.id)
     social = {
         "like_count": like_count(db, sketch.id),
         "liked": liked_by(db, sketcher_id, sketch.id),
@@ -1260,7 +1262,7 @@ def nearby_sketches(
     for s, d, p in rows:
         item = _sketch_card(s)
         item["distance_m"] = round(d or 0)
-        item["owner"] = {"display_name": p.display_name if p else None, "handle": p.handle if p else None}
+        item["owner"] = {"display_name": p.display_name if p else None, "username": p.username if p else None}
         out.append(item)
     return out
 

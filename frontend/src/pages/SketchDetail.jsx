@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import Header from '../components/common/Header'
-import Footer from '../components/common/Footer'
+import BasePage, { PageMessage } from '../components/common/BasePage'
 import Button from '../components/common/Button'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import Icon from '../components/common/Icon'
@@ -11,12 +10,12 @@ import SketchListMapView from '../components/common/SketchListMapView'
 import { useAuth } from '../components/common/AuthContext'
 import { MarksLayer } from '../components/analysis/Marks'
 import RuleOfThirdsGrid from '../components/analysis/RuleOfThirdsGrid'
-import Comments from '../components/sketch/Comments'
-import FeedbackBlock from '../components/sketch/FeedbackBlock'
-import PaletteBars from '../components/sketch/PaletteBars'
-import SharePanel from '../components/sketch/SharePanel'
-import UploadSketchModal from '../components/sketch/UploadSketchModal'
-import { ColorSection, ValueSection } from '../components/sketch/StudiesSection'
+import Comments from '../components/common/Comments'
+import FeedbackBlock from '../components/common/FeedbackBlock'
+import PaletteBars from '../components/common/PaletteBars'
+import SharePanel from '../components/common/SharePanel'
+import UploadSketchModal from '../components/common/UploadSketchModal'
+import { ColorSection, ValueSection } from '../components/common/StudiesSection'
 import { getSketchStatus } from '../lib/sketchStatus'
 import { MEDIA } from '../data/media'
 import { paintById } from '../data/paints'
@@ -75,8 +74,23 @@ export default function SketchDetail() {
   const [picked, setPicked] = useState(null) // the upload shown large in The sketch
   const [deleting, setDeleting] = useState(null) // the upload to confirm deleting
   const [actionError, setActionError] = useState(null)
+  const [busyFollow, setBusyFollow] = useState(false)
   const paletteBoxRef = useRef(null)
   const sketchGroupRef = useRef(null)
+
+  async function toggleFollow() {
+    setBusyFollow(true)
+    try {
+      const { data } = s.owner.is_following
+        ? await api.delete(`/api/sketchers/${s.owner.username}/follow`)
+        : await api.post(`/api/sketchers/${s.owner.username}/follow`)
+      setS((prev) => ({ ...prev, owner: { ...prev.owner, is_following: data.is_following } }))
+    } catch {
+      setActionError('Could not update the follow right now.')
+    } finally {
+      setBusyFollow(false)
+    }
+  }
 
   function reload() {
     return api.get(`/api/sketches/${sketchId}`).then(({ data }) => setS(data))
@@ -101,7 +115,7 @@ export default function SketchDetail() {
   const nearbyItems = useMemo(() => nearby.map((n) => ({
     id: n.id,
     title: n.title,
-    meta: [n.owner?.display_name || n.owner?.handle, `${n.distance_m} m`].filter(Boolean).join(' · '),
+    meta: [n.owner?.display_name || n.owner?.username, `${n.distance_m} m`].filter(Boolean).join(' · '),
     date: dateLabel(n.created_at),
     lat: n.location?.lat,
     lon: n.location?.lon,
@@ -110,14 +124,10 @@ export default function SketchDetail() {
   })), [nearby])
 
   if (error) {
-    return (
-      <div className="bg-white"><Header />
-        <main className="ed-page"><p className="text-ink/60">{error === 'error' ? 'Could not load this sketch.' : error === 'not_found' ? 'Sketch not found.' : error}</p></main>
-      <Footer /></div>
-    )
+    return <PageMessage>{error === 'error' ? 'Could not load this sketch.' : error === 'not_found' ? 'Sketch not found.' : error}</PageMessage>
   }
   if (!s) {
-    return <div className="bg-white"><Header /><main className="ed-page"><p className="text-ink/50">Loading…</p></main><Footer /></div>
+    return <PageMessage muted>Loading…</PageMessage>
   }
 
   const final = imageUrl(s.final_sketch_url)
@@ -242,309 +252,9 @@ export default function SketchDetail() {
     </Button>
   )
 
-  return (
-    <div className="bg-white">
-      <Header />
-      <main className="ed-page ed-page--detail">
-        {/* ---- Title block and actions ---- */}
-        <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div className="flex min-w-0 flex-col gap-2.5">
-            <span className="ed-kicker">{kicker}</span>
-            <h1 className="ed-title">{s.title || 'Untitled sketch'}</h1>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-base">
-              <Link to={s.owner?.handle ? `/sketchers/${s.owner.handle}` : '#'} className="flex items-center gap-2 font-semibold text-ink no-underline hover:underline">
-                <Avatar url={s.owner?.avatar_url} className="h-8 w-8" />
-                {s.owner?.display_name || s.owner?.handle || 'A sketcher'}
-              </Link>
-              <span className="text-ink/80">{dateLabel(when)} · {timeLabel(when)}</span>
-              {s.location?.label && (
-                <span className="inline-flex items-center gap-1.5 text-ink/80">
-                  <Icon name="location" size={14} className="text-[var(--pin-active)]" /> {s.location.label}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            {shared && likeButton}
-            {viewer === 'owner' && <Button variant="editorial" onClick={openEdit}>Edit</Button>}
-            {viewer === 'owner' && (
-              <Button variant={shared ? 'editorial' : 'editorialSolid'} onClick={() => setUploading({})}>
-                <Icon name="plus" size={15} /> Upload sketch
-              </Button>
-            )}
-            {viewer === 'owner' && final && (
-              <Button variant="editorialSolid" onClick={() => setSharing(true)}><Icon name="share" size={15} /> Share</Button>
-            )}
-          </div>
-        </section>
-
-        {/* ---- Hero gallery ---- */}
-        <section className="flex flex-col gap-2">
-          <div className="grid gap-2 md:grid-cols-[2fr_1fr]">
-            <div className={`${heroImage ? 'bg-black' : 'photo-placeholder'} relative flex aspect-[4/5] items-center justify-center overflow-hidden md:aspect-auto md:h-[520px]`}>
-              {heroImage && <img src={heroImage} alt={s.title || 'Sketch'} className="max-h-full max-w-full object-contain" />}
-              {imageCount > 1 && (
-                <button type="button" onClick={() => sketchGroupRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                  className="absolute bottom-4 left-4 inline-flex h-10 items-center gap-2 rounded-full bg-ink/70 px-4 text-sm font-bold text-white">
-                  <Icon name="images" size={15} /> {imageCount} images
-                </button>
-              )}
-            </div>
-            <div className="hidden grid-rows-2 gap-2 md:grid">
-              <div className="photo-placeholder relative overflow-hidden">
-                {reference && <img src={reference} alt="Reference photo" className="absolute inset-0 h-full w-full object-cover" />}
-                <span className="absolute left-2.5 top-2.5 bg-white px-2 py-0.5 text-xs font-semibold">Reference</span>
-              </div>
-              <div className="relative overflow-hidden">
-                <LocationMap lat={s.location?.lat} lon={s.location?.lon} height="h-full min-h-[256px]" rounded={false} />
-              </div>
-            </div>
-          </div>
-          {viewer === 'owner' && (
-            <p className="m-0 text-xs text-ink/70">
-              {shared ? 'Only you see this: feedback and bookmarks stay private.' : 'Only you see this sketch. Upload your final sketch to share it and get feedback.'}
-            </p>
-          )}
-        </section>
-
-        {/* ---- Group 1: The scene ---- */}
-        {reference && (
-          <section className="ed-section">
-            <h2 className="ed-kicker m-0">The scene</h2>
-            <div className="grid gap-8 md:grid-cols-2 md:gap-14">
-              <div className="relative">
-                <img src={reference} alt="Reference photo" className="block w-full" />
-                <RuleOfThirdsGrid />
-              </div>
-              <div className="flex flex-col gap-5">
-                <div className="flex flex-col gap-1">
-                  <span className="ed-caption">Reference photo</span>
-                  <span className="font-heading text-xl font-bold">{s.title || 'Untitled sketch'}</span>
-                  {s.location?.label && (
-                    <span className="inline-flex items-center gap-1.5 text-base">
-                      <Icon name="location" size={14} className="text-[var(--pin-active)]" /> {s.location.label}
-                    </span>
-                  )}
-                </div>
-                {scenePaints.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    <span className="ed-caption">Scene · closest paint</span>
-                    <PaletteBars paints={scenePaints} approx />
-                  </div>
-                )}
-                {viewer === 'owner' && (s.scene?.scene_type || s.scene?.summary || s.focal_regions?.length > 0) && (
-                  <div className="flex flex-col">
-                    <h3 className="m-0 font-sans text-lg font-normal">Scene analysis</h3>
-                    <dl className="m-0">
-                      {s.scene?.scene_type && <div className="ed-row"><dt>Scene type</dt><dd>{sceneTypeLabel[s.scene.scene_type] || cap(s.scene.scene_type)}</dd></div>}
-                      {s.scene?.summary && <div className="ed-row"><dt>Summary</dt><dd>{s.scene.summary}</dd></div>}
-                      {s.focal_regions?.length > 0 && (
-                        <div className="ed-row"><dt>Focal areas</dt><dd>{s.focal_regions.map((r, i) => `${i + 1} ${r.label}`).join(', ')}</dd></div>
-                      )}
-                    </dl>
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ---- Group 2: The plan ---- */}
-        {reference && (s.marks?.length > 0 || carried.length > 0 || s.plan_short?.length > 0) && (
-          <section className="ed-section">
-            <h2 className="ed-kicker m-0">The composition plan</h2>
-            <div className="grid gap-8 md:grid-cols-2 md:gap-14">
-              <PlanImage src={reference} marks={s.marks || []} />
-              <div className="flex flex-col">
-                <h3 className="m-0 font-sans text-lg font-normal">Design principles</h3>
-                {viewer === 'owner' && carried.length > 0 && (
-                  <p className="ed-note m-0 pb-2">What the AI read in your strokes. Your bookmarked tips are marked.</p>
-                )}
-                <dl className="m-0">
-                  {viewer === 'owner' && carried.map((p) => (
-                    <div key={p.principle} className="ed-row">
-                      <dt>{p.principle}</dt>
-                      <dd className="flex flex-col gap-1">
-                        {p.why && <span>{p.why}</span>}
-                        {tipsOf(p).map((t) => {
-                          const on = bookmarked.has(`${p.principle}:${t.name}`)
-                          return (
-                            <span key={t.name} className={`ed-note flex items-start gap-2 ${on ? '-ml-2 bg-[var(--ed-field-bg)] py-1 pl-2 pr-2 text-ink/80' : ''}`}>
-                              <span className="flex-1">{t.name}: {t.tip}</span>
-                              {on && <Icon name="bookmark-filled" size={14} className="mt-0.5 shrink-0" aria-label="Bookmarked" />}
-                            </span>
-                          )
-                        })}
-                      </dd>
-                    </div>
-                  ))}
-                  {viewer !== 'owner' && s.plan_short?.length > 0 && (
-                    <div className="ed-row"><dt>Focus</dt><dd>{s.plan_short.join(', ')}</dd></div>
-                  )}
-                  {s.marks?.length > 0 && (
-                    <div className="ed-row"><dt>Strokes</dt><dd>{s.marks.filter((m) => !m.erased).length} on the cropped photo</dd></div>
-                  )}
-                </dl>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ---- The value and colour studies: each only when the sketcher used that tab ---- */}
-        <ValueSection sketch={s} />
-        <ColorSection sketch={s} reference={reference} />
-
-        {/* ---- Group 3: The sketch: progress sketches, the final, feedback ---- */}
-        {(uploads.length > 0 || viewer === 'owner') && (
-          <section ref={sketchGroupRef} className="ed-section scroll-mt-6">
-            <h2 className="ed-kicker m-0">The sketch</h2>
-            {uploads.length === 0 ? (
-              <button type="button" onClick={() => setUploading({})}
-                className="flex min-h-[200px] flex-col items-center justify-center gap-2 border-[1.5px] rounded-lg border-dashed border-ink/30 p-6 text-center hover:border-ink">
-                <Icon name="plus" size={22} />
-                <span className="font-heading text-xl font-bold">Sketched it? Upload a photo.</span>
-                <span className="max-w-[420px] text-sm text-ink/70">Add progress sketches as you go. Upload the final sketch to share it and get feedback.</span>
-              </button>
-            ) : (
-              <div className="grid gap-8 md:grid-cols-2 md:gap-14">
-                <div className="flex flex-col gap-3">
-                  <span className="photo-placeholder flex items-center justify-center">
-                    <img src={imageUrl(shownUpload.url)} alt={`${s.title || 'Sketch'}: ${uploadLabel(shownUpload)}`} className="block w-full" />
-                  </span>
-                  <div className="flex flex-wrap items-end justify-between gap-2">
-                    <div>
-                      <div className="ed-caption">{uploadLabel(shownUpload)}</div>
-                      <div className="text-lg">{dateLabel(shownUpload.created_at)} · {timeLabel(shownUpload.created_at)}</div>
-                    </div>
-                    {viewer === 'owner' && (
-                      <div className="flex flex-wrap gap-2">
-                        {!shownUpload.is_final && (
-                          <Button variant="editorial" size="sm" disabled={critiquePending} onClick={() => setUploading({ upload: shownUpload })}>Make it the final</Button>
-                        )}
-                        <Button variant="editorial" size="sm" disabled={critiquePending && shownUpload.is_final} onClick={() => setDeleting(shownUpload)}>Delete</Button>
-                      </div>
-                    )}
-                  </div>
-                  {uploads.length > 1 && (
-                    <ol className="m-0 flex list-none gap-2 overflow-x-auto p-0 pb-1">
-                      {uploads.map((u, i) => (
-                        <li key={u.id} className="flex shrink-0 flex-col items-center gap-1">
-                          <button type="button" onClick={() => setPicked(u.id)} aria-pressed={u.id === shownUpload.id} aria-label={uploadLabel(u)}
-                            className={`h-[72px] w-[72px] overflow-hidden ${u.id === shownUpload.id ? 'outline outline-2 outline-ink' : 'opacity-80 hover:opacity-100'}`}>
-                            <img src={imageUrl(u.url)} alt="" className="h-full w-full object-cover" />
-                          </button>
-                          <span className="text-2xs font-semibold uppercase tracking-[0.1em] text-ink/70">{uploadLabel(u)}</span>
-                          {viewer === 'owner' && (
-                            <span className="flex">
-                              <button type="button" className="ed-icon-btn h-7 w-7" disabled={i === 0} aria-label={`Move ${uploadLabel(u)} earlier`} onClick={() => moveUpload(u, -1)}>‹</button>
-                              <button type="button" className="ed-icon-btn h-7 w-7" disabled={i === uploads.length - 1} aria-label={`Move ${uploadLabel(u)} later`} onClick={() => moveUpload(u, 1)}>›</button>
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                    </ol>
-                  )}
-                  {actionError && <p className="m-0 text-sm text-accent">{actionError}</p>}
-                </div>
-                <div className="flex flex-col gap-6">
-                  {final && (sketchPaints.length > 0 || viewer === 'owner') && (
-                    <div ref={paletteBoxRef} className="relative flex flex-col gap-2">
-                      <span className="ed-caption">Final sketch · closest paint</span>
-                      {sketchPaints.length > 0 && (
-                        <PaletteBars paints={sketchPaints}
-                          onEdit={viewer === 'owner' ? (p, el) => openPaint('edit', p, el) : undefined}
-                          onRemove={viewer === 'owner' ? (p) => savePalette((s.palettes?.sketch || []).filter((x) => x !== p.id)) : undefined} />
-                      )}
-                      {viewer === 'owner' && sketchPaints.length === 0 && (
-                        <p className="m-0 text-sm text-ink/60">Add the paints you used, so others can see what you brought.</p>
-                      )}
-                      {viewer === 'owner' && (
-                        <Button variant="editorial" size="sm" className="self-start" onClick={(e) => openPaint('new', null, e.currentTarget)}>
-                          <Icon name="plus" size={14} /> Add paint
-                        </Button>
-                      )}
-                      {paintEdit && (
-                        <PaintEditor open mode={paintEdit.mode} paintId={paintEdit.paintId} showBrand={false} favs={favs} top={paintEdit.top}
-                          onSave={savePaint} onClose={() => setPaintEdit(null)} onToggleFav={toggleFav} />
-                      )}
-                    </div>
-                  )}
-                  {viewer === 'owner' && critiquePending && (
-                    <div className="flex flex-col gap-1 border-l-2 border-ink pl-4">
-                      <span className="text-lg font-semibold">Feedback on its way…</span>
-                      <span className="text-sm text-ink/70">The AI is reading your sketch against your photo and plan. This takes about a minute. You can leave this page; it waits here.</span>
-                    </div>
-                  )}
-                  {viewer === 'owner' && !critiquePending && final && s.critique_status === 'failed' && (
-                    <div className="flex flex-col items-start gap-2">
-                      <span className="text-base text-accent">Could not get feedback this time.</span>
-                      <Button variant="editorial" size="sm" onClick={retryFeedback}>Try again</Button>
-                    </div>
-                  )}
-                  {!critiquePending && final && latestCritique && <FeedbackBlock critique={latestCritique} />}
-                  {viewer === 'owner' && !final && (
-                    <p className="m-0 text-sm text-ink/70">Feedback comes when you share your final sketch.</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* ---- Group 4: Tool kit ---- */}
-        {mediaRows.length > 0 && (
-          <section className="ed-section">
-            <h2 className="ed-kicker m-0">Tool kit</h2>
-            <dl className="m-0 max-w-[640px]">
-              {mediaRows.map((g) => <div key={g.group} className="ed-row"><dt>{g.group}</dt><dd className="font-semibold">{g.items.join(', ')}</dd></div>)}
-            </dl>
-          </section>
-        )}
-
-        {/* ---- Where it was drawn ---- */}
-        {(s.location || s.field_notes) && (
-          <section className="ed-section">
-            <div className="ed-section-head">
-              <h2 className="ed-kicker m-0">Where it was drawn</h2>
-              {s.location && (
-                <a href={`https://www.openstreetmap.org/?mlat=${s.location.lat}&mlon=${s.location.lon}#map=17/${s.location.lat}/${s.location.lon}`}
-                  target="_blank" rel="noopener noreferrer" className="text-sm text-ink underline">Open in Maps</a>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-8">
-              {s.location && (
-                <div className="min-w-0 flex-[1_1_480px]">
-                  <LocationMap lat={s.location.lat} lon={s.location.lon} height="h-[300px]" rounded={false} />
-                </div>
-              )}
-              {s.field_notes && (
-                <div className="flex min-w-[260px] flex-[1_1_320px] flex-col gap-3">
-                  <span className="ed-caption">Field notes</span>
-                  <p className="m-0 whitespace-pre-line text-base leading-relaxed">{s.field_notes}</p>
-                  <span className="text-xs text-ink/60">{dateLabel(when)} · {timeLabel(when)}</span>
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* ---- Comments ---- */}
-        {final && <Comments sketchId={s.id} viewer={viewer} userId={user?.id} />}
-
-        {/* ---- Other sketches near here ---- */}
-        {s.location && (
-          <section className="ed-section">
-            <div className="flex flex-col gap-1">
-              <h2 className="ed-kicker m-0">Other sketches near here</h2>
-              <span className="text-sm text-ink/70">Shared sketches within {NEARBY_M} m, nearest first</span>
-            </div>
-            <SketchListMapView items={nearbyItems} center={{ lat: s.location.lat, lon: s.location.lon, radius: NEARBY_M }}
-              emptyText="No one else has shared a sketch here yet." />
-          </section>
-        )}
-      </main>
-      <Footer />
-
+  // Panels and modals over the page.
+  const overlays = (
+    <>
       {uploading && (
         <UploadSketchModal sketch={s} upload={uploading.upload || null} imageUrl={uploading.upload ? imageUrl(uploading.upload.url) : null}
           onClose={() => setUploading(null)}
@@ -564,6 +274,313 @@ export default function SketchDetail() {
       {sharing && (
         <SharePanel sketch={s} images={{ final, reference }} palette={sketchPaints} pageUrl={pageUrl} onClose={() => setSharing(false)} />
       )}
-    </div>
+    </>
+  )
+
+  return (
+    <BasePage detail overlays={overlays}>
+      {/* ---- Title block and actions ---- */}
+      <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className="flex min-w-0 flex-col gap-2.5">
+          <span className="ed-kicker">{kicker}</span>
+          <h1 className="ed-title">{s.title || 'Untitled sketch'}</h1>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-base">
+            <Link to={s.owner?.username ? `/sketchers/${s.owner.username}` : '#'} className="flex items-center gap-2 font-semibold text-ink no-underline hover:underline">
+              <Avatar url={s.owner?.avatar_url} className="h-8 w-8" />
+              {s.owner?.display_name || s.owner?.username || 'A sketcher'}
+            </Link>
+            {/* Follow the sketcher from their sketch (not on your own). */}
+            {viewer === 'member' && s.owner?.username && (
+              <Button variant="editorialSolid" size="sm" active={s.owner.is_following} onClick={toggleFollow} disabled={busyFollow}>
+                {s.owner.is_following ? 'Following' : 'Follow'}
+              </Button>
+            )}
+            <span className="text-ink/80">{dateLabel(when)} · {timeLabel(when)}</span>
+            {s.location?.label && (
+              <span className="inline-flex items-center gap-1.5 text-ink/80">
+                <Icon name="location" size={14} className="text-[var(--pin-active)]" /> {s.location.label}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {shared && likeButton}
+          {viewer === 'owner' && <Button variant="editorial" onClick={openEdit}>Edit</Button>}
+          {viewer === 'owner' && (
+            <Button variant={shared ? 'editorial' : 'editorialSolid'} onClick={() => setUploading({})}>
+              <Icon name="plus" size={15} /> Upload sketch
+            </Button>
+          )}
+          {viewer === 'owner' && final && (
+            <Button variant="editorialSolid" onClick={() => setSharing(true)}><Icon name="share" size={15} /> Share</Button>
+          )}
+        </div>
+      </section>
+
+      {/* ---- Hero gallery ---- */}
+      <section className="flex flex-col gap-2">
+        <div className="grid gap-2 md:grid-cols-[2fr_1fr]">
+          <div className={`${heroImage ? 'bg-black' : 'photo-placeholder'} relative flex aspect-[4/5] items-center justify-center overflow-hidden md:aspect-auto md:h-[520px]`}>
+            {heroImage && <img src={heroImage} alt={s.title || 'Sketch'} className="max-h-full max-w-full object-contain" />}
+            {imageCount > 1 && (
+              <button type="button" onClick={() => sketchGroupRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                className="absolute bottom-4 left-4 inline-flex h-10 items-center gap-2 rounded-full bg-ink/70 px-4 text-sm font-bold text-white">
+                <Icon name="images" size={15} /> {imageCount} images
+              </button>
+            )}
+          </div>
+          <div className="hidden grid-rows-2 gap-2 md:grid">
+            <div className="photo-placeholder relative overflow-hidden">
+              {reference && <img src={reference} alt="Reference photo" className="absolute inset-0 h-full w-full object-cover" />}
+              <span className="absolute left-2.5 top-2.5 bg-white px-2 py-0.5 text-xs font-semibold">Reference</span>
+            </div>
+            <div className="relative overflow-hidden">
+              <LocationMap lat={s.location?.lat} lon={s.location?.lon} height="h-full min-h-[256px]" rounded={false} />
+            </div>
+          </div>
+        </div>
+        {viewer === 'owner' && (
+          <p className="m-0 text-xs text-ink/70">
+            {shared ? 'Only you see this: feedback and bookmarks stay private.' : 'Only you see this sketch. Upload your final sketch to share it and get feedback.'}
+          </p>
+        )}
+      </section>
+
+      {/* ---- Group 1: The scene ---- */}
+      {reference && (
+        <section className="ed-section">
+          <h2 className="ed-kicker m-0">The scene</h2>
+          <div className="grid gap-8 md:grid-cols-2 md:gap-14">
+            <div className="relative">
+              <img src={reference} alt="Reference photo" className="block w-full" />
+              <RuleOfThirdsGrid />
+            </div>
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-1">
+                <span className="ed-caption">Reference photo</span>
+                <span className="font-heading text-xl font-bold">{s.title || 'Untitled sketch'}</span>
+                {s.location?.label && (
+                  <span className="inline-flex items-center gap-1.5 text-base">
+                    <Icon name="location" size={14} className="text-[var(--pin-active)]" /> {s.location.label}
+                  </span>
+                )}
+              </div>
+              {scenePaints.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <span className="ed-caption">Scene · closest paint</span>
+                  <PaletteBars paints={scenePaints} approx />
+                </div>
+              )}
+              {viewer === 'owner' && (s.scene?.scene_type || s.scene?.summary || s.focal_regions?.length > 0) && (
+                <div className="flex flex-col">
+                  <h3 className="m-0 font-sans text-lg font-normal">Scene analysis</h3>
+                  <dl className="m-0">
+                    {s.scene?.scene_type && <div className="ed-row"><dt>Scene type</dt><dd>{sceneTypeLabel[s.scene.scene_type] || cap(s.scene.scene_type)}</dd></div>}
+                    {s.scene?.summary && <div className="ed-row"><dt>Summary</dt><dd>{s.scene.summary}</dd></div>}
+                    {s.focal_regions?.length > 0 && (
+                      <div className="ed-row"><dt>Focal areas</dt><dd>{s.focal_regions.map((r, i) => `${i + 1} ${r.label}`).join(', ')}</dd></div>
+                    )}
+                  </dl>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ---- Group 2: The plan ---- */}
+      {reference && (s.marks?.length > 0 || carried.length > 0 || s.plan_short?.length > 0) && (
+        <section className="ed-section">
+          <h2 className="ed-kicker m-0">The composition plan</h2>
+          <div className="grid gap-8 md:grid-cols-2 md:gap-14">
+            <PlanImage src={reference} marks={s.marks || []} />
+            <div className="flex flex-col">
+              <h3 className="m-0 font-sans text-lg font-normal">Design principles</h3>
+              {viewer === 'owner' && carried.length > 0 && (
+                <p className="ed-note m-0 pb-2">What the AI read in your strokes. Your bookmarked tips are marked.</p>
+              )}
+              <dl className="m-0">
+                {viewer === 'owner' && carried.map((p) => (
+                  <div key={p.principle} className="ed-row">
+                    <dt>{p.principle}</dt>
+                    <dd className="flex flex-col gap-1">
+                      {p.why && <span>{p.why}</span>}
+                      {tipsOf(p).map((t) => {
+                        const on = bookmarked.has(`${p.principle}:${t.name}`)
+                        return (
+                          <span key={t.name} className={`ed-note flex items-start gap-2 ${on ? '-ml-2 bg-[var(--ed-field-bg)] py-1 pl-2 pr-2 text-ink/80' : ''}`}>
+                            <span className="flex-1">{t.name}: {t.tip}</span>
+                            {on && <Icon name="bookmark-filled" size={14} className="mt-0.5 shrink-0" aria-label="Bookmarked" />}
+                          </span>
+                        )
+                      })}
+                    </dd>
+                  </div>
+                ))}
+                {viewer !== 'owner' && s.plan_short?.length > 0 && (
+                  <div className="ed-row"><dt>Focus</dt><dd>{s.plan_short.join(', ')}</dd></div>
+                )}
+                {s.marks?.length > 0 && (
+                  <div className="ed-row"><dt>Strokes</dt><dd>{s.marks.filter((m) => !m.erased).length} on the cropped photo</dd></div>
+                )}
+              </dl>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ---- The value and colour studies: each only when the sketcher used that tab ---- */}
+      <ValueSection sketch={s} />
+      <ColorSection sketch={s} reference={reference} />
+
+      {/* ---- Group 3: The sketch: progress sketches, the final, feedback ---- */}
+      {(uploads.length > 0 || viewer === 'owner') && (
+        <section ref={sketchGroupRef} className="ed-section scroll-mt-6">
+          <h2 className="ed-kicker m-0">The sketch</h2>
+          {uploads.length === 0 ? (
+            <button type="button" onClick={() => setUploading({})}
+              className="flex min-h-[200px] flex-col items-center justify-center gap-2 border-[1.5px] rounded-lg border-dashed border-ink/30 p-6 text-center hover:border-ink">
+              <Icon name="plus" size={22} />
+              <span className="font-heading text-xl font-bold">Sketched it? Upload a photo.</span>
+              <span className="max-w-[420px] text-sm text-ink/70">Add progress sketches as you go. Upload the final sketch to share it and get feedback.</span>
+            </button>
+          ) : (
+            <div className="grid gap-8 md:grid-cols-2 md:gap-14">
+              <div className="flex flex-col gap-3">
+                <span className="photo-placeholder flex items-center justify-center">
+                  <img src={imageUrl(shownUpload.url)} alt={`${s.title || 'Sketch'}: ${uploadLabel(shownUpload)}`} className="block w-full" />
+                </span>
+                <div className="flex flex-wrap items-end justify-between gap-2">
+                  <div>
+                    <div className="ed-caption">{uploadLabel(shownUpload)}</div>
+                    <div className="text-lg">{dateLabel(shownUpload.created_at)} · {timeLabel(shownUpload.created_at)}</div>
+                  </div>
+                  {viewer === 'owner' && (
+                    <div className="flex flex-wrap gap-2">
+                      {!shownUpload.is_final && (
+                        <Button variant="editorial" size="sm" disabled={critiquePending} onClick={() => setUploading({ upload: shownUpload })}>Make it the final</Button>
+                      )}
+                      <Button variant="editorial" size="sm" disabled={critiquePending && shownUpload.is_final} onClick={() => setDeleting(shownUpload)}>Delete</Button>
+                    </div>
+                  )}
+                </div>
+                {uploads.length > 1 && (
+                  <ol className="m-0 flex list-none gap-2 overflow-x-auto p-0 pb-1">
+                    {uploads.map((u, i) => (
+                      <li key={u.id} className="flex shrink-0 flex-col items-center gap-1">
+                        <button type="button" onClick={() => setPicked(u.id)} aria-pressed={u.id === shownUpload.id} aria-label={uploadLabel(u)}
+                          className={`h-[72px] w-[72px] overflow-hidden ${u.id === shownUpload.id ? 'outline outline-2 outline-ink' : 'opacity-80 hover:opacity-100'}`}>
+                          <img src={imageUrl(u.url)} alt="" className="h-full w-full object-cover" />
+                        </button>
+                        <span className="text-2xs font-semibold uppercase tracking-[0.1em] text-ink/70">{uploadLabel(u)}</span>
+                        {viewer === 'owner' && (
+                          <span className="flex">
+                            <button type="button" className="ed-icon-btn h-7 w-7" disabled={i === 0} aria-label={`Move ${uploadLabel(u)} earlier`} onClick={() => moveUpload(u, -1)}>‹</button>
+                            <button type="button" className="ed-icon-btn h-7 w-7" disabled={i === uploads.length - 1} aria-label={`Move ${uploadLabel(u)} later`} onClick={() => moveUpload(u, 1)}>›</button>
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+                {actionError && <p className="m-0 text-sm text-accent">{actionError}</p>}
+              </div>
+              <div className="flex flex-col gap-6">
+                {final && (sketchPaints.length > 0 || viewer === 'owner') && (
+                  <div ref={paletteBoxRef} className="relative flex flex-col gap-2">
+                    <span className="ed-caption">Final sketch · closest paint</span>
+                    {sketchPaints.length > 0 && (
+                      <PaletteBars paints={sketchPaints}
+                        onEdit={viewer === 'owner' ? (p, el) => openPaint('edit', p, el) : undefined}
+                        onRemove={viewer === 'owner' ? (p) => savePalette((s.palettes?.sketch || []).filter((x) => x !== p.id)) : undefined} />
+                    )}
+                    {viewer === 'owner' && sketchPaints.length === 0 && (
+                      <p className="m-0 text-sm text-ink/60">Add the paints you used, so others can see what you brought.</p>
+                    )}
+                    {viewer === 'owner' && (
+                      <Button variant="editorial" size="sm" className="self-start" onClick={(e) => openPaint('new', null, e.currentTarget)}>
+                        <Icon name="plus" size={14} /> Add paint
+                      </Button>
+                    )}
+                    {paintEdit && (
+                      <PaintEditor open mode={paintEdit.mode} paintId={paintEdit.paintId} showBrand={false} favs={favs} top={paintEdit.top}
+                        onSave={savePaint} onClose={() => setPaintEdit(null)} onToggleFav={toggleFav} />
+                    )}
+                  </div>
+                )}
+                {viewer === 'owner' && critiquePending && (
+                  <div className="flex flex-col gap-1 border-l-2 border-ink pl-4">
+                    <span className="text-lg font-semibold">Feedback on its way…</span>
+                    <span className="text-sm text-ink/70">The AI is reading your sketch against your photo and plan. This takes about a minute. You can leave this page; it waits here.</span>
+                  </div>
+                )}
+                {viewer === 'owner' && !critiquePending && final && s.critique_status === 'failed' && (
+                  <div className="flex flex-col items-start gap-2">
+                    <span className="text-base text-accent">Could not get feedback this time.</span>
+                    <Button variant="editorial" size="sm" onClick={retryFeedback}>Try again</Button>
+                  </div>
+                )}
+                {!critiquePending && final && latestCritique && <FeedbackBlock critique={latestCritique} />}
+                {viewer === 'owner' && !final && (
+                  <p className="m-0 text-sm text-ink/70">Feedback comes when you share your final sketch.</p>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ---- Group 4: Tool kit ---- */}
+      {mediaRows.length > 0 && (
+        <section className="ed-section">
+          <h2 className="ed-kicker m-0">Tool kit</h2>
+          <dl className="m-0 max-w-[640px]">
+            {mediaRows.map((g) => <div key={g.group} className="ed-row"><dt>{g.group}</dt><dd className="font-semibold">{g.items.join(', ')}</dd></div>)}
+          </dl>
+        </section>
+      )}
+
+      {/* ---- Where it was drawn ---- */}
+      {(s.location || s.field_notes) && (
+        <section className="ed-section">
+          <div className="ed-section-head">
+            <h2 className="ed-kicker m-0">Where it was drawn</h2>
+            {s.location && (
+              <a href={`https://www.openstreetmap.org/?mlat=${s.location.lat}&mlon=${s.location.lon}#map=17/${s.location.lat}/${s.location.lon}`}
+                target="_blank" rel="noopener noreferrer" className="text-sm text-ink underline">Open in Maps</a>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-8">
+            {s.location && (
+              <div className="min-w-0 flex-[1_1_480px]">
+                <LocationMap lat={s.location.lat} lon={s.location.lon} height="h-[300px]" rounded={false} />
+              </div>
+            )}
+            {s.field_notes && (
+              <div className="flex min-w-[260px] flex-[1_1_320px] flex-col gap-3">
+                <span className="ed-caption">Field notes</span>
+                <p className="m-0 whitespace-pre-line text-base leading-relaxed">{s.field_notes}</p>
+                <span className="text-xs text-ink/60">{dateLabel(when)} · {timeLabel(when)}</span>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ---- Comments ---- */}
+      {final && <Comments sketchId={s.id} viewer={viewer} userId={user?.id} />}
+
+      {/* ---- Other sketches near here ---- */}
+      {s.location && (
+        <section className="ed-section">
+          <div className="flex flex-col gap-1">
+            <h2 className="ed-kicker m-0">Other sketches near here</h2>
+            <span className="text-sm text-ink/70">Shared sketches within {NEARBY_M} m, nearest first</span>
+          </div>
+          <SketchListMapView items={nearbyItems} center={{ lat: s.location.lat, lon: s.location.lon, radius: NEARBY_M }}
+            emptyText="No one else has shared a sketch here yet." />
+        </section>
+      )}
+    </BasePage>
   )
 }

@@ -9,7 +9,7 @@ import { dateLabel, imageUrl } from '../../lib/media'
 export const toListItem = (s) => ({
   id: s.id,
   title: s.title,
-  meta: [s.owner?.display_name || s.owner?.handle, s.location?.label].filter(Boolean).join(' · '),
+  meta: [s.owner?.display_name || s.owner?.username, s.location?.label].filter(Boolean).join(' · '),
   date: dateLabel(s.created_at),
   place: s.location?.label,
   lat: s.location?.lat,

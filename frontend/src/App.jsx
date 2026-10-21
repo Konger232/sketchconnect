@@ -7,7 +7,7 @@ import CreateSketch from './pages/CreateSketch'
 import EditSketch from './pages/EditSketch'
 import SearchPage from './pages/SearchPage'
 import Explore from './pages/Explore'
-import Sketcher from './pages/Sketcher'
+import SketcherProfile from './pages/SketcherProfile'
 import SketchDetail from './pages/SketchDetail'
 import WorkshopsPage from './pages/WorkshopsPage'
 
@@ -32,7 +32,7 @@ function MembersOnly({ children }) {
 // The old Edit Profile address: your own page, with the panel open.
 function EditProfileRedirect() {
   const { profile } = useAuth()
-  return <Navigate to={profile?.handle ? `/sketchers/${profile.handle}?edit=profile` : '/'} replace />
+  return <Navigate to={profile?.username ? `/sketchers/${profile.username}?edit=profile` : '/'} replace />
 }
 
 // Universal error message for DB 
@@ -64,7 +64,7 @@ function Router() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/capture" element={<RequireAuth><CreateSketch /></RequireAuth>} />
-        <Route path="/sketchers/:handle" element={<MembersOnly><Sketcher /></MembersOnly>} /> {/* owner and member views */}
+        <Route path="/sketchers/:username" element={<MembersOnly><SketcherProfile /></MembersOnly>} /> {/* owner and member views */}
         <Route path="/sketches/:sketchId" element={<MembersOnly><SketchDetail /></MembersOnly>} /> {/* owner and member views */}
         <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketch /></RequireAuth>} />
         <Route path="/search" element={<MembersOnly><SearchPage /></MembersOnly>} /> {/* search sketches by sketcher, title or place */}

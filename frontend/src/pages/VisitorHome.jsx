@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import BasePage from '../components/common/BasePage'
 import SketchListMapView from '../components/common/SketchListMapView'
 import { useGeolocation } from '../lib/useGeolocation'
 import { api } from '../lib/api'
@@ -148,7 +149,7 @@ export default function VisitorHome() {
   // The same page width and responsive steps as the Sketcher page and
   // SketchDetail (index.css .ed-page, .ed-section).
   return (
-    <main className="ed-page">
+    <BasePage>
       <section className="flex flex-col gap-3">
         <span className="ed-kicker">{coords ? 'Recent sketches near you' : 'Recent sketches from the community'}</span>
         <h1 className="ed-title">Plan your next sketch</h1>
@@ -212,6 +213,6 @@ export default function VisitorHome() {
           Start sketching
         </Link>
       </section>
-    </main>
+    </BasePage>
   )
 }

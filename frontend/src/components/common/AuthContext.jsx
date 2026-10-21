@@ -23,7 +23,7 @@ export function AuthProvider({ children }) {
   }, []) //[] means that it only runs once, when the component first appears
 
   // Fetch profile data. refreshProfile() reloads it after Edit profile
-  // saves (the header's name, the handle in the address).
+  // saves (the header's name, the username in the address).
   const refreshProfile = () =>
     api.get('/api/profile').then(({ data }) => { setProfile(data); return data }).catch(() => null)
   useEffect(() => {

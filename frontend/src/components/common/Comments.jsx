@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import Button from '../common/Button'
+import Button from './Button'
 import { api } from '../../lib/api'
 import { relativeTime } from '../../lib/relativeTime'
-import Avatar from '../common/Avatar'
+import Avatar from './Avatar'
 
 /**
  * Comments on a shared sketch (design doc, item 32). Visitors read and get
@@ -53,8 +53,8 @@ export default function Comments({ sketchId, viewer, userId, onCount }) {
             <Avatar url={c.author.avatar_url} className="h-9 w-9" />
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="text-sm">
-                {c.author.handle ? (
-                  <Link to={`/sketchers/${c.author.handle}`} className="font-bold text-ink no-underline hover:underline">{c.author.display_name || c.author.handle}</Link>
+                {c.author.username ? (
+                  <Link to={`/sketchers/${c.author.username}`} className="font-bold text-ink no-underline hover:underline">{c.author.display_name || c.author.username}</Link>
                 ) : <b>A sketcher</b>}
                 <span className="text-ink/50"> · {relativeTime(c.created_at)}</span>
               </span>

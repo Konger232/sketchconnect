@@ -4,8 +4,8 @@ comments. Signed-in sketchers ("members") can do all three; anyone can read
 counts and comments on shared sketches. A sketch is shared once it has a
 final sketch (item 30), and only shared sketches take likes and comments.
 
-POST/DELETE /api/sketchers/{handle}/follow     follow or unfollow
-GET         /api/sketchers/{handle}/followers  who follows them, newest first
+POST/DELETE /api/sketchers/{username}/follow     follow or unfollow
+GET         /api/sketchers/{username}/followers  who follows them, newest first
 POST/DELETE /api/sketches/{sketch_id}/like     like or unlike
 GET         /api/sketches/{sketch_id}/comments oldest first
 POST        /api/sketches/{sketch_id}/comments add one (1 to 1000 characters)
@@ -32,8 +32,8 @@ class CommentRequest(BaseModel):
     body: str = Field(min_length=1, max_length=1000)
 
 
-def _profile(db: Session, handle: str) -> Profile:
-    profile = db.query(Profile).filter(Profile.handle == handle.strip().lstrip("@").lower()).first()
+def _profile(db: Session, username: str) -> Profile:
+    profile = db.query(Profile).filter(Profile.username == username.strip().lstrip("@").lower()).first()
     if profile is None:
         raise HTTPException(404, "Sketcher not found")
     return profile
@@ -51,17 +51,17 @@ def _shared_sketch(db: Session, sketch_id: str) -> Sketch:
 
 
 def person(p: Profile | None) -> dict:
-    """The public face of a sketcher in a list: name, handle, photo."""
+    """The public face of a sketcher in a list: name, username, photo."""
     if p is None:
-        return {"display_name": None, "handle": None, "avatar_url": None}
-    return {"display_name": p.display_name, "handle": p.handle, "avatar_url": p.avatar_url}
+        return {"display_name": None, "username": None, "avatar_url": None}
+    return {"display_name": p.display_name, "username": p.username, "avatar_url": p.avatar_url}
 
 
 # ---- follows ----
 
-@router.post("/sketchers/{handle}/follow")
-async def follow(handle: str, db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
-    target = _profile(db, handle)
+@router.post("/sketchers/{username}/follow")
+async def follow(username: str, db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
+    target = _profile(db, username)
     if target.id == me:
         raise HTTPException(400, "You can't follow yourself")
     if db.get(Follow, (me, target.id)) is None:
@@ -70,9 +70,9 @@ async def follow(handle: str, db: Session = Depends(get_db), me: str = Depends(g
     return {"is_following": True, **follow_counts(db, target.id)}
 
 
-@router.delete("/sketchers/{handle}/follow")
-async def unfollow(handle: str, db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
-    target = _profile(db, handle)
+@router.delete("/sketchers/{username}/follow")
+async def unfollow(username: str, db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
+    target = _profile(db, username)
     row = db.get(Follow, (me, target.id))
     if row is not None:
         db.delete(row)
@@ -80,9 +80,9 @@ async def unfollow(handle: str, db: Session = Depends(get_db), me: str = Depends
     return {"is_following": False, **follow_counts(db, target.id)}
 
 
-@router.get("/sketchers/{handle}/followers")
-async def followers(handle: str, db: Session = Depends(get_db)):
-    target = _profile(db, handle)
+@router.get("/sketchers/{username}/followers")
+async def followers(username: str, db: Session = Depends(get_db)):
+    target = _profile(db, username)
     rows = (
         db.query(Profile)
         .join(Follow, Follow.follower_id == Profile.id)

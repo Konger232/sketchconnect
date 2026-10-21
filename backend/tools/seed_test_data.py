@@ -11,7 +11,7 @@ Run from backend/ with the venv on:
 
   python tools/seed_test_data.py --dry-run      images and a row count, no database
   python tools/seed_test_data.py                create everything
-  python tools/seed_test_data.py --me <handle>  also link the seed sketchers to your account
+  python tools/seed_test_data.py --me <username>  also link the seed sketchers to your account
   python tools/seed_test_data.py --reset        remove all seed data
   python tools/seed_test_data.py --fixtures     photos for the live upload tests, in debug_out/
 
@@ -20,13 +20,15 @@ Two values in backend/.env that the app itself does not read:
   SUPABASE_SERVICE_ROLE_KEY  creates and deletes the seed logins
   SEED_PASSWORD              the password every seed sketcher signs in with
 
-The sketch images are drawn here, not real photos. They are good for
-testing pages, lists, the map and uploads. For the AI calls (scene
-analysis, marks analysis, critique), use real photos from the fixtures or
-your phone.
+Reference photos: run tools/fetch_reference_photos.py first and each
+sketch uses a real, openly licensed photo of its place (debug_out/ref_<key>.jpg),
+with sketch pages traced from it and the photo's credit in the field notes.
+Without those files, the script draws a simple scene instead.
 """
 import argparse
 import hashlib
+import json
+import re
 import math
 import os
 import random
@@ -38,7 +40,7 @@ from pathlib import Path
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont  # noqa: E402
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps  # noqa: E402
 
 import config  # noqa: E402,F401  loads backend/.env
 from app.core.paths import UPLOAD_DIR  # noqa: E402
@@ -58,7 +60,7 @@ KYOTO_PALACE = (35.0254, 135.7621)  # Kenreimon Gate
 
 SKETCHERS = [
     {
-        "handle": "marcus.tan",
+        "username": "marcus.tan",
         "name": "Marcus Tan",
         "location": "Singapore",
         "bio": "Civil engineer and dad of two. I sketch in the 20 minutes before school pickup.",
@@ -98,7 +100,7 @@ SKETCHERS = [
         ],
     },
     {
-        "handle": "david.whitfield",
+        "username": "david.whitfield",
         "name": "David Whitfield",
         "location": "Kyoto, Japan",
         "bio": "Retired architect. I teach weekend sketch walks around Kyoto.",
@@ -140,7 +142,7 @@ SKETCHERS = [
         ],
     },
     {
-        "handle": "priya.nair",
+        "username": "priya.nair",
         "name": "Priya Nair",
         "location": "Bangkok, Thailand",
         "bio": "Reportage sketcher. Markets, temples and people. I post every page of the process.",
@@ -178,7 +180,7 @@ SKETCHERS = [
         ],
     },
     {
-        "handle": "dana.johnson",
+        "username": "dana.johnson",
         "name": "Dana Johnson",
         "location": None,  # no location on the profile either
         "bio": "Sketching at home from my own photos and the weekly prompts.",
@@ -204,7 +206,7 @@ SKETCHERS = [
         ],
     },
     {
-        "handle": "lena.ortiz",
+        "username": "lena.ortiz",
         "name": "Lena Ortiz",
         "location": "Lisbon, Portugal",
         "bio": "Professional illustrator. Commissions, workshops and a sketchbook every month.",
@@ -273,7 +275,7 @@ SKETCHERS = [
         ],
     },
     {
-        "handle": "sam.lee",
+        "username": "sam.lee",
         "name": "Sam Lee",
         "location": None,
         "bio": None,
@@ -580,11 +582,54 @@ def _save(img: Image.Image, name: str) -> str:
     return f"/uploads/{name}"
 
 
+REF_CREDITS = FIXTURE_DIR / "reference_photos.json"
+
+
+def real_photo(key: str) -> Image.Image | None:
+    """The real reference photo fetched for this sketch, or None."""
+    path = FIXTURE_DIR / f"ref_{key}.jpg"
+    if not path.exists():
+        return None
+    img = ImageOps.exif_transpose(Image.open(path)).convert("RGB")
+    img.thumbnail((1600, 1600))
+    return img
+
+
+def photo_credit(key: str) -> dict | None:
+    """{author, license, page, taken} for the photo in use, from fetch_reference_photos.py."""
+    try:
+        entry = json.loads(REF_CREDITS.read_text(encoding="utf-8")).get(key) or {}
+        return entry["candidates"][entry["chosen"] - 1]
+    except (OSError, ValueError, KeyError, IndexError, TypeError):
+        return None
+
+
+def sketchify(photo: Image.Image, stage: float) -> Image.Image:
+    """A sketch page traced from a real photo, `stage` of the way done:
+    the strongest edges first, more detail on later pages, a light wash
+    after 60%, a fuller wash and darker line on the final."""
+    gray = ImageOps.grayscale(photo).filter(ImageFilter.GaussianBlur(1.4))
+    edges = ImageOps.autocontrast(gray.filter(ImageFilter.FIND_EDGES), cutoff=2)
+    threshold = int(240 - 110 * min(1.0, stage / 0.9))
+    ink = edges.point(lambda v: 255 if v > threshold else 0).filter(ImageFilter.MedianFilter(3))
+    page = Image.blend(Image.new("RGB", photo.size, PAPER), Image.effect_noise(photo.size, 10).convert("RGB"), 0.04)
+    if stage >= 0.6:
+        wash = ImageEnhance.Color(photo.quantize(colors=10).convert("RGB")).enhance(1.5).filter(ImageFilter.GaussianBlur(5))
+        wash = Image.blend(wash, Image.new("RGB", photo.size, PAPER), 0.25)
+        page = Image.blend(page, wash, 0.35 + 0.4 * (stage - 0.6) / 0.4)
+    page.paste(INK, mask=ink)
+    return page
+
+
 def sketch_images(sk: dict) -> dict:
     """Writes the reference photo and the sketch pages for one sketch."""
     size = (960, 1280) if sk["kind"] in ("still_life",) else (1280, 960)
     key = sk["key"]
-    out = {"reference": _save(render_photo(sk["kind"], key, size), f"{SEED_PREFIX}{key}_ref.jpg"), "pages": []}
+    photo = real_photo(key)
+    if photo is not None:
+        size = photo.size
+    out = {"reference": _save(photo or render_photo(sk["kind"], key, size), f"{SEED_PREFIX}{key}_ref.jpg"),
+           "pages": [], "credit": photo_credit(key) if photo is not None else None}
     n = sk["progress"]
     final = sk["stage"] == "complete"
     total = n + (1 if final else 0)
@@ -592,7 +637,8 @@ def sketch_images(sk: dict) -> dict:
         is_final = final and i == total - 1
         stage = 1.0 if is_final else (i + 1) / (total + (0 if final else 1)) * 0.9
         name = f"{SEED_PREFIX}{key}_{'final' if is_final else f'p{i + 1:02d}'}.jpg"
-        out["pages"].append(_save(render_sketch_page(sk["kind"], key, size, stage), name))
+        page = sketchify(photo, stage) if photo is not None else render_sketch_page(sk["kind"], key, size, stage)
+        out["pages"].append(_save(page, name))
     return out
 
 
@@ -700,22 +746,22 @@ def build(dry_run: bool, me: str | None):
     from geoalchemy2.elements import WKTElement
 
     if dry_run:
-        ids = {s["handle"]: f"00000000-0000-4000-8000-{i:012d}" for i, s in enumerate(SKETCHERS, 1)}
+        ids = {s["username"]: f"00000000-0000-4000-8000-{i:012d}" for i, s in enumerate(SKETCHERS, 1)}
         db = None
     else:
         password = os.environ.get("SEED_PASSWORD", "")
         if len(password) < 8:
             sys.exit("Add SEED_PASSWORD (8 or more characters) to backend/.env first.")
         from app.core.database import SessionLocal
-        from app.core.handles import is_taken
+        from app.core.usernames import is_taken
         client = _admin()
         if seed_logins(client):
             sys.exit("Seed data is already there. Run with --reset first.")
         db = SessionLocal()
         for s in SKETCHERS:
-            if is_taken(db, s["handle"]):
-                sys.exit(f"The handle {s['handle']} is taken by a real profile. Rename it in SKETCHERS.")
-        ids = {s["handle"]: create_login(client, f"{s['handle']}@{SEED_DOMAIN}", s["name"], password) for s in SKETCHERS}
+            if is_taken(db, s["username"]):
+                sys.exit(f"The username {s['username']} is taken by a real profile. Rename it in SKETCHERS.")
+        ids = {s["username"]: create_login(client, f"{s['username']}@{SEED_DOMAIN}", s["name"], password) for s in SKETCHERS}
 
     from app.core.models import (CritiqueResponse, Follow, KitItem, Persona, Profile, Sketch,
                                  SketchComment, SketchLike, SketchUpload)
@@ -726,10 +772,10 @@ def build(dry_run: bool, me: str | None):
         counts[type(row).__name__] = counts.get(type(row).__name__, 0) + 1
 
     for s in SKETCHERS:
-        uid = ids[s["handle"]]
-        avatar = _save(render_avatar(s["name"], s["color"]), f"{SEED_PREFIX}avatar_{s['handle']}.png")
-        kit_photo = _save(render_kit_photo(s["handle"]), f"{SEED_PREFIX}kit_{s['handle']}.jpg") if s.get("kit_photo") else None
-        profile = Profile(id=uid, display_name=s["name"], avatar_url=avatar, location=s["location"], handle=s["handle"],
+        uid = ids[s["username"]]
+        avatar = _save(render_avatar(s["name"], s["color"]), f"{SEED_PREFIX}avatar_{s['username']}.png")
+        kit_photo = _save(render_kit_photo(s["username"]), f"{SEED_PREFIX}kit_{s['username']}.jpg") if s.get("kit_photo") else None
+        profile = Profile(id=uid, display_name=s["name"], avatar_url=avatar, location=s["location"], username=s["username"],
                           bio=s["bio"], links=s["links"] or None, kit_photo_url=kit_photo,
                           favorite_paints=s["favorite_paints"] or None, created_at=NOW - timedelta(days=240))
         add(profile)
@@ -753,11 +799,19 @@ def build(dry_run: bool, me: str | None):
             images = sketch_images(sk)
             created = NOW - timedelta(days=sk["days"], hours=_rnd(sk["key"]).randint(0, 8))
             marks = strokes(sk["key"], 5)
-            sketch = Sketch(sketcher_id=uid, title=sk["title"], field_notes=sk["notes"],
+            notes, captured = sk["notes"], created - timedelta(minutes=5)
+            credit = images["credit"]
+            if credit:
+                line = f"Reference photo: {credit['author']}, {credit['license']}, Wikimedia Commons ({credit['page']})"
+                notes = f"{notes}\n\n{line}" if notes else line
+                taken = re.match(r"(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})", credit.get("taken") or "")
+                if taken:  # the photo's time of day, on the sketch's own date
+                    captured = created.replace(hour=int(taken[4]), minute=int(taken[5]), second=0)
+            sketch = Sketch(sketcher_id=uid, title=sk["title"], field_notes=notes,
                             scene_type=sk["scene"] if sk["stage"] == "complete" else None,
                             cached_scene_analysis=cached_analysis(sk, marks),
                             reference_image_url=images["reference"], original_image_url=images["reference"],
-                            marks=marks, created_at=created, captured_at=created - timedelta(minutes=5),
+                            marks=marks, created_at=created, captured_at=captured,
                             session_choices=[{"key": "media", "prompt": "What do you draw with?", "media": sk["media"],
                                               "answered_at": created.isoformat() + "Z"}],
                             value_levels=sk["values"], gamut_mask={"shapes": [{"type": "polygon", "corners": MASKS[sk["mask"]]}]} if sk["mask"] else None)
@@ -795,9 +849,9 @@ def build(dry_run: bool, me: str | None):
         add(SketchComment(sketch_id=sketch_ids[k], author_id=ids[h], body=body[:1000], created_at=NOW - timedelta(days=days)))
 
     if me and not dry_run:
-        owner = db.query(Profile).filter(Profile.handle == me.lstrip("@").lower()).first()
+        owner = db.query(Profile).filter(Profile.username == me.lstrip("@").lower()).first()
         if owner is None:
-            sys.exit(f"No profile with the handle {me}. Open your sketcher page once, then try again.")
+            sys.exit(f"No profile with the username {me}. Open your sketcher page once, then try again.")
         mine = (db.query(Sketch).filter(Sketch.sketcher_id == owner.id, Sketch.final_sketch_url.isnot(None))
                 .order_by(Sketch.created_at.desc()).limit(2).all())
         for h in ("marcus.tan", "david.whitfield", "priya.nair"):
@@ -807,7 +861,7 @@ def build(dry_run: bool, me: str | None):
                 add(SketchLike(sketch_id=sk.id, sketcher_id=ids[h]))
             add(SketchComment(sketch_id=sk.id, author_id=ids["david.whitfield"], body="Nice framing. Where were you standing?"))
             add(SketchComment(sketch_id=sk.id, author_id=ids["lena.ortiz"], body="Love the colour here."))
-        print(f"Linked to @{owner.handle}: 3 followers, likes and comments on {len(mine)} of your shared sketches.")
+        print(f"Linked to @{owner.username}: 3 followers, likes and comments on {len(mine)} of your shared sketches.")
 
     if dry_run:
         print("Dry run: images written to", UPLOAD_DIR, "| no database or logins touched.")
@@ -819,7 +873,7 @@ def build(dry_run: bool, me: str | None):
             db.flush()
         db.commit()
         db.close()
-        print(f"Done. Sign in as any <handle>@{SEED_DOMAIN} with SEED_PASSWORD.")
+        print(f"Done. Sign in as any <username>@{SEED_DOMAIN} with SEED_PASSWORD.")
     for name, n in counts.items():
         print(f"  {name:16} {n}")
 
@@ -886,14 +940,19 @@ def fixtures():
         img.save(FIXTURE_DIR / name, format="JPEG", quality=88, exif=exif.tobytes())
         made.append(name)
 
-    save(render_photo("temple", "fx-kyoto", (1280, 960)), "fixture_gps_kyoto_imperial_palace.jpg",
+    # Real photos when fetch_reference_photos.py has run, else drawn scenes.
+    kyoto = real_photo("david_kenreimon") or render_photo("temple", "fx-kyoto", (1280, 960))
+    bangkok = real_photo("priya_watarun") or render_photo("temple", "fx-bkk", (1280, 960))
+    street = real_photo("lena_tram") or render_photo("street", "fx-nogps", (1280, 960))
+    save(kyoto, "fixture_gps_kyoto_imperial_palace.jpg",
          35.02545, 135.76215, "2026:10:18 10:12:00")
-    save(render_photo("temple", "fx-bkk", (1280, 960)), "fixture_gps_bangkok_wat_arun.jpg",
+    save(bangkok, "fixture_gps_bangkok_wat_arun.jpg",
          13.74372, 100.48890, "2026:10:19 17:40:00")
-    save(render_photo("street", "fx-nogps", (1280, 960)), "fixture_no_gps.jpg", taken="2026:10:20 09:00:00")
+    save(street, "fixture_no_gps.jpg", taken="2026:10:20 09:00:00")
     save(render_photo("street", "fx-rot", (1280, 960)), "fixture_rotated_exif6.jpg", orientation=6)
     save(render_photo("landscape", "fx-big", (5200, 3900)), "fixture_large_5200px.jpg")
-    save(render_sketch_page("street", "fx-sketch", (1280, 960), 1.0), "fixture_final_sketch.jpg")
+    save(sketchify(kyoto, 1.0) if real_photo("david_kenreimon") else render_sketch_page("street", "fx-sketch", (1280, 960), 1.0),
+         "fixture_final_sketch.jpg")
     (FIXTURE_DIR / "fixture_not_an_image.jpg").write_text("This is text with a .jpg name. Upload must refuse it.\n")
     made.append("fixture_not_an_image.jpg")
     print("Fixtures in", FIXTURE_DIR)
@@ -906,7 +965,7 @@ if __name__ == "__main__":
     ap.add_argument("--dry-run", action="store_true", help="write the images, touch no database or logins")
     ap.add_argument("--reset", action="store_true", help="remove every seed login, row and image")
     ap.add_argument("--fixtures", action="store_true", help="write photos for the live upload tests to debug_out/")
-    ap.add_argument("--me", help="your own handle: seed sketchers follow you and like and comment on your sketches")
+    ap.add_argument("--me", help="your own SketchConnect username: seed sketchers follow you and like and comment on your sketches")
     args = ap.parse_args()
     if args.reset:
         reset()

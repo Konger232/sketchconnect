@@ -11,7 +11,7 @@ class ProfileUpdateRequest(BaseModel):
     avatar_url: Optional[str] = None
     location: Optional[str] = Field(default=None, max_length=120)
     # The sketcher page (design doc, item 36).
-    handle: Optional[str] = None
+    username: Optional[str] = None
     bio: Optional[str] = Field(default=None, max_length=300)
     # {"instagram": url, "tiktok": url, "facebook": url, "website": url}
     links: Optional[dict[str, str]] = None

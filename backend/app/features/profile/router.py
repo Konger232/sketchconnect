@@ -1,11 +1,11 @@
 """
 GET/PUT /api/profile -- the sketcher's own profile row (display name,
-avatar, location, and for the sketcher page: handle, self-introduction,
+avatar, location, and for the sketcher page: username, self-introduction,
 links). There's no trigger creating a profiles row when someone signs up
 (auth.users and public.profiles aren't linked automatically), so GET
 creates it on first visit instead of 404ing, seeded from the sign-in:
-the Google name and photo when there are any, and a handle made from the
-name or the email (core/handles.py). A profile from before handles gets
+the Google name and photo when there are any, and a username made from the
+name or the email (core/usernames.py). A profile from before usernames gets
 one the next time it is read.
 
 POST /api/profile/kit-photo -- the photo of the sketcher's kit.
@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from PIL import Image, ImageOps
 from sqlalchemy.orm import Session
 
-from app.core import handles
+from app.core import usernames
 from app.core.database import get_db
 from app.core.auth import get_current_claims, get_current_sketcher_id
 from app.core.models import Profile, Sketch
@@ -43,7 +43,7 @@ def _profile_to_dict(p: Profile) -> dict:
         "display_name": p.display_name,
         "avatar_url": p.avatar_url,
         "location": p.location,
-        "handle": p.handle,
+        "username": p.username,
         "bio": p.bio,
         "links": p.links or {},
         "favorite_paints": p.favorite_paints or [],
@@ -80,9 +80,9 @@ def _get_or_create_profile(db: Session, sketcher_id: str, claims: dict | None = 
         )
         db.add(profile)
         changed = True
-    if not profile.handle:
+    if not profile.username:
         email = (claims or {}).get("email") or ""
-        profile.handle = handles.make_unique(db, profile.display_name or email.split("@")[0], except_id=sketcher_id)
+        profile.username = usernames.make_unique(db, profile.display_name or email.split("@")[0], except_id=sketcher_id)
         changed = True
     if changed:
         db.commit()
@@ -127,15 +127,15 @@ async def update_profile(
             ).all()
         } if wanted else set()
         profile.featured_sketch_ids = [i for i in wanted if i in shared]
-    if body.handle is not None:
-        handle = body.handle.strip().lstrip("@").lower()
-        if handle != profile.handle:
-            reason = handles.problem(handle)
+    if body.username is not None:
+        username = body.username.strip().lstrip("@").lower()
+        if username != profile.username:
+            reason = usernames.problem(username)
             if reason:
                 raise HTTPException(422, reason)
-            if handles.is_taken(db, handle, except_id=sketcher_id):
-                raise HTTPException(409, f"@{handle} is taken. Try another.")
-            profile.handle = handle
+            if usernames.is_taken(db, username, except_id=sketcher_id):
+                raise HTTPException(409, f"@{username} is taken. Try another.")
+            profile.username = username
     db.commit()
     db.refresh(profile)
     return _profile_to_dict(profile)

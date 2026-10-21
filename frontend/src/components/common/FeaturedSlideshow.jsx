@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import Icon from '../common/Icon'
+import Icon from './Icon'
 import { imageUrl } from '../../lib/media'
 
 const ADVANCE_MS = 6000

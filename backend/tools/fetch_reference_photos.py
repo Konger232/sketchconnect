@@ -11,6 +11,10 @@ Run from backend/ with the venv on, before seed_test_data.py:
   python tools/fetch_reference_photos.py              fetch every sketch's photo
   python tools/fetch_reference_photos.py --only gion  fetch the keys that contain "gion"
   python tools/fetch_reference_photos.py --use david_gion=2   use candidate 2 instead
+  python tools/fetch_reference_photos.py --refresh    fetch again, even what is already there
+
+A stopped run keeps what it got. Run it again and it carries on with the
+sketches that have no photos yet.
 
 What it writes, all in backend/debug_out/ (git-ignored):
 
@@ -28,6 +32,7 @@ import html
 import json
 import re
 import sys
+import time
 from pathlib import Path
 
 import httpx
@@ -101,6 +106,23 @@ MANIFEST = {
 }
 
 
+PAUSE = 1.5             # seconds between downloads, to stay under Wikimedia's rate limit
+
+
+def _get(client, url: str, **params) -> httpx.Response:
+    """GET with a wait and a retry when Wikimedia says slow down (429) or is busy (5xx)."""
+    for attempt in range(6):
+        r = client.get(url, params=params or None, follow_redirects=True)
+        if r.status_code not in (429, 500, 502, 503, 504):
+            r.raise_for_status()
+            return r
+        wait = float(r.headers.get("Retry-After") or 0) or 5 * 2 ** attempt
+        print(f"    Wikimedia said {r.status_code}; waiting {wait:.0f} s")
+        time.sleep(min(wait, 120))
+    r.raise_for_status()
+    return r
+
+
 def _plain(value: str | None) -> str:
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", "", value or ""))).strip()
 
@@ -109,17 +131,20 @@ def _info(client, titles: list[str]) -> list[dict]:
     """Licence, author, date and a 1600 px link for each Commons file, in the order asked."""
     if not titles:
         return []
-    r = client.get(API, params={
+    r = _get(client, API, **{
         "action": "query", "format": "json", "formatversion": 2, "prop": "imageinfo",
         "titles": "|".join(t if t.startswith("File:") else f"File:{t}" for t in titles),
         "iiprop": "url|size|mime|extmetadata", "iiurlwidth": WIDTH,
         "iiextmetadatafilter": "LicenseShortName|Artist|Credit|DateTimeOriginal|GPSLatitude|GPSLongitude|UsageTerms",
     })
-    r.raise_for_status()
-    pages = {p["title"]: p for p in r.json()["query"]["pages"]}
+    data = r.json()["query"]
+    # Commons may rewrite a title (spaces, first letter); map ours to its own.
+    renamed = {n["from"]: n["to"] for n in data.get("normalized", [])}
+    pages = {p["title"]: p for p in data["pages"]}
     out = []
     for t in titles:
-        p = pages.get(t if t.startswith("File:") else f"File:{t}")
+        want = t if t.startswith("File:") else f"File:{t}"
+        p = pages.get(renamed.get(want, want))
         if not p or "imageinfo" not in p:
             print(f"    missing on Commons: {t}")
             continue
@@ -140,9 +165,8 @@ def _info(client, titles: list[str]) -> list[dict]:
 
 
 def _search(client, query: str) -> list[str]:
-    r = client.get(API, params={"action": "query", "format": "json", "formatversion": 2, "list": "search",
-                                "srsearch": f"{query} filetype:bitmap", "srnamespace": 6, "srlimit": 15})
-    r.raise_for_status()
+    r = _get(client, API, action="query", format="json", formatversion=2, list="search",
+             srsearch=f"{query} filetype:bitmap", srnamespace=6, srlimit=15)
     return [s["title"] for s in r.json()["query"]["search"]]
 
 
@@ -171,9 +195,12 @@ def fetch(client, key: str, spec: dict) -> list[dict]:
             continue
         n = len(found) + 1
         path = OUT / f"ref_{key}_{n}.jpg"
-        img = client.get(c["url"], follow_redirects=True)
-        img.raise_for_status()
-        path.write_bytes(img.content)
+        try:
+            path.write_bytes(_get(client, c["url"]).content)
+        except httpx.HTTPError as e:
+            print(f"    skip {c['title'][5:]}: download failed ({e})")
+            continue
+        time.sleep(PAUSE)
         c["file"] = path.name
         found.append(c)
         print(f"    {n}. {c['title'][5:]}  [{c['license']}, {c['author'][:40]}, taken {c['taken'] or '?'}]")
@@ -202,20 +229,26 @@ def contact_sheet(credits: dict):
                          f'{html.escape(c["author"])}, {html.escape(c["license"])}<br>taken {html.escape(c["taken"] or "?")}'
                          f'</figcaption></figure>')
         rows.append(f"<h2>{key} <small>{html.escape(entry['when'])}</small></h2><div>{''.join(cells) or 'none'}</div>")
-    (OUT / "reference_photos.html").write_text(
+    (OUT / "reference_photos.html").write_text(encoding="utf-8", data=
         "<!doctype html><meta charset=utf-8><title>Reference photos</title><style>body{font:14px system-ui;margin:24px}"
         "div{display:flex;gap:12px;flex-wrap:wrap}figure{width:300px;margin:0}img{width:300px;height:200px;object-fit:cover}"
         "small{color:#777;font-weight:normal}</style><h1>Seed reference photos</h1>" + "".join(rows))
+
+
+def save(credits_path: Path, credits: dict):
+    credits_path.write_text(json.dumps(credits, indent=2, ensure_ascii=False), encoding="utf-8")
+    contact_sheet(credits)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--only", help="fetch only the keys that contain this text")
     ap.add_argument("--use", help="key=n: use candidate n for that sketch")
+    ap.add_argument("--refresh", action="store_true", help="fetch again even the sketches that already have photos")
     args = ap.parse_args()
     OUT.mkdir(exist_ok=True)
     credits_path = OUT / "reference_photos.json"
-    credits = json.loads(credits_path.read_text()) if credits_path.exists() else {}
+    credits = json.loads(credits_path.read_text(encoding="utf-8")) if credits_path.exists() else {}
 
     if args.use:
         key, _, n = args.use.partition("=")
@@ -225,12 +258,19 @@ def main():
             for key, spec in MANIFEST.items():
                 if args.only and args.only not in key:
                     continue
-                cands = fetch(client, key, spec)
+                if credits.get(key, {}).get("candidates") and not args.refresh:
+                    print(f"{key}: already fetched, skipped (--refresh to fetch again)")
+                    continue
+                try:
+                    cands = fetch(client, key, spec)
+                except (httpx.HTTPError, KeyError, ValueError) as e:
+                    print(f"    {key} failed ({e}); run the script again to retry it")
+                    continue
                 credits[key] = {"when": spec["when"], "chosen": 1 if cands else None, "candidates": cands}
                 if cands:
                     (OUT / f"ref_{key}.jpg").write_bytes((OUT / cands[0]["file"]).read_bytes())
-    credits_path.write_text(json.dumps(credits, indent=2, ensure_ascii=False))
-    contact_sheet(credits)
+                save(credits_path, credits)  # after every sketch, so a stopped run keeps what it got
+    save(credits_path, credits)
     print(f"\nCheck the picks: open {OUT / 'reference_photos.html'}")
 
 

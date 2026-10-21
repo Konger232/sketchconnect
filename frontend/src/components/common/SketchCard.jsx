@@ -32,7 +32,7 @@ export default function SketchCard({ sketch, meta, href, linkState, image, multi
   const location = useLocation()
 
   const src = image || imageUrl(sketch.final_sketch_url || sketch.reference_image_url)
-  const owner = sketch.owner?.display_name || sketch.owner?.handle
+  const owner = sketch.owner?.display_name || sketch.owner?.username
   const caption = meta ?? (details ? null : [owner, sketch.location?.label].filter(Boolean).join(' · '))
   // Only shared sketches take likes (design doc, item 33). The owner sees
   // the count; a visitor goes to the login page.

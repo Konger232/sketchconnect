@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import Button from '../common/Button'
-import ConfirmDialog from '../common/ConfirmDialog'
-import FloatPanel from '../common/FloatPanel'
+import Button from './Button'
+import ConfirmDialog from './ConfirmDialog'
+import FloatPanel from './FloatPanel'
 import { api } from '../../lib/api'
 import { supabase } from '../../lib/supabaseClient'
-import { useAuth } from '../common/AuthContext'
-import Avatar from '../common/Avatar'
+import { useAuth } from './AuthContext'
+import Avatar from './Avatar'
 
 const LINKS = [
   { key: 'instagram', label: 'Instagram', placeholder: 'instagram.com/yourname' },
@@ -16,7 +16,7 @@ const LINKS = [
 const MAX_FEATURED = 5
 
 /**
- * Edit profile (design handoff, Sketcher page): photo, name, handle,
+ * Edit profile (design handoff, Sketcher page): photo, name, username,
  * introduction, home cities, links, and the featured sketches for the
  * slideshow, in order. A modal FloatPanel; a bottom sheet on a phone.
  * Saves with PUT /api/profile. The photo goes to Supabase storage, as
@@ -31,7 +31,7 @@ export default function EditProfilePanel({ profile, shared, userId, onClose, onS
   const signInNote = providers.includes('google') ? 'Signed in with Google' : 'Signed in with email and password'
   const [form, setForm] = useState({
     display_name: profile.display_name || '',
-    handle: profile.handle || '',
+    username: profile.username || '',
     bio: profile.bio || '',
     location: profile.location || '',
     links: { ...(profile.links || {}) },
@@ -124,10 +124,10 @@ export default function EditProfilePanel({ profile, shared, userId, onClose, onS
           </div>
         )}
         <label className="block">
-          <span>Handle</span>
-          <input className="field-input mt-1.5" value={form.handle} maxLength={31}
-            onChange={(e) => set('handle', e.target.value.replace(/^@/, '').toLowerCase())} />
-          <span className="mt-1 block text-xs text-ink/50">Your page: /sketchers/{form.handle || 'yourname'}</span>
+          <span>Username</span>
+          <input className="field-input mt-1.5" value={form.username} maxLength={31}
+            onChange={(e) => set('username', e.target.value.replace(/^@/, '').toLowerCase())} />
+          <span className="mt-1 block text-xs text-ink/50">Your page: /sketchers/{form.username || 'yourname'}</span>
         </label>
         <label className="block">
           <span>Introduction</span>
