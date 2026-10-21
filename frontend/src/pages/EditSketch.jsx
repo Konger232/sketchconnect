@@ -397,7 +397,7 @@ export default function EditSketch() {
 
   // ===== RENDER: LOADING / ERROR =====
 
-  const modalTitle = mode === 'create' ? 'New Sketch' : 'Edit Sketch'
+  const modalTitle = mode === 'create' ? 'New Sketch Framework' : 'Edit Sketch Framework'
 
   if (loadError || !sketch) {
     return (

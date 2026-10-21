@@ -29,7 +29,7 @@ export default function Footer() {
           style={{ borderColor: 'rgba(255,255,255,0.3)' }}
         >
           {LINKS.map(({ label, href }) => (
-            <a key={label} href={href} className="text-white text-xs no-underline hover:underline">
+            <a key={label} href={href} className="text-white text-md no-underline hover:underline">
               {label}
             </a>
           ))}
@@ -37,7 +37,7 @@ export default function Footer() {
       </div>
 
       <div className="flex flex-col items-start gap-3 md:items-end">
-        <span className="font-hand text-base">Follow us</span>
+        <span className="font-hand text-md">Follow us</span>
         <div className="flex gap-2.5">
           <a
             href="#"

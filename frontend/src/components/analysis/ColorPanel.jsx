@@ -52,13 +52,14 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
 
   return (
     <div className="flex flex-col gap-4">
-      <h3 className="text-white">Gamut Mask</h3>
+      <h3 className="text-white">Gamut Masking (Inspired by James Gurney)</h3>
       <p className="text-sm text-sc-text3">
-        {readOnly ? <>Your {gamutLink}, as planned.</> : <>Shape your {gamutLink} on the wheel. Then tap colours in the chart to collect them; each one shows how to mix it from your paints.</>}
+        {readOnly ? <>Your {gamutLink}, as planned.</> 
+          : <>Shape your {gamutLink} on the wheel. Then tap colours in the chart to get paint mixing recipes.</>}
       </p>
       {readOnly && (
         <p className="-mt-2 text-sm text-sc-text3">
-          The mask is locked with the plan, because this sketch is shared. To change it, delete the final sketch on its page. You can still collect colours from the chart.
+          Gamut mask locked for completed sketches. Remove the final sketch to modify your mask. You can still pick colors below.
         </p>
       )}
 
