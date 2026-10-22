@@ -24,6 +24,7 @@ import { api } from '../lib/api'
 import { dateLabel, imageUrl, timeLabel } from '../lib/media'
 import { notifySketchesChanged, useSketchesVersion } from '../lib/sketchEvents'
 import Avatar from '../components/common/Avatar'
+import RightsNote from '../components/common/RightsNote'
 
 const NEARBY_M = 300
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : '')
@@ -302,6 +303,8 @@ export default function SketchDetail() {
               </span>
             )}
           </div>
+          {/* The copying statement (design doc: protecting sketchers' work). */}
+          <RightsNote name={s.owner?.display_name || s.owner?.username} />
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           {shared && likeButton}

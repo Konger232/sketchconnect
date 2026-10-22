@@ -28,7 +28,7 @@ export default function RegisteredUserHome() {
       {near === null ? (
         <p className="m-0 animate-pulse text-sm text-ink/60">Finding sketches near you…</p>
       ) : (
-        <SketchSearch initial={near} initialLabel={coords ? 'Sketches near you' : 'Recent sketches'} />
+        <SketchSearch initial={near} initialLabel={coords ? 'Near you first, then the latest everywhere' : 'The latest sketches'} />
       )}
     </BasePage>
   )

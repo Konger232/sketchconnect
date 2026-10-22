@@ -960,23 +960,18 @@ def list_recent_sketches(
     viewer_id: str | None = Depends(get_optional_sketcher_id),
 ):
     """
-    Public feed for the logged-out Home page: recent sketches, ordered by
-    distance when the visitor's GPS coordinates are given, across ALL
-    sketchers — the only endpoint in this file that intentionally isn't
-    scoped to one sketcher. Falls back to most-recent-overall when no
-    coordinates are given, or when nothing falls within radius_km, so the
-    page is never empty just because no one's sketched nearby yet.
+    The Home feed (visitor and registered): shared sketches near the
+    viewer first, nearest first, then the latest from everywhere else to
+    fill up to `limit`. Before, any nearby sketch replaced the whole feed,
+    so one sketch nearby meant a one-sketch Home. Each card carries
+    `near: true` when it is within radius_km. No coordinates: the latest.
 
-    Registered ABOVE /sketches/{sketch_id} on purpose — FastAPI matches
+    Registered ABOVE /sketches/{sketch_id} on purpose -- FastAPI matches
     routes in file order, and "recent" would otherwise be swallowed as a
-    (nonexistent) sketch_id.
+    (nonexistent) sketch_id. Feedback text is never included (public).
     """
-    # Only shared sketches, the ones with a final sketch (design doc,
-    # item 30).
-    # AI critique/feedback text is never included here, for anyone --
-    # this feed is public by design (Home page, logged in or not), and
-    # critique is the one thing that stays sketcher-only no matter what.
-    # See get_sketch below for the same rule on the detail page.
+    limit = max(1, min(limit, 60))
+    nearby = []
     if lat is not None and lon is not None:
         point = WKTElement(f"POINT({lon} {lat})", srid=4326)
         nearby = (
@@ -985,20 +980,21 @@ def list_recent_sketches(
             .filter(Sketch.location.isnot(None))
             .filter(ST_DWithin(Sketch.location, point, radius_km * 1000))
             .order_by(ST_Distance(Sketch.location, point))
-            .limit(max(1, min(limit, 60)))
+            .limit(limit)
             .all()
         )
-        if nearby:
-            return _with_owners(db, nearby, viewer_id)
-
-    rows = (
-        card_query(db)
-        .filter(Sketch.final_sketch_url.isnot(None))
-        .order_by(Sketch.created_at.desc())
-        .limit(max(1, min(limit, 60)))
-        .all()
-    )
-    return _with_owners(db, rows, viewer_id)
+    near_ids = {s.id for s in nearby}
+    rest = []
+    if len(nearby) < limit:
+        q = card_query(db).filter(Sketch.final_sketch_url.isnot(None))
+        if near_ids:
+            q = q.filter(Sketch.id.notin_(near_ids))
+        rest = q.order_by(Sketch.created_at.desc()).limit(limit - len(nearby)).all()
+    rows = nearby + rest
+    out = _with_owners(db, rows, viewer_id)
+    for d in out:
+        d["near"] = d["id"] in near_ids
+    return out
 
 
 def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:

@@ -16,6 +16,10 @@
 
   /* The footer at the bottom of the window: BasePage.jsx. */
 
+  /* Images can't be dragged out or long-pressed to save (main.jsx turns
+     off right-click on them too). */
+  img { -webkit-user-drag: none; user-drag: none; -webkit-touch-callout: none; }
+
   /* Claude Design system rule: body text -> Inter, page headers -> Roboto,
      accent text (tagline/footer nav) uses Nunito Sans via font-hand. */
   h1, h2, h3 {

@@ -131,7 +131,7 @@ export default function VisitorHome() {
     // before asking, so a nearby result isn't fetched then immediately
     // replaced by an unfiltered one once permission resolves.
     if (status === 'idle' || status === 'locating') return
-    const params = coords ? { lat: coords.lat, lon: coords.lon } : {}
+    const params = { limit: 9, ...(coords ? { lat: coords.lat, lon: coords.lon } : {}) }
     api.get('/api/sketches/recent', { params }).then(({ data }) => setSketches(data)).finally(() => setLoaded(true))
   }, [status, coords])
 
@@ -151,8 +151,9 @@ export default function VisitorHome() {
   return (
     <BasePage>
       <section className="flex flex-col gap-3">
-        <span className="ed-kicker">{coords ? 'Recent sketches near you' : 'Recent sketches from the community'}</span>
+        <span className="ed-kicker">{coords ? 'Near you first, then the latest everywhere' : 'The latest from the community'}</span>
         <h1 className="ed-title">Plan your next sketch</h1>
+        <p className="m-0 text-sm text-ink/60">You're seeing a small part of each sketch. Join to see the whole journey, from photo to final sketch.</p>
       </section>
 
       <section className="ed-section">

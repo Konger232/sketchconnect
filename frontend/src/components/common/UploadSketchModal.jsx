@@ -7,6 +7,7 @@ import AdmiredPanel from './AdmiredPanel'
 import { api } from '../../lib/api'
 import { previewUrl } from '../../lib/previewUrl'
 import { useSheetDrag } from '../../lib/useSheetDrag'
+import RightsNote from './RightsNote'
 
 /**
  * Upload sketch (design doc, item 38): the black modal from New Sketch,
@@ -158,6 +159,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
                 {voices.length ? 'Edit admired sketchers' : 'Add admired sketchers'}
               </button>
               <p className="text-sm text-sc-text3">Feedback in the spirit of their public teaching, written by the AI.</p>
+              <RightsNote dark />
             </div>
           )}
           {finalBlocked && <p className="text-base text-sc-text3">Feedback on your last final sketch is still on its way. Add a progress sketch now, or wait a minute.</p>}

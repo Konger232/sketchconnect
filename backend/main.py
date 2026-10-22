@@ -16,10 +16,10 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from config import ALLOWED_ORIGINS, ALLOWED_ORIGIN_REGEX, DEBUG
 from app.core.debug import DebugTrafficMiddleware
+from app.core import media
 # One folder per feature under app/features/ (router, service, schemas,
 # prompts); shared code in app/core/.
 from app.features.scene_analysis import router as scene_analysis
@@ -44,14 +44,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Images: "/uploads/<file>" in API responses becomes a signed, expiring
+# /media link for a signed-in sketcher, or a /teaser link for a visitor
+# (app/core/media.py).
+app.add_middleware(media.MediaLinkMiddleware)
+
 # DEBUG=true in .env: print every browser request and every response in
 # the terminal (app/core/debug.py). Added last, so it sits outermost.
 if DEBUG:
     app.add_middleware(DebugTrafficMiddleware)
 
+# The uploads folder is not served as is: images go out through
+# /media (signed-in sketchers) and /teaser (visitors) only.
 UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+app.include_router(media.router)
 
 app.include_router(scene_analysis.router)
 app.include_router(marks_analysis.router)

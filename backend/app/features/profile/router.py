@@ -25,6 +25,7 @@ from app.core.auth import get_current_claims, get_current_sketcher_id
 from app.core.models import Profile, Sketch
 from app.core.paths import UPLOAD_DIR
 from app.features.profile.schemas import ProfileUpdateRequest
+from app.core.media import stored_url
 
 router = APIRouter(prefix="/api", tags=["profile"])
 
@@ -108,7 +109,8 @@ async def update_profile(
     if body.display_name is not None:
         profile.display_name = body.display_name
     if body.avatar_url is not None:
-        profile.avatar_url = body.avatar_url
+        # A signed /media link sent back as is: store the file path.
+        profile.avatar_url = stored_url(body.avatar_url)
     if body.location is not None:
         profile.location = body.location
     if body.bio is not None:
