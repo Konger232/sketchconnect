@@ -5,7 +5,7 @@
 // Every cell is an empty half pan unless a pan entry covers it. A full pan
 // takes two cells: side by side (w 2) or one above the other (h 2). The
 // backend checks the same rules (profile/router.py, clean_palette_layout).
-import { PAINTS } from '../data/paints'
+import { libraryPaints } from '../data/paints'
 import { angleOf, paintToWheel } from './colorWheel'
 
 export const DEFAULT_ROWS = 2
@@ -107,10 +107,10 @@ const unit = ({ h, c }) => {
   return [c * Math.cos(a), c * Math.sin(a)]
 }
 
-// Our paints, nearest to a point on the wheel first.
+// The library's paints, nearest to a point on the wheel first.
 export function nearestPaints(at) {
   const [x, y] = unit(at)
-  return PAINTS
+  return libraryPaints()
     .map((p) => { const [px, py] = unit(paintToWheel(p.hex)); return { p, d: Math.hypot(px - x, py - y) } })
     .sort((a, b) => a.d - b.d)
     .map((e) => e.p)

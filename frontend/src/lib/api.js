@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { supabase } from './supabaseClient'
+import { registerPaints } from '../data/paints'
 
 // One axios instance for every call to the FastAPI middle server. The
 // Supabase session's JWT is attached to every request (design doc,
@@ -21,4 +22,15 @@ api.interceptors.request.use(async (config) => {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
+})
+
+// The paint library (design doc, item 46): any palette or library the API
+// returns joins the paint list, so paintById finds paints sketchers added.
+api.interceptors.response.use((res) => {
+  const d = res?.data
+  if (d && typeof d === 'object') {
+    if (Array.isArray(d.palette_paints)) registerPaints(d.palette_paints)
+    if (Array.isArray(d.library)) registerPaints(d.library)
+  }
+  return res
 })

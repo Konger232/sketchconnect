@@ -363,3 +363,91 @@ create policy "own wishlist" on kit_wishlist for all using (auth.uid() = sketche
 -- My palette's pans, laid out like the sketcher's tin (October 22, 2026):
 -- {"rows": 2, "cols": 6, "pans": [{"r", "c", "w", "h", "paint"}]}.
 alter table profiles add column if not exists palette_layout jsonb;
+
+-- ---------------------------------------------------------------------------
+-- The paint library and My palette (design doc, item 46, October 22, 2026).
+-- `paints` is the community library: our starter list (checked) plus the
+-- paints sketchers add, unique by brand and name. `palette_items` is the
+-- paints each sketcher carries, in order (this replaces
+-- profiles.favorite_paints). `paint_flags` is "Report a mistake".
+-- Run once; safe to run again.
+create table if not exists paints (
+  id text primary key,                       -- 'pb29' for ours, 'c-xxxxxxxx' for a sketcher's
+  brand text,                                -- none for our generic starter paints
+  name text not null,
+  pigment_codes jsonb not null default '[]'::jsonb,
+  hex text not null,
+  lean text,
+  added_by uuid references auth.users (id) on delete set null,
+  checked boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists paints_brand_name on paints (lower(coalesce(brand, '')), lower(name));
+alter table paints enable row level security;
+drop policy if exists "anyone reads paints" on paints;
+create policy "anyone reads paints" on paints for select using (true);
+
+insert into paints (id, brand, name, pigment_codes, hex, lean, checked) values
+  ('py3', null, 'Hansa Yellow Light', '["PY3"]'::jsonb, '#e6ea3c', 'yellow, leaning green (cool)', true),
+  ('py97', null, 'Hansa Yellow Medium', '["PY97"]'::jsonb, '#f2c62b', 'yellow, near the middle', true),
+  ('py35', null, 'Cadmium Yellow', '["PY35"]'::jsonb, '#f2c230', 'yellow, leaning orange (warm)', true),
+  ('py150', null, 'Nickel Azo Yellow', '["PY150"]'::jsonb, '#d9a521', 'a muted yellow, leaning orange (warm)', true),
+  ('po49', null, 'Quinacridone Gold', '["PO49"]'::jsonb, '#c98a1d', 'a muted yellow-orange (warm)', true),
+  ('py43', null, 'Yellow Ochre', '["PY43"]'::jsonb, '#c8962e', 'a muted yellow, an earth (warm)', true),
+  ('pbr7-raw-sienna', null, 'Raw Sienna', '["PBr7"]'::jsonb, '#b5762f', 'a muted yellow-orange, an earth (warm)', true),
+  ('pbr7-burnt-sienna', null, 'Burnt Sienna', '["PBr7"]'::jsonb, '#8f4a2a', 'a muted orange-red, an earth (warm)', true),
+  ('pbr7-raw-umber', null, 'Raw Umber', '["PBr7"]'::jsonb, '#5e4a36', 'a dull brown, leaning green (cool earth)', true),
+  ('pbr7-burnt-umber', null, 'Burnt Umber', '["PBr7"]'::jsonb, '#4e3424', 'a dark brown, leaning red (warm earth)', true),
+  ('po73', null, 'Pyrrol Orange', '["PO73"]'::jsonb, '#e2582a', 'orange, leaning red (warm)', true),
+  ('po20', null, 'Cadmium Orange', '["PO20"]'::jsonb, '#e86f2a', 'orange (warm)', true),
+  ('pr255', null, 'Pyrrol Scarlet', '["PR255"]'::jsonb, '#d33a2c', 'red, leaning orange (warm)', true),
+  ('pr108', null, 'Cadmium Red', '["PR108"]'::jsonb, '#c8322b', 'red, leaning orange (warm)', true),
+  ('pr83', null, 'Alizarin Crimson', '["PR83"]'::jsonb, '#9e1f3a', 'red, leaning blue (cool)', true),
+  ('pr264', null, 'Pyrrole Crimson', '["PR264"]'::jsonb, '#b22a3c', 'red, leaning blue (cool)', true),
+  ('pv19', null, 'Quinacridone Rose', '["PV19"]'::jsonb, '#c23b6e', 'pink-red, leaning blue (cool)', true),
+  ('pr122', null, 'Quinacridone Magenta', '["PR122"]'::jsonb, '#a8326b', 'magenta, leaning violet (cool)', true),
+  ('pv23', null, 'Dioxazine Violet', '["PV23"]'::jsonb, '#4b2c6e', 'violet, leaning blue (cool)', true),
+  ('pb29', null, 'Ultramarine Blue', '["PB29"]'::jsonb, '#24359a', 'blue, leaning violet (warm)', true),
+  ('pb28', null, 'Cobalt Blue', '["PB28"]'::jsonb, '#2f5aa8', 'blue, near the middle', true),
+  ('pb35', null, 'Cerulean Blue', '["PB35"]'::jsonb, '#3a86b8', 'blue, leaning green (cool)', true),
+  ('pb15-3', null, 'Phthalo Blue', '["PB15:3"]'::jsonb, '#0f5e9c', 'blue, leaning green (cool)', true),
+  ('pb60', null, 'Indanthrone Blue', '["PB60"]'::jsonb, '#253b6e', 'a dark blue, leaning violet (warm)', true),
+  ('pg7', null, 'Phthalo Green', '["PG7"]'::jsonb, '#11695a', 'green, leaning blue (cool)', true),
+  ('pg18', null, 'Viridian', '["PG18"]'::jsonb, '#1f7a62', 'green, leaning blue (cool)', true),
+  ('pg17', null, 'Chromium Oxide Green', '["PG17"]'::jsonb, '#5f7a45', 'a muted green, leaning yellow (warm)', true),
+  ('pbk31', null, 'Perylene Green', '["PBk31"]'::jsonb, '#2f3b33', 'a very dark green, near black', true),
+  ('paynes-gray', null, 'Payne''s Gray', '["PB29","PBk9"]'::jsonb, '#4b5560', 'a blue-grey (cool)', true),
+  ('neutral-tint', null, 'Neutral Tint', '["PB15","PV19","PBk6"]'::jsonb, '#3d3b40', 'a neutral grey-black', true),
+  ('pbk9', null, 'Ivory Black', '["PBk9"]'::jsonb, '#2a2725', 'a warm black', true),
+  ('pbk6', null, 'Lamp Black', '["PBk6"]'::jsonb, '#1f1f1f', 'a cool black', true),
+  ('pw6', null, 'Titanium White', '["PW6"]'::jsonb, '#f4f2ec', 'white', true)
+on conflict (id) do nothing;
+
+create table if not exists palette_items (
+  sketcher_id uuid not null references auth.users (id) on delete cascade,
+  paint_id text not null references paints (id) on delete cascade,
+  position integer not null default 0,
+  created_at timestamptz not null default now(),
+  primary key (sketcher_id, paint_id)
+);
+alter table palette_items enable row level security;
+drop policy if exists "anyone reads palettes" on palette_items;
+create policy "anyone reads palettes" on palette_items for select using (true);
+
+create table if not exists paint_flags (
+  paint_id text not null references paints (id) on delete cascade,
+  sketcher_id uuid not null references auth.users (id) on delete cascade,
+  note text,
+  resolved boolean not null default false,
+  created_at timestamptz not null default now(),
+  primary key (paint_id, sketcher_id)
+);
+alter table paint_flags enable row level security;
+
+-- Move each sketcher's favorite_paints into palette_items, in order.
+insert into palette_items (sketcher_id, paint_id, position)
+select p.id, v.paint_id, (v.ord - 1)::int
+from profiles p
+cross join lateral jsonb_array_elements_text(coalesce(p.favorite_paints::jsonb, '[]'::jsonb)) with ordinality as v(paint_id, ord)
+where exists (select 1 from paints x where x.id = v.paint_id)
+on conflict do nothing;

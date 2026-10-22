@@ -3,8 +3,9 @@ import GamutWheel from '../analysis/GamutWheel'
 import Button from './Button'
 import FloatPanel from './FloatPanel'
 import Icon from './Icon'
+import NewPaintForm from './NewPaintForm'
 import PanGrid from './PanGrid'
-import { PAINTS, STARTER_PALETTE, paintById } from '../../data/paints'
+import { STARTER_PALETTE, libraryPaints, paintById, paintLabel, registerPaints } from '../../data/paints'
 import { api } from '../../lib/api'
 import { paintToWheel, wheelToHex } from '../../lib/colorWheel'
 import {
@@ -33,7 +34,10 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
   const starter = !startPaints?.length
   const [paints, setPaints] = useState(starter ? STARTER_PALETTE : startPaints)
   const [layout, setLayout] = useState(() => startLayout || defaultLayout(starter ? STARTER_PALETTE : startPaints))
-  const [form, setForm] = useState(null) // { mode: 'add', at: { h, c } } | { mode: 'edit', id }
+  // { mode: 'add', at: { h, c } | null } | { mode: 'edit', id } | { mode: 'new', at }
+  const [form, setForm] = useState(null)
+  const [libTick, setLibTick] = useState(0) // the library has loaded (lib/api.js registers it)
+  const [flag, setFlag] = useState(null) // Report a mistake: { note, sent }
   const [pending, setPending] = useState(null)
   const [query, setQuery] = useState('')
   const [sel, setSel] = useState(null) // the pan picked { r, c }
@@ -48,7 +52,9 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
   const [sheetOpen, setSheetOpen] = useState(true)
   const sheet = useSheetDrag(sheetOpen, setSheetOpen, '.pal-sheet-title')
 
-  const list = useMemo(() => paints.map(paintById).filter(Boolean), [paints])
+  useEffect(() => { api.get('/api/paints').then(() => setLibTick((t) => t + 1)).catch(() => {}) }, [])
+
+  const list = useMemo(() => paints.map(paintById).filter(Boolean), [paints, libTick]) // eslint-disable-line react-hooks/exhaustive-deps
   const inPans = placed(layout)
 
   async function save(nextPaints, nextLayout) {
@@ -56,7 +62,7 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
     setLayout(nextLayout)
     setError(null)
     try {
-      await api.put('/api/profile', { favorite_paints: nextPaints, palette_layout: nextLayout })
+      await api.put('/api/palette', { paints: nextPaints, layout: nextLayout })
     } catch {
       setError('Could not save the palette. Check your connection and try again.')
     }
@@ -66,6 +72,7 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
   function openForm(next, anchorXY) {
     setForm(next)
     setQuery('')
+    setFlag(null)
     setSheetOpen(true)
     if (next.mode === 'edit') setPending(next.id)
     else setPending(next.at ? nearestPaints(next.at).find((p) => !paints.includes(p.id))?.id || null : null)
@@ -77,18 +84,32 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
       setCardPos({ x: Math.min(wheel.right - stage.left + 12, stage.width - CARD_W), y: Math.max(0, Math.min(y, stage.height - 360)) })
     }
   }
-  const anchor = form ? (form.mode === 'add' ? form.at : paintToWheel(paintById(form.id)?.hex || '#808080')) : null
+  const anchor = form ? (form.mode === 'edit' ? paintToWheel(paintById(form.id)?.hex || '#808080') : form.at) : null
   const candidates = useMemo(() => {
     if (!form) return []
     const q = query.trim().toLowerCase()
-    return (anchor ? nearestPaints(anchor) : PAINTS).filter((p) => !q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q))
-  }, [form, anchor?.h, anchor?.c, query]) // eslint-disable-line react-hooks/exhaustive-deps
+    return (anchor ? nearestPaints(anchor) : libraryPaints()).filter((p) => !q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q))
+  }, [form, anchor?.h, anchor?.c, query, libTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function addPaint() {
-    if (!pending || paints.includes(pending)) return
+  function addPaint(id = pending) {
+    if (!id || paints.includes(id)) return
     const free = firstFree(layout)
-    save([...paints, pending], free ? placePaint(layout, free, pending) : layout)
+    save([...paints, id], free ? placePaint(layout, free, id) : layout)
     setForm(null)
+  }
+  // A new paint: the server has put it in the library and my palette.
+  function addedNew(paint) {
+    registerPaints([paint])
+    setLibTick((t) => t + 1)
+    addPaint(paint.id)
+  }
+  async function sendFlag() {
+    try {
+      await api.post(`/api/paints/${form.id}/flag`, { note: flag.note })
+      setFlag({ ...flag, sent: true })
+    } catch {
+      setError('Could not send the report. Try again.')
+    }
   }
   function changePaint() {
     const was = form.id
@@ -163,12 +184,14 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
   const formBody = form && (
     <>
       <div className={`flex items-center gap-3 ${wide ? 'cursor-move select-none touch-none' : 'pal-sheet-title'} pb-1`} onPointerDown={wide ? dragCard : undefined}>
-        {form.mode === 'add' && !form.at
+        {form.mode !== 'edit' && !form.at
           ? <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-ink/20"><Icon name="plus" size={14} /></span>
-          : <span className="h-7 w-7 shrink-0 rounded-full border border-black/10" style={{ background: form.mode === 'add' ? wheelToHex(form.at) : paintById(form.id)?.hex }} />}
+          : <span className="h-7 w-7 shrink-0 rounded-full border border-black/10" style={{ background: form.mode === 'edit' ? paintById(form.id)?.hex : wheelToHex(form.at) }} />}
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="ed-caption">{form.mode === 'add' ? 'Add a paint' : 'Change or remove'}</span>
-          <span className="truncate text-sm font-semibold">{form.mode === 'add' ? (form.at ? 'Paints near this colour' : 'Pick a paint') : paintById(form.id)?.name}</span>
+          <span className="ed-caption">{{ add: 'Add a paint', edit: 'Change or remove', new: 'New paint' }[form.mode]}</span>
+          <span className="truncate text-sm font-semibold">
+            {form.mode === 'edit' ? paintLabel(paintById(form.id)) : form.mode === 'new' ? 'Not in the library yet' : form.at ? 'Paints near this colour' : 'Pick a paint'}
+          </span>
         </span>
         {wide && (
           <button type="button" className="ed-icon-btn -mr-2 h-8 w-8" aria-label="Close" onPointerDown={(e) => e.stopPropagation()} onClick={() => setForm(null)}>
@@ -176,6 +199,11 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
           </button>
         )}
       </div>
+      {form.mode === 'new' ? (
+        <div className="pal-fields">
+          <NewPaintForm at={form.at} mine={paints} onUse={(id) => addPaint(id)} onSaved={addedNew} onCancel={() => setForm(null)} />
+        </div>
+      ) : (
       <div className="pal-fields flex min-h-0 flex-col gap-2">
         <label className="flex items-center gap-2 rounded-lg border border-ink/20 px-3 py-2">
           <Icon name="search" size={14} className="text-ink/60" />
@@ -191,22 +219,43 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
                   <span className="h-5 w-5 shrink-0 rounded-full border border-black/10" style={{ background: p.hex }} />
                   <span className="w-14 shrink-0 text-[11px] font-bold">{p.code}</span>
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-sm">{p.name}</span>
-                    <span className="truncate text-[11px] text-ink/55">{mine ? 'In your palette' : p.lean}</span>
+                    <span className="truncate text-sm">{paintLabel(p)}</span>
+                    <span className="truncate text-[11px] text-ink/55">
+                      {mine ? 'In your palette' : p.added_by && !p.checked ? `Added by @${p.added_by}` : p.lean}
+                    </span>
                   </span>
                 </button>
               </li>
             )
           })}
         </ul>
+        <button type="button" className="self-start text-xs font-semibold underline"
+          onClick={() => setForm({ mode: 'new', at: anchor || { h: 230, c: 0.6 } })}>
+          Not on the list? Add a new paint
+        </button>
+        {form.mode === 'edit' && (flag ? (
+          flag.sent ? <p className="m-0 text-xs text-ink/60">Thanks. We'll check it.</p> : (
+            <div className="flex flex-col gap-1.5">
+              <textarea rows={2} value={flag.note} onChange={(e) => setFlag({ ...flag, note: e.target.value })} maxLength={300}
+                placeholder="What's wrong? e.g. the pigment is PB15:3, not PB15" className="field-input resize-y !py-2 text-xs" />
+              <span className="flex justify-end gap-2">
+                <button type="button" className="text-xs underline" onClick={() => setFlag(null)}>Cancel</button>
+                <button type="button" className="text-xs font-semibold underline" onClick={sendFlag}>Send report</button>
+              </span>
+            </div>
+          )
+        ) : (
+          <button type="button" className="self-start text-xs text-ink/60 underline" onClick={() => setFlag({ note: '' })}>Report a mistake in this paint</button>
+        ))}
         <div className="flex flex-wrap justify-end gap-2 pt-1">
           {form.mode === 'edit' && <Button variant="editorial" size="sm" onClick={() => removePaint(form.id)}>Remove</Button>}
           <Button variant="editorial" size="sm" onClick={() => setForm(null)}>Cancel</Button>
           {form.mode === 'add'
-            ? <Button variant="editorialSolid" size="sm" disabled={!pending} onClick={addPaint}>Add paint</Button>
+            ? <Button variant="editorialSolid" size="sm" disabled={!pending} onClick={() => addPaint()}>Add paint</Button>
             : <Button variant="editorialSolid" size="sm" disabled={!pending || pending === form.id} onClick={changePaint}>Save</Button>}
         </div>
       </div>
+      )}
     </>
   )
 
@@ -254,8 +303,8 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
       <div ref={stageRef} className="relative grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div ref={wheelRef} className="pb-4">
           <GamutWheel paints={list} readOnly light ringPaint={form?.mode === 'edit' ? form.id : null}
-            selected={form?.mode === 'add' ? form.at : null}
-            onTapWheel={(at) => openForm({ mode: 'add', at })}
+            selected={form && form.mode !== 'edit' ? form.at : null}
+            onTapWheel={(at) => (form?.mode === 'new' ? setForm({ ...form, at }) : openForm({ mode: 'add', at }))}
             onPaintDown={(p, e) => startPress(e, p.id)} />
         </div>
 

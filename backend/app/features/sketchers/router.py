@@ -22,6 +22,7 @@ from app.core.database import get_db
 from app.core.models import KitItem, Profile, Sketch, SketchComment, SketchLike
 from app.features.community.router import follow_counts, is_following
 from app.features.kit.router import _to_dict as kit_item_to_dict, kit_photos, sort_kit, wished_ids
+from app.features.paints.router import palette_ids, palette_paints
 from app.features.persona.router import admired_list, admired_to_dict
 from app.features.sketches.router import _sketch_card, card_query
 from app.core.visibility import visible_filter
@@ -84,9 +85,10 @@ def get_sketcher(
         "kit_photo_url": profile.kit_photo_url,
         "kit_photos": kit_photos(profile),
         "kit": [{**kit_item_to_dict(i), "wished": i.id in wished} for i in kit_rows],
-        # My palette: paint ids from the paint list (data/paints.js). The
-        # colour recipes mix from these (item 44).
-        "favorite_paints": profile.favorite_paints or [],
+        # My palette (palette_items, item 46): the ids, and the paints from
+        # the library. The colour recipes mix from these.
+        "favorite_paints": palette_ids(db, profile.id),
+        "palette_paints": palette_paints(db, profile.id),
         "palette_layout": profile.palette_layout,
     }
     if is_owner:

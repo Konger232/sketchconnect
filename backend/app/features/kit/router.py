@@ -13,7 +13,7 @@ POST   /api/wishlist/{item_id}   star a tool in someone else's bag
 DELETE /api/wishlist/{item_id}   unstar it
 POST   /api/wishlist/{item_id}/got   it's in my bag now: copy it, unstar it
 
-Paints are not tools here: they are My palette (profiles.favorite_paints).
+Paints are not tools here: they are My palette (palette_items, features/paints).
 """
 from urllib.parse import urlparse
 

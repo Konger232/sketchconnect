@@ -57,9 +57,62 @@ export const BRANDS = [
   'M. Graham', 'Sennelier', 'White Nights', 'Da Vinci',
 ]
 
-export const paintById = (id) => PAINTS.find((p) => p.id === id)
+// ---- the community library (design doc, item 46) ----
+// Paints from the backend's library (GET /api/paints, and every palette the
+// API returns as palette_paints) are kept here, so paintById finds a paint
+// a sketcher added as well as ours. lib/api.js registers them as they come.
+const LIBRARY = new Map()
+export function registerPaints(list) {
+  for (const p of list || []) if (p && p.id && p.hex) LIBRARY.set(p.id, p)
+}
+// Every paint we know of: ours first, then the sketchers'.
+export const libraryPaints = () => [...PAINTS.map((p) => LIBRARY.get(p.id) || p), ...[...LIBRARY.values()].filter((p) => !PAINTS.some((x) => x.id === p.id))]
 
-export const starterPaints = () => STARTER_PALETTE.map((id) => PAINTS.find((p) => p.id === id))
+export const paintById = (id) => LIBRARY.get(id) || PAINTS.find((p) => p.id === id)
+
+// "Daniel Smith French Ultramarine", or just the name for our generic paints.
+export const paintLabel = (p) => (p?.brand ? `${p.brand} ${p.name}` : p?.name || '')
+
+// ---- pigment codes (features/paints/pigments.py) ----
+// The family letters after P, and where each family sits on the wheel
+// (hue in degrees, and the most chroma a family like black can have).
+export const FAMILIES = {
+  Y: { word: 'yellow', hues: [[35, 80]] },
+  O: { word: 'orange', hues: [[10, 50]] },
+  R: { word: 'red', hues: [[320, 360], [0, 30]] },
+  V: { word: 'violet', hues: [[245, 335]] },
+  B: { word: 'blue', hues: [[180, 270]] },
+  G: { word: 'green', hues: [[70, 190]] },
+  Br: { word: 'brown', hues: [[0, 60]], maxC: 0.8 },
+  Bk: { word: 'black', maxC: 0.35 },
+  W: { word: 'white', maxC: 0.25 },
+}
+const CODE = /^P(Br|Bk|Y|O|R|V|B|G|W)(\d{1,3})(?::(\d))?$/
+
+// 'pb 15:3' -> 'PB15:3'; null when it is not a pigment code.
+export function normalizeCode(raw) {
+  let s = String(raw || '').replace(/\s+/g, '')
+  if (s.length < 3 || s[0].toUpperCase() !== 'P') return null
+  const rest = s.slice(1)
+  const fam = ['Br', 'Bk'].find((f) => rest.slice(0, 2).toLowerCase() === f.toLowerCase())
+  s = fam ? `P${fam}${rest.slice(2)}` : `P${rest[0].toUpperCase()}${rest.slice(1)}`
+  const m = s.match(CODE)
+  return m ? `P${m[1]}${Number(m[2])}${m[3] ? `:${m[3]}` : ''}` : null
+}
+export const familyOf = (code) => code?.match(CODE)?.[1] || null
+
+// Does a colour on the wheel ({ h, c }) suit any of these pigments' families?
+export function colourFits(codes, at) {
+  const fams = codes.map(familyOf).filter(Boolean)
+  if (!fams.length || !at) return true
+  return fams.some((f) => {
+    const { hues, maxC } = FAMILIES[f]
+    if (maxC != null && at.c > maxC) return false
+    return !hues || at.c < 0.12 || hues.some(([a, b]) => at.h >= a && at.h <= b)
+  })
+}
+
+export const starterPaints = () => STARTER_PALETTE.map(paintById)
 
 // The paints a sketcher mixes from: My palette (profiles.favorite_paints,
 // design doc item 44). Empty means use starterPaints().

@@ -211,7 +211,8 @@ class Profile(Base):
     kit_photo_url = Column(String, nullable=True)  # the first bag photo, before kit_photos
     # What's in my bag: up to 3 photos, "/uploads/<file>" (design doc, item 44).
     kit_photos = Column(JSON, nullable=True)
-    # My favorite palette: pigment codes, in the paint editor (item 36).
+    # Before the paint library (item 46): the palette's paint ids. Now
+    # palette_items; kept until every row has moved.
     favorite_paints = Column(JSON, nullable=True)
     # My palette's pans, laid out like the tin (profile/router.py, clean_palette_layout).
     palette_layout = Column(JSON, nullable=True)
@@ -251,6 +252,47 @@ class KitWish(Base):
 
     sketcher_id = Column(UUID(as_uuid=False), primary_key=True)
     kit_item_id = Column(UUID(as_uuid=False), primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Paint(Base):
+    """
+    One paint in the community library (design doc, item 46): our starter
+    list (checked, no brand) and the paints sketchers add, unique by brand
+    and name. A paint added by a sketcher is checked once 3 other sketchers
+    carry it (features/paints/router.py).
+    """
+    __tablename__ = "paints"
+
+    id = Column(String, primary_key=True)            # 'pb29', or 'c-xxxxxxxx'
+    brand = Column(String, nullable=True)
+    name = Column(String, nullable=False)
+    pigment_codes = Column(JSON, nullable=False, default=list)
+    hex = Column(String, nullable=False)
+    lean = Column(String, nullable=True)
+    added_by = Column(UUID(as_uuid=False), nullable=True)
+    checked = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PaletteItem(Base):
+    """A paint a sketcher carries: My palette, in order (item 46)."""
+    __tablename__ = "palette_items"
+
+    sketcher_id = Column(UUID(as_uuid=False), primary_key=True)
+    paint_id = Column(String, primary_key=True)
+    position = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PaintFlag(Base):
+    """"Report a mistake" on a library paint (item 46). Chan reviews these."""
+    __tablename__ = "paint_flags"
+
+    paint_id = Column(String, primary_key=True)
+    sketcher_id = Column(UUID(as_uuid=False), primary_key=True)
+    note = Column(Text, nullable=True)
+    resolved = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
