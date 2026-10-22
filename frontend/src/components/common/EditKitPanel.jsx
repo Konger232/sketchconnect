@@ -21,7 +21,7 @@ export const KIT_CATEGORIES = [
   { category: 'other', label: 'Other' },
 ]
 
-const MAX_PHOTOS = 3
+const MAX_PHOTOS = 1 // one photo for the first release (features/kit/router.py MAX_KIT_PHOTOS)
 const TIP_WORDS = 30 // features/kit/router.py MAX_NOTE_WORDS
 const wordCount = (t) => (t || '').trim().split(/\s+/).filter(Boolean).length
 
@@ -155,7 +155,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
         }
       >
         <p className="m-0 text-sm text-ink/70">
-          Upload a photo of your sketch bag or your usual sketching gear to share with the community. Lay it out flat if you can. The AI finds each piece and pins it; tap a pin to fix it. Up to {MAX_PHOTOS} photos. Changes save as you go.
+          Upload a photo of your sketch bag or your usual sketching gear to share with the community. Lay it out flat if you can. The AI finds each piece and pins it; tap a pin to fix it. {MAX_PHOTOS > 1 ? `Up to ${MAX_PHOTOS} photos. ` : ''}Changes save as you go.
         </p>
 
         {photos.length > 0 ? (
@@ -226,7 +226,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
                   <span className="truncate">{i.label}</span>
                   {i.note && <span className="ed-note truncate">{i.note}</span>}
                 </span>
-                {i.spot && (
+                {i.spot && i.spot.photo < photos.length && (
                   <span className="shrink-0 text-xs text-ink/50">{photos.length > 1 ? `Photo ${i.spot.photo + 1} · ` : ''}#{pinIndex + 1}</span>
                 )}
                 <button type="button" className="ed-icon-btn" aria-label={`Edit ${i.label}`} onClick={() => { if (i.spot) setActive(i.spot.photo); editTool(i) }}>

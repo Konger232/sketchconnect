@@ -152,12 +152,13 @@ async def add_kit_photo(
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
-    """What's in my bag (item 44): add a bag photo, up to 3. The app then
+    """What's in my bag (item 44): add a bag photo (MAX_KIT_PHOTOS). The app then
     asks the kit reading call to find the tools on it (POST /api/kit/read)."""
     profile = _get_or_create_profile(db, sketcher_id)
     photos = kit_photos(profile)
     if len(photos) >= MAX_KIT_PHOTOS:
-        raise HTTPException(422, f"Your bag holds at most {MAX_KIT_PHOTOS} photos. Remove one first.")
+        raise HTTPException(422, ("Your bag has its photo. Remove it first to add a new one." if MAX_KIT_PHOTOS == 1
+                                 else f"Your bag holds at most {MAX_KIT_PHOTOS} photos. Remove one first."))
     contents = await image.read()
     try:
         pil = ImageOps.exif_transpose(Image.open(io.BytesIO(contents))).convert("RGB")

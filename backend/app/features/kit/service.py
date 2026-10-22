@@ -28,7 +28,7 @@ You are looking at one photo of an urban sketcher's kit: the tools spread out on
   - `sketchbook`: bound sketchbooks and journals.
   - `palette`: watercolour or gouache palettes, tins, pans, tubes.
   - `clips`: clips and bulldog clips.
-  - `easel`: easels and boards on a stand.
+  - `easel`: easels, tripods and boards on a stand, folded or set up.
   - `bag`: the bag or pouch itself, only when it is a tool on show.
   - `other`: everything else a sketcher uses to draw or paint: water cups, paper towel, a sketching stool, an eraser, a sharpener, tape, a viewfinder, a bone folder.
 - Skip things that are not sketching tools, even when they come along outdoors: hats, sunscreen, tissues, lanyards and badges, water bottles, phones, keys, wallets, food, people.

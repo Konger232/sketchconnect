@@ -30,7 +30,7 @@ router = APIRouter(prefix="/api", tags=["kit"])
 
 # The fixed list, in page order.
 CATEGORY_ORDER = ["pen", "ink", "brush", "paper", "sketchbook", "palette", "clips", "easel", "bag", "other"]
-MAX_KIT_PHOTOS = 3  # What's in my bag: up to 3 photos (item 44)
+MAX_KIT_PHOTOS = 1  # What's in my bag: one photo for the first release; the data holds up to 3 (item 44)
 MAX_NOTE_WORDS = 30  # the short tip: up to 30 words
 MAX_NOTE_CHARS = 300
 
