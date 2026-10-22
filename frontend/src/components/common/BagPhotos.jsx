@@ -40,7 +40,7 @@ export default function BagPhotos({ photos, items, active = 0, onActive, editing
           return (
             // The pin and its card share a hover area, so the card stays
             // open while the pointer moves onto it.
-            <span key={i.id} className="group absolute z-[1] -translate-x-1/2 -translate-y-1/2 hover:z-20"
+            <span key={i.id} className={`group absolute z-[1] -translate-x-1/2 -translate-y-1/2 hover:z-20 ${busy ? 'pointer-events-none opacity-40' : ''}`}
               style={{ left: `${i.spot.x * 100}%`, top: `${i.spot.y * 100}%`, zIndex: open === i.id ? 20 : undefined }}>
               <button type="button" aria-label={i.label} aria-expanded={open === i.id}
                 onClick={(e) => { e.stopPropagation(); setOpen(open === i.id ? null : i.id) }}
@@ -76,8 +76,15 @@ export default function BagPhotos({ photos, items, active = 0, onActive, editing
             </span>
           )
         })}
+        {/* While the AI reads the photo: the scan line used on other
+            waiting screens, a soft wash, and what is happening. */}
         {busy && (
-          <span className="absolute inset-x-0 bottom-0 animate-pulse bg-black/60 px-3 py-2 text-sm text-white">{busy}</span>
+          <span role="status" className="sc-scan absolute inset-0 z-30 flex items-center justify-center overflow-hidden bg-black/35">
+            <span className="flex w-[min(80%,260px)] flex-col items-center gap-2 rounded-md bg-white/95 px-4 py-3 text-center shadow-lg">
+              <span className="text-sm font-semibold text-ink">{busy}</span>
+              <span className="sc-progress-bar w-full" />
+            </span>
+          </span>
         )}
       </div>
       {photos.length > 1 && (

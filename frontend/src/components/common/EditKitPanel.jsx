@@ -64,7 +64,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
   const fail = (err, fallback) => setError(typeof err?.response?.data?.detail === 'string' ? err.response.data.detail : fallback)
 
   async function readPhoto(index) {
-    setBusy('Finding your gear…')
+    setBusy('Finding your gear on this photo…')
     setError(null)
     setDraft(null)
     try {
