@@ -2,6 +2,6 @@
   {"category": "pen", "label": "Lamy Safari fountain pen", "note": "extra fine nib", "box_2d": [120, 80, 820, 180]},
   {"category": "palette", "label": "Watercolour palette, 12 pans", "note": "half pans", "box_2d": [200, 300, 600, 700]},
   {"category": "brush", "label": "Pentel water brush", "note": "", "box_2d": [650, 250, 950, 750]},
-  {"category": "sketchbook", "label": "Stillman & Birn sketchbook", "note": "A5", "box_2d": [100, 750, 900, 980]},
+  {"category": "sketchbook", "label": "Sketchbook", "note": "", "size": "A5", "orientation": "landscape", "box_2d": [100, 750, 900, 980]},
   {"category": "clips", "label": "Bulldog clips", "note": "", "box_2d": [40, 420, 140, 560]}
 ]}

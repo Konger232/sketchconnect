@@ -31,8 +31,12 @@ You are looking at one photo of an urban sketcher's kit: the tools spread out on
   - `bag`: the bag or pouch itself, only when it is a tool on show.
   - `other`: everything else a sketcher uses: water cups, paper towel, a stool, an eraser, a sharpener, tape, a viewfinder.
 - Skip things that are not sketching tools: phones, keys, wallets, food, people.
-- `label`: a short name a sketcher would use, at most 6 words. Use the brand and model only when you can read them or are sure of the shape (for example "Lamy Safari fountain pen", "Pentel water brush", "Moleskine sketchbook"). Otherwise a plain name ("fountain pen", "watercolour palette, 12 pans").
-- `note`: at most 5 words, only for something clearly visible that a sketcher would care about, such as "extra fine nib", "cold press, A5" or "half pans". Leave it empty when unsure.
+- `label`: a short name a sketcher would use, at most 6 words. Use the brand and model only when you can read them on the tool, or when the shape is unmistakable (for example "Lamy Safari fountain pen", "Pentel water brush"). Otherwise a plain name ("fountain pen", "watercolour palette, 12 pans").
+  - Sketchbooks and paper look alike across brands. Name a brand only when you can read it on the cover, spine, band or label. Otherwise "sketchbook" or "watercolour pad".
+- `note`: at most 5 words, only for something clearly visible that a sketcher would care about, such as "extra fine nib", "cold press" or "half pans". Leave it empty when unsure. Do not put the size or orientation here.
+- For `sketchbook` and `paper` only:
+  - `size`: the nearest of "A3", "A4", "A5", "A6", or "square" when the sides look equal. Judge it against the other tools in the photo (a pen is about 14 cm long, a water brush about 15 cm). Leave it empty when you cannot judge.
+  - `orientation`: "landscape" when the binding runs along a short side (it opens wide), "portrait" when it runs along a long side. For loose paper or a closed book with no binding visible, use the longer side as it lies. Leave it empty for square, or when unsure.
 - `box_2d`: the tool's box as [ymin, xmin, ymax, xmax], each from 0 to 1000, on this photo.
 
 Return an empty list when you see no sketching tools.
@@ -49,6 +53,8 @@ SCHEMA = {
                     "category": {"type": "string", "enum": CATEGORIES},
                     "label": {"type": "string"},
                     "note": {"type": "string"},
+                    "size": {"type": "string"},  # checked in _note
+                    "orientation": {"type": "string"},
                     "box_2d": {"type": "array", "items": {"type": "integer"}},
                 },
                 "required": ["category", "label", "box_2d"],
@@ -57,6 +63,18 @@ SCHEMA = {
     },
     "required": ["tools"],
 }
+
+
+def _note(t: dict) -> str:
+    """The tip: for a sketchbook or paper, its size and orientation first
+    ("A5 landscape, cold press"), for the sketcher to confirm on the pin."""
+    note = " ".join(str(t.get("note") or "").split()[:5])[:40]
+    if t.get("category") not in ("sketchbook", "paper"):
+        return note
+    size = t.get("size") if t.get("size") in ("A3", "A4", "A5", "A6", "square") else ""
+    turn = t.get("orientation") if t.get("orientation") in ("landscape", "portrait") and size != "square" else ""
+    shape = " ".join(x for x in (size, turn) if x)
+    return ", ".join(x for x in (shape, note) if x)
 
 
 def read_kit(image: Image.Image) -> list[dict]:
@@ -73,7 +91,7 @@ def read_kit(image: Image.Image) -> list[dict]:
         tools.append({
             "category": t["category"],
             "label": label,
-            "note": " ".join(str(t.get("note") or "").split()[:5])[:40],
+            "note": _note(t),
             "x": round((xmin + xmax) / 2000, 3),
             "y": round((ymin + ymax) / 2000, 3),
         })

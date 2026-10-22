@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import BagPhotos from './BagPhotos'
 import Button from './Button'
 import ConfirmDialog from './ConfirmDialog'
@@ -51,6 +51,14 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
   const [draft, setDraft] = useState(null) // the tool being edited: { id?, kind, label, note, spot }
   const [removingPhoto, setRemovingPhoto] = useState(null)
   const fileRef = useRef(null)
+  const formRef = useRef(null)
+
+  // Opening the form (a pin, a row, or Add gear at the bottom of the list)
+  // brings it into view, since it sits above the list.
+  const draftKey = draft ? draft.id || `new-${draft.spot ? 'spot' : 'list'}` : null
+  useEffect(() => {
+    if (draftKey) formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [draftKey])
 
   const tools = items
   const fail = (err, fallback) => setError(typeof err?.response?.data?.detail === 'string' ? err.response.data.detail : fallback)
@@ -180,7 +188,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
 
         {/* The tool being edited: a pin, a new spot, or a row below. */}
         {draft && (
-          <div className="flex flex-col gap-2 border-[1.5px] border-ink p-3">
+          <div ref={formRef} className="flex scroll-my-4 flex-col gap-2 border-[1.5px] border-ink p-3">
             <span className="ed-caption">{draft.id ? 'Edit gear' : draft.spot ? 'New gear here' : 'New gear'}</span>
             <div className="grid gap-2 md:grid-cols-[160px_1fr]">
               <select aria-label="Category" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className="field-select">
