@@ -122,6 +122,7 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
   function removePaint(id) {
     save(paints.filter((x) => x !== id), dropPaint(layout, id))
     setForm(null)
+    setSel(null)
   }
 
   // ---- dragging a paint (from the wheel, a chip or a pan) ----
@@ -148,7 +149,13 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
       if (!p) return
       if (!p.moved) {
         // A tap: a pan is picked; a paint opens its form.
-        if (p.from) { setSel(p.from); setForm(null) } else if (p.id) openForm({ mode: 'edit', id: p.id }, { y: ev.clientY })
+        // A tap: a pan is picked (its paint ringed on the wheel); a paint
+        // opens its form and picks its pan.
+        if (p.from) { setSel(p.from); setForm(null) } else if (p.id) {
+          const home = layout.pans.find((x) => x.paint === p.id)
+          setSel(home ? { r: home.r, c: home.c } : null)
+          openForm({ mode: 'edit', id: p.id }, { y: ev.clientY })
+        }
         return
       }
       const cell = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-pan]')?.dataset.pan
@@ -169,6 +176,8 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
   // ---- the picked pan ----
   const pan = sel ? panAt(layout, sel.r, sel.c) || { ...sel, w: 1, h: 1, paint: null } : null
   const panPaint = pan?.paint ? paintById(pan.paint) : null
+  // The paint in focus, ringed on the wheel and outlined in the chips.
+  const focusId = form?.mode === 'edit' ? form.id : panPaint?.id || null
   useEffect(() => { if (sel && (sel.r >= layout.rows || sel.c >= layout.cols)) setSel(null) }, [layout, sel])
 
   // The floating card's title drags it (computer).
@@ -291,7 +300,7 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
       <div className="flex flex-wrap gap-2">
         {list.map((p) => (
           <button key={p.id} type="button" onPointerDown={(e) => startPress(e, p.id)} aria-label={`${p.name}: tap to change, drag onto a pan`}
-            className={`flex touch-none items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs ${form?.id === p.id ? 'border-ink' : 'border-ink/20'} ${inPans.has(p.id) ? '' : 'border-dashed'}`}>
+            className={`flex touch-none items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs ${focusId === p.id ? 'border-ink ring-1 ring-ink' : 'border-ink/20'} ${inPans.has(p.id) ? '' : 'border-dashed'}`}>
             <span className="h-5 w-5 rounded-full border border-black/10" style={{ background: p.hex }} />
             <span className="font-bold">{p.code}</span>
           </button>
@@ -303,7 +312,7 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
 
       <div ref={stageRef} className="relative grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div ref={wheelRef} className="pb-4">
-          <GamutWheel paints={list} readOnly light ringPaint={form?.mode === 'edit' ? form.id : null}
+          <GamutWheel paints={list} readOnly light ringPaint={focusId}
             selected={form && form.mode !== 'edit' ? form.at : null}
             onTapWheel={(at) => (form?.mode === 'new' ? setForm({ ...form, at, tapped: true }) : openForm({ mode: 'add', at }))}
             onPaintDown={(p, e) => startPress(e, p.id)} />
@@ -334,14 +343,15 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
                 ) : (
                   <Button variant="editorial" size="sm" onClick={() => save(paints, splitPan(layout, panAt(layout, pan.r, pan.c)))}>Half pan</Button>
                 )}
-                {panPaint && <Button variant="editorial" size="sm" onClick={() => save(paints, emptyPan(layout, panAt(layout, pan.r, pan.c)))}>Empty it</Button>}
+                {panPaint && <Button variant="editorial" size="sm" onClick={() => save(paints, emptyPan(layout, panAt(layout, pan.r, pan.c)))}>Take out of the pan</Button>}
+                {panPaint && <Button variant="editorial" size="sm" onClick={() => { removePaint(panPaint.id) }}>Remove from palette</Button>}
               </div>
               {pan.w * pan.h === 1 && !canMerge(layout, pan, 'right') && !canMerge(layout, pan, 'down') && (
                 <span className="text-xs text-ink/55">A full pan takes the empty half pan to its right or below.</span>
               )}
             </div>
           ) : (
-            <span className="text-xs text-ink/55">Drag a paint onto a pan. Tap a pan to make it a full pan. A dashed chip is not in a pan yet.</span>
+            <span className="text-xs text-ink/55">Drag a paint onto a pan. Tap a pan to make it a full pan or remove its paint. Dragging a paint off the tin only takes it out of its pan; a dashed chip is a paint in no pan.</span>
           )}
         </div>
 

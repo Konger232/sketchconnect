@@ -15,7 +15,7 @@ import PaletteEditPanel from '../components/common/PaletteEditPanel'
 import PanGrid from '../components/common/PanGrid'
 import GamutWheel from '../components/analysis/GamutWheel'
 import { defaultLayout } from '../lib/paletteLayout'
-import { paintById } from '../data/paints'
+import { paintById, paintLabel } from '../data/paints'
 import { api } from '../lib/api'
 import { dateLabel, imageUrl } from '../lib/media'
 import { useSketchesVersion } from '../lib/sketchEvents'
@@ -320,11 +320,13 @@ export default function SketcherProfile({ username: usernameProp }) {
                 <div><PanGrid layout={page.palette_layout || defaultLayout(favs)} /></div>
                 <ul className="m-0 grid list-none gap-x-6 gap-y-1.5 p-0 sm:grid-cols-2">
                   {paletteList.map((p) => (
-                    <li key={p.id} className="flex items-center gap-2.5 text-sm">
+                    <li key={p.id} className="flex items-start gap-2.5 text-sm">
                       {/* The swatch is data: an inline background. */}
-                      <span className="h-4 w-4 shrink-0 rounded-full border border-black/10" style={{ background: p.hex }} />
-                      <span className="w-[72px] shrink-0 text-xs font-bold">{p.code}</span>
-                      <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                      <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full border border-black/10" style={{ background: p.hex }} />
+                      <span className="flex min-w-0 flex-col">
+                        <span className="text-xs font-bold">{p.code}</span>
+                        <span className="text-ink/80">{paintLabel(p)}</span>
+                      </span>
                     </li>
                   ))}
                 </ul>
