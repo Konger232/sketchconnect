@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { paintById } from '../../data/paints'
 import { allPans } from '../../lib/paletteLayout'
 
@@ -14,11 +15,22 @@ import { allPans } from '../../lib/paletteLayout'
  *   size                a half pan's width in px (its height is 1.24 times)
  */
 export default function PanGrid({ layout, editable = false, selected, dropAt, onPanDown, size = 34 }) {
-  // The pans shrink to fit a phone's width.
-  const w = `min(${size}px, calc((100vw - 96px) / ${layout.cols}))`
+  // The pans shrink to fit the space they have (a 12-column tin, a phone).
+  const boxRef = useRef(null)
+  const [room, setRoom] = useState(null)
+  useEffect(() => {
+    const el = boxRef.current?.parentElement
+    if (!el) return
+    const ro = new ResizeObserver(() => setRoom(el.clientWidth))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const GAP = 4, FRAME = 16
+  const fit = room ? Math.floor((room - FRAME - GAP * (layout.cols - 1)) / layout.cols) : size
+  const w = `${Math.max(14, Math.min(size, fit))}px`
   const same = (a, p) => a && p.r === a.r && p.c === a.c
   return (
-    <div className="inline-block rounded-md bg-[#d9d9d6] p-2 shadow-[inset_0_1px_3px_rgba(0,0,0,0.25)]">
+    <div ref={boxRef} className="inline-block max-w-full rounded-md bg-[#d9d9d6] p-2 shadow-[inset_0_1px_3px_rgba(0,0,0,0.25)]">
       <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${layout.cols}, ${w})`, gridAutoRows: `calc(${w} * 1.24)` }}>
         {allPans(layout).map((p) => {
           const paint = p.paint ? paintById(p.paint) : null

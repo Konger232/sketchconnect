@@ -44,9 +44,11 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
   const [sel, setSel] = useState(null) // the pan picked { r, c }
   const [ghost, setGhost] = useState(null) // { hex, x, y } while dragging a paint
   const [dropAt, setDropAt] = useState(null)
-  const [cardPos, setCardPos] = useState(null) // { x, y } in the stage
+  const [cardPos, setCardPos] = useState(null) // { x, y, h } in the stage
+  const cardRef = useRef(null)
   const [error, setError] = useState(null)
   const wide = useWide()
+  useEffect(() => { if (form && wide) cardRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) }, [form?.mode, form?.id, wide]) // eslint-disable-line react-hooks/exhaustive-deps
   const stageRef = useRef(null)
   const wheelRef = useRef(null)
   const press = useRef(null)
@@ -77,12 +79,12 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
     setSheetOpen(true)
     if (next.mode === 'edit') setPending(next.id)
     else setPending(next.at ? nearestPaints(next.at).find((p) => !paints.includes(p.id))?.id || null : null)
-    // Beside the wheel, level with the spot tapped.
+    // Beside the wheel, level with its top and no taller than it, so the
+    // buttons stay in view; the list inside scrolls.
     const stage = stageRef.current?.getBoundingClientRect()
     const wheel = wheelRef.current?.getBoundingClientRect()
     if (stage && wheel) {
-      const y = (anchorXY?.y ?? wheel.top + wheel.height / 2) - stage.top - 60
-      setCardPos({ x: Math.min(wheel.right - stage.left + 12, stage.width - CARD_W), y: Math.max(0, Math.min(y, stage.height - 360)) })
+      setCardPos({ x: Math.min(wheel.right - stage.left + 12, stage.width - CARD_W), y: 0, h: Math.max(420, wheel.height) })
     }
   }
   const anchor = form ? (form.mode === 'edit' ? paintToWheel(paintById(form.id)?.hex || '#808080') : form.at) : null
@@ -185,7 +187,7 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
     const el = e.currentTarget
     const start = { x: e.clientX, y: e.clientY, pos: cardPos }
     el.setPointerCapture(e.pointerId)
-    const move = (ev) => setCardPos({ x: start.pos.x + ev.clientX - start.x, y: start.pos.y + ev.clientY - start.y })
+    const move = (ev) => setCardPos({ ...start.pos, x: start.pos.x + ev.clientX - start.x, y: start.pos.y + ev.clientY - start.y })
     const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up) }
     el.addEventListener('pointermove', move)
     el.addEventListener('pointerup', up)
@@ -210,16 +212,16 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
         )}
       </div>
       {form.mode === 'new' ? (
-        <div className="pal-fields">
+        <div className="pal-fields min-h-0 flex-1 overflow-y-auto">
           <NewPaintForm at={form.at} tapped={form.tapped} onSuggest={(at) => setForm((f) => (f?.mode === 'new' && !f.tapped ? { ...f, at } : f))} mine={paints} onUse={(id) => addPaint(id)} onSaved={addedNew} onCancel={() => setForm(null)} />
         </div>
       ) : (
-      <div className="pal-fields flex min-h-0 flex-col gap-2">
+      <div className="pal-fields flex min-h-0 flex-1 flex-col gap-2">
         <label className="flex items-center gap-2 rounded-lg border border-ink/20 px-3 py-2">
           <Icon name="search" size={14} className="text-ink/60" />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search paint or pigment code" className="min-w-0 flex-1 bg-transparent text-sm focus:outline-none" />
         </label>
-        <ul className="m-0 max-h-[220px] list-none overflow-y-auto p-0">
+        <ul className={`m-0 list-none overflow-y-auto p-0 ${wide ? 'min-h-[96px] flex-1' : 'max-h-[220px]'}`}>
           {candidates.map((p) => {
             const mine = paints.includes(p.id) && p.id !== form.id
             return (
@@ -357,8 +359,8 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
 
         {/* The form: a card beside the wheel (computer). */}
         {form && wide && cardPos && (
-          <div className="absolute z-30 flex flex-col gap-2 rounded-lg bg-white p-3 shadow-[0_4px_24px_rgba(0,0,0,0.25)]"
-            style={{ left: cardPos.x, top: cardPos.y, width: CARD_W }}>
+          <div ref={cardRef} className="absolute z-30 flex scroll-my-4 flex-col gap-2 rounded-lg bg-white p-3 shadow-[0_4px_24px_rgba(0,0,0,0.25)]"
+            style={{ left: cardPos.x, top: cardPos.y, width: CARD_W, maxHeight: cardPos.h }}>
             {formBody}
           </div>
         )}

@@ -171,7 +171,7 @@ export default function NewPaintForm({ at, tapped, onSuggest, mine, onUse, onSav
       )}
       {server?.kind === 'error' && <p className="m-0 text-xs text-accent">{server.message}</p>}
 
-      <div className="flex flex-wrap justify-end gap-2 pt-1">
+      <div className="sticky bottom-0 flex flex-wrap justify-end gap-2 bg-white pt-1">
         <Button variant="editorial" size="sm" onClick={onCancel}>Cancel</Button>
         <Button variant="editorialSolid" size="sm" disabled={!ready} onClick={() => save(false)}>Add to the library</Button>
       </div>
