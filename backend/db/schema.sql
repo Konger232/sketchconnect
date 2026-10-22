@@ -359,3 +359,7 @@ create table if not exists kit_wishlist (
 alter table kit_wishlist enable row level security;
 drop policy if exists "own wishlist" on kit_wishlist;
 create policy "own wishlist" on kit_wishlist for all using (auth.uid() = sketcher_id);
+
+-- My palette's pans, laid out like the sketcher's tin (October 22, 2026):
+-- {"rows": 2, "cols": 6, "pans": [{"r", "c", "w", "h", "paint"}]}.
+alter table profiles add column if not exists palette_layout jsonb;

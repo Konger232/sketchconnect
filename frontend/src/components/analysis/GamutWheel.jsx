@@ -70,8 +70,14 @@ const shapePath = (s) => {
  *   active, onActive(index)               the shape last touched
  *   selected { h, c } | null              the selected colour, ringed
  *   marked   [{ h, c }]                   the collected tiles, dotted
+ *
+ * My palette (Edit palette, the Sketcher page) uses it with no mask:
+ *   light                  for a white page (darker letters and legend)
+ *   onTapWheel({ h, c })   a tap on the wheel, away from a paint
+ *   onPaintDown(paint, e)  a press on a paint, to drag or tap it
+ *   ringPaint              the paint being edited, ringed
  */
-export default function GamutWheel({ shapes, onChange, active, onActive, paints, selected, marked = [], onSelect, readOnly = false, className = '' }) {
+export default function GamutWheel({ shapes = [], onChange, active, onActive, paints, selected, marked = [], onSelect, readOnly = false, light = false, onTapWheel, onPaintDown, ringPaint, legend = 'A paint in your palette', className = '' }) {
   const id = useId().replace(/:/g, '')
   const svgRef = useRef(null)
   // { kind: 'corner' | 'edge' | 'shape' | 'tile', index, corner, last, start, moved }
@@ -106,9 +112,16 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
   }
   const cursorFor = (hit) => (!hit ? 'default' : hit.kind === 'edge' ? 'nwse-resize' : 'grab')
 
+  const paintAt = (p, e) => squares.find((s) => Math.hypot(p[0] - s.xy[0], p[1] - s.xy[1]) <= (e.pointerType === 'touch' ? 14 : 9))
+  const inks = light ? { letter: '#6b6b6b', legend: 'text-ink/60', dot: 'border-ink/40' } : { letter: GREY80, legend: 'text-[#cccccc]', dot: 'border-[#cccccc]' }
+
   function down(e) {
     const p = toSvg(e)
     if (dist(p, [C, C]) > RW + 4) return
+    if (onPaintDown) {
+      const sq = paintAt(p, e)
+      if (sq) { setHover(null); onPaintDown(sq, e); return }
+    }
     const hit = readOnly ? null : hitAt(p, e)
     drag.current = { ...(hit || { kind: 'tile' }), last: p, start: p, moved: false }
     svgRef.current.setPointerCapture(e.pointerId)
@@ -125,7 +138,9 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
         setHover(sq || null)
       }
       const inside = dist(p, [C, C]) <= RW
-      setCursor(inside && !readOnly ? cursorFor(hitAt(p, e)) : 'default')
+      if (onPaintDown && inside && paintAt(p, e)) setCursor('grab')
+      else if (onTapWheel && inside) setCursor('crosshair')
+      else setCursor(inside && !readOnly ? cursorFor(hitAt(p, e)) : 'default')
       return
     }
     if (d.kind === 'tile') return
@@ -152,8 +167,14 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
     if (!d) return
     drag.current = null
     if (!d.moved) {
-      // A click does nothing: the wheel is only for the mask. Colours are
-      // picked in the chart below it (MaskValues).
+      // My palette: a tap on the wheel adds a paint near that colour.
+      if (onTapWheel) {
+        const w = xyToWheel(...toSvg(e).map((v) => v - PAD), W)
+        onTapWheel({ h: w.h, c: Math.min(1, w.c) })
+        return
+      }
+      // Otherwise a click does nothing: the wheel is only for the mask.
+      // Colours are picked in the chart below it (MaskValues).
       setCursor(readOnly ? 'default' : cursorFor(hitAt(toSvg(e), e)))
       return
     }
@@ -168,7 +189,7 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
       <svg
         ref={svgRef}
         viewBox={`0 0 ${SIZE} ${SIZE}`}
-        className={`absolute inset-0 h-full w-full overflow-visible ${readOnly ? '' : 'touch-none'}`}
+        className={`absolute inset-0 h-full w-full overflow-visible ${readOnly && !onPaintDown ? "" : "touch-none"}`}
         style={{ cursor }}
         onPointerDown={down}
         onPointerMove={move}
@@ -176,7 +197,7 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
         onPointerCancel={() => { drag.current = null }}
         onPointerLeave={() => { setHover(null); if (!drag.current) setCursor('default') }}
         role="img"
-        aria-label={`Colour wheel with a gamut mask of ${shapes.length} ${shapes.length === 1 ? 'shape' : 'shapes'}`}
+        aria-label={shapes.length ? `Colour wheel with a gamut mask of ${shapes.length} ${shapes.length === 1 ? 'shape' : 'shapes'}` : `Colour wheel with ${paints.length} paints`}
       >
         <defs>
           <clipPath id={`clip-${id}`}><circle cx={C} cy={C} r={RW} /></clipPath>
@@ -192,21 +213,24 @@ export default function GamutWheel({ shapes, onChange, active, onActive, paints,
         {/* Paints: small circles, under the darkening, so they read as part of
             the wheel. Squares are the collected colours elsewhere. */}
         {squares.map((d) => (
-          <circle key={d.id} data-paint={d.id} cx={d.xy[0]} cy={d.xy[1]} r={6.5} fill={d.hex} stroke={GREY80} strokeWidth={1} />
+          <circle key={d.id} data-paint={d.id} cx={d.xy[0]} cy={d.xy[1]} r={6.5} fill={d.hex} stroke={light ? '#ffffff' : GREY80} strokeWidth={light ? 1.5 : 1} />
+        ))}
+        {ringPaint && squares.filter((d) => d.id === ringPaint).map((d) => (
+          <circle key="ring" cx={d.xy[0]} cy={d.xy[1]} r={10} fill="none" stroke="#111" strokeWidth={2} />
         ))}
         {shapes.length > 0 && <rect width={SIZE} height={SIZE} fill="rgba(0,0,0,0.68)" mask={`url(#mask-${id})`} clipPath={`url(#clip-${id})`} />}
         <circle cx={C} cy={C} r={RW} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={0.8} />
         {LETTERS.map(([h, letter]) => {
           const [x, y] = polar(RW + 11, angleOf(h))
-          return <text key={letter} x={x} y={y} textAnchor="middle" dominantBaseline="central" fill={GREY80} fontSize="13" fontWeight="700">{letter}</text>
+          return <text key={letter} x={x} y={y} textAnchor="middle" dominantBaseline="central" fill={inks.letter} fontSize="13" fontWeight="700">{letter}</text>
         })}
         {marked.map((m, n) => { const t = tileAt(m); return t && <path key={n} d={tilePath(t.k, t.i)} fill="none" stroke="#cccccc" strokeWidth={1} strokeDasharray="2 2" /> })}
-        {sel && <path d={tilePath(sel.k, sel.i)} fill="none" stroke="#fff" strokeWidth={2.2} strokeLinejoin="round" />}
+        {sel && <path d={tilePath(sel.k, sel.i)} fill="none" stroke={light ? '#111' : '#fff'} strokeWidth={2.2} strokeLinejoin="round" />}
       </svg>
       {/* The legend: what the small circles are. */}
-      {paints.length > 0 && <div className="pointer-events-none absolute -bottom-1 right-0 flex items-center gap-1.5 text-[11px] text-[#cccccc]">
-        <span className="inline-block h-3 w-3 rounded-full border border-[#cccccc] bg-[#808080]" />
-        A paint in your palette
+      {paints.length > 0 && legend && <div className={`pointer-events-none absolute -bottom-1 right-0 flex items-center gap-1.5 text-[11px] ${inks.legend}`}>
+        <span className={`inline-block h-3 w-3 rounded-full border bg-[#808080] ${inks.dot}`} />
+        {legend}
       </div>}
       {hover && (
         <div role="tooltip" className="pointer-events-none absolute z-10 w-max max-w-[260px] rounded-md bg-black/90 px-2.5 py-1.5 text-xs leading-snug text-white shadow-lg"

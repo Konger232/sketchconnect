@@ -38,6 +38,44 @@ MAX_LINK_CHARS = 200
 MAX_FEATURED = 5
 MAX_FAVORITE_PAINTS = 24
 PAINT_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
+MAX_PAN_ROWS, MAX_PAN_COLS = 6, 12  # the tin's grid (My palette)
+
+
+def clean_palette_layout(layout: dict | None, paints: list[str]) -> dict | None:
+    """
+    My palette's pans, as the sketcher's tin is laid out. Every cell is a
+    half pan unless a pan entry says otherwise: a full pan takes two cells,
+    side by side (w 2) or one above the other (h 2). Pans outside the grid,
+    overlapping another, or holding a paint not in the palette are dropped
+    (the paint, not the pan, when only the paint is gone).
+    """
+    if not isinstance(layout, dict):
+        return None
+    try:
+        rows = max(1, min(MAX_PAN_ROWS, int(layout.get("rows", 2))))
+        cols = max(1, min(MAX_PAN_COLS, int(layout.get("cols", 6))))
+    except (TypeError, ValueError):
+        return None
+    taken: set[tuple[int, int]] = set()
+    pans = []
+    for pan in (layout.get("pans") or [])[: rows * cols]:
+        try:
+            r, c, w, h = (int(pan.get(k, d)) for k, d in (("r", 0), ("c", 0), ("w", 1), ("h", 1)))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if w not in (1, 2) or h not in (1, 2) or w * h > 2:
+            continue
+        if not (0 <= r and r + h <= rows and 0 <= c and c + w <= cols):
+            continue
+        cells = {(r + i, c + j) for i in range(h) for j in range(w)}
+        if cells & taken:
+            continue
+        paint = pan.get("paint") if pan.get("paint") in paints else None
+        if paint is None and w * h == 1:
+            continue  # an empty half pan is the default; no entry needed
+        taken |= cells
+        pans.append({"r": r, "c": c, "w": w, "h": h, "paint": paint})
+    return {"rows": rows, "cols": cols, "pans": pans}
 
 
 def _profile_to_dict(p: Profile) -> dict:
@@ -50,6 +88,7 @@ def _profile_to_dict(p: Profile) -> dict:
         "bio": p.bio,
         "links": p.links or {},
         "favorite_paints": p.favorite_paints or [],
+        "palette_layout": p.palette_layout,
         "featured_sketch_ids": p.featured_sketch_ids or [],
         "kit_photo_url": p.kit_photo_url,
         "kit_photos": kit_photos(p),
@@ -123,6 +162,12 @@ async def update_profile(
     if body.favorite_paints is not None:
         ids = [i for i in dict.fromkeys(body.favorite_paints) if PAINT_ID.match(i)]
         profile.favorite_paints = ids[:MAX_FAVORITE_PAINTS]
+    if body.palette_layout is not None or body.favorite_paints is not None:
+        # A paint taken out of the palette leaves its pan empty.
+        profile.palette_layout = clean_palette_layout(
+            body.palette_layout if body.palette_layout is not None else profile.palette_layout,
+            profile.favorite_paints or [],
+        )
     if body.featured_sketch_ids is not None:
         # Only the sketcher's own shared sketches, in the order given.
         wanted = list(dict.fromkeys(body.featured_sketch_ids))[:MAX_FEATURED]

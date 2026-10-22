@@ -213,6 +213,8 @@ class Profile(Base):
     kit_photos = Column(JSON, nullable=True)
     # My favorite palette: pigment codes, in the paint editor (item 36).
     favorite_paints = Column(JSON, nullable=True)
+    # My palette's pans, laid out like the tin (profile/router.py, clean_palette_layout).
+    palette_layout = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

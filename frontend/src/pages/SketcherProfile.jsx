@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import BasePage, { PageMessage } from '../components/common/BasePage'
 import Button from '../components/common/Button'
 import Icon from '../components/common/Icon'
-import PaintEditor from '../components/common/PaintEditor'
 import SketchListMapView from '../components/common/SketchListMapView'
 import { useAuth } from '../components/common/AuthContext'
 import AdmiredPanel from '../components/common/AdmiredPanel'
@@ -12,6 +11,10 @@ import BagPhotos from '../components/common/BagPhotos'
 import EditProfilePanel from '../components/common/EditProfilePanel'
 import FeaturedSlideshow from '../components/common/FeaturedSlideshow'
 import FollowersPanel from '../components/common/FollowersPanel'
+import PaletteEditPanel from '../components/common/PaletteEditPanel'
+import PanGrid from '../components/common/PanGrid'
+import GamutWheel from '../components/analysis/GamutWheel'
+import { defaultLayout } from '../lib/paletteLayout'
 import { paintById } from '../data/paints'
 import { api } from '../lib/api'
 import { dateLabel, imageUrl } from '../lib/media'
@@ -43,14 +46,12 @@ export default function SketcherProfile({ username: usernameProp }) {
   const [page, setPage] = useState(null)
   const [sketches, setSketches] = useState([])
   const [error, setError] = useState(null)
-  const [panel, setPanel] = useState(null) // 'profile' | 'kit' | 'admired' | 'followers'
+  const [panel, setPanel] = useState(null) // 'profile' | 'kit' | 'palette' | 'admired' | 'followers'
   const [place, setPlace] = useState(null)
   const [filter, setFilter] = useState('') // the search bar over the sketches
   const [bagPhoto, setBagPhoto] = useState(0) // the bag photo shown
   const [wishlist, setWishlist] = useState([]) // the owner's wish list (item 44)
   const [busyFollow, setBusyFollow] = useState(false)
-  const [paintEdit, setPaintEdit] = useState(null) // { mode, item?, top }
-  const paintBoxRef = useRef(null)
 
   const viewer = page?.is_owner ? 'owner' : user ? 'member' : 'visitor'
 
@@ -130,6 +131,7 @@ export default function SketcherProfile({ username: usernameProp }) {
   const firstName = (page.display_name || page.username || '').split(' ')[0]
   const featured = (page.featured?.length ? page.featured : shared.slice(0, 5)).map((s) => ({ ...s, place: s.place || shared.find((x) => x.id === s.id)?.place }))
   const favs = page.favorite_paints || []
+  const paletteList = favs.map(paintById).filter(Boolean)
 
   async function toggleFollow() {
     if (viewer === 'visitor') return navigate('/login', { state: { from: location.pathname } })
@@ -142,28 +144,6 @@ export default function SketcherProfile({ username: usernameProp }) {
     } finally {
       setBusyFollow(false)
     }
-  }
-
-  // ---- My palette (owner): PaintEditor under the row it edits ----
-  function openPaint(mode, paintId, el) {
-    const box = paintBoxRef.current?.getBoundingClientRect()
-    const row = el?.closest('[data-paint-row]')?.getBoundingClientRect() || el?.getBoundingClientRect()
-    const top = box && row ? row.bottom - box.top + 6 : 0
-    setPaintEdit({ mode, top, paintId })
-  }
-
-  async function savePalette(next) {
-    setPage((p) => ({ ...p, favorite_paints: next }))
-    await api.put('/api/profile', { favorite_paints: next })
-  }
-
-  async function savePaint(paintId) {
-    const was = paintEdit.mode === 'edit' ? paintEdit.paintId : null
-    const next = was
-      ? favs.map((x) => (x === was ? paintId : x)).filter((x, i, all) => all.indexOf(x) === i)
-      : favs.includes(paintId) ? favs : [...favs, paintId]
-    setPaintEdit(null)
-    await savePalette(next)
   }
 
   // ---- the wish list (item 44) ----
@@ -216,6 +196,9 @@ export default function SketcherProfile({ username: usernameProp }) {
       )}
       {panel === 'kit' && (
         <EditKitPanel items={page.kit} photos={page.kit_photos || []} onClose={() => { setPanel(null); load() }} />
+      )}
+      {panel === 'palette' && (
+        <PaletteEditPanel paints={favs} layout={page.palette_layout} onClose={() => { setPanel(null); load() }} />
       )}
       {panel === 'admired' && (
         <AdmiredPanel list={page.admired || []} onClose={() => setPanel(null)} onChange={(list) => setPage((p) => ({ ...p, admired: list }))} />
@@ -318,52 +301,36 @@ export default function SketcherProfile({ username: usernameProp }) {
         </div>
       </section>
 
-      {/* ---- My palette: the paints the colour recipes mix from (item 44) ---- */}
+      {/* ---- My palette: the paints on the wheel and in their pans, as the
+          tin is laid out (items 44, 45). The colour recipes mix from them. ---- */}
       {(viewer === 'owner' || favs.length > 0) && (
         <section className="ed-section">
-          <h2 className="ed-kicker m-0">{viewer === 'owner' ? 'My palette' : `${firstName}'s palette`}</h2>
-          <div ref={paintBoxRef} className="relative flex max-w-xl flex-col gap-1">
-            {favs.length === 0 && <p className="m-0 text-sm text-ink/60">Add the paints you carry. The Color tab mixes its recipes from them.</p>}
-            {favs.map((id) => {
-              const p = paintById(id)
-              if (!p) return null
-              return (
-                <div key={id} data-paint-row className="flex items-center gap-3 py-1">
-                  {/* The swatch is data: an inline background. */}
-                  <span className="swatch-chip" style={{ background: p.hex }} />
-                  <span className="w-[72px] shrink-0 text-xs font-bold">{p.code}</span>
-                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                  {viewer === 'owner' && (
-                    <>
-                      <button type="button" className="ed-icon-btn" aria-label={`Change ${p.name}`} onClick={(e) => openPaint('edit', id, e.currentTarget)}>
-                        <Icon name="edit" size={14} />
-                      </button>
-                      <button type="button" className="ed-icon-btn" aria-label={`Remove ${p.name}`} onClick={() => savePalette(favs.filter((x) => x !== id))}>
-                        <Icon name="delete" size={15} />
-                      </button>
-                    </>
-                  )}
-                </div>
-              )
-            })}
-            {viewer === 'owner' && (
-              <Button variant="editorial" size="sm" className="mt-1 self-start" onClick={(e) => openPaint('new', null, e.currentTarget)}>
-                <Icon name="plus" size={14} /> Add paint
-              </Button>
-            )}
-            {paintEdit && (
-              <PaintEditor
-                open
-                mode={paintEdit.mode}
-                paintId={paintEdit.paintId}
-                favs={favs}
-                top={paintEdit.top}
-                onSave={savePaint}
-                onClose={() => setPaintEdit(null)}
-                onToggleFav={(id) => savePalette(favs.includes(id) ? favs.filter((x) => x !== id) : [...favs, id])}
-              />
-            )}
+          <div className="ed-section-head">
+            <h2 className="ed-kicker m-0">{viewer === 'owner' ? 'My palette' : `${firstName}'s palette`}</h2>
+            {viewer === 'owner' && <Button variant="editorial" onClick={() => setPanel('palette')}>Edit palette</Button>}
           </div>
+          {favs.length === 0 ? (
+            <p className="m-0 text-sm text-ink/60">Add the paints you carry and lay them out like your tin. The Color tab mixes its recipes from them.</p>
+          ) : (
+            <div className="grid items-start gap-8 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] md:gap-14">
+              <div className="pb-4">
+                <GamutWheel paints={paletteList} readOnly light legend={null} />
+              </div>
+              <div className="flex flex-col gap-4">
+                <div><PanGrid layout={page.palette_layout || defaultLayout(favs)} /></div>
+                <ul className="m-0 grid list-none gap-x-6 gap-y-1.5 p-0 sm:grid-cols-2">
+                  {paletteList.map((p) => (
+                    <li key={p.id} className="flex items-center gap-2.5 text-sm">
+                      {/* The swatch is data: an inline background. */}
+                      <span className="h-4 w-4 shrink-0 rounded-full border border-black/10" style={{ background: p.hex }} />
+                      <span className="w-[72px] shrink-0 text-xs font-bold">{p.code}</span>
+                      <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
         </section>
       )}
 

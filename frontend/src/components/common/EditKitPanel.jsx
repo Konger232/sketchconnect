@@ -6,6 +6,7 @@ import FloatPanel from './FloatPanel'
 import Icon from './Icon'
 import { api } from '../../lib/api'
 import { useSheetDrag } from '../../lib/useSheetDrag'
+import { useWide } from '../../lib/useWide'
 
 // The fixed categories, in page order. Keys are kit_items.category
 // (features/kit/router.py). Paints are My palette, not tools.
@@ -24,18 +25,6 @@ export const KIT_CATEGORIES = [
 
 const MAX_PHOTOS = 1 // one photo for the first release (features/kit/router.py MAX_KIT_PHOTOS)
 const TIP_WORDS = 30 // features/kit/router.py MAX_NOTE_WORDS
-// A computer-sized screen (Tailwind md), where the form sits on the photo.
-function useWide() {
-  const query = '(min-width: 768px)'
-  const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches)
-  useEffect(() => {
-    const m = window.matchMedia(query)
-    const on = () => setWide(m.matches)
-    m.addEventListener('change', on)
-    return () => m.removeEventListener('change', on)
-  }, [])
-  return wide
-}
 const wordCount = (t) => (t || '').trim().split(/\s+/).filter(Boolean).length
 
 // The body PUT and POST /api/kit expect.

@@ -87,6 +87,7 @@ def get_sketcher(
         # My palette: paint ids from the paint list (data/paints.js). The
         # colour recipes mix from these (item 44).
         "favorite_paints": profile.favorite_paints or [],
+        "palette_layout": profile.palette_layout,
     }
     if is_owner:
         data["admired"] = [admired_to_dict(p) for p in admired_list(db, profile.id)]

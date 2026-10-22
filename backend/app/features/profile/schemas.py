@@ -18,4 +18,8 @@ class ProfileUpdateRequest(BaseModel):
     # My favorite palette, as paint ids from the paint list (frontend
     # data/paints.js), and the featured sketches, in slideshow order.
     favorite_paints: Optional[list[str]] = None
+    # My palette's pans, laid out like the sketcher's tin:
+    # {"rows": 2, "cols": 6, "pans": [{"r", "c", "w", "h", "paint"}]}.
+    # Cells with no pan entry are empty half pans (profile/router.py).
+    palette_layout: Optional[dict] = None
     featured_sketch_ids: Optional[list[str]] = None
