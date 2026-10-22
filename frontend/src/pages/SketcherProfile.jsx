@@ -291,15 +291,14 @@ export default function SketcherProfile({ username: usernameProp }) {
                     {items.map((i) => (
                       <span key={i.id} className="flex items-start gap-2">
                         <span className="flex min-w-0 flex-1 flex-col">
-                          <span>
-                            {i.label}
-                            {i.link && (
-                              <a href={i.link} target="_blank" rel="noopener noreferrer" className="ml-1.5 inline-flex align-middle text-ink/60 hover:text-ink" aria-label={`Where to get ${i.label}`}>
-                                <Icon name="link" size={13} />
-                              </a>
-                            )}
-                          </span>
+                          <span>{i.label}</span>
                           {i.note && <span className="ed-note">{i.note}</span>}
+                          {i.link && (
+                            <a href={i.link} target="_blank" rel="noopener noreferrer"
+                              className="mt-0.5 inline-flex items-center gap-1 self-start text-xs font-semibold underline underline-offset-2 hover:text-ink/70">
+                              <Icon name="link" size={13} /> Where to buy
+                            </a>
+                          )}
                         </span>
                         {/* Another sketcher stars a tool for their wish list. */}
                         {viewer === 'member' && (

@@ -180,9 +180,43 @@ def _save_copy(src_name: str, out_name: str, make) -> None:
     tmp.replace(out)
 
 
+def _trim_edges(img, limit: float = 0.02):
+    """Trim thin black frame lines a screenshot or crop left on a bag
+    photo (at most 2% a side), so they don't read as a page border. Bag
+    photos only: a sketch's paper edge is part of the work, and its colour
+    swatches sit at positions on the photo."""
+    gray = img.convert("L")
+    w, h = gray.size
+    px = gray.load()
+
+    def flat(values):
+        vals = list(values)
+        mean = sum(vals) / len(vals)
+        return mean < 50 and max(vals) - min(vals) < 70
+
+    step_x, step_y = max(1, w // 200), max(1, h // 200)
+    top = 0
+    while top < h * limit and flat(px[x, top] for x in range(0, w, step_x)):
+        top += 1
+    bottom = h
+    while h - bottom < h * limit and flat(px[x, bottom - 1] for x in range(0, w, step_x)):
+        bottom -= 1
+    left = 0
+    while left < w * limit and flat(px[left, y] for y in range(0, h, step_y)):
+        left += 1
+    right = w
+    while w - right < w * limit and flat(px[right - 1, y] for y in range(0, h, step_y)):
+        right -= 1
+    return img.crop((left, top, right, bottom)) if (left, top, right, bottom) != (0, 0, w, h) else img
+
+
 def _display(img):
     img.thumbnail((DISPLAY_MAX, DISPLAY_MAX))
     return img
+
+
+def _display_bag(img):
+    return _display(_trim_edges(img))
 
 
 def _teaser(img):
@@ -210,7 +244,7 @@ def media(name: str, e: int = 0, s: str = ""):
     if not _valid(name) or e < time.time() or not hmac.compare_digest(s, _sig(name, e)):
         raise HTTPException(403, "This link has expired. Reload the page.")
     out = f"{_stem(name)}.display.jpg"
-    _save_copy(name, out, _display)
+    _save_copy(name, out, _display_bag if name.startswith("kit_") else _display)
     return _image_response(UPLOAD_DIR / out, max_age=int(e - time.time()), private=True)
 
 

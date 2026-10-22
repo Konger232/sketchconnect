@@ -13,7 +13,7 @@ export const KIT_CATEGORIES = [
   { category: 'ink', label: 'Ink' },
   { category: 'brush', label: 'Brushes' },
   { category: 'paper', label: 'Paper' },
-  { category: 'sketchbook', label: 'Sketchbooks' },
+  { category: 'sketchbook', label: 'Sketch books' },
   { category: 'palette', label: 'Palettes' },
   { category: 'clips', label: 'Clips' },
   { category: 'easel', label: 'Easels' },
@@ -150,7 +150,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
 
         {photos.length > 0 ? (
           <BagPhotos photos={photos} items={items} active={active} onActive={(k) => { setActive(k); setDraft(null) }}
-            editing selectedId={draft?.id} onPin={editTool} onSpot={(spot) => newTool(spot)} busy={busy} alt="Your bag" />
+            editing selectedId={draft?.id} onEdit={editTool} onRemove={(i) => removeTool(i.id)} onSpot={(spot) => newTool(spot)} busy={busy} alt="Your bag" />
         ) : (
           <button type="button" onClick={() => fileRef.current?.click()} disabled={Boolean(busy)}
             className="flex min-h-[180px] flex-col items-center justify-center gap-2 border-[1.5px] border-dashed border-ink/30 p-6 text-center hover:border-ink">
