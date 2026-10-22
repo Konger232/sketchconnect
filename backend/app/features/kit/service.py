@@ -11,14 +11,14 @@ from PIL import Image
 
 from app.core.gemini_service import call_gemini_json
 
-MAX_TOOLS = 30
+MAX_TOOLS = 20
 CATEGORIES = ["pen", "ink", "brush", "paper", "sketchbook", "palette", "clips", "easel", "bag", "other"]
 
 PROMPT = """# Role & Task
-You are looking at one photo of an urban sketcher's kit: the tools spread out on a table, or an open bag. List the sketching tools and outdoor gear you can see, and where each one is. You only identify tools. You never judge the kit or suggest buying anything.
+You are looking at one photo of an urban sketcher's kit: the tools spread out on a table, or an open bag. List the sketching tools you can see, and where each one is. You only identify tools. You never judge the kit or suggest buying anything.
 
 # What to list
-- Busy flat lays often hold 20 to 40 things. Look over the whole photo, corner to corner, before you answer. List up to 30 entries, every sketching tool first, then the outdoor gear.
+- Look over the whole photo, corner to corner, before you answer. List up to 20 entries, the most clearly visible first.
 - A cup, case, tin or roll holding several similar tools is one entry, pinned on the group: "coloured pencils", "brushes, 5", "acrylic markers, 6". A tool lying on its own is its own entry.
 - `category`, exactly one of:
   - `pen`: pens, fountain pens, fineliners, brush pens, dip pens, pencils, coloured pencils, markers, crayons, pastels.
@@ -30,9 +30,8 @@ You are looking at one photo of an urban sketcher's kit: the tools spread out on
   - `clips`: clips and bulldog clips.
   - `easel`: easels and boards on a stand.
   - `bag`: the bag or pouch itself, only when it is a tool on show.
-  - `other`: everything else a sketcher uses: water cups, paper towel, an eraser, a sharpener, tape, a viewfinder, a bone folder.
-    Urban sketchers work outdoors, so outdoor gear counts too and goes here: a hat, sunscreen, tissues or wet wipes, a stool or folding chair, an umbrella, a water bottle, insect repellent, a sketch group badge or lanyard.
-- Skip things that are neither: phones, keys, wallets, food, people.
+  - `other`: everything else a sketcher uses to draw or paint: water cups, paper towel, a sketching stool, an eraser, a sharpener, tape, a viewfinder, a bone folder.
+- Skip things that are not sketching tools, even when they come along outdoors: hats, sunscreen, tissues, lanyards and badges, water bottles, phones, keys, wallets, food, people.
 - `label`: a short name a sketcher would use, at most 6 words. Use the brand and model only when you can read them on the tool, or when the shape is unmistakable (for example "Lamy Safari fountain pen", "Pentel water brush"). Otherwise a plain name ("fountain pen", "watercolour palette, 12 pans").
   - Sketchbooks and paper look alike across brands. Name a brand only when you can read it on the cover, spine, band or label. Otherwise "sketchbook" or "watercolour pad".
 - `note`: at most 5 words, only for something clearly visible that a sketcher would care about, such as "extra fine nib", "cold press" or "half pans". Leave it empty when unsure. Do not put the size or orientation here.
