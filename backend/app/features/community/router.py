@@ -21,9 +21,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.core.auth import get_current_sketcher_id
+from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
 from app.core.database import get_db
 from app.core.models import Follow, Profile, Sketch, SketchComment, SketchLike
+from app.core.visibility import can_see
 
 router = APIRouter(prefix="/api", tags=["community"])
 
@@ -39,7 +40,7 @@ def _profile(db: Session, username: str) -> Profile:
     return profile
 
 
-def _shared_sketch(db: Session, sketch_id: str) -> Sketch:
+def _shared_sketch(db: Session, sketch_id: str, viewer_id: str | None = None) -> Sketch:
     try:
         uuid.UUID(sketch_id)
     except ValueError:
@@ -47,6 +48,9 @@ def _shared_sketch(db: Session, sketch_id: str) -> Sketch:
     sketch = db.query(Sketch).filter(Sketch.id == sketch_id).first()
     if sketch is None or not sketch.final_sketch_url:
         raise HTTPException(404, "This sketch isn't shared yet")
+    # Likes and comments follow who can see the sketch (core/visibility.py).
+    if not can_see(db, sketch, viewer_id):
+        raise HTTPException(404, "Sketch not found")
     return sketch
 
 
@@ -109,7 +113,7 @@ def is_following(db: Session, viewer_id: str | None, sketcher_id: str) -> bool:
 
 @router.post("/sketches/{sketch_id}/like")
 async def like(sketch_id: str, db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
-    sketch = _shared_sketch(db, sketch_id)
+    sketch = _shared_sketch(db, sketch_id, me)
     if sketch.sketcher_id == me:
         raise HTTPException(400, "You can't like your own sketch")
     if db.get(SketchLike, (sketch.id, me)) is None:
@@ -120,7 +124,7 @@ async def like(sketch_id: str, db: Session = Depends(get_db), me: str = Depends(
 
 @router.delete("/sketches/{sketch_id}/like")
 async def unlike(sketch_id: str, db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
-    sketch = _shared_sketch(db, sketch_id)
+    sketch = _shared_sketch(db, sketch_id, me)
     row = db.get(SketchLike, (sketch.id, me))
     if row is not None:
         db.delete(row)
@@ -164,8 +168,8 @@ def _comment_to_dict(c: SketchComment, author: Profile | None) -> dict:
 
 
 @router.get("/sketches/{sketch_id}/comments")
-async def list_comments(sketch_id: str, db: Session = Depends(get_db)):
-    sketch = _shared_sketch(db, sketch_id)
+async def list_comments(sketch_id: str, db: Session = Depends(get_db), viewer: str | None = Depends(get_optional_sketcher_id)):
+    sketch = _shared_sketch(db, sketch_id, viewer)
     rows = (
         db.query(SketchComment, Profile)
         .outerjoin(Profile, Profile.id == SketchComment.author_id)
@@ -184,7 +188,7 @@ async def add_comment(
     db: Session = Depends(get_db),
     me: str = Depends(get_current_sketcher_id),
 ):
-    sketch = _shared_sketch(db, sketch_id)
+    sketch = _shared_sketch(db, sketch_id, me)
     text = body.body.strip()
     if not text:
         raise HTTPException(422, "A comment needs some words.")

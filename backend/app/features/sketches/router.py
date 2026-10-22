@@ -46,6 +46,7 @@ from app.core.paths import UPLOAD_DIR
 from config import DEBUG, MAX_MARKS, MAX_POINTS_PER_MARK
 from app.features.critique_agent.router import start_critique
 from app.features.geocode.service import place_boxes, reverse_geocode
+from app.core.visibility import can_see, visible_filter
 
 # Registered again here (also done in scene_analysis.py) so this module
 # decodes HEIC/HEIF correctly even if imported before that one — the
@@ -89,6 +90,8 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
         "palettes": s.palettes or {},
         "value_levels": s.value_levels,
         "gamut_mask": s.gamut_mask,
+        "visibility": s.visibility or "members",
+        "glazed": bool(s.glazed),
         # The latest critique's text, if any -- this is what
         # SketchCard.jsx's feed view shows as the sketch's description,
         # with a Read more/Show less toggle once it runs long. None (not
@@ -105,7 +108,7 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
 CARD_COLUMNS = (
     Sketch.id, Sketch.sketcher_id, Sketch.title, Sketch.field_notes, Sketch.style, Sketch.scene_type,
     Sketch.reference_image_url, Sketch.final_sketch_url, Sketch.location, Sketch.location_label,
-    Sketch.captured_at, Sketch.created_at,
+    Sketch.captured_at, Sketch.created_at, Sketch.visibility, Sketch.glazed,
 )
 
 
@@ -131,6 +134,8 @@ def _sketch_card(s: Sketch) -> dict:
         "location": location,
         "captured_at": s.captured_at,
         "created_at": s.created_at,
+        "visibility": s.visibility or "members",
+        "glazed": bool(s.glazed),
     }
 
 
@@ -371,6 +376,10 @@ async def update_sketch(
             sketch.location_label = body.location.label
     if body.style is not None:
         sketch.style = body.style
+    if body.visibility is not None:
+        sketch.visibility = body.visibility
+    if body.glazed is not None:
+        sketch.glazed = body.glazed
     if body.captured_at is not None:
         sketch.captured_at = body.captured_at
 
@@ -850,7 +859,7 @@ async def sketch_value_study(
     # The owner, always; anyone else once the sketch is shared, for the
     # value study on SketchDetail.
     sketch = db.query(Sketch).filter(Sketch.id == sketch_id).first()
-    if sketch is None or (sketch.sketcher_id != sketcher_id and not sketch.final_sketch_url):
+    if sketch is None or not can_see(db, sketch, sketcher_id):
         raise HTTPException(404, "Sketch not found")
 
     image_path = UPLOAD_DIR / Path(sketch.reference_image_url).name
@@ -976,7 +985,7 @@ def list_recent_sketches(
         point = WKTElement(f"POINT({lon} {lat})", srid=4326)
         nearby = (
             card_query(db)
-            .filter(Sketch.final_sketch_url.isnot(None))
+            .filter(visible_filter(viewer_id))
             .filter(Sketch.location.isnot(None))
             .filter(ST_DWithin(Sketch.location, point, radius_km * 1000))
             .order_by(ST_Distance(Sketch.location, point))
@@ -986,7 +995,7 @@ def list_recent_sketches(
     near_ids = {s.id for s in nearby}
     rest = []
     if len(nearby) < limit:
-        q = card_query(db).filter(Sketch.final_sketch_url.isnot(None))
+        q = card_query(db).filter(visible_filter(viewer_id))
         if near_ids:
             q = q.filter(Sketch.id.notin_(near_ids))
         rest = q.order_by(Sketch.created_at.desc()).limit(limit - len(nearby)).all()
@@ -1013,9 +1022,10 @@ def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:
 
 
 def _visible_to(viewer_id: str | None):
-    """Search and Explore are public: completed (shared) sketches only, for
-    everyone. A sketcher's drafts stay on their own page."""
-    return Sketch.final_sketch_url.isnot(None)
+    """Search and Explore: shared sketches the viewer may see (members, or
+    followers-only when they follow the owner, or their own). Drafts stay
+    on the sketcher's own page (core/visibility.py)."""
+    return visible_filter(viewer_id)
 
 
 @router.get("/sketches/search")
@@ -1138,6 +1148,9 @@ async def get_sketch(
     # Before that, it is the owner's alone.
     if not sketch.final_sketch_url and not is_owner:
         raise HTTPException(404, "This sketch isn't shared yet")
+    # Shared: by the owner's choice (members, followers, private).
+    if not can_see(db, sketch, sketcher_id):
+        raise HTTPException(404, "Sketch not found")
 
     # The sketch owner's public name and avatar, shown at the top of the
     # sketch's right panel. Public, like the profile itself.
@@ -1239,7 +1252,7 @@ def nearby_sketches(
     """Other shared sketches within radius_m of this one, nearest first
     (design doc, item 29: "Other sketches near here")."""
     sketch = db.query(Sketch).filter(Sketch.id == sketch_id).first()
-    if sketch is None or (not sketch.final_sketch_url and sketch.sketcher_id != sketcher_id):
+    if sketch is None or not can_see(db, sketch, sketcher_id):
         raise HTTPException(404, "Sketch not found")
     if sketch.location is None:
         return []
@@ -1248,7 +1261,7 @@ def nearby_sketches(
     rows = (
         card_query(db, dist.label("distance_m"), Profile)
         .outerjoin(Profile, Profile.id == Sketch.sketcher_id)
-        .filter(Sketch.id != sketch.id, Sketch.final_sketch_url.isnot(None), Sketch.location.isnot(None))
+        .filter(Sketch.id != sketch.id, visible_filter(sketcher_id), Sketch.location.isnot(None))
         .filter(ST_DWithin(Sketch.location, sketch.location, radius_m))
         .order_by(dist)
         .limit(max(1, min(limit, 60)))

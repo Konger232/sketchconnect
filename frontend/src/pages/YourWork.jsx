@@ -4,6 +4,7 @@ import BasePage from '../components/common/BasePage'
 const GLAZE = 'https://glaze.cs.uchicago.edu/'
 
 const PROTECTIONS = [
+  'You choose who sees each finished sketch: all sketchers, only your followers, or only you. Your plans and progress pages stay yours until you share the final.',
   'Only signed-in sketchers see your work in full. Visitors see a small part of a finished sketch, never your plans or your progress pages.',
   'We show a smaller copy of each image, never your original file. The location and camera details from your photo are removed.',
   'Your name and a copyright note are written into every copy.',
@@ -66,7 +67,7 @@ export default function YourWork() {
           Anything a screen shows can be photographed. We make copying hard and keep your name on your work, but we
           can't make it impossible. For work that matters most, you can protect the image itself with{' '}
           <a href={GLAZE} target="_blank" rel="noreferrer" className="underline">Glaze</a>, a free tool from the
-          University of Chicago, before you upload it.
+          University of Chicago, before you upload it, then tick "My final sketch is Glazed" in the sketch's Details so others know.
         </p>
       </section>
 

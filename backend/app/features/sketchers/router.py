@@ -24,6 +24,7 @@ from app.features.community.router import follow_counts, is_following
 from app.features.kit.router import KIND_ORDER, _to_dict as kit_item_to_dict
 from app.features.persona.router import admired_list, admired_to_dict
 from app.features.sketches.router import _sketch_card, card_query
+from app.core.visibility import visible_filter
 
 router = APIRouter(prefix="/api", tags=["sketchers"])
 
@@ -55,7 +56,7 @@ def get_sketcher(
 
     shared = (
         card_query(db)
-        .filter(Sketch.sketcher_id == profile.id, Sketch.final_sketch_url.isnot(None))
+        .filter(Sketch.sketcher_id == profile.id, visible_filter(viewer_id))
         .all()
     )
     by_id = {s.id: s for s in shared}
@@ -103,7 +104,7 @@ def list_sketcher_sketches(
     is_owner = viewer_id == profile.id
     q = card_query(db).filter(Sketch.sketcher_id == profile.id)
     if not is_owner:
-        q = q.filter(Sketch.final_sketch_url.isnot(None))
+        q = q.filter(visible_filter(viewer_id))
     rows = q.order_by(Sketch.created_at.desc()).all()
     ids = [s.id for s in rows]
     likes = dict(

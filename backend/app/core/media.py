@@ -215,7 +215,9 @@ def teaser(name: str):
         raise HTTPException(404, "Not found")
     db = SessionLocal()
     try:
-        shared = db.query(Sketch.id).filter(Sketch.final_sketch_url == f"/uploads/{name}").first()
+        shared = db.query(Sketch.id).filter(
+            Sketch.final_sketch_url == f"/uploads/{name}", Sketch.visibility == "members",
+        ).first()
     finally:
         db.close()
     if not shared:

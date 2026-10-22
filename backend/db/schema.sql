@@ -223,3 +223,15 @@ where s.final_sketch_url is not null
 -- to run again.
 alter table sketches add column if not exists value_levels integer;
 alter table sketches add column if not exists gamut_mask jsonb;
+
+-- Who can see a shared sketch, and whether its final was Glazed
+-- (protecting sketchers' work, October 22, 2026). Safe to run again.
+alter table sketches add column if not exists visibility text not null default 'members';
+alter table sketches add column if not exists glazed boolean not null default false;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'sketches_visibility_check') then
+    alter table sketches add constraint sketches_visibility_check
+      check (visibility in ('members', 'followers', 'private'));
+  end if;
+end $$;

@@ -32,6 +32,10 @@ class SketchUpdateRequest(BaseModel):
     # skips straight past its now-dead style-picker step.
     style: Optional[Style] = None
     captured_at: Optional[datetime] = None
+    # Who sees the shared sketch (app/core/visibility.py), and whether the
+    # final was Glazed by the sketcher.
+    visibility: Optional[Literal["members", "followers", "private"]] = None
+    glazed: Optional[bool] = None
 
 
 # --- Focal-point marking (prototype-stage — not yet wired to an endpoint;

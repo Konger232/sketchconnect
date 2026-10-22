@@ -305,6 +305,13 @@ export default function SketchDetail() {
           </div>
           {/* The copying statement (design doc: protecting sketchers' work). */}
           <RightsNote name={s.owner?.display_name || s.owner?.username} />
+          {(s.glazed || (viewer === 'owner' && shared && s.visibility !== 'members')) && (
+            <p className="m-0 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink/70">
+              {s.glazed && <span>Glazed by the sketcher</span>}
+              {viewer === 'owner' && shared && s.visibility === 'followers' && <span>Only your followers see this</span>}
+              {viewer === 'owner' && shared && s.visibility === 'private' && <span>Only you see this</span>}
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           {shared && likeButton}

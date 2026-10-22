@@ -44,6 +44,14 @@ function locationText(location) {
   return location.label || `${location.lat.toFixed(4)}, ${location.lon.toFixed(4)}`
 }
 
+// Who sees a shared sketch (backend app/core/visibility.py).
+const VISIBILITY = [
+  { key: 'members', label: 'All sketchers', note: 'Every signed-in sketcher can see it. Visitors see only a small part of the final.' },
+  { key: 'followers', label: 'My followers', note: 'Only sketchers who follow you can see it.' },
+  { key: 'private', label: 'Only me', note: 'No one else can see it.' },
+]
+const GLAZE_URL = 'https://glaze.cs.uchicago.edu/'
+
 /**
  * The sketch workspace (design handoff): the photo stage on the left, and
  * a panel on the right with the Details and Plan tabs. Uploads and
@@ -57,8 +65,8 @@ function locationText(location) {
  * sketch?", and Discard deletes it. Start Sketching shows once the plan
  * read is back, and opens the sketch's SketchDetail page. The sketch is
  * shared with others once it has a final sketch (design doc, item 30).
- * Edit mode opens on Details; closing with unsaved Details asks "Discard
- * changes?". The plan is read-only once the final sketch is in.
+ * Edit mode opens on Details, which save as you type. The plan is
+ * read-only once the final sketch is in.
  *
  * Someone else's sketch opens read-only: the photo and its details.
  */
@@ -141,6 +149,8 @@ export default function EditSketch() {
   // ===== STATE: DETAILS =====
   const [title, setTitle] = useState('')
   const [fieldNotes, setFieldNotes] = useState('')
+  const [visibility, setVisibility] = useState('members') // who sees it once shared
+  const [glazed, setGlazed] = useState(false)
   const [sketchLocation, setSketchLocation] = useState(null)
   const [editingLocation, setEditingLocation] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -172,6 +182,8 @@ export default function EditSketch() {
   function seedFields(from) {
     setTitle(from.title || '')
     setFieldNotes(from.field_notes || '')
+    setVisibility(from.visibility || 'members')
+    setGlazed(Boolean(from.glazed))
     setSketchLocation(from.location || null)
     setEditingLocation(!from.location)
   }
@@ -218,6 +230,8 @@ export default function EditSketch() {
     return (
       title !== (sketch.title || '') ||
       fieldNotes !== (sketch.field_notes || '') ||
+      visibility !== (sketch.visibility || 'members') ||
+      glazed !== Boolean(sketch.glazed) ||
       JSON.stringify(sketchLocation) !== JSON.stringify(sketch.location || null)
     )
   }
@@ -297,6 +311,8 @@ export default function EditSketch() {
       const { data } = await api.put(`/api/sketches/${sketchId}`, {
         title,
         field_notes: fieldNotes,
+        visibility,
+        glazed,
         // Always sent, even as null, so clearing the location clears it.
         location: sketchLocation,
       })
@@ -344,7 +360,7 @@ export default function EditSketch() {
     clearTimeout(detailsTimer.current)
     detailsTimer.current = setTimeout(() => { handleSave() }, 1000)
     return () => clearTimeout(detailsTimer.current)
-  }, [title, fieldNotes, sketchLocation]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [title, fieldNotes, sketchLocation, visibility, glazed]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function pickValueLevels(n) {
     setValueLevels(n)
@@ -666,6 +682,30 @@ export default function EditSketch() {
             rows={4}
             className="sc-field resize-none leading-normal"
           />
+        </label>
+
+        {/* Who sees the sketch once it's shared, and Glaze (design doc:
+            protecting sketchers' work). */}
+        <div className="flex flex-col gap-2">
+          <span className="sc-field-label">Who can see it</span>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Who can see this sketch">
+            {VISIBILITY.map((v) => (
+              <button key={v.key} type="button" role="radio" aria-checked={visibility === v.key} onClick={() => setVisibility(v.key)}
+                className={`rounded-full border-[1.5px] px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                  visibility === v.key ? 'border-sc-guide bg-sc-guide text-white' : 'border-sc-border text-white hover:border-sc-strong'
+                }`}>
+                {v.label}
+              </button>
+            ))}
+          </div>
+          <p className="m-0 text-sm text-sc-text3">{VISIBILITY.find((v) => v.key === visibility)?.note} Your plan and progress pages are only yours until you share the final sketch.</p>
+        </div>
+        <label className="flex items-start gap-2.5 text-sm text-white">
+          <input type="checkbox" checked={glazed} onChange={(e) => setGlazed(e.target.checked)} className="mt-0.5 h-4 w-4 accent-sc-guide" />
+          <span>
+            My final sketch is Glazed. <a href={GLAZE_URL} target="_blank" rel="noreferrer" className="underline">What is Glaze?</a>
+            <span className="block text-sc-text3">Glaze, a free tool from the University of Chicago, changes your image so AI has a harder time copying your style. Glaze it before you upload.</span>
+          </span>
         </label>
 
         {saveError && <p className="text-base text-accent">{saveError}</p>}

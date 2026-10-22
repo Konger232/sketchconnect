@@ -110,6 +110,10 @@ class Sketch(Base):
     # value study uses, and the gamut mask ({"corners": [{h, c, paint_id}]}).
     value_levels = Column(Integer, nullable=True)
     gamut_mask = Column(JSON, nullable=True)
+    # Who sees the shared sketch: members | followers | private
+    # (app/core/visibility.py). And whether the sketcher Glazed the final.
+    visibility = Column(String, nullable=False, default="members", server_default="members")
+    glazed = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

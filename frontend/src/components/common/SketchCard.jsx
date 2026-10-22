@@ -71,6 +71,14 @@ export default function SketchCard({ sketch, meta, href, linkState, image, multi
             {like.count > 0 && <span>{like.count}</span>}
           </button>
         )}
+        {/* Glazed by the sketcher, and who can see it when not everyone. */}
+        {(sketch.glazed || (shared && sketch.visibility && sketch.visibility !== 'members')) && (
+          <span className="absolute bottom-2 left-2 flex gap-1">
+            {sketch.glazed && <span className="rounded-full bg-black/60 px-2 py-0.5 text-3xs font-medium text-white">Glazed</span>}
+            {shared && sketch.visibility === 'followers' && <span className="rounded-full bg-black/60 px-2 py-0.5 text-3xs font-medium text-white">Followers</span>}
+            {shared && sketch.visibility === 'private' && <span className="rounded-full bg-black/60 px-2 py-0.5 text-3xs font-medium text-white">Only me</span>}
+          </span>
+        )}
         {multi && (
           <span className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-ink" aria-label="More than one image">
             <Icon name="stack" size={15} />
