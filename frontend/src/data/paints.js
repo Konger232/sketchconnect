@@ -80,7 +80,8 @@ export const FAMILIES = {
   Y: { word: 'yellow', hues: [[35, 80]] },
   O: { word: 'orange', hues: [[10, 50]] },
   R: { word: 'red', hues: [[320, 360], [0, 30]] },
-  V: { word: 'violet', hues: [[245, 335]] },
+  // Violets include the quinacridones (PV19, PV42), which run to red.
+  V: { word: 'violet', hues: [[245, 360], [0, 15]] },
   B: { word: 'blue', hues: [[180, 270]] },
   G: { word: 'green', hues: [[70, 190]] },
   Br: { word: 'brown', hues: [[0, 60]], maxC: 0.8 },

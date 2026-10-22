@@ -1,14 +1,33 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Button from './Button'
 import { BRANDS, FAMILIES, colourFits, familyOf, libraryPaints, normalizeCode, paintLabel } from '../../data/paints'
 import { api } from '../../lib/api'
-import { wheelToHex } from '../../lib/colorWheel'
+import { paintToWheel, wheelToHex } from '../../lib/colorWheel'
 
 const TEMPS = [['warm', 'Warm'], ['cool', 'Cool'], ['', 'Neither']]
 
+// Where a family sits on the wheel, when no paint in the library shares
+// the pigment: { h, c }.
+const FAMILY_SPOT = {
+  Y: { h: 55, c: 0.8 }, O: { h: 28, c: 0.8 }, R: { h: 355, c: 0.75 }, V: { h: 285, c: 0.6 },
+  B: { h: 225, c: 0.7 }, G: { h: 150, c: 0.6 }, Br: { h: 25, c: 0.45 }, Bk: { h: 0, c: 0.04 }, W: { h: 0, c: 0 },
+}
+
+// A starting colour from the pigment: a library paint with the same
+// pigments (PV19 -> Quinacridone Rose), else the family's place.
+function suggestedSpot(codes) {
+  if (!codes.length) return null
+  const key = [...codes].sort().join('+')
+  const same = libraryPaints().find((p) => [...(p.codes || [])].sort().join('+') === key)
+    || libraryPaints().find((p) => (p.codes || []).length === 1 && p.codes[0] === codes[0])
+  if (same) return paintToWheel(same.hex)
+  return FAMILY_SPOT[familyOf(codes[0])] || null
+}
+
 /**
  * A paint that is not in the library yet (design doc, item 46). Its colour
- * is the spot tapped on the wheel (tap again to move it). The checks, as
+ * starts from the pigment code (a library paint with the same pigment, or
+ * the family's place on the wheel); a tap on the wheel sets it. The checks, as
  * the sketcher types:
  *   1. each pigment code's form, and codes we don't know (the server asks
  *      to confirm those)
@@ -18,13 +37,15 @@ const TEMPS = [['warm', 'Warm'], ['cool', 'Cool'], ['', 'Neither']]
  * The new paint is labelled "Added by @username" until 3 other sketchers
  * carry it (item 46, check 5).
  *
- *   at { h, c }      the colour on the wheel
+ *   at { h, c }      the colour on the wheel (null: none yet)
+ *   tapped           the sketcher set it on the wheel
+ *   onSuggest(at)    a starting colour from the pigment, until tapped
  *   mine [ids]       my palette
  *   onUse(id)        pick a paint already in the library
  *   onSaved(paint)   the new paint, added to the library and my palette
  *   onCancel()
  */
-export default function NewPaintForm({ at, mine, onUse, onSaved, onCancel }) {
+export default function NewPaintForm({ at, tapped, onSuggest, mine, onUse, onSaved, onCancel }) {
   const [brand, setBrand] = useState(BRANDS[0])
   const [otherBrand, setOtherBrand] = useState('')
   const [name, setName] = useState('')
@@ -39,6 +60,14 @@ export default function NewPaintForm({ at, mine, onUse, onSaved, onCancel }) {
   const bad = raw.filter((_, i) => !codes[i])
   const good = [...new Set(codes.filter(Boolean))]
   const fits = colourFits(good, at)
+
+  // Until the sketcher taps the wheel, the colour follows the pigment code.
+  const goodKey = good.join('+')
+  useEffect(() => {
+    if (tapped) return
+    const spot = suggestedSpot(good)
+    if (spot) onSuggest(spot)
+  }, [goodKey, tapped]) // eslint-disable-line react-hooks/exhaustive-deps
   const fam = good.length ? FAMILIES[familyOf(good[0])] : null
 
   // Already in the library: the same brand and name, or the same brand and pigment.
@@ -52,7 +81,7 @@ export default function NewPaintForm({ at, mine, onUse, onSaved, onCancel }) {
     }).slice(0, 4)
   }, [brandName, name, good.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const ready = brandName && name.trim() && good.length && !bad.length && !busy
+  const ready = brandName && name.trim() && good.length && !bad.length && at && !busy
 
   async function save(confirmUnknown = false) {
     setBusy(true)
@@ -110,10 +139,15 @@ export default function NewPaintForm({ at, mine, onUse, onSaved, onCancel }) {
           {TEMPS.map(([v, l]) => <option key={l} value={v}>{l === 'Neither' ? 'Neither warm nor cool' : l}</option>)}
         </select>
       )}
-      <p className="m-0 text-xs text-ink/55">Tap the wheel to set its colour. The pigment code is printed on the tube or the pan's wrapper.</p>
+      <p className="m-0 text-xs text-ink/55">
+        {tapped
+          ? 'Its colour is the spot you tapped. Tap again to move it.'
+          : at ? 'Its colour starts from the pigment. Tap the wheel to match your paint.' : 'Enter the pigment code, or tap the wheel to set its colour.'}
+        {' '}The pigment code is printed on the tube or the pan's wrapper.
+      </p>
 
       {bad.length > 0 && <p className="m-0 text-xs text-accent">"{bad[0]}" is not a pigment code. It looks like PB29 or PY150.</p>}
-      {!bad.length && good.length > 0 && !fits && (
+      {tapped && !bad.length && good.length > 0 && !fits && (
         <p className="m-0 rounded bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
           {good.map((c) => `P${familyOf(c)}`).filter((v, i, a) => a.indexOf(v) === i).join(', ')} pigments are {[...new Set(good.map((c) => FAMILIES[familyOf(c)].word))].join(' or ')}s. Is the colour right? Tap the wheel to move it.
         </p>

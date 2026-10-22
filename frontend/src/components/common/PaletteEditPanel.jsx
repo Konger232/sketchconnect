@@ -34,7 +34,8 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
   const starter = !startPaints?.length
   const [paints, setPaints] = useState(starter ? STARTER_PALETTE : startPaints)
   const [layout, setLayout] = useState(() => startLayout || defaultLayout(starter ? STARTER_PALETTE : startPaints))
-  // { mode: 'add', at: { h, c } | null } | { mode: 'edit', id } | { mode: 'new', at }
+  // { mode: 'add', at: { h, c } | null } | { mode: 'edit', id } | { mode: 'new', at, tapped }
+  // (`tapped`: the sketcher set the new paint's colour on the wheel)
   const [form, setForm] = useState(null)
   const [libTick, setLibTick] = useState(0) // the library has loaded (lib/api.js registers it)
   const [flag, setFlag] = useState(null) // Report a mistake: { note, sent }
@@ -201,7 +202,7 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
       </div>
       {form.mode === 'new' ? (
         <div className="pal-fields">
-          <NewPaintForm at={form.at} mine={paints} onUse={(id) => addPaint(id)} onSaved={addedNew} onCancel={() => setForm(null)} />
+          <NewPaintForm at={form.at} tapped={form.tapped} onSuggest={(at) => setForm((f) => (f?.mode === 'new' && !f.tapped ? { ...f, at } : f))} mine={paints} onUse={(id) => addPaint(id)} onSaved={addedNew} onCancel={() => setForm(null)} />
         </div>
       ) : (
       <div className="pal-fields flex min-h-0 flex-col gap-2">
@@ -230,7 +231,7 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
           })}
         </ul>
         <button type="button" className="self-start text-xs font-semibold underline"
-          onClick={() => setForm({ mode: 'new', at: anchor || { h: 230, c: 0.6 } })}>
+          onClick={() => setForm({ mode: 'new', at: form.mode === 'add' ? form.at : null, tapped: form.mode === 'add' && Boolean(form.at) })}>
           Not on the list? Add a new paint
         </button>
         {form.mode === 'edit' && (flag ? (
@@ -304,7 +305,7 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
         <div ref={wheelRef} className="pb-4">
           <GamutWheel paints={list} readOnly light ringPaint={form?.mode === 'edit' ? form.id : null}
             selected={form && form.mode !== 'edit' ? form.at : null}
-            onTapWheel={(at) => (form?.mode === 'new' ? setForm({ ...form, at }) : openForm({ mode: 'add', at }))}
+            onTapWheel={(at) => (form?.mode === 'new' ? setForm({ ...form, at, tapped: true }) : openForm({ mode: 'add', at }))}
             onPaintDown={(p, e) => startPress(e, p.id)} />
         </div>
 
