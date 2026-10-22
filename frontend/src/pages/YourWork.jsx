@@ -43,7 +43,9 @@ export default function YourWork() {
         <p className="m-0 text-base text-ink/80">
           You own everything you upload: your photos, plans, progress pages and final sketches. Posting here lets
           SketchConnect show your work to signed-in sketchers, and nothing more. We don't sell your work. We don't
-          use it to train AI. The AI coach reads your sketch only to give you feedback.
+          use it to train AI. The AI coach reads your sketch only to give you feedback. It runs on a paid Google
+          AI service that doesn't use your sketches to train its models. Google keeps them briefly, only to prevent
+          misuse. Free AI chatbots often can't promise that.
         </p>
       </section>
 
