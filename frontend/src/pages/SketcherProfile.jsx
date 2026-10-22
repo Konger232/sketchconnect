@@ -374,7 +374,7 @@ export default function SketcherProfile({ username: usernameProp }) {
               })}
             </ul>
           ) : (
-            <p className="text-sm text-ink/60">Add the sketchers you learn from. When you upload a final sketch, one of them can give your feedback.</p>
+            <p className="text-sm text-ink/60">Add the sketchers you learn from. Your coach reads your final sketches with an eye to what you admire in them.</p>
           )}
         </section>
       )}

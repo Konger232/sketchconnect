@@ -69,7 +69,7 @@ export default function YourWork() {
           Anything a screen shows can be photographed. We make copying hard and keep your name on your work, but we
           can't make it impossible. For work that matters most, you can protect the image itself with{' '}
           <a href={GLAZE} target="_blank" rel="noreferrer" className="underline">Glaze</a>, a free tool from the
-          University of Chicago, before you upload it, then tick "My final sketch is Glazed" in the sketch's Details so others know.
+          University of Chicago, before you upload it.
         </p>
       </section>
 

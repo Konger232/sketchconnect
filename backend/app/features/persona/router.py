@@ -129,7 +129,6 @@ async def add_admired(
         persona_label=name,
         admired_link=link,
         admired_location=(body.location or "").strip()[:80] or None,
-        # Empty until build_admired_voice fills them in.
         voice="",
         priorities=[],
         tone="",
@@ -137,7 +136,8 @@ async def add_admired(
     db.add(persona)
     db.commit()
     db.refresh(persona)
-    background_tasks.add_task(build_admired_voice, persona.id)
+    # No voice is built any more: admired sketchers shape the one coach's
+    # feedback as taste (design doc, item 39).
     return admired_to_dict(persona)
 
 

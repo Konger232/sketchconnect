@@ -700,6 +700,7 @@ export default function EditSketch() {
           </div>
           <p className="m-0 text-sm text-sc-text3">{VISIBILITY.find((v) => v.key === visibility)?.note} Your plan and progress pages are only yours until you share the final sketch.</p>
         </div>
+        {/* Glaze: on hold while Chan researches Glaze and Nightshade.
         <label className="flex items-start gap-2.5 text-sm text-white">
           <input type="checkbox" checked={glazed} onChange={(e) => setGlazed(e.target.checked)} className="mt-0.5 h-4 w-4 accent-sc-guide" />
           <span>
@@ -707,6 +708,7 @@ export default function EditSketch() {
             <span className="block text-sc-text3">Glaze, a free tool from the University of Chicago, changes your image so AI has a harder time copying your style. Glaze it before you upload.</span>
           </span>
         </label>
+        */}
 
         {saveError && <p className="text-base text-accent">{saveError}</p>}
         {deleteError && <p className="text-base text-accent">{deleteError}</p>}

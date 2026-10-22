@@ -14,11 +14,12 @@ import RightsNote from './RightsNote'
  * with only the upload. Opened from the SketchDetail page by the owner.
  *
  *   Progress sketch  added to the sketch's uploads. No feedback.
- *   Final sketch     shares the sketch publicly and asks for feedback, in
- *                    the voice picked here (item 36).
+ *   Final sketch     shares the sketch and asks the SketchConnect coach for
+ *                    feedback, shaped by the sketchers you admire (one
+ *                    voice, design doc item 39).
  *
  * With `upload` (an existing progress sketch), it only makes that upload
- * the final: the photo is fixed, and the sketcher picks the voice.
+ * the final: the photo is fixed.
  *
  * Submit closes the modal right away. The SketchDetail page shows
  * "Feedback on its way…" until the critique lands.
@@ -29,12 +30,9 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
   const [kind, setKind] = useState(upload ? 'final' : hasFinal || pending ? 'progress' : 'final')
-  const [voices, setVoices] = useState([])
-  // Starts on the last voice used (voice_default: this sketch's, else the
-  // one behind the latest feedback). '' is Your coach.
-  const [voice, setVoice] = useState(sketch.voice_default || '')
+  const [admired, setAdmired] = useState([]) // the sketchers you admire: they shape the coach's feedback
   const [sending, setSending] = useState(false)
-  const [addingVoices, setAddingVoices] = useState(false) // the white Admired sketchers panel, over this modal
+  const [editingAdmired, setEditingAdmired] = useState(false) // the white Admired sketchers panel, over this modal
   const [error, setError] = useState(null)
   // Phone: the panel is a bottom sheet over the photo, as in Edit Sketch.
   const [sheetOpen, setSheetOpen] = useState(true)
@@ -44,11 +42,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
   const pickRef = useRef(0)
 
   useEffect(() => {
-    api.get('/api/admired').then(({ data }) => {
-      setVoices(data)
-      // A voice since removed from the list falls back to Your coach.
-      setVoice((v) => (v && !data.some((x) => x.id === v) ? '' : v))
-    }).catch(() => setVoices([]))
+    api.get('/api/admired').then(({ data }) => setAdmired(data)).catch(() => setAdmired([]))
   }, [])
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview) }, [preview])
 
@@ -75,12 +69,11 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
     try {
       let data
       if (upload) {
-        ;({ data } = await api.post(`/api/sketches/${sketch.id}/uploads/${upload.id}/final`, { persona_id: voice || null }))
+        ;({ data } = await api.post(`/api/sketches/${sketch.id}/uploads/${upload.id}/final`, {}))
       } else {
         const form = new FormData()
         form.append('image', file)
         form.append('final', kind === 'final' ? 'true' : 'false')
-        if (kind === 'final' && voice) form.append('persona_id', voice)
         ;({ data } = await api.post(`/api/sketches/${sketch.id}/uploads`, form))
       }
       onDone?.(data)
@@ -116,7 +109,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
         </div>
       )}
 
-      {/* Right: one choice, and the voice for a final sketch. */}
+      {/* Right: one choice, and for a final sketch, who shapes the feedback. */}
       <div ref={sheet.ref} className={`sc-panel sc-sheet ${sheet.className}`} style={sheet.style}>
         <button
           type="button"
@@ -148,17 +141,14 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
 
           {kind === 'final' && (
             <div className="flex flex-col gap-2">
-              <p className="text-md text-sc-text2">Whose voice gives the feedback?</p>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="pill" active={!voice} onClick={() => setVoice('')}>Your coach</Button>
-                {voices.map((v) => (
-                  <Button key={v.id} variant="pill" active={voice === v.id} onClick={() => setVoice(v.id)}>{v.name}</Button>
-                ))}
-              </div>
-              <button type="button" onClick={() => setAddingVoices(true)} className="self-start text-sm font-semibold text-white underline">
-                {voices.length ? 'Edit admired sketchers' : 'Add admired sketchers'}
+              <p className="text-md text-sc-text2">
+                Feedback comes from your SketchConnect coach
+                {admired.length ? `, with an eye to what you admire in ${admired.map((v) => v.name).join(', ')}.` : '.'}
+              </p>
+              <button type="button" onClick={() => setEditingAdmired(true)} className="self-start text-sm font-semibold text-white underline">
+                {admired.length ? 'Edit admired sketchers' : 'Add admired sketchers'}
               </button>
-              <p className="text-sm text-sc-text3">Feedback in the spirit of their public teaching, written by the AI.</p>
+              <p className="text-sm text-sc-text3">The coach never writes as another artist. Your admired sketchers only tell it what you're reaching for.</p>
               <RightsNote dark />
             </div>
           )}
@@ -176,18 +166,8 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
         </div>
         </div>
       </div>
-      {addingVoices && (
-        <AdmiredPanel
-          list={voices}
-          onClose={() => setAddingVoices(false)}
-          onChange={(list) => {
-            // A sketcher just added here becomes the pick.
-            const added = list.find((v) => !voices.some((x) => x.id === v.id))
-            setVoices(list)
-            if (added) setVoice(added.id)
-            else if (voice && !list.some((v) => v.id === voice)) setVoice('')
-          }}
-        />
+      {editingAdmired && (
+        <AdmiredPanel list={admired} onClose={() => setEditingAdmired(false)} onChange={setAdmired} />
       )}
     </SketchModal>
   )

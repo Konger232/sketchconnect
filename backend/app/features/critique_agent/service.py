@@ -37,7 +37,6 @@ from app.core.composite import (
 )
 from app.core.gemini_service import call_gemini_json
 from app.core.paths import UPLOAD_DIR
-from app.features.persona.service import generate_persona
 from app.features.scene_analysis import question_bank
 
 PROMPTS = Path(__file__).parent / "prompts"
@@ -129,69 +128,27 @@ def clean_trace(raw: dict | None) -> dict:
 # Last resort when there's no persona and the default can't be generated
 # either: a plain, encouraging coach, so feedback still arrives.
 # A plain object, not a Persona row, so it can never be saved by accident.
-GENERIC_PERSONA = SimpleNamespace(
+# One coach voice for every sketcher (design doc, item 39). The admired
+# sketchers shape what the coach notices, as the sketcher's taste; the coach
+# never writes as them. The old per-artist and per-style personas are no
+# longer used for feedback.
+COACH = SimpleNamespace(
     persona_source="system_default",
-    persona_label="Urban sketching coach",
+    persona_label="SketchConnect coach",
     voice="Warm and practical. Speaks like a fellow sketcher looking over your shoulder.",
     priorities=["composition", "proportion", "value", "line confidence"],
     tone="Encouraging. Names what worked before one or two things to try next.",
 )
 
 
-def _persona_for(db: Session, sketch: Sketch) -> Persona | SimpleNamespace:
-    """
-    The voice the sketcher picked with the final sketch (`sketch.persona_id`,
-    one of their admired sketchers, item 36) when there is one. Otherwise
-    the sketcher's persona for this sketch's style. With no admired artist
-    set for the style, the style's system default is generated once and
-    stored, the same row Settings updates later (persona/router.py). If that
-    call fails, GENERIC_PERSONA is used for this critique and nothing is
-    stored, so the next critique tries again.
-    """
-    if sketch.persona_id:
-        picked = db.query(Persona).filter(
-            Persona.id == sketch.persona_id, Persona.sketcher_id == sketch.sketcher_id
-        ).first()
-        if picked is not None and not picked.voice and picked.admired_artist_name:
-            # Added moments ago, or its background build failed: build it now.
-            from app.features.persona.router import fill_admired_voice
-            try:
-                fill_admired_voice(picked)
-                db.commit()
-            except Exception as exc:
-                db.rollback()
-                print(f"[critique] voice for {picked.admired_artist_name!r} not ready ({exc}); using the generic coach")
-                return GENERIC_PERSONA
-        if picked is not None:
-            return picked
-    persona = (
-        db.query(Persona)
-        .filter(Persona.sketcher_id == sketch.sketcher_id, Persona.style == sketch.style)
-        .first()
-    ) if sketch.style else None
-    if persona is not None:
-        return persona
-    if not sketch.style:
-        return GENERIC_PERSONA
-    try:
-        result = generate_persona(sketch.style, None)
-    except Exception as exc:
-        print(f"[critique] default persona for {sketch.style} failed ({exc}); using the generic coach")
-        return GENERIC_PERSONA
-    persona = Persona(
-        sketcher_id=sketch.sketcher_id,
-        style=sketch.style,
-        admired_artist_name=None,
-        persona_source="system_default",
-        persona_label=result["persona_label"],
-        voice=result["voice"],
-        priorities=result["priorities"],
-        tone=result["tone"],
-    )
-    db.add(persona)
-    db.commit()
-    print(f"[critique] no admired artist for {sketch.style}; stored the default persona '{persona.persona_label}'")
-    return persona
+def admired_taste_text(db: Session, sketch: Sketch) -> str:
+    """The sketchers this sketcher admires, as their taste (item 39)."""
+    names = [
+        n for (n,) in db.query(Persona.admired_artist_name)
+        .filter(Persona.sketcher_id == sketch.sketcher_id, Persona.admired_artist_name.isnot(None))
+        .all() if n
+    ]
+    return ", ".join(names) if names else "none listed"
 
 
 def plan_read_text(sketch: Sketch) -> str:
@@ -313,7 +270,7 @@ def color_plan_text(sketch: Sketch) -> str:
 
 def run_critique(db: Session, sketch: Sketch) -> None:
     """Build the journey from the database, call Gemini, store the result."""
-    persona = _persona_for(db, sketch)
+    persona = COACH
 
     session_choices = json.dumps(sketch.session_choices or [])
     # Only the most recent Help Quest exchanges, oldest first, so a long
@@ -381,6 +338,7 @@ def run_critique(db: Session, sketch: Sketch) -> None:
         persona_voice=persona.voice,
         persona_tone=persona.tone,
         persona_priorities=", ".join(persona.priorities),
+        admired_taste=admired_taste_text(db, sketch),
         scene_type=sketch.scene_type or "unknown",
         style=sketch.style or "unspecified",
         images=" ".join(image_notes) if image_notes else render_prompt(PROMPTS / "no_image.md"),

@@ -8,9 +8,9 @@ const MAX_ADMIRED = 5
 
 /**
  * The sketcher's admired sketchers (design doc, item 36), only on their own
- * page. Adding a name sets up that voice for feedback once (the persona
- * creation call), so it takes a few seconds. Link and location can change
- * later; a new name means remove and add.
+ * page. They shape the coach's feedback as taste, never as a voice (design
+ * doc, item 39). Link and location can change later; a new name means
+ * remove and add.
  */
 export default function AdmiredPanel({ list, onClose, onChange }) {
   const [rows, setRows] = useState(list)
@@ -77,7 +77,7 @@ export default function AdmiredPanel({ list, onClose, onChange }) {
     <FloatPanel placement="modal" title="Admired sketchers" onClose={onClose}
       footer={<Button variant="editorialSolid" size="sm" onClick={onClose}>Done</Button>}>
       <p className="text-sm text-ink/70">
-        Only you see this list. When you upload a final sketch, you can pick one of them as the voice for your feedback.
+        Only you see this list. Your coach reads your final sketches with an eye to what you admire in them. It never writes as them.
       </p>
       <ul className="flex flex-col">
         {rows.map((r) => (
@@ -109,7 +109,7 @@ export default function AdmiredPanel({ list, onClose, onChange }) {
             <input className="field-input" placeholder="Where they sketch (optional)" value={draft.location} onChange={(e) => setDraft({ ...draft, location: e.target.value })} />
           </div>
           <Button type="submit" variant="editorialSolid" size="sm" className="self-start" disabled={busy === 'add' || !draft.name.trim()}>
-            {busy === 'add' ? 'Setting up their voice…' : 'Add'}
+            {busy === 'add' ? 'Adding…' : 'Add'}
           </Button>
         </form>
       ) : (

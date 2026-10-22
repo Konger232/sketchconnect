@@ -32,7 +32,7 @@ const STEPS = [
 const MORE = [
   {
     title: 'Feedback from an AI coach',
-    body: 'Upload your sketch and get feedback in the spirit of the sketchers you admire. The coach looks at the whole journey, from your plan to your progress pages, not just the final sketch.',
+    body: 'Upload your sketch and get feedback from your coach, with an eye to the sketchers you admire. The coach looks at the whole journey, from your plan to your progress pages, not just the final sketch.',
   },
   {
     title: 'Search and map view',
