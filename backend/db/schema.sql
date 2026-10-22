@@ -155,9 +155,16 @@ alter table sketches add column if not exists persona_id uuid references persona
 
 -- Sketcher and sketch pages (design doc, items 28, 32, 33 and 36,
 -- October 17, 2026). Safe to run again.
-alter table kit_items drop constraint if exists kit_items_kind_check;
-alter table kit_items add constraint kit_items_kind_check
-  check (kind in ('line', 'ink', 'color', 'brush', 'paper', 'extra'));
+-- (Only while kit_items still has `kind`; item 44 renamed it to category.)
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_name = 'kit_items' and column_name = 'kind') then
+    alter table kit_items drop constraint if exists kit_items_kind_check;
+    alter table kit_items add constraint kit_items_kind_check
+      check (kind in ('line', 'ink', 'color', 'brush', 'paper', 'extra'));
+  end if;
+end $$;
 alter table profiles add column if not exists favorite_paints jsonb;
 alter table personas add column if not exists admired_link text;
 alter table personas add column if not exists admired_location text;
@@ -247,3 +254,108 @@ alter table profiles add column if not exists kit_photos jsonb;
 update profiles set kit_photos = jsonb_build_array(kit_photo_url)
   where kit_photos is null and kit_photo_url is not null;
 alter table kit_items add column if not exists spot jsonb;
+
+-- What's in my bag, simplified (design doc, item 44, October 22, 2026).
+-- kit_items keeps: category (was kind), label, note, link, spot, source.
+-- Paints with pigment codes move to My palette (profiles.favorite_paints);
+-- the extra fields go. Runs once: does nothing when `kind` is gone.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_name = 'kit_items' and column_name = 'kind') then
+    -- 1. Paints with a pigment code join the sketcher's My palette.
+    with paints(id, name, code) as (values
+      ('py3', 'Hansa Yellow Light', 'PY3'),
+      ('py97', 'Hansa Yellow Medium', 'PY97'),
+      ('py35', 'Cadmium Yellow', 'PY35'),
+      ('py150', 'Nickel Azo Yellow', 'PY150'),
+      ('po49', 'Quinacridone Gold', 'PO49'),
+      ('py43', 'Yellow Ochre', 'PY43'),
+      ('pbr7-raw-sienna', 'Raw Sienna', 'PBr7'),
+      ('pbr7-burnt-sienna', 'Burnt Sienna', 'PBr7'),
+      ('pbr7-raw-umber', 'Raw Umber', 'PBr7'),
+      ('pbr7-burnt-umber', 'Burnt Umber', 'PBr7'),
+      ('po73', 'Pyrrol Orange', 'PO73'),
+      ('po20', 'Cadmium Orange', 'PO20'),
+      ('pr255', 'Pyrrol Scarlet', 'PR255'),
+      ('pr108', 'Cadmium Red', 'PR108'),
+      ('pr83', 'Alizarin Crimson', 'PR83'),
+      ('pr264', 'Pyrrole Crimson', 'PR264'),
+      ('pv19', 'Quinacridone Rose', 'PV19'),
+      ('pr122', 'Quinacridone Magenta', 'PR122'),
+      ('pv23', 'Dioxazine Violet', 'PV23'),
+      ('pb29', 'Ultramarine Blue', 'PB29'),
+      ('pb28', 'Cobalt Blue', 'PB28'),
+      ('pb35', 'Cerulean Blue', 'PB35'),
+      ('pb15-3', 'Phthalo Blue', 'PB15:3'),
+      ('pb60', 'Indanthrone Blue', 'PB60'),
+      ('pg7', 'Phthalo Green', 'PG7'),
+      ('pg18', 'Viridian', 'PG18'),
+      ('pg17', 'Chromium Oxide Green', 'PG17'),
+      ('pbk31', 'Perylene Green', 'PBk31'),
+      ('paynes-gray', 'Payne', 'PB29 + PBk9'),
+      ('neutral-tint', 'Neutral Tint', 'PB15 + PV19 + PBk6'),
+      ('pbk9', 'Ivory Black', 'PBk9'),
+      ('pbk6', 'Lamp Black', 'PBk6'),
+      ('pw6', 'Titanium White', 'PW6')
+    ),
+    moved as (
+      select k.sketcher_id,
+             coalesce(
+               (select p.id from paints p where lower(k.label) like '%' || lower(p.name) || '%' limit 1),
+               (select p.id from paints p where p.code = k.pigment_codes->>0 limit 1)
+             ) as paint_id
+      from kit_items k
+      where k.kind = 'color' and jsonb_array_length(k.pigment_codes) > 0
+    )
+    update profiles pr
+       set favorite_paints = (
+         select jsonb_agg(distinct x) from (
+           select jsonb_array_elements_text(coalesce(pr.favorite_paints, '[]'::jsonb)) as x
+           union
+           select m.paint_id from moved m where m.sketcher_id = pr.id and m.paint_id is not null
+         ) s)
+     where exists (select 1 from moved m where m.sketcher_id = pr.id and m.paint_id is not null);
+    delete from kit_items where kind = 'color' and jsonb_array_length(pigment_codes) > 0;
+
+    -- 2. The tip becomes its own column; a link for where to buy it.
+    alter table kit_items add column if not exists note text;
+    alter table kit_items add column if not exists link text;
+    update kit_items set note = nullif(details->>'note', '');
+
+    -- 3. kind becomes category, from the fixed list.
+    alter table kit_items drop constraint if exists kit_items_kind_check;
+    update kit_items set kind = case
+      when kind = 'line' then 'pen'
+      when kind = 'color' then 'palette'
+      when kind = 'paper' and (label ilike '%sketchbook%' or label ilike '%journal%' or label ilike '%moleskine%') then 'sketchbook'
+      when kind = 'extra' and label ilike '%clip%' then 'clips'
+      when kind = 'extra' and label ilike '%easel%' then 'easel'
+      when kind = 'extra' and label ilike '%bag%' then 'bag'
+      when kind = 'extra' then 'other'
+      else kind end;
+    alter table kit_items rename column kind to category;
+    alter table kit_items add constraint kit_items_category_check check (category in
+      ('pen', 'ink', 'brush', 'paper', 'sketchbook', 'palette', 'clips', 'easel', 'bag', 'other'));
+
+    -- 4. The fields no one filled in.
+    alter table kit_items drop column if exists details;
+    alter table kit_items drop column if exists pigment_codes;
+    alter table kit_items drop column if exists medium;
+    alter table kit_items drop column if exists opacity;
+    alter table kit_items drop column if exists pinned;
+    alter table kit_items drop column if exists hidden;
+  end if;
+end $$;
+
+-- The wish list: tools a sketcher starred in someone else's bag. Only they
+-- see it; it goes when the tool does.
+create table if not exists kit_wishlist (
+  sketcher_id uuid not null references auth.users (id) on delete cascade,
+  kit_item_id uuid not null references kit_items (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (sketcher_id, kit_item_id)
+);
+alter table kit_wishlist enable row level security;
+drop policy if exists "own wishlist" on kit_wishlist;
+create policy "own wishlist" on kit_wishlist for all using (auth.uid() = sketcher_id);

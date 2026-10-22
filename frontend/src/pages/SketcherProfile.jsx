@@ -7,12 +7,12 @@ import PaintEditor from '../components/common/PaintEditor'
 import SketchListMapView from '../components/common/SketchListMapView'
 import { useAuth } from '../components/common/AuthContext'
 import AdmiredPanel from '../components/common/AdmiredPanel'
-import EditKitPanel, { KIT_KINDS, isSwatchPaint } from '../components/common/EditKitPanel'
+import EditKitPanel, { KIT_CATEGORIES } from '../components/common/EditKitPanel'
 import BagPhotos from '../components/common/BagPhotos'
 import EditProfilePanel from '../components/common/EditProfilePanel'
 import FeaturedSlideshow from '../components/common/FeaturedSlideshow'
 import FollowersPanel from '../components/common/FollowersPanel'
-import { paintById, paintForKitItem } from '../data/paints'
+import { paintById } from '../data/paints'
 import { api } from '../lib/api'
 import { dateLabel, imageUrl } from '../lib/media'
 import { useSketchesVersion } from '../lib/sketchEvents'
@@ -47,6 +47,7 @@ export default function SketcherProfile({ username: usernameProp }) {
   const [place, setPlace] = useState(null)
   const [filter, setFilter] = useState('') // the search bar over the sketches
   const [bagPhoto, setBagPhoto] = useState(0) // the bag photo shown
+  const [wishlist, setWishlist] = useState([]) // the owner's wish list (item 44)
   const [busyFollow, setBusyFollow] = useState(false)
   const [paintEdit, setPaintEdit] = useState(null) // { mode, item?, top }
   const paintBoxRef = useRef(null)
@@ -68,6 +69,11 @@ export default function SketcherProfile({ username: usernameProp }) {
   }
 
   useEffect(() => { if (username) load() }, [username, user?.id, sketchesVersion]) // eslint-disable-line react-hooks/exhaustive-deps
+  // The wish list, for the owner only.
+  useEffect(() => {
+    if (!page?.is_owner) return
+    api.get('/api/wishlist').then(({ data }) => setWishlist(data)).catch(() => setWishlist([]))
+  }, [page?.is_owner, sketchesVersion])
 
   // NavDrawer's "Edit Profile" opens the panel: ?edit=profile.
   useEffect(() => {
@@ -123,8 +129,6 @@ export default function SketcherProfile({ username: usernameProp }) {
 
   const firstName = (page.display_name || page.username || '').split(' ')[0]
   const featured = (page.featured?.length ? page.featured : shared.slice(0, 5)).map((s) => ({ ...s, place: s.place || shared.find((x) => x.id === s.id)?.place }))
-  const kitByKind = (kind) => page.kit.filter((i) => i.kind === kind)
-  const swatchPaints = page.kit.filter(isSwatchPaint)
   const favs = page.favorite_paints || []
 
   async function toggleFollow() {
@@ -140,43 +144,47 @@ export default function SketcherProfile({ username: usernameProp }) {
     }
   }
 
-  // ---- paints (owner): PaintEditor under the row it edits ----
-  function openPaint(mode, item, el) {
+  // ---- My palette (owner): PaintEditor under the row it edits ----
+  function openPaint(mode, paintId, el) {
     const box = paintBoxRef.current?.getBoundingClientRect()
     const row = el?.closest('[data-paint-row]')?.getBoundingClientRect() || el?.getBoundingClientRect()
     const top = box && row ? row.bottom - box.top + 6 : 0
-    const paint = item ? paintForKitItem(item) : null
-    setPaintEdit({ mode, item, top, paintId: paint?.id, brand: item?.details?.brand })
+    setPaintEdit({ mode, top, paintId })
   }
 
-  async function savePaint(paintId, brand) {
-    const p = paintById(paintId)
-    const item = paintEdit.item
-    const body = {
-      kind: 'color',
-      label: p.name,
-      pigment_codes: p.codes,
-      details: { ...(item?.details || {}), brand },
-      medium: item?.medium || null,
-      opacity: item?.opacity || null,
-      pinned: Boolean(item?.pinned),
-      hidden: Boolean(item?.hidden),
-    }
-    if (item) await api.put(`/api/kit/${item.id}`, body)
-    else await api.post('/api/kit', body)
-    setPaintEdit(null)
-    load()
-  }
-
-  async function removePaint(item) {
-    await api.delete(`/api/kit/${item.id}`)
-    load()
-  }
-
-  async function toggleFav(paintId) {
-    const next = favs.includes(paintId) ? favs.filter((x) => x !== paintId) : [...favs, paintId]
+  async function savePalette(next) {
     setPage((p) => ({ ...p, favorite_paints: next }))
     await api.put('/api/profile', { favorite_paints: next })
+  }
+
+  async function savePaint(paintId) {
+    const was = paintEdit.mode === 'edit' ? paintEdit.paintId : null
+    const next = was
+      ? favs.map((x) => (x === was ? paintId : x)).filter((x, i, all) => all.indexOf(x) === i)
+      : favs.includes(paintId) ? favs : [...favs, paintId]
+    setPaintEdit(null)
+    await savePalette(next)
+  }
+
+  // ---- the wish list (item 44) ----
+  async function toggleWish(item) {
+    const on = !item.wished
+    setPage((p) => ({ ...p, kit: p.kit.map((i) => (i.id === item.id ? { ...i, wished: on } : i)) }))
+    try {
+      if (on) await api.post(`/api/wishlist/${item.id}`)
+      else await api.delete(`/api/wishlist/${item.id}`)
+    } catch {
+      setPage((p) => ({ ...p, kit: p.kit.map((i) => (i.id === item.id ? { ...i, wished: !on } : i)) }))
+    }
+  }
+  async function removeWish(w) {
+    setWishlist((l) => l.filter((x) => x.id !== w.id))
+    await api.delete(`/api/wishlist/${w.id}`).catch(() => {})
+  }
+  async function gotWish(w) {
+    await api.post(`/api/wishlist/${w.id}/got`)
+    setWishlist((l) => l.filter((x) => x.id !== w.id))
+    load()
   }
 
   const counts = (
@@ -272,78 +280,123 @@ export default function SketcherProfile({ username: usernameProp }) {
             </span>
           )}
           <dl className="m-0 border-t border-[var(--ed-row-rule)]">
-            {page.kit.length === 0 && viewer !== 'owner' && <p className="py-4 text-sm text-ink/50">Nothing in the bag yet.</p>}
-            {KIT_KINDS.map(({ kind, label }) => {
-              const items = kitByKind(kind).filter((i) => !isSwatchPaint(i))
-              const showPaints = kind === 'color' && (swatchPaints.length > 0 || viewer === 'owner')
-              if (!items.length && !showPaints) return null
+            {page.kit.length === 0 && <p className="py-4 text-sm text-ink/50">Nothing in the bag yet.</p>}
+            {KIT_CATEGORIES.map(({ category, label }) => {
+              const items = page.kit.filter((i) => i.category === category)
+              if (!items.length) return null
               return (
-                <div key={kind} className="ed-row">
+                <div key={category} className="ed-row">
                   <dt>{label}</dt>
                   <dd className="flex flex-col gap-1.5">
                     {items.map((i) => (
-                      <span key={i.id} className="flex flex-col">
-                        <span>{i.label}</span>
-                        {i.details?.note && <span className="ed-note">{i.details.note}</span>}
+                      <span key={i.id} className="flex items-start gap-2">
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span>
+                            {i.label}
+                            {i.link && (
+                              <a href={i.link} target="_blank" rel="noopener noreferrer" className="ml-1.5 inline-flex align-middle text-ink/60 hover:text-ink" aria-label={`Where to get ${i.label}`}>
+                                <Icon name="link" size={13} />
+                              </a>
+                            )}
+                          </span>
+                          {i.note && <span className="ed-note">{i.note}</span>}
+                        </span>
+                        {/* Another sketcher stars a tool for their wish list. */}
+                        {viewer === 'member' && (
+                          <button type="button" className="ed-icon-btn" aria-pressed={Boolean(i.wished)}
+                            aria-label={i.wished ? `Remove ${i.label} from my wish list` : `Add ${i.label} to my wish list`}
+                            title={i.wished ? 'On your wish list' : 'Add to your wish list'} onClick={() => toggleWish(i)}>
+                            <Icon name={i.wished ? 'star-filled' : 'star'} size={15} />
+                          </button>
+                        )}
                       </span>
                     ))}
-                    {showPaints && (
-                      <div ref={paintBoxRef} className="relative flex flex-col gap-1">
-                        {swatchPaints.map((i) => {
-                          const p = paintForKitItem(i)
-                          return (
-                            <div key={i.id} data-paint-row className="flex items-center gap-3 py-1">
-                              {/* The swatch is data: an inline background. */}
-                              <span className="swatch-chip" style={{ background: p?.hex || '#ccc' }} />
-                              <span className="w-[72px] shrink-0 text-xs font-bold">{p?.code || i.pigment_codes[0]}</span>
-                              <span className="flex min-w-0 flex-1 flex-col">
-                                <span className="truncate">{p?.name || i.label}</span>
-                                {i.details?.brand && <span className="text-xs text-ink/50">{i.details.brand}</span>}
-                              </span>
-                              {viewer === 'owner' && (
-                                <>
-                                  <button type="button" className="ed-icon-btn" aria-label={`Change ${p?.name || i.label}`} onClick={(e) => openPaint('edit', i, e.currentTarget)}>
-                                    <Icon name="edit" size={14} />
-                                  </button>
-                                  <button type="button" className="ed-icon-btn" aria-label={`Remove ${p?.name || i.label}`} onClick={() => removePaint(i)}>
-                                    <Icon name="delete" size={15} />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          )
-                        })}
-                        {viewer === 'owner' && (
-                          <Button variant="editorial" size="sm" className="mt-1 self-start" onClick={(e) => openPaint('new', null, e.currentTarget)}>
-                            <Icon name="plus" size={14} /> Add paint
-                          </Button>
-                        )}
-                        {paintEdit && (
-                          <PaintEditor
-                            open
-                            mode={paintEdit.mode}
-                            paintId={paintEdit.paintId}
-                            brand={paintEdit.brand}
-                            showBrand
-                            favs={favs}
-                            top={paintEdit.top}
-                            onSave={savePaint}
-                            onClose={() => setPaintEdit(null)}
-                            onToggleFav={toggleFav}
-                          />
-                        )}
-                      </div>
-                    )}
                   </dd>
                 </div>
               )
             })}
-            {page.kit.length === 0 && viewer === 'owner' && (
-              <p className="py-4 text-sm text-ink/60">List your pens, paper and brushes in Edit kit, and add your paints above.</p>
-            )}
           </dl>
         </div>
       </section>
+
+      {/* ---- My palette: the paints the colour recipes mix from (item 44) ---- */}
+      {(viewer === 'owner' || favs.length > 0) && (
+        <section className="ed-section">
+          <h2 className="ed-kicker m-0">{viewer === 'owner' ? 'My palette' : `${firstName}'s palette`}</h2>
+          <div ref={paintBoxRef} className="relative flex max-w-xl flex-col gap-1">
+            {favs.length === 0 && <p className="m-0 text-sm text-ink/60">Add the paints you carry. The Color tab mixes its recipes from them.</p>}
+            {favs.map((id) => {
+              const p = paintById(id)
+              if (!p) return null
+              return (
+                <div key={id} data-paint-row className="flex items-center gap-3 py-1">
+                  {/* The swatch is data: an inline background. */}
+                  <span className="swatch-chip" style={{ background: p.hex }} />
+                  <span className="w-[72px] shrink-0 text-xs font-bold">{p.code}</span>
+                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                  {viewer === 'owner' && (
+                    <>
+                      <button type="button" className="ed-icon-btn" aria-label={`Change ${p.name}`} onClick={(e) => openPaint('edit', id, e.currentTarget)}>
+                        <Icon name="edit" size={14} />
+                      </button>
+                      <button type="button" className="ed-icon-btn" aria-label={`Remove ${p.name}`} onClick={() => savePalette(favs.filter((x) => x !== id))}>
+                        <Icon name="delete" size={15} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              )
+            })}
+            {viewer === 'owner' && (
+              <Button variant="editorial" size="sm" className="mt-1 self-start" onClick={(e) => openPaint('new', null, e.currentTarget)}>
+                <Icon name="plus" size={14} /> Add paint
+              </Button>
+            )}
+            {paintEdit && (
+              <PaintEditor
+                open
+                mode={paintEdit.mode}
+                paintId={paintEdit.paintId}
+                favs={favs}
+                top={paintEdit.top}
+                onSave={savePaint}
+                onClose={() => setPaintEdit(null)}
+                onToggleFav={(id) => savePalette(favs.includes(id) ? favs.filter((x) => x !== id) : [...favs, id])}
+              />
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ---- My wish list: only the owner sees it (item 44) ---- */}
+      {viewer === 'owner' && wishlist.length > 0 && (
+        <section className="ed-section">
+          <div className="ed-section-head">
+            <h2 className="ed-kicker m-0">My wish list</h2>
+            <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.12em] text-ink/60">
+              <Icon name="lock" size={13} /> Only you
+            </span>
+          </div>
+          <ul className="m-0 flex max-w-2xl list-none flex-col p-0">
+            {wishlist.map((w) => (
+              <li key={w.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--ed-row-rule)] py-2.5">
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span>{w.label}</span>
+                  <span className="ed-note">
+                    {[w.note, w.owner?.username ? `in @${w.owner.username}'s bag` : null].filter(Boolean).join(' · ')}
+                  </span>
+                </span>
+                <a href={w.link || `https://www.google.com/search?q=${encodeURIComponent(w.label)}`} target="_blank" rel="noopener noreferrer"
+                  className="text-sm font-semibold underline">{w.link ? 'Where to get it' : 'Search for it'}</a>
+                <Button variant="editorial" size="sm" onClick={() => gotWish(w)}>I got it</Button>
+                <button type="button" className="ed-icon-btn" aria-label={`Remove ${w.label} from my wish list`} onClick={() => removeWish(w)}>
+                  <Icon name="close" size={12} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* ---- 3. Admired sketchers (owner only) ---- */}
       {viewer === 'owner' && (

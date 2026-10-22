@@ -1,106 +1,54 @@
 """
-My kit (design doc, item 28): the tools a sketcher carries, grouped by
-kind. Settings lists, adds, edits and removes them here.
+What's in my bag (design doc, items 28 and 44): the tools a sketcher
+carries, one row each, by category; up to 3 bag photos with a pin on each
+tool; and the wish list, tools a sketcher starred in someone else's bag.
 
-GET    /api/kit             the signed-in sketcher's kit, by kind
-POST   /api/kit             add one tool
-PUT    /api/kit/{item_id}   replace one tool's fields
-DELETE /api/kit/{item_id}   remove one tool
+GET    /api/kit                  the signed-in sketcher's bag
+POST   /api/kit                  add one tool
+PUT    /api/kit/{item_id}        replace one tool's fields
+DELETE /api/kit/{item_id}        remove one tool
+POST   /api/kit/read             the kit reading call on one bag photo
+GET    /api/wishlist             my wish list
+POST   /api/wishlist/{item_id}   star a tool in someone else's bag
+DELETE /api/wishlist/{item_id}   unstar it
+POST   /api/wishlist/{item_id}/got   it's in my bag now: copy it, unstar it
 
-Each kind keeps only its own detail fields (KIND_DETAILS). Pigment codes,
-medium and opacity belong to `color` items only, and codes are checked
-against the Colour Index pattern printed on tubes (PB29, PBr7, PB15:3).
-The kit photo and the kit reading call come later and add items with
-source `ai`.
+Paints are not tools here: they are My palette (profiles.favorite_paints).
 """
-import re
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_sketcher_id
 from app.core.database import get_db
-from app.core.models import KitItem, Profile
+from app.core.models import KitItem, KitWish, Profile
 from app.features.kit.schemas import KitItemRequest, KitReadRequest
 from config import MAX_KIT_ITEMS
 
-MAX_KIT_PHOTOS = 3  # What's in my bag: up to 3 photos (item 44)
-
 router = APIRouter(prefix="/api", tags=["kit"])
 
-KIND_ORDER = ["line", "ink", "color", "brush", "paper", "extra"]
-
-# The detail fields each kind keeps. Every kind takes a short `note`
-# ("the everyday line"), shown beside the tool on the sketcher page. Text
-# fields are trimmed to 40 characters, the note to 80; `waterproof` is a
-# yes or no; `surface` is one of three. A paint's `brand` is the one the
-# paint editor picked.
-KIND_DETAILS = {
-    "line": {"note": str, "size": str, "ink": str, "waterproof": bool},
-    "ink": {"note": str, "waterproof": bool},
-    "color": {"note": str, "brand": str},
-    "brush": {"note": str, "size": str},
-    "paper": {"note": str, "size": str, "weight": str, "surface": ("cold_press", "hot_press", "rough")},
-    "extra": {"note": str},
-}
-MAX_DETAIL_CHARS = 40
-MAX_NOTE_CHARS = 80
-MAX_PIGMENT_CODES = 4
-
-# Colour Index pigment codes as printed on tubes: P, a hue family, a
-# number, and an optional variant (PB15:3). Two-letter families first.
-PIGMENT_CODE = re.compile(r"^P(BK|BR|B|R|Y|O|G|V|W|M)(\d{1,3})(:\d{1,2})?$")
-FAMILY_SPELLING = {"BK": "Bk", "BR": "Br"}
+# The fixed list, in page order.
+CATEGORY_ORDER = ["pen", "ink", "brush", "paper", "sketchbook", "palette", "clips", "easel", "bag", "other"]
+MAX_KIT_PHOTOS = 3  # What's in my bag: up to 3 photos (item 44)
+MAX_NOTE_CHARS = 40
 
 
-def _clean_details(kind: str, details: dict) -> dict:
-    out = {}
-    for key, rule in KIND_DETAILS[kind].items():
-        value = details.get(key)
-        if value is None or value == "":
-            continue
-        if rule is str:
-            text = str(value).strip()[: MAX_NOTE_CHARS if key == "note" else MAX_DETAIL_CHARS]
-            if text:
-                out[key] = text
-        elif rule is bool:
-            out[key] = bool(value)
-        elif value in rule:
-            out[key] = value
-    return out
+def _to_dict(item: KitItem) -> dict:
+    return {
+        "id": item.id,
+        "category": item.category,
+        "label": item.label,
+        "note": item.note,
+        "link": item.link,
+        "spot": item.spot,
+        "source": item.source,
+        "created_at": item.created_at,
+    }
 
 
-def _clean_pigment_codes(codes: list[str]) -> list[str]:
-    out = []
-    for raw in codes:
-        code = re.sub(r"\s+", "", str(raw)).upper()
-        if not code:
-            continue
-        m = PIGMENT_CODE.match(code)
-        if m is None:
-            raise HTTPException(422, f"\"{raw}\" is not a pigment code. Codes look like PB29 or PBr7.")
-        family = FAMILY_SPELLING.get(m.group(1), m.group(1))
-        code = f"P{family}{m.group(2)}{m.group(3) or ''}"
-        if code not in out:
-            out.append(code)
-    if len(out) > MAX_PIGMENT_CODES:
-        raise HTTPException(422, f"A paint can list at most {MAX_PIGMENT_CODES} pigment codes.")
-    return out
-
-
-def _apply(item: KitItem, body: KitItemRequest) -> None:
-    item.kind = body.kind
-    item.label = body.label.strip()
-    if not item.label:
-        raise HTTPException(422, "A tool needs a name.")
-    item.details = _clean_details(body.kind, body.details)
-    is_color = body.kind == "color"
-    item.pigment_codes = _clean_pigment_codes(body.pigment_codes) if is_color else []
-    item.medium = body.medium if is_color else None
-    item.opacity = body.opacity if is_color else None
-    item.pinned = body.pinned
-    item.hidden = body.hidden
-    item.spot = clean_spot(body.spot)
+def sort_kit(rows: list) -> list:
+    return sorted(rows, key=lambda i: (CATEGORY_ORDER.index(i.category) if i.category in CATEGORY_ORDER else 99, i.created_at))
 
 
 def clean_spot(spot: dict | None) -> dict | None:
@@ -117,82 +65,26 @@ def clean_spot(spot: dict | None) -> dict | None:
     return {"photo": photo, "x": round(min(1.0, max(0.0, x)), 3), "y": round(min(1.0, max(0.0, y)), 3)}
 
 
-def _to_dict(item: KitItem) -> dict:
-    return {
-        "id": item.id,
-        "kind": item.kind,
-        "label": item.label,
-        "details": item.details or {},
-        "pigment_codes": item.pigment_codes or [],
-        "medium": item.medium,
-        "opacity": item.opacity,
-        "source": item.source,
-        "pinned": item.pinned,
-        "hidden": item.hidden,
-        "spot": item.spot,
-        "created_at": item.created_at,
-    }
+def _clean_link(url: str | None) -> str | None:
+    url = (url or "").strip()
+    if not url:
+        return None
+    if "://" not in url:
+        url = "https://" + url
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise HTTPException(422, "That link doesn't look like a web address.")
+    return url[:300]
 
 
-def _own_item(db: Session, item_id: str, sketcher_id: str) -> KitItem:
-    item = db.query(KitItem).filter(KitItem.id == item_id, KitItem.sketcher_id == sketcher_id).first()
-    if item is None:
-        raise HTTPException(404, "Tool not found")
-    return item
-
-
-@router.get("/kit")
-async def list_kit(
-    db: Session = Depends(get_db),
-    sketcher_id: str = Depends(get_current_sketcher_id),
-):
-    """The kit, grouped by kind in KIND_ORDER, pinned tools first, then oldest first."""
-    rows = db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id).all()
-    rows.sort(key=lambda i: (KIND_ORDER.index(i.kind), not i.pinned, i.created_at))
-    return [_to_dict(i) for i in rows]
-
-
-@router.post("/kit")
-async def add_kit_item(
-    body: KitItemRequest,
-    db: Session = Depends(get_db),
-    sketcher_id: str = Depends(get_current_sketcher_id),
-):
-    count = db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id).count()
-    if count >= MAX_KIT_ITEMS:
-        raise HTTPException(422, f"A kit holds at most {MAX_KIT_ITEMS} tools.")
-    item = KitItem(sketcher_id=sketcher_id, source="own")
-    _apply(item, body)
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return _to_dict(item)
-
-
-@router.put("/kit/{item_id}")
-async def update_kit_item(
-    item_id: str,
-    body: KitItemRequest,
-    db: Session = Depends(get_db),
-    sketcher_id: str = Depends(get_current_sketcher_id),
-):
-    item = _own_item(db, item_id, sketcher_id)
-    _apply(item, body)
-    db.commit()
-    db.refresh(item)
-    return _to_dict(item)
-
-
-@router.delete("/kit/{item_id}")
-async def delete_kit_item(
-    item_id: str,
-    db: Session = Depends(get_db),
-    sketcher_id: str = Depends(get_current_sketcher_id),
-):
-    item = _own_item(db, item_id, sketcher_id)
-    db.delete(item)
-    db.commit()
-    return {"deleted": True}
+def _apply(item: KitItem, body: KitItemRequest) -> None:
+    item.category = body.category
+    item.label = " ".join(body.label.split())
+    if not item.label:
+        raise HTTPException(422, "A tool needs a name.")
+    item.note = " ".join((body.note or "").split())[:MAX_NOTE_CHARS] or None
+    item.link = _clean_link(body.link)
+    item.spot = clean_spot(body.spot)
 
 
 def kit_photos(profile: Profile | None) -> list[str]:
@@ -204,17 +96,60 @@ def kit_photos(profile: Profile | None) -> list[str]:
     return [profile.kit_photo_url] if profile.kit_photo_url else []
 
 
+def _own_item(db: Session, item_id: str, sketcher_id: str) -> KitItem:
+    item = db.query(KitItem).filter(KitItem.id == item_id, KitItem.sketcher_id == sketcher_id).first()
+    if item is None:
+        raise HTTPException(404, "Tool not found")
+    return item
+
+
+def _room(db: Session, sketcher_id: str) -> int:
+    return MAX_KIT_ITEMS - db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id).count()
+
+
+@router.get("/kit")
+def list_kit(db: Session = Depends(get_db), sketcher_id: str = Depends(get_current_sketcher_id)):
+    """The bag, by category in CATEGORY_ORDER, then oldest first."""
+    return [_to_dict(i) for i in sort_kit(db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id).all())]
+
+
+@router.post("/kit")
+def add_kit_item(body: KitItemRequest, db: Session = Depends(get_db), sketcher_id: str = Depends(get_current_sketcher_id)):
+    if _room(db, sketcher_id) <= 0:
+        raise HTTPException(422, f"A bag holds at most {MAX_KIT_ITEMS} tools.")
+    item = KitItem(sketcher_id=sketcher_id, source="own")
+    _apply(item, body)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return _to_dict(item)
+
+
+@router.put("/kit/{item_id}")
+def update_kit_item(item_id: str, body: KitItemRequest, db: Session = Depends(get_db), sketcher_id: str = Depends(get_current_sketcher_id)):
+    item = _own_item(db, item_id, sketcher_id)
+    _apply(item, body)
+    db.commit()
+    db.refresh(item)
+    return _to_dict(item)
+
+
+@router.delete("/kit/{item_id}")
+def delete_kit_item(item_id: str, db: Session = Depends(get_db), sketcher_id: str = Depends(get_current_sketcher_id)):
+    item = _own_item(db, item_id, sketcher_id)
+    # It leaves everyone's wish list too.
+    db.query(KitWish).filter(KitWish.kit_item_id == item.id).delete()
+    db.delete(item)
+    db.commit()
+    return {"deleted": True}
+
+
 @router.post("/kit/read")
-def read_kit_photo(
-    body: KitReadRequest,
-    db: Session = Depends(get_db),
-    sketcher_id: str = Depends(get_current_sketcher_id),
-):
+def read_kit_photo(body: KitReadRequest, db: Session = Depends(get_db), sketcher_id: str = Depends(get_current_sketcher_id)):
     """
     The kit reading call (item 44): find the tools on one bag photo and add
     each as a tool with a pin (source `ai`). Tools found on this photo
-    before are replaced; tools the sketcher added by hand stay. Returns the
-    whole kit.
+    before are replaced; tools the sketcher added stay. Returns the bag.
     """
     from PIL import Image, ImageOps
     from app.core.paths import UPLOAD_DIR
@@ -233,19 +168,87 @@ def read_kit_photo(
         print(f"[kit] reading failed: {exc}")
         raise HTTPException(502, "Could not read the tools right now. Try again, or add them by hand.")
 
-    mine = db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id).all()
-    for item in mine:
-        if item.source == "ai" and (item.spot or {}).get("photo") == body.photo:
+    for item in db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id, KitItem.source == "ai").all():
+        if (item.spot or {}).get("photo") == body.photo:
+            db.query(KitWish).filter(KitWish.kit_item_id == item.id).delete()
             db.delete(item)
     db.flush()
-    room = MAX_KIT_ITEMS - db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id).count()
-    for t in tools[: max(0, room)]:
+    for t in tools[: max(0, _room(db, sketcher_id))]:
         db.add(KitItem(
-            sketcher_id=sketcher_id, source="ai", kind=t["kind"], label=t["label"],
-            details={"note": t["note"]} if t["note"] else {}, pigment_codes=[],
-            spot={"photo": body.photo, "x": t["x"], "y": t["y"]},
+            sketcher_id=sketcher_id, source="ai", category=t["category"], label=t["label"],
+            note=t["note"] or None, spot={"photo": body.photo, "x": t["x"], "y": t["y"]},
         ))
     db.commit()
-    rows = db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id).all()
-    rows.sort(key=lambda i: (KIND_ORDER.index(i.kind), not i.pinned, i.created_at))
+    rows = sort_kit(db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id).all())
     return {"found": len(tools), "kit": [_to_dict(i) for i in rows]}
+
+
+# ---- the wish list ----
+
+def wished_ids(db: Session, sketcher_id: str | None, item_ids: list[str]) -> set[str]:
+    """Which of these tools the sketcher has starred."""
+    if not sketcher_id or not item_ids:
+        return set()
+    return {w.kit_item_id for w in db.query(KitWish).filter(
+        KitWish.sketcher_id == sketcher_id, KitWish.kit_item_id.in_(item_ids)
+    ).all()}
+
+
+@router.get("/wishlist")
+def my_wishlist(db: Session = Depends(get_db), sketcher_id: str = Depends(get_current_sketcher_id)):
+    """My wish list, newest first: each tool with whose bag it's in."""
+    rows = (
+        db.query(KitWish, KitItem, Profile)
+        .join(KitItem, KitItem.id == KitWish.kit_item_id)
+        .outerjoin(Profile, Profile.id == KitItem.sketcher_id)
+        .filter(KitWish.sketcher_id == sketcher_id)
+        .order_by(KitWish.created_at.desc())
+        .all()
+    )
+    return [{
+        **_to_dict(item),
+        "wished_at": w.created_at,
+        "owner": {"display_name": p.display_name if p else None, "username": p.username if p else None,
+                  "avatar_url": p.avatar_url if p else None},
+    } for w, item, p in rows]
+
+
+def _others_item(db: Session, item_id: str, sketcher_id: str) -> KitItem:
+    item = db.query(KitItem).filter(KitItem.id == item_id).first()
+    if item is None:
+        raise HTTPException(404, "Tool not found")
+    if item.sketcher_id == sketcher_id:
+        raise HTTPException(400, "That one is already in your bag.")
+    return item
+
+
+@router.post("/wishlist/{item_id}")
+def add_wish(item_id: str, db: Session = Depends(get_db), sketcher_id: str = Depends(get_current_sketcher_id)):
+    item = _others_item(db, item_id, sketcher_id)
+    if db.get(KitWish, (sketcher_id, item.id)) is None:
+        db.add(KitWish(sketcher_id=sketcher_id, kit_item_id=item.id))
+        db.commit()
+    return {"wished": True}
+
+
+@router.delete("/wishlist/{item_id}")
+def remove_wish(item_id: str, db: Session = Depends(get_db), sketcher_id: str = Depends(get_current_sketcher_id)):
+    db.query(KitWish).filter(KitWish.sketcher_id == sketcher_id, KitWish.kit_item_id == item_id).delete()
+    db.commit()
+    return {"wished": False}
+
+
+@router.post("/wishlist/{item_id}/got")
+def got_wish(item_id: str, db: Session = Depends(get_db), sketcher_id: str = Depends(get_current_sketcher_id)):
+    """It's in my bag now: a copy of the tool joins my bag (no pin), and it
+    leaves my wish list."""
+    item = _others_item(db, item_id, sketcher_id)
+    if _room(db, sketcher_id) <= 0:
+        raise HTTPException(422, f"A bag holds at most {MAX_KIT_ITEMS} tools.")
+    mine = KitItem(sketcher_id=sketcher_id, source="own", category=item.category, label=item.label,
+                   note=item.note, link=item.link)
+    db.add(mine)
+    db.query(KitWish).filter(KitWish.sketcher_id == sketcher_id, KitWish.kit_item_id == item.id).delete()
+    db.commit()
+    db.refresh(mine)
+    return _to_dict(mine)

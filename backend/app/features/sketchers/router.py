@@ -21,7 +21,7 @@ from app.core.auth import get_optional_sketcher_id
 from app.core.database import get_db
 from app.core.models import KitItem, Profile, Sketch, SketchComment, SketchLike
 from app.features.community.router import follow_counts, is_following
-from app.features.kit.router import KIND_ORDER, _to_dict as kit_item_to_dict, kit_photos
+from app.features.kit.router import _to_dict as kit_item_to_dict, kit_photos, sort_kit, wished_ids
 from app.features.persona.router import admired_list, admired_to_dict
 from app.features.sketches.router import _sketch_card, card_query
 from app.core.visibility import visible_filter
@@ -62,10 +62,9 @@ def get_sketcher(
     by_id = {s.id: s for s in shared}
     featured = [by_id[i] for i in (profile.featured_sketch_ids or []) if i in by_id][:MAX_FEATURED]
 
-    kit_rows = db.query(KitItem).filter(KitItem.sketcher_id == profile.id).all()
-    if not is_owner:
-        kit_rows = [i for i in kit_rows if not i.hidden]
-    kit_rows.sort(key=lambda i: (KIND_ORDER.index(i.kind), not i.pinned, i.created_at))
+    kit_rows = sort_kit(db.query(KitItem).filter(KitItem.sketcher_id == profile.id).all())
+    # Another sketcher sees which of these tools they starred (item 44).
+    wished = set() if is_owner else wished_ids(db, viewer_id, [i.id for i in kit_rows])
 
     data = {
         "username": profile.username,
@@ -84,8 +83,9 @@ def get_sketcher(
         "featured": [_sketch_card(s) for s in featured],
         "kit_photo_url": profile.kit_photo_url,
         "kit_photos": kit_photos(profile),
-        "kit": [kit_item_to_dict(i) for i in kit_rows],
-        # My favorite palette: paint ids from the paint list (data/paints.js).
+        "kit": [{**kit_item_to_dict(i), "wished": i.id in wished} for i in kit_rows],
+        # My palette: paint ids from the paint list (data/paints.js). The
+        # colour recipes mix from these (item 44).
         "favorite_paints": profile.favorite_paints or [],
     }
     if is_owner:

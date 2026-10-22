@@ -105,7 +105,7 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
       <MaskValues shapes={shapes} paints={paints} onToggle={onPickTile} marked={marked} />
 
        {/* <p className="text-sm text-sc-text3">
-        {fromKit ? 'Mixed from the paints in your kit.' : 'Mixed from the starter palette. Add your own paints in My kit on your page.'} Parts are a starting point.
+        {fromKit ? 'Mixed from the paints in My palette.' : 'Mixed from the starter palette. Add your own paints in My palette on your page.'} Parts are a starting point.
       </p> */}
     </div>
   )

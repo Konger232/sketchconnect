@@ -1,24 +1,20 @@
 """
-My kit request bodies (design doc, item 28). Plain CRUD on kit_items, not
-a Gemini call. The router cleans and checks every field (kit/router.py).
+What's in my bag request bodies (design doc, items 28 and 44). The router
+cleans and checks every field (kit/router.py).
 """
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-Kind = Literal["line", "ink", "color", "brush", "paper", "extra"]
+Category = Literal["pen", "ink", "brush", "paper", "sketchbook", "palette", "clips", "easel", "bag", "other"]
 
 
 class KitItemRequest(BaseModel):
-    kind: Kind
+    category: Category
     label: str = Field(min_length=1, max_length=80)
-    details: dict = Field(default_factory=dict)
-    pigment_codes: list[str] = Field(default_factory=list)
-    medium: Optional[Literal["watercolor", "gouache"]] = None
-    opacity: Optional[Literal["transparent", "opaque"]] = None
-    pinned: bool = False
-    hidden: bool = False
-    # Its pin on a bag photo (item 44): {photo, x, y}, or none.
+    note: Optional[str] = Field(default=None, max_length=40)
+    link: Optional[str] = Field(default=None, max_length=300)
+    # Its pin on a bag photo: {photo, x, y}, or none.
     spot: Optional[dict] = None
 
 

@@ -6,41 +6,38 @@ import FloatPanel from './FloatPanel'
 import Icon from './Icon'
 import { api } from '../../lib/api'
 
-// The kit's categories, in page order. Keys are kit_items.kind
-// (features/kit/router.py).
-export const KIT_KINDS = [
-  { kind: 'line', label: 'Pens' },
-  { kind: 'ink', label: 'Ink' },
-  { kind: 'color', label: 'Paint' },
-  { kind: 'paper', label: 'Paper' },
-  { kind: 'brush', label: 'Brushes' },
-  { kind: 'extra', label: 'Extras' },
+// The fixed categories, in page order. Keys are kit_items.category
+// (features/kit/router.py). Paints are My palette, not tools.
+export const KIT_CATEGORIES = [
+  { category: 'pen', label: 'Pens' },
+  { category: 'ink', label: 'Ink' },
+  { category: 'brush', label: 'Brushes' },
+  { category: 'paper', label: 'Paper' },
+  { category: 'sketchbook', label: 'Sketchbooks' },
+  { category: 'palette', label: 'Palettes' },
+  { category: 'clips', label: 'Clips' },
+  { category: 'easel', label: 'Easels' },
+  { category: 'bag', label: 'Bags' },
+  { category: 'other', label: 'Other' },
 ]
-
-// A paint with a pigment code is a swatch row, edited with PaintEditor on
-// the page. Every other tool is a name and a tip, edited here.
-export const isSwatchPaint = (item) => item.kind === 'color' && item.pigment_codes?.length > 0
 
 const MAX_PHOTOS = 3
 const TIP_CHARS = 40
 
-// The full body PUT and POST /api/kit expect.
+// The body PUT and POST /api/kit expect.
 const body = (r) => ({
-  kind: r.kind,
+  category: r.category,
   label: r.label.trim(),
-  details: { ...(r.details || {}), note: (r.note || '').trim() },
-  pigment_codes: r.kind === 'color' ? r.pigment_codes || [] : [],
-  medium: r.kind === 'color' ? r.medium || null : null,
-  opacity: r.kind === 'color' ? r.opacity || null : null,
-  pinned: Boolean(r.pinned),
-  hidden: Boolean(r.hidden),
+  note: (r.note || '').trim() || null,
+  link: (r.link || '').trim() || null,
   spot: r.spot || null,
 })
 
 /**
  * Edit my bag (design doc, item 44): snap and auto-tag. Add up to 3 photos
  * of your bag or a flat lay; the AI finds the tools and pins each one on
- * the photo. Tap a pin to fix its name, change its kind or add a short tip;
+ * the photo. Tap a pin to fix its name, change its category, add a short
+ * tip or a link;
  * tap the photo to add a tool it missed. Every change saves at once.
  */
 export default function EditKitPanel({ items: startItems, photos: startPhotos, onClose }) {
@@ -54,7 +51,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
   const [removingPhoto, setRemovingPhoto] = useState(null)
   const fileRef = useRef(null)
 
-  const tools = items.filter((i) => !isSwatchPaint(i))
+  const tools = items
   const fail = (err, fallback) => setError(typeof err?.response?.data?.detail === 'string' ? err.response.data.detail : fallback)
 
   async function readPhoto(index) {
@@ -131,8 +128,8 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
     }
   }
 
-  const editTool = (i) => { setNote(null); setDraft({ ...i, note: i.details?.note || '' }) }
-  const newTool = (spot = null) => { setNote(null); setDraft({ id: null, kind: 'extra', label: '', note: '', details: {}, spot }) }
+  const editTool = (i) => { setNote(null); setDraft({ ...i, note: i.note || '', link: i.link || '' }) }
+  const newTool = (spot = null) => { setNote(null); setDraft({ id: null, category: 'other', label: '', note: '', link: '', spot }) }
 
   return (
     <>
@@ -184,14 +181,16 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
           <div className="flex flex-col gap-2 border-[1.5px] border-ink p-3">
             <span className="ed-caption">{draft.id ? 'Edit tool' : draft.spot ? 'New tool here' : 'New tool'}</span>
             <div className="grid gap-2 md:grid-cols-[120px_1fr]">
-              <select aria-label="Kind" value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value })} className="field-input !px-2.5">
-                {KIT_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.label}</option>)}
+              <select aria-label="Category" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className="field-input !px-2.5">
+                {KIT_CATEGORIES.map((k) => <option key={k.category} value={k.category}>{k.label}</option>)}
               </select>
               <input aria-label="Name" placeholder="Name, e.g. Lamy Safari fountain pen" maxLength={80} value={draft.label} autoFocus
                 onChange={(e) => setDraft({ ...draft, label: e.target.value })} className="field-input" />
             </div>
             <input aria-label="Tip" placeholder="A short tip, e.g. extra fine nib, waterproof ink" maxLength={TIP_CHARS} value={draft.note}
               onChange={(e) => setDraft({ ...draft, note: e.target.value })} className="field-input italic" />
+            <input aria-label="Link" type="url" placeholder="Where to get it (optional link)" maxLength={300} value={draft.link}
+              onChange={(e) => setDraft({ ...draft, link: e.target.value })} className="field-input" />
             <div className="flex flex-wrap gap-2">
               <Button variant="editorialSolid" size="sm" onClick={saveDraft}>Save</Button>
               {draft.id && <Button variant="editorial" size="sm" onClick={() => removeTool(draft.id)}>Remove</Button>}
@@ -206,11 +205,11 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
             return (
               <li key={i.id} className="flex items-center gap-3 border-b border-[var(--ed-row-rule)] py-2">
                 <span className="w-16 shrink-0 text-xs font-semibold uppercase tracking-[0.08em] text-ink/60">
-                  {KIT_KINDS.find((k) => k.kind === i.kind)?.label}
+                  {KIT_CATEGORIES.find((k) => k.category === i.category)?.label}
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate">{i.label}</span>
-                  {i.details?.note && <span className="ed-note truncate">{i.details.note}</span>}
+                  {i.note && <span className="ed-note truncate">{i.note}</span>}
                 </span>
                 {i.spot && (
                   <span className="shrink-0 text-xs text-ink/50">{photos.length > 1 ? `Photo ${i.spot.photo + 1} · ` : ''}#{pinIndex + 1}</span>
@@ -228,7 +227,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
         <button type="button" onClick={() => newTool(null)} className="inline-flex min-h-9 items-center gap-1.5 self-start border border-dashed border-ink/60 px-3 text-sm font-bold">
           <Icon name="plus" size={14} /> Add a tool by hand
         </button>
-        <p className="m-0 text-xs text-ink/50">Paints with a swatch are changed in the Paint list on your page.</p>
+        <p className="m-0 text-xs text-ink/50">Your paints go in My palette on your page.</p>
       </FloatPanel>
       <ConfirmDialog
         open={removingPhoto !== null}

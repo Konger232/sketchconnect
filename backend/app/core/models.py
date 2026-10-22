@@ -218,30 +218,37 @@ class Profile(Base):
 
 class KitItem(Base):
     """
-    One tool in a sketcher's kit (design doc, item 28): a pen, a paint, a
-    brush, paper or an extra. Free text plus a few fields per kind; no
-    product database. Only `color` items take part in color matching, by
-    their pigment codes. `source` is `own` for one the sketcher typed, `ai`
-    for one they confirmed from the kit reading call (later).
+    One tool in a sketcher's bag (design doc, items 28 and 44): a category
+    from a fixed list, a name, an optional short tip and link, and its pin
+    on a bag photo. Paints are not here: they are My palette
+    (profiles.favorite_paints). `source` is `own` for one the sketcher added,
+    `ai` for one the kit reading call found.
     """
     __tablename__ = "kit_items"
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
     sketcher_id = Column(UUID(as_uuid=False), nullable=False, index=True)
 
-    kind = Column(String, nullable=False)  # line | ink | color | brush | paper | extra
+    # pen | ink | brush | paper | sketchbook | palette | clips | easel | bag | other
+    category = Column(String, nullable=False)
     label = Column(String, nullable=False)
-    details = Column(JSON, nullable=False, default=dict)
-    pigment_codes = Column(JSON, nullable=False, default=list)  # color only
-    medium = Column(String, nullable=True)  # color only: watercolor | gouache
-    opacity = Column(String, nullable=True)  # color only: transparent | opaque
-    source = Column(String, nullable=False, default="own")
-    pinned = Column(Boolean, nullable=False, default=False)
+    note = Column(String, nullable=True)   # a short tip: "extra fine nib"
+    link = Column(String, nullable=True)   # where to buy it, from the sketcher
     # Where the tool sits on a bag photo: {photo: 0-2, x, y} with x and y
-    # from 0 to 1 from the top left; none for a tool not on a photo (item 44).
+    # from 0 to 1 from the top left; none for a tool not on a photo.
     spot = Column(JSON, nullable=True)
-    hidden = Column(Boolean, nullable=False, default=False)
+    source = Column(String, nullable=False, default="own")
 
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class KitWish(Base):
+    """A tool a sketcher starred in someone else's bag: their wish list
+    (item 44). Only they see it; it goes when the tool does."""
+    __tablename__ = "kit_wishlist"
+
+    sketcher_id = Column(UUID(as_uuid=False), primary_key=True)
+    kit_item_id = Column(UUID(as_uuid=False), primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

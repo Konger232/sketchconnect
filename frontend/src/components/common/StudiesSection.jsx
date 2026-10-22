@@ -79,7 +79,7 @@ export function ColorSection({ sketch, reference }) {
     if (!username) return fallback()
     api.get(`/api/sketchers/${username}`)
       .then(({ data }) => {
-        const list = kitPaintList(data.kit || [], data.favorite_paints || [])
+        const list = kitPaintList(data.favorite_paints || [])
         setPaints(list.length ? list : starterPaints())
       })
       .catch(fallback)

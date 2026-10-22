@@ -59,22 +59,10 @@ export const BRANDS = [
 
 export const paintById = (id) => PAINTS.find((p) => p.id === id)
 
-// A kit paint's id: matched by name first (two paints share PBr7), then by
-// its first pigment code.
-export function paintForKitItem(item) {
-  const label = (item.label || '').toLowerCase()
-  return (
-    PAINTS.find((p) => label.includes(p.name.toLowerCase())) ||
-    PAINTS.find((p) => p.codes[0] === item.pigment_codes?.[0]) ||
-    null
-  )
-}
-
 export const starterPaints = () => STARTER_PALETTE.map((id) => PAINTS.find((p) => p.id === id))
 
-// The paints a sketcher mixes from: the colours in their kit and their
-// favourite palette, without repeats. Empty means use starterPaints().
-export function kitPaintList(kit = [], favorites = []) {
-  const found = [...kit.filter((i) => i.kind === 'color').map(paintForKitItem), ...favorites.map(paintById)].filter(Boolean)
-  return [...new Map(found.map((p) => [p.id, p])).values()]
+// The paints a sketcher mixes from: My palette (profiles.favorite_paints,
+// design doc item 44). Empty means use starterPaints().
+export function kitPaintList(favorites = []) {
+  return [...new Map(favorites.map(paintById).filter(Boolean).map((p) => [p.id, p])).values()]
 }

@@ -43,7 +43,7 @@ export default function BagPhotos({ photos, items, active = 0, onActive, editing
               {!editing && shown === i.id && (
                 <span className="pointer-events-none absolute left-1/2 top-full mt-1.5 w-max max-w-[220px] -translate-x-1/2 rounded-md bg-white px-2.5 py-1.5 text-left text-xs font-normal text-ink shadow-lg">
                   <span className="block font-semibold">{i.label}</span>
-                  {i.details?.note && <span className="block text-ink/70">{i.details.note}</span>}
+                  {i.note && <span className="block text-ink/70">{i.note}</span>}
                 </span>
               )}
             </button>

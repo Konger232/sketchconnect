@@ -789,11 +789,19 @@ def build(dry_run: bool, me: str | None):
             personas[a["name"]] = p
             add(p)
 
+        # The bag (item 44): paints with a pigment code are My palette
+        # (favorite_paints), not tools; the rest map to the fixed categories.
         for i, item in enumerate(s["kit"]):
-            kind, label, details, codes, medium, opacity, pinned, *hidden = item
-            add(KitItem(sketcher_id=uid, kind=kind, label=label, details=details, pigment_codes=codes, medium=medium,
-                        opacity=opacity, source="own", pinned=pinned, hidden=bool(hidden and hidden[0]),
-                        created_at=NOW - timedelta(days=200, minutes=-i)))
+            kind, label, details, codes, *_ = item
+            if kind == "color" and codes:
+                continue
+            low = label.lower()
+            category = {"line": "pen", "ink": "ink", "brush": "brush", "color": "palette"}.get(kind) or (
+                "sketchbook" if kind == "paper" and any(w in low for w in ("sketchbook", "journal", "moleskine"))
+                else "paper" if kind == "paper"
+                else "clips" if "clip" in low else "easel" if "easel" in low else "bag" if "bag" in low else "other")
+            add(KitItem(sketcher_id=uid, category=category, label=label, note=(details or {}).get("note"),
+                        source="own", created_at=NOW - timedelta(days=200, minutes=-i)))
 
         for sk in s["sketches"]:
             images = sketch_images(sk)
