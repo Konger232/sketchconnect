@@ -62,11 +62,12 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
   const [error, setError] = useState(null)
   const [draft, setDraft] = useState(null) // the tool being edited: { id?, kind, label, note, spot }
   const [removingPhoto, setRemovingPhoto] = useState(null)
+  const [readFailed, setReadFailed] = useState(null) // the photo the AI could not read, to offer Try again
   const fileRef = useRef(null)
   const formRef = useRef(null)
 
-  // On a phone, opening the form (a pin, a row, or Add gear at the bottom
-  // of the list) brings it into view, since it sits above the list.
+  // On a phone, opening the form (a pin, a row, or Add gear) brings it
+  // into view.
   const draftKey = draft ? draft.id || `new-${draft.spot ? 'spot' : 'list'}` : null
   const wide = useWide()
   useEffect(() => {
@@ -79,6 +80,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
   async function readPhoto(index) {
     setBusy('Finding your gear on this photo…')
     setError(null)
+    setReadFailed(null)
     setDraft(null)
     try {
       const { data } = await api.post('/api/kit/read', { photo: index })
@@ -87,7 +89,8 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
         ? `Found ${data.found} ${data.found === 1 ? 'piece' : 'pieces'} of gear. Tap a pin to fix a name or add a tip; tap the photo to add one it missed.`
         : 'No gear found on this photo. Tap the photo to add it yourself.')
     } catch (err) {
-      fail(err, 'Could not read the gear right now. Tap the photo to add it yourself.')
+      fail(err, 'Could not read the gear right now. Try again, or tap the photo to add it yourself.')
+      setReadFailed(index)
     } finally {
       setBusy(null)
     }
@@ -216,18 +219,24 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
           </button>
         )}
 
-        <div className="flex flex-wrap gap-2">
+        {/* The AI reads a photo once, when it is added. Try again shows
+            only when that read failed; a second read would replace the
+            pins the sketcher has already fixed. */}
+        <div className="flex flex-wrap items-center gap-2">
           {photos.length > 0 && photos.length < MAX_PHOTOS && (
             <Button variant="editorial" size="sm" disabled={Boolean(busy)} onClick={() => fileRef.current?.click()}>
               <Icon name="plus" size={14} /> Add photo
             </Button>
           )}
-          {photos.length > 0 && (
-            <>
-              <Button variant="editorial" size="sm" disabled={Boolean(busy)} onClick={() => readPhoto(active)}>Find gear again</Button>
-              <Button variant="editorial" size="sm" disabled={Boolean(busy)} onClick={() => setRemovingPhoto(active)}>Remove this photo</Button>
-            </>
+          {readFailed === active && photos.length > 0 && (
+            <Button variant="editorial" size="sm" disabled={Boolean(busy)} onClick={() => readPhoto(active)}>Try again</Button>
           )}
+          {photos.length > 0 && (
+            <Button variant="editorial" size="sm" disabled={Boolean(busy)} onClick={() => setRemovingPhoto(active)}>Remove this photo</Button>
+          )}
+          <Button variant="editorial" size="sm" className="ml-auto" disabled={Boolean(busy)} onClick={() => newTool(null)}>
+            <Icon name="plus" size={14} /> Add gear
+          </Button>
           <input ref={fileRef} type="file" accept="image/*" onChange={addPhoto} className="hidden" />
         </div>
         {note && <p className="m-0 text-sm text-ink/80">{note}</p>}
@@ -260,9 +269,6 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
             )
           })}
         </ul>
-        <button type="button" onClick={() => newTool(null)} className="inline-flex min-h-9 items-center gap-1.5 self-start border border-dashed border-ink/60 px-3 text-sm font-bold">
-          <Icon name="plus" size={14} /> Add gear
-        </button>
         <p className="m-0 text-xs text-ink/50">Your paints go in My palette on your page.</p>
       </FloatPanel>
       <ConfirmDialog
