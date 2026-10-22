@@ -31,7 +31,8 @@ router = APIRouter(prefix="/api", tags=["kit"])
 # The fixed list, in page order.
 CATEGORY_ORDER = ["pen", "ink", "brush", "paper", "sketchbook", "palette", "clips", "easel", "bag", "other"]
 MAX_KIT_PHOTOS = 3  # What's in my bag: up to 3 photos (item 44)
-MAX_NOTE_CHARS = 40
+MAX_NOTE_WORDS = 30  # the short tip: up to 30 words
+MAX_NOTE_CHARS = 300
 
 
 def _to_dict(item: KitItem) -> dict:
@@ -82,7 +83,10 @@ def _apply(item: KitItem, body: KitItemRequest) -> None:
     item.label = " ".join(body.label.split())
     if not item.label:
         raise HTTPException(422, "A tool needs a name.")
-    item.note = " ".join((body.note or "").split())[:MAX_NOTE_CHARS] or None
+    words = (body.note or "").split()
+    if len(words) > MAX_NOTE_WORDS:
+        raise HTTPException(422, f"Keep the tip to {MAX_NOTE_WORDS} words.")
+    item.note = " ".join(words)[:MAX_NOTE_CHARS] or None
     item.link = _clean_link(body.link)
     item.spot = clean_spot(body.spot)
 

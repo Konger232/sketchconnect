@@ -50,6 +50,21 @@
   .field-input {
     @apply w-full rounded-lg border border-ink/20 bg-white px-4 py-2.5 text-sm text-ink placeholder:text-ink/40 transition-colors focus:border-ink/40 focus:outline-none;
   }
+  /* A dropdown that looks the same in every browser: our own chevron,
+     with room on the right so it never touches the border. */
+  .field-select {
+    @apply field-input cursor-pointer appearance-none bg-no-repeat pr-10;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23111' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.85rem center;
+    background-size: 14px;
+  }
+  /* A styled tooltip from data-tip (shows on hover and keyboard focus). */
+  .has-tip { @apply relative; }
+  .has-tip::after {
+    content: attr(data-tip);
+    @apply pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 hidden w-max -translate-x-1/2 rounded bg-black/90 px-2 py-1 text-[11px] font-normal leading-tight text-white;
+  }
+  .has-tip:hover::after, .has-tip:focus-visible::after { @apply block; }
 
   /* Formerly base.css's .sc-photo-placeholder -- the diagonal-stripe
      swatch shown behind a sketch photo slot before a real image loads.

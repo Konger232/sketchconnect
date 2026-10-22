@@ -22,7 +22,8 @@ export const KIT_CATEGORIES = [
 ]
 
 const MAX_PHOTOS = 3
-const TIP_CHARS = 40
+const TIP_WORDS = 30 // features/kit/router.py MAX_NOTE_WORDS
+const wordCount = (t) => (t || '').trim().split(/\s+/).filter(Boolean).length
 
 // The body PUT and POST /api/kit expect.
 const body = (r) => ({
@@ -136,6 +137,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
       <FloatPanel
         placement="modal"
         title="Edit gear"
+        width="800px"
         onClose={() => onClose()}
         footer={
           <>
@@ -180,21 +182,26 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
         {draft && (
           <div className="flex flex-col gap-2 border-[1.5px] border-ink p-3">
             <span className="ed-caption">{draft.id ? 'Edit gear' : draft.spot ? 'New gear here' : 'New gear'}</span>
-            <div className="grid gap-2 md:grid-cols-[120px_1fr]">
-              <select aria-label="Category" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className="field-input !px-2.5">
+            <div className="grid gap-2 md:grid-cols-[160px_1fr]">
+              <select aria-label="Category" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className="field-select">
                 {KIT_CATEGORIES.map((k) => <option key={k.category} value={k.category}>{k.label}</option>)}
               </select>
               <input aria-label="Name" placeholder="Name, e.g. Lamy Safari fountain pen" maxLength={80} value={draft.label} autoFocus
                 onChange={(e) => setDraft({ ...draft, label: e.target.value })} className="field-input" />
             </div>
-            <input aria-label="Tip" placeholder="A short tip, e.g. extra fine nib, waterproof ink" maxLength={TIP_CHARS} value={draft.note}
-              onChange={(e) => setDraft({ ...draft, note: e.target.value })} className="field-input italic" />
+            <div className="flex flex-col gap-1">
+              <textarea aria-label="Tip" rows={1} placeholder="A short tip, e.g. extra fine nib, waterproof ink" value={draft.note}
+                onChange={(e) => setDraft({ ...draft, note: e.target.value })} className="field-input min-h-[42px] resize-y italic" />
+              <span className={`self-end text-xs ${wordCount(draft.note) > TIP_WORDS ? 'text-accent' : 'text-ink/50'}`}>
+                {wordCount(draft.note)} / {TIP_WORDS} words
+              </span>
+            </div>
             <input aria-label="Link" type="url" placeholder="Where to get it (optional link)" maxLength={300} value={draft.link}
               onChange={(e) => setDraft({ ...draft, link: e.target.value })} className="field-input" />
-            <div className="flex flex-wrap gap-2">
-              <Button variant="editorialSolid" size="sm" onClick={saveDraft}>Save</Button>
+            <div className="flex flex-wrap justify-end gap-2">
               {draft.id && <Button variant="editorial" size="sm" onClick={() => removeTool(draft.id)}>Remove</Button>}
               <Button variant="editorial" size="sm" onClick={() => setDraft(null)}>Cancel</Button>
+              <Button variant="editorialSolid" size="sm" onClick={saveDraft} disabled={wordCount(draft.note) > TIP_WORDS}>Save</Button>
             </div>
           </div>
         )}

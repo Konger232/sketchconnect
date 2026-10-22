@@ -12,7 +12,7 @@ Category = Literal["pen", "ink", "brush", "paper", "sketchbook", "palette", "cli
 class KitItemRequest(BaseModel):
     category: Category
     label: str = Field(min_length=1, max_length=80)
-    note: Optional[str] = Field(default=None, max_length=40)
+    note: Optional[str] = Field(default=None, max_length=300)  # up to 30 words
     link: Optional[str] = Field(default=None, max_length=300)
     # Its pin on a bag photo: {photo, x, y}, or none.
     spot: Optional[dict] = None

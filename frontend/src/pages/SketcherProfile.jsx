@@ -267,7 +267,7 @@ export default function SketcherProfile({ username: usernameProp }) {
           <h2 className="ed-kicker m-0">{viewer === 'owner' ? "What's in my bag" : `What's in ${firstName}'s bag`}</h2>
           {viewer === 'owner' && <Button variant="editorial" onClick={() => setPanel('kit')}>Edit gear</Button>}
         </div>
-        <div className="grid gap-8 md:grid-cols-[5fr_6fr] md:gap-14">
+        <div className="grid gap-8 md:grid-cols-[3fr_2fr] md:gap-12">
           {(page.kit_photos || []).length > 0 ? (
             <BagPhotos photos={page.kit_photos} items={page.kit} active={bagPhoto} onActive={setBagPhoto} alt={`${firstName}'s bag`} />
           ) : (

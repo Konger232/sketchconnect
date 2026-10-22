@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Icon from './Icon'
 import { imageUrl } from '../../lib/media'
 
 /**
@@ -49,7 +50,7 @@ export default function BagPhotos({ photos, items, active = 0, onActive, editing
                 {n + 1}
               </button>
               <span onClick={(e) => e.stopPropagation()}
-                className={`absolute w-max max-w-[240px] ${below ? 'top-full pt-1.5' : 'bottom-full pb-1.5'} ${right ? 'right-0' : 'left-0'} ${
+                className={`absolute w-max min-w-[160px] max-w-[260px] ${below ? 'top-full pt-1.5' : 'bottom-full pb-1.5'} ${right ? 'right-0' : 'left-0'} ${
                   open === i.id ? 'block' : 'hidden group-hover:block'
                 }`}>
                 <span className="flex flex-col gap-1.5 rounded-md bg-white px-3 py-2 text-left text-xs text-ink shadow-lg">
@@ -59,9 +60,15 @@ export default function BagPhotos({ photos, items, active = 0, onActive, editing
                     <a href={i.link} target="_blank" rel="noopener noreferrer" className="font-semibold underline">Where to buy ↗</a>
                   )}
                   {editing && (
-                    <span className="flex gap-3 pt-0.5">
-                      <button type="button" className="font-semibold underline" onClick={() => { setOpen(null); onEdit?.(i) }}>Edit</button>
-                      <button type="button" className="font-semibold text-accent underline" onClick={() => { setOpen(null); onRemove?.(i) }}>Remove</button>
+                    <span className="-mb-1 -mr-2 flex justify-end">
+                      <button type="button" aria-label={`Edit ${i.label}`} data-tip="Edit" className="has-tip ed-icon-btn !h-8 !w-8"
+                        onClick={() => { setOpen(null); onEdit?.(i) }}>
+                        <Icon name="edit" size={15} />
+                      </button>
+                      <button type="button" aria-label={`Remove ${i.label}`} data-tip="Remove" className="has-tip ed-icon-btn !h-8 !w-8"
+                        onClick={() => { setOpen(null); onRemove?.(i) }}>
+                        <Icon name="delete" size={15} />
+                      </button>
                     </span>
                   )}
                 </span>
