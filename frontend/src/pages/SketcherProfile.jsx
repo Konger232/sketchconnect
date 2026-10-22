@@ -265,7 +265,7 @@ export default function SketcherProfile({ username: usernameProp }) {
       <section className="ed-section">
         <div className="ed-section-head">
           <h2 className="ed-kicker m-0">{viewer === 'owner' ? "What's in my bag" : `What's in ${firstName}'s bag`}</h2>
-          {viewer === 'owner' && <Button variant="editorial" onClick={() => setPanel('kit')}>Edit my bag</Button>}
+          {viewer === 'owner' && <Button variant="editorial" onClick={() => setPanel('kit')}>Edit gear</Button>}
         </div>
         <div className="grid gap-8 md:grid-cols-[5fr_6fr] md:gap-14">
           {(page.kit_photos || []).length > 0 ? (
@@ -274,7 +274,7 @@ export default function SketcherProfile({ username: usernameProp }) {
             <span className="photo-placeholder relative block aspect-[4/5] w-full overflow-hidden md:aspect-auto md:min-h-[420px]">
               {viewer === 'owner' && (
                 <button type="button" onClick={() => setPanel('kit')} className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-ink/60 underline">
-                  Snap your bag: the AI finds your tools.
+                  Upload a photo of your sketch bag or your usual sketching gear to share with the community.
                 </button>
               )}
             </span>

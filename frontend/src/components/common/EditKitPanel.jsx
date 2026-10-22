@@ -55,17 +55,17 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
   const fail = (err, fallback) => setError(typeof err?.response?.data?.detail === 'string' ? err.response.data.detail : fallback)
 
   async function readPhoto(index) {
-    setBusy('Finding your tools…')
+    setBusy('Finding your gear…')
     setError(null)
     setDraft(null)
     try {
       const { data } = await api.post('/api/kit/read', { photo: index })
       setItems(data.kit)
       setNote(data.found
-        ? `Found ${data.found} ${data.found === 1 ? 'tool' : 'tools'}. Tap a pin to fix a name or add a tip; tap the photo to add one it missed.`
-        : 'No tools found on this photo. Tap the photo to add them yourself.')
+        ? `Found ${data.found} ${data.found === 1 ? 'piece' : 'pieces'} of gear. Tap a pin to fix a name or add a tip; tap the photo to add one it missed.`
+        : 'No gear found on this photo. Tap the photo to add it yourself.')
     } catch (err) {
-      fail(err, 'Could not read the tools right now. Tap the photo to add them yourself.')
+      fail(err, 'Could not read the gear right now. Tap the photo to add it yourself.')
     } finally {
       setBusy(null)
     }
@@ -105,7 +105,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
   }
 
   async function saveDraft() {
-    if (!draft.label.trim()) return setError('Every tool needs a name.')
+    if (!draft.label.trim()) return setError('Every piece of gear needs a name.')
     setError(null)
     try {
       const { data } = draft.id
@@ -114,7 +114,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
       setItems((list) => (draft.id ? list.map((i) => (i.id === data.id ? data : i)) : [...list, data]))
       setDraft(null)
     } catch (err) {
-      fail(err, 'Could not save this tool.')
+      fail(err, 'Could not save this gear.')
     }
   }
 
@@ -124,7 +124,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
       setItems((list) => list.filter((i) => i.id !== id))
       setDraft(null)
     } catch (err) {
-      fail(err, 'Could not remove this tool.')
+      fail(err, 'Could not remove this gear.')
     }
   }
 
@@ -135,7 +135,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
     <>
       <FloatPanel
         placement="modal"
-        title="Edit my bag"
+        title="Edit gear"
         onClose={() => onClose()}
         footer={
           <>
@@ -145,7 +145,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
         }
       >
         <p className="m-0 text-sm text-ink/70">
-          Snap your bag or lay your tools out flat. The AI finds them and pins each one; you fix what it got wrong. Up to {MAX_PHOTOS} photos. Changes save as you go.
+          Upload a photo of your sketch bag or your usual sketching gear to share with the community. Lay it out flat if you can. The AI finds each piece and pins it; tap a pin to fix it. Up to {MAX_PHOTOS} photos. Changes save as you go.
         </p>
 
         {photos.length > 0 ? (
@@ -155,7 +155,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
           <button type="button" onClick={() => fileRef.current?.click()} disabled={Boolean(busy)}
             className="flex min-h-[180px] flex-col items-center justify-center gap-2 border-[1.5px] border-dashed border-ink/30 p-6 text-center hover:border-ink">
             <Icon name="camera" size={22} />
-            <span className="text-sm font-semibold">{busy || 'Add a photo of your bag'}</span>
+            <span className="text-sm font-semibold">{busy || 'Add photo'}</span>
             <span className="text-xs text-ink/60">Lay the tools out, light from the side, no faces needed.</span>
           </button>
         )}
@@ -163,12 +163,12 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
         <div className="flex flex-wrap gap-2">
           {photos.length > 0 && photos.length < MAX_PHOTOS && (
             <Button variant="editorial" size="sm" disabled={Boolean(busy)} onClick={() => fileRef.current?.click()}>
-              <Icon name="plus" size={14} /> Add another photo
+              <Icon name="plus" size={14} /> Add photo
             </Button>
           )}
           {photos.length > 0 && (
             <>
-              <Button variant="editorial" size="sm" disabled={Boolean(busy)} onClick={() => readPhoto(active)}>Find tools again</Button>
+              <Button variant="editorial" size="sm" disabled={Boolean(busy)} onClick={() => readPhoto(active)}>Find gear again</Button>
               <Button variant="editorial" size="sm" disabled={Boolean(busy)} onClick={() => setRemovingPhoto(active)}>Remove this photo</Button>
             </>
           )}
@@ -179,7 +179,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
         {/* The tool being edited: a pin, a new spot, or a row below. */}
         {draft && (
           <div className="flex flex-col gap-2 border-[1.5px] border-ink p-3">
-            <span className="ed-caption">{draft.id ? 'Edit tool' : draft.spot ? 'New tool here' : 'New tool'}</span>
+            <span className="ed-caption">{draft.id ? 'Edit gear' : draft.spot ? 'New gear here' : 'New gear'}</span>
             <div className="grid gap-2 md:grid-cols-[120px_1fr]">
               <select aria-label="Category" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className="field-input !px-2.5">
                 {KIT_CATEGORIES.map((k) => <option key={k.category} value={k.category}>{k.label}</option>)}
@@ -225,14 +225,14 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
           })}
         </ul>
         <button type="button" onClick={() => newTool(null)} className="inline-flex min-h-9 items-center gap-1.5 self-start border border-dashed border-ink/60 px-3 text-sm font-bold">
-          <Icon name="plus" size={14} /> Add a tool by hand
+          <Icon name="plus" size={14} /> Add gear
         </button>
         <p className="m-0 text-xs text-ink/50">Your paints go in My palette on your page.</p>
       </FloatPanel>
       <ConfirmDialog
         open={removingPhoto !== null}
         title="Remove this photo?"
-        message="Its tools stay in your bag, without their pins."
+        message="Its gear stays in your bag, without the pins."
         confirmLabel="Remove"
         cancelLabel="Keep it"
         onConfirm={() => removePhoto(removingPhoto)}
