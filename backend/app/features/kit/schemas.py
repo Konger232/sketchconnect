@@ -18,3 +18,9 @@ class KitItemRequest(BaseModel):
     opacity: Optional[Literal["transparent", "opaque"]] = None
     pinned: bool = False
     hidden: bool = False
+    # Its pin on a bag photo (item 44): {photo, x, y}, or none.
+    spot: Optional[dict] = None
+
+
+class KitReadRequest(BaseModel):
+    photo: int = Field(ge=0, le=2)

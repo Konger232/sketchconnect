@@ -8,6 +8,7 @@ import SketchListMapView from '../components/common/SketchListMapView'
 import { useAuth } from '../components/common/AuthContext'
 import AdmiredPanel from '../components/common/AdmiredPanel'
 import EditKitPanel, { KIT_KINDS, isSwatchPaint } from '../components/common/EditKitPanel'
+import BagPhotos from '../components/common/BagPhotos'
 import EditProfilePanel from '../components/common/EditProfilePanel'
 import FeaturedSlideshow from '../components/common/FeaturedSlideshow'
 import FollowersPanel from '../components/common/FollowersPanel'
@@ -45,6 +46,7 @@ export default function SketcherProfile({ username: usernameProp }) {
   const [panel, setPanel] = useState(null) // 'profile' | 'kit' | 'admired' | 'followers'
   const [place, setPlace] = useState(null)
   const [filter, setFilter] = useState('') // the search bar over the sketches
+  const [bagPhoto, setBagPhoto] = useState(0) // the bag photo shown
   const [busyFollow, setBusyFollow] = useState(false)
   const [paintEdit, setPaintEdit] = useState(null) // { mode, item?, top }
   const paintBoxRef = useRef(null)
@@ -205,7 +207,7 @@ export default function SketcherProfile({ username: usernameProp }) {
         />
       )}
       {panel === 'kit' && (
-        <EditKitPanel items={page.kit} kitPhotoUrl={page.kit_photo_url} onClose={() => { setPanel(null); load() }} onSaved={() => { setPanel(null); load() }} />
+        <EditKitPanel items={page.kit} photos={page.kit_photos || []} onClose={() => { setPanel(null); load() }} />
       )}
       {panel === 'admired' && (
         <AdmiredPanel list={page.admired || []} onClose={() => setPanel(null)} onChange={(list) => setPage((p) => ({ ...p, admired: list }))} />
@@ -251,21 +253,26 @@ export default function SketcherProfile({ username: usernameProp }) {
         <FeaturedSlideshow sketches={featured} />
       </section>
 
-      {/* ---- 2. The kit ---- */}
+      {/* ---- 2. What's in my bag (design doc, item 44) ---- */}
       <section className="ed-section">
         <div className="ed-section-head">
-          <h2 className="ed-kicker m-0">What {firstName} carries</h2>
-          {viewer === 'owner' && <Button variant="editorial" onClick={() => setPanel('kit')}>Edit kit</Button>}
+          <h2 className="ed-kicker m-0">{viewer === 'owner' ? "What's in my bag" : `What's in ${firstName}'s bag`}</h2>
+          {viewer === 'owner' && <Button variant="editorial" onClick={() => setPanel('kit')}>Edit my bag</Button>}
         </div>
         <div className="grid gap-8 md:grid-cols-[5fr_6fr] md:gap-14">
-          <span className="photo-placeholder relative block aspect-[4/5] w-full overflow-hidden md:aspect-auto md:min-h-[420px]">
-            {page.kit_photo_url && <img src={imageUrl(page.kit_photo_url)} alt={`${firstName}'s kit`} className="absolute inset-0 h-full w-full object-cover" />}
-            {!page.kit_photo_url && viewer === 'owner' && (
-              <span className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-ink/60">Add a photo of your kit in Edit kit.</span>
-            )}
-          </span>
+          {(page.kit_photos || []).length > 0 ? (
+            <BagPhotos photos={page.kit_photos} items={page.kit} active={bagPhoto} onActive={setBagPhoto} alt={`${firstName}'s bag`} />
+          ) : (
+            <span className="photo-placeholder relative block aspect-[4/5] w-full overflow-hidden md:aspect-auto md:min-h-[420px]">
+              {viewer === 'owner' && (
+                <button type="button" onClick={() => setPanel('kit')} className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-ink/60 underline">
+                  Snap your bag: the AI finds your tools.
+                </button>
+              )}
+            </span>
+          )}
           <dl className="m-0 border-t border-[var(--ed-row-rule)]">
-            {page.kit.length === 0 && viewer !== 'owner' && <p className="py-4 text-sm text-ink/50">No kit listed yet.</p>}
+            {page.kit.length === 0 && viewer !== 'owner' && <p className="py-4 text-sm text-ink/50">Nothing in the bag yet.</p>}
             {KIT_KINDS.map(({ kind, label }) => {
               const items = kitByKind(kind).filter((i) => !isSwatchPaint(i))
               const showPaints = kind === 'color' && (swatchPaints.length > 0 || viewer === 'owner')

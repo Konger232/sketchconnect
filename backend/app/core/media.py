@@ -121,7 +121,7 @@ class MediaLinkMiddleware(BaseHTTPMiddleware):
 
 def _owner_name(name: str) -> str | None:
     """Whose image this is, for the copyright note in the file."""
-    from sqlalchemy import or_
+    from sqlalchemy import Text, cast, or_
     from app.core.database import SessionLocal
     from app.core.models import Profile, Sketch, SketchUpload
     url = f"/uploads/{name}"
@@ -132,7 +132,9 @@ def _owner_name(name: str) -> str | None:
                 Sketch.reference_image_url == url, Sketch.final_sketch_url == url, Sketch.original_image_url == url,
             )).first()
             or db.query(SketchUpload.sketcher_id).filter(SketchUpload.url == url).first()
-            or db.query(Profile.id).filter(or_(Profile.kit_photo_url == url, Profile.avatar_url == url)).first()
+            or db.query(Profile.id).filter(or_(
+                Profile.kit_photo_url == url, Profile.avatar_url == url, cast(Profile.kit_photos, Text).contains(url),
+            )).first()
         )
         if not owner:
             return None

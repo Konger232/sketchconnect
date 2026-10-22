@@ -208,7 +208,9 @@ class Profile(Base):
     bio = Column(Text, nullable=True)
     links = Column(JSON, nullable=True)
     featured_sketch_ids = Column(JSON, nullable=True)
-    kit_photo_url = Column(String, nullable=True)
+    kit_photo_url = Column(String, nullable=True)  # the first bag photo, before kit_photos
+    # What's in my bag: up to 3 photos, "/uploads/<file>" (design doc, item 44).
+    kit_photos = Column(JSON, nullable=True)
     # My favorite palette: pigment codes, in the paint editor (item 36).
     favorite_paints = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -235,6 +237,9 @@ class KitItem(Base):
     opacity = Column(String, nullable=True)  # color only: transparent | opaque
     source = Column(String, nullable=False, default="own")
     pinned = Column(Boolean, nullable=False, default=False)
+    # Where the tool sits on a bag photo: {photo: 0-2, x, y} with x and y
+    # from 0 to 1 from the top left; none for a tool not on a photo (item 44).
+    spot = Column(JSON, nullable=True)
     hidden = Column(Boolean, nullable=False, default=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)

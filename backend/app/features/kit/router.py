@@ -20,9 +20,11 @@ from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_sketcher_id
 from app.core.database import get_db
-from app.core.models import KitItem
-from app.features.kit.schemas import KitItemRequest
+from app.core.models import KitItem, Profile
+from app.features.kit.schemas import KitItemRequest, KitReadRequest
 from config import MAX_KIT_ITEMS
+
+MAX_KIT_PHOTOS = 3  # What's in my bag: up to 3 photos (item 44)
 
 router = APIRouter(prefix="/api", tags=["kit"])
 
@@ -98,6 +100,21 @@ def _apply(item: KitItem, body: KitItemRequest) -> None:
     item.opacity = body.opacity if is_color else None
     item.pinned = body.pinned
     item.hidden = body.hidden
+    item.spot = clean_spot(body.spot)
+
+
+def clean_spot(spot: dict | None) -> dict | None:
+    """A pin on a bag photo: {photo: 0-2, x, y}, x and y from 0 to 1."""
+    if not isinstance(spot, dict):
+        return None
+    try:
+        photo = int(spot.get("photo"))
+        x, y = float(spot.get("x")), float(spot.get("y"))
+    except (TypeError, ValueError):
+        return None
+    if not 0 <= photo < MAX_KIT_PHOTOS:
+        return None
+    return {"photo": photo, "x": round(min(1.0, max(0.0, x)), 3), "y": round(min(1.0, max(0.0, y)), 3)}
 
 
 def _to_dict(item: KitItem) -> dict:
@@ -112,6 +129,7 @@ def _to_dict(item: KitItem) -> dict:
         "source": item.source,
         "pinned": item.pinned,
         "hidden": item.hidden,
+        "spot": item.spot,
         "created_at": item.created_at,
     }
 
@@ -175,3 +193,59 @@ async def delete_kit_item(
     db.delete(item)
     db.commit()
     return {"deleted": True}
+
+
+def kit_photos(profile: Profile | None) -> list[str]:
+    """The bag photos, oldest first; the single kit photo from before."""
+    if profile is None:
+        return []
+    if profile.kit_photos:
+        return list(profile.kit_photos)[:MAX_KIT_PHOTOS]
+    return [profile.kit_photo_url] if profile.kit_photo_url else []
+
+
+@router.post("/kit/read")
+def read_kit_photo(
+    body: KitReadRequest,
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """
+    The kit reading call (item 44): find the tools on one bag photo and add
+    each as a tool with a pin (source `ai`). Tools found on this photo
+    before are replaced; tools the sketcher added by hand stay. Returns the
+    whole kit.
+    """
+    from PIL import Image, ImageOps
+    from app.core.paths import UPLOAD_DIR
+    from app.features.kit.service import read_kit
+    photos = kit_photos(db.get(Profile, sketcher_id))
+    if body.photo >= len(photos):
+        raise HTTPException(404, "No bag photo there")
+    try:
+        img = ImageOps.exif_transpose(Image.open(UPLOAD_DIR / photos[body.photo].rsplit("/", 1)[-1])).convert("RGB")
+    except Exception:
+        raise HTTPException(400, "Could not read that photo")
+    img.thumbnail((1600, 1600))
+    try:
+        tools = read_kit(img)
+    except Exception as exc:
+        print(f"[kit] reading failed: {exc}")
+        raise HTTPException(502, "Could not read the tools right now. Try again, or add them by hand.")
+
+    mine = db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id).all()
+    for item in mine:
+        if item.source == "ai" and (item.spot or {}).get("photo") == body.photo:
+            db.delete(item)
+    db.flush()
+    room = MAX_KIT_ITEMS - db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id).count()
+    for t in tools[: max(0, room)]:
+        db.add(KitItem(
+            sketcher_id=sketcher_id, source="ai", kind=t["kind"], label=t["label"],
+            details={"note": t["note"]} if t["note"] else {}, pigment_codes=[],
+            spot={"photo": body.photo, "x": t["x"], "y": t["y"]},
+        ))
+    db.commit()
+    rows = db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id).all()
+    rows.sort(key=lambda i: (KIND_ORDER.index(i.kind), not i.pinned, i.created_at))
+    return {"found": len(tools), "kit": [_to_dict(i) for i in rows]}

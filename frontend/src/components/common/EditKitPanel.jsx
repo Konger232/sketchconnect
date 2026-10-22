@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import BagPhotos from './BagPhotos'
 import Button from './Button'
 import ConfirmDialog from './ConfirmDialog'
 import FloatPanel from './FloatPanel'
 import Icon from './Icon'
 import { api } from '../../lib/api'
-import { imageUrl } from '../../lib/media'
 
-// The kit's categories, in page order (design handoff: "What {name}
-// carries"). Keys are kit_items.kind (features/kit/router.py).
+// The kit's categories, in page order. Keys are kit_items.kind
+// (features/kit/router.py).
 export const KIT_KINDS = [
   { kind: 'line', label: 'Pens' },
   { kind: 'ink', label: 'Ink' },
@@ -18,141 +18,226 @@ export const KIT_KINDS = [
 ]
 
 // A paint with a pigment code is a swatch row, edited with PaintEditor on
-// the page. Every other tool is a name and a note, edited here.
+// the page. Every other tool is a name and a tip, edited here.
 export const isSwatchPaint = (item) => item.kind === 'color' && item.pigment_codes?.length > 0
 
-let tempId = 0
+const MAX_PHOTOS = 3
+const TIP_CHARS = 40
+
+// The full body PUT and POST /api/kit expect.
+const body = (r) => ({
+  kind: r.kind,
+  label: r.label.trim(),
+  details: { ...(r.details || {}), note: (r.note || '').trim() },
+  pigment_codes: r.kind === 'color' ? r.pigment_codes || [] : [],
+  medium: r.kind === 'color' ? r.medium || null : null,
+  opacity: r.kind === 'color' ? r.opacity || null : null,
+  pinned: Boolean(r.pinned),
+  hidden: Boolean(r.hidden),
+  spot: r.spot || null,
+})
 
 /**
- * Edit kit (design handoff): replace the kit photo, then one row per tool:
- * category, name, note, remove; and "Add item". A modal FloatPanel. The
- * photo uploads straight away (POST /api/profile/kit-photo); the rows save
- * together on Save, through /api/kit. Reading the tools from the photo
- * (the kit reading call) comes later.
+ * Edit my bag (design doc, item 44): snap and auto-tag. Add up to 3 photos
+ * of your bag or a flat lay; the AI finds the tools and pins each one on
+ * the photo. Tap a pin to fix its name, change its kind or add a short tip;
+ * tap the photo to add a tool it missed. Every change saves at once.
  */
-export default function EditKitPanel({ items, kitPhotoUrl, onClose, onSaved }) {
-  const start = items.filter((i) => !isSwatchPaint(i))
-  const [rows, setRows] = useState(start.map((i) => ({ ...i, note: i.details?.note || '' })))
-  const [photo, setPhoto] = useState(kitPhotoUrl)
-  const [uploading, setUploading] = useState(false)
-  const [saving, setSaving] = useState(false)
+export default function EditKitPanel({ items: startItems, photos: startPhotos, onClose }) {
+  const [items, setItems] = useState(startItems)
+  const [photos, setPhotos] = useState(startPhotos || [])
+  const [active, setActive] = useState(0)
+  const [busy, setBusy] = useState(null) // a line over the photo while the AI reads it
+  const [note, setNote] = useState(null) // what just happened
   const [error, setError] = useState(null)
-  const [dirty, setDirty] = useState(false)
-  const [confirmClose, setConfirmClose] = useState(false)
+  const [draft, setDraft] = useState(null) // the tool being edited: { id?, kind, label, note, spot }
+  const [removingPhoto, setRemovingPhoto] = useState(null)
+  const fileRef = useRef(null)
 
-  const update = (id, key, value) => { setDirty(true); setRows((rs) => rs.map((r) => (r.id === id ? { ...r, [key]: value } : r))) }
-  const remove = (id) => { setDirty(true); setRows((rs) => rs.filter((r) => r.id !== id)) }
-  const add = () => { setDirty(true); setRows((rs) => [...rs, { id: `new-${++tempId}`, isNew: true, kind: 'line', label: '', note: '', details: {} }]) }
+  const tools = items.filter((i) => !isSwatchPaint(i))
+  const fail = (err, fallback) => setError(typeof err?.response?.data?.detail === 'string' ? err.response.data.detail : fallback)
 
-  async function replacePhoto(e) {
+  async function readPhoto(index) {
+    setBusy('Finding your tools…')
+    setError(null)
+    setDraft(null)
+    try {
+      const { data } = await api.post('/api/kit/read', { photo: index })
+      setItems(data.kit)
+      setNote(data.found
+        ? `Found ${data.found} ${data.found === 1 ? 'tool' : 'tools'}. Tap a pin to fix a name or add a tip; tap the photo to add one it missed.`
+        : 'No tools found on this photo. Tap the photo to add them yourself.')
+    } catch (err) {
+      fail(err, 'Could not read the tools right now. Tap the photo to add them yourself.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function addPhoto(e) {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
-    setUploading(true)
+    setBusy('Uploading…')
     setError(null)
     try {
       const form = new FormData()
       form.append('image', file)
-      const { data } = await api.post('/api/profile/kit-photo', form)
-      setPhoto(data.kit_photo_url)
+      const { data } = await api.post('/api/profile/kit-photos', form)
+      setPhotos(data.kit_photos)
+      setActive(data.index)
+      await readPhoto(data.index)
     } catch (err) {
-      setError(err.response?.data?.detail || 'Could not upload the photo.')
-    } finally {
-      setUploading(false)
+      fail(err, 'Could not upload the photo.')
+      setBusy(null)
     }
   }
 
-  const body = (r) => ({
-    kind: r.kind,
-    label: r.label.trim(),
-    details: { ...(r.details || {}), note: r.note.trim() },
-    pigment_codes: r.kind === 'color' ? r.pigment_codes || [] : [],
-    medium: r.kind === 'color' ? r.medium || null : null,
-    opacity: r.kind === 'color' ? r.opacity || null : null,
-    pinned: Boolean(r.pinned),
-    hidden: Boolean(r.hidden),
-  })
+  async function removePhoto(index) {
+    setRemovingPhoto(null)
+    try {
+      const { data } = await api.delete(`/api/profile/kit-photos/${index}`)
+      setPhotos(data.kit_photos)
+      setActive(0)
+      setDraft(null)
+      const kit = await api.get('/api/kit')
+      setItems(kit.data)
+    } catch (err) {
+      fail(err, 'Could not remove the photo.')
+    }
+  }
 
-  async function save() {
-    const blank = rows.find((r) => !r.label.trim())
-    if (blank) return setError('Every tool needs a name.')
-    setSaving(true)
+  async function saveDraft() {
+    if (!draft.label.trim()) return setError('Every tool needs a name.')
     setError(null)
     try {
-      const keep = new Set(rows.map((r) => r.id))
-      const before = Object.fromEntries(start.map((i) => [i.id, i]))
-      await Promise.all(start.filter((i) => !keep.has(i.id)).map((i) => api.delete(`/api/kit/${i.id}`)))
-      for (const r of rows) {
-        if (r.isNew) await api.post('/api/kit', body(r))
-        else {
-          const b = before[r.id]
-          if (b.kind !== r.kind || b.label !== r.label || (b.details?.note || '') !== r.note) await api.put(`/api/kit/${r.id}`, body(r))
-        }
-      }
-      onSaved?.(photo)
+      const { data } = draft.id
+        ? await api.put(`/api/kit/${draft.id}`, body(draft))
+        : await api.post('/api/kit', body(draft))
+      setItems((list) => (draft.id ? list.map((i) => (i.id === data.id ? data : i)) : [...list, data]))
+      setDraft(null)
     } catch (err) {
-      const d = err.response?.data?.detail
-      setError(typeof d === 'string' ? d : 'Could not save your kit.')
-    } finally {
-      setSaving(false)
+      fail(err, 'Could not save this tool.')
     }
   }
 
-  const requestClose = () => (dirty ? setConfirmClose(true) : onClose(photo))
+  async function removeTool(id) {
+    try {
+      await api.delete(`/api/kit/${id}`)
+      setItems((list) => list.filter((i) => i.id !== id))
+      setDraft(null)
+    } catch (err) {
+      fail(err, 'Could not remove this tool.')
+    }
+  }
+
+  const editTool = (i) => { setNote(null); setDraft({ ...i, note: i.details?.note || '' }) }
+  const newTool = (spot = null) => { setNote(null); setDraft({ id: null, kind: 'extra', label: '', note: '', details: {}, spot }) }
 
   return (
     <>
       <FloatPanel
         placement="modal"
-        title="Edit kit"
-        onClose={requestClose}
+        title="Edit my bag"
+        onClose={() => onClose()}
         footer={
           <>
             {error && <span className="mr-auto text-sm text-accent">{error}</span>}
-            <Button variant="editorial" size="sm" onClick={requestClose}>Cancel</Button>
-            <Button variant="action" onClick={save} disabled={saving || uploading}>{saving ? 'Saving…' : 'Save'}</Button>
+            <Button variant="action" onClick={() => onClose()} disabled={Boolean(busy)}>Done</Button>
           </>
         }
       >
-        <div className="flex items-center gap-4">
-          <span className="photo-placeholder relative block h-20 w-16 shrink-0 overflow-hidden">
-            {photo && <img src={imageUrl(photo)} alt="Your kit" className="absolute inset-0 h-full w-full object-cover" />}
-          </span>
-          <label className="cursor-pointer">
-            <span className="inline-flex min-h-10 items-center border-[1.5px] border-ink px-3.5 text-sm font-bold text-ink">
-              {uploading ? 'Uploading…' : photo ? 'Replace kit photo' : 'Add kit photo'}
-            </span>
-            <input type="file" accept="image/*" onChange={replacePhoto} disabled={uploading} className="hidden" />
-          </label>
-        </div>
+        <p className="m-0 text-sm text-ink/70">
+          Snap your bag or lay your tools out flat. The AI finds them and pins each one; you fix what it got wrong. Up to {MAX_PHOTOS} photos. Changes save as you go.
+        </p>
 
-        <ul className="flex flex-col">
-          {rows.map((r) => (
-            <li key={r.id} className="grid grid-cols-[1fr_auto] gap-2 border-b border-[var(--ed-row-rule)] py-2.5 md:grid-cols-[110px_1fr_1fr_auto] md:items-center">
-              <select aria-label="Category" value={r.kind} onChange={(e) => update(r.id, 'kind', e.target.value)} className="field-input !px-2.5 max-md:col-span-1">
+        {photos.length > 0 ? (
+          <BagPhotos photos={photos} items={items} active={active} onActive={(k) => { setActive(k); setDraft(null) }}
+            editing selectedId={draft?.id} onPin={editTool} onSpot={(spot) => newTool(spot)} busy={busy} alt="Your bag" />
+        ) : (
+          <button type="button" onClick={() => fileRef.current?.click()} disabled={Boolean(busy)}
+            className="flex min-h-[180px] flex-col items-center justify-center gap-2 border-[1.5px] border-dashed border-ink/30 p-6 text-center hover:border-ink">
+            <Icon name="camera" size={22} />
+            <span className="text-sm font-semibold">{busy || 'Add a photo of your bag'}</span>
+            <span className="text-xs text-ink/60">Lay the tools out, light from the side, no faces needed.</span>
+          </button>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          {photos.length > 0 && photos.length < MAX_PHOTOS && (
+            <Button variant="editorial" size="sm" disabled={Boolean(busy)} onClick={() => fileRef.current?.click()}>
+              <Icon name="plus" size={14} /> Add another photo
+            </Button>
+          )}
+          {photos.length > 0 && (
+            <>
+              <Button variant="editorial" size="sm" disabled={Boolean(busy)} onClick={() => readPhoto(active)}>Find tools again</Button>
+              <Button variant="editorial" size="sm" disabled={Boolean(busy)} onClick={() => setRemovingPhoto(active)}>Remove this photo</Button>
+            </>
+          )}
+          <input ref={fileRef} type="file" accept="image/*" onChange={addPhoto} className="hidden" />
+        </div>
+        {note && <p className="m-0 text-sm text-ink/80">{note}</p>}
+
+        {/* The tool being edited: a pin, a new spot, or a row below. */}
+        {draft && (
+          <div className="flex flex-col gap-2 border-[1.5px] border-ink p-3">
+            <span className="ed-caption">{draft.id ? 'Edit tool' : draft.spot ? 'New tool here' : 'New tool'}</span>
+            <div className="grid gap-2 md:grid-cols-[120px_1fr]">
+              <select aria-label="Kind" value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value })} className="field-input !px-2.5">
                 {KIT_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.label}</option>)}
               </select>
-              <button type="button" aria-label="Remove" onClick={() => remove(r.id)} className="ed-icon-btn md:order-last">
-                <Icon name="close" size={12} />
-              </button>
-              <input aria-label="Name" placeholder="Name" maxLength={80} value={r.label} onChange={(e) => update(r.id, 'label', e.target.value)}
-                className="field-input max-md:col-span-2" />
-              <input aria-label="Note" placeholder="Note" maxLength={80} value={r.note} onChange={(e) => update(r.id, 'note', e.target.value)}
-                className="field-input italic max-md:col-span-2" />
-            </li>
-          ))}
+              <input aria-label="Name" placeholder="Name, e.g. Lamy Safari fountain pen" maxLength={80} value={draft.label} autoFocus
+                onChange={(e) => setDraft({ ...draft, label: e.target.value })} className="field-input" />
+            </div>
+            <input aria-label="Tip" placeholder="A short tip, e.g. extra fine nib, waterproof ink" maxLength={TIP_CHARS} value={draft.note}
+              onChange={(e) => setDraft({ ...draft, note: e.target.value })} className="field-input italic" />
+            <div className="flex flex-wrap gap-2">
+              <Button variant="editorialSolid" size="sm" onClick={saveDraft}>Save</Button>
+              {draft.id && <Button variant="editorial" size="sm" onClick={() => removeTool(draft.id)}>Remove</Button>}
+              <Button variant="editorial" size="sm" onClick={() => setDraft(null)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+
+        <ul className="m-0 flex list-none flex-col p-0">
+          {tools.map((i) => {
+            const pinIndex = items.filter((x) => x.spot && x.spot.photo === i.spot?.photo).indexOf(i)
+            return (
+              <li key={i.id} className="flex items-center gap-3 border-b border-[var(--ed-row-rule)] py-2">
+                <span className="w-16 shrink-0 text-xs font-semibold uppercase tracking-[0.08em] text-ink/60">
+                  {KIT_KINDS.find((k) => k.kind === i.kind)?.label}
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate">{i.label}</span>
+                  {i.details?.note && <span className="ed-note truncate">{i.details.note}</span>}
+                </span>
+                {i.spot && (
+                  <span className="shrink-0 text-xs text-ink/50">{photos.length > 1 ? `Photo ${i.spot.photo + 1} · ` : ''}#{pinIndex + 1}</span>
+                )}
+                <button type="button" className="ed-icon-btn" aria-label={`Edit ${i.label}`} onClick={() => { if (i.spot) setActive(i.spot.photo); editTool(i) }}>
+                  <Icon name="edit" size={14} />
+                </button>
+                <button type="button" className="ed-icon-btn" aria-label={`Remove ${i.label}`} onClick={() => removeTool(i.id)}>
+                  <Icon name="close" size={12} />
+                </button>
+              </li>
+            )
+          })}
         </ul>
-        <button type="button" onClick={add} className="inline-flex min-h-9 items-center gap-1.5 self-start border border-dashed border-ink/60 px-3 text-sm font-bold">
-          <Icon name="plus" size={14} /> Add item
+        <button type="button" onClick={() => newTool(null)} className="inline-flex min-h-9 items-center gap-1.5 self-start border border-dashed border-ink/60 px-3 text-sm font-bold">
+          <Icon name="plus" size={14} /> Add a tool by hand
         </button>
-        <p className="text-xs text-ink/50">Paints with a swatch are changed in the Paint list on your page.</p>
+        <p className="m-0 text-xs text-ink/50">Paints with a swatch are changed in the Paint list on your page.</p>
       </FloatPanel>
       <ConfirmDialog
-        open={confirmClose}
-        title="Discard changes?"
-        confirmLabel="Discard"
-        cancelLabel="Keep editing"
-        onConfirm={() => { setConfirmClose(false); onClose(photo) }}
-        onCancel={() => setConfirmClose(false)}
+        open={removingPhoto !== null}
+        title="Remove this photo?"
+        message="Its tools stay in your bag, without their pins."
+        confirmLabel="Remove"
+        cancelLabel="Keep it"
+        onConfirm={() => removePhoto(removingPhoto)}
+        onCancel={() => setRemovingPhoto(null)}
       />
     </>
   )

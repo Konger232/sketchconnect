@@ -8,7 +8,7 @@ the Google name and photo when there are any, and a username made from the
 name or the email (core/usernames.py). A profile from before usernames gets
 one the next time it is read.
 
-POST /api/profile/kit-photo -- the photo of the sketcher's kit.
+POST /api/profile/kit-photos, DELETE /api/profile/kit-photos/{i} -- What's in my bag: up to 3 photos (item 44).
 """
 import io
 import re
@@ -26,6 +26,8 @@ from app.core.models import Profile, Sketch
 from app.core.paths import UPLOAD_DIR
 from app.features.profile.schemas import ProfileUpdateRequest
 from app.core.media import stored_url
+from app.core.models import KitItem
+from app.features.kit.router import MAX_KIT_PHOTOS, kit_photos
 
 router = APIRouter(prefix="/api", tags=["profile"])
 
@@ -50,6 +52,7 @@ def _profile_to_dict(p: Profile) -> dict:
         "favorite_paints": p.favorite_paints or [],
         "featured_sketch_ids": p.featured_sketch_ids or [],
         "kit_photo_url": p.kit_photo_url,
+        "kit_photos": kit_photos(p),
     }
 
 
@@ -143,28 +146,53 @@ async def update_profile(
     return _profile_to_dict(profile)
 
 
-@router.post("/profile/kit-photo")
-async def upload_kit_photo(
+@router.post("/profile/kit-photos")
+async def add_kit_photo(
     image: UploadFile = File(...),
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
-    """The photo of the sketcher's kit, shown on their sketcher page
-    (design doc, items 28 and 36). Replaces the last one. Reading the tools
-    from it (the kit reading call) comes later."""
+    """What's in my bag (item 44): add a bag photo, up to 3. The app then
+    asks the kit reading call to find the tools on it (POST /api/kit/read)."""
+    profile = _get_or_create_profile(db, sketcher_id)
+    photos = kit_photos(profile)
+    if len(photos) >= MAX_KIT_PHOTOS:
+        raise HTTPException(422, f"Your bag holds at most {MAX_KIT_PHOTOS} photos. Remove one first.")
     contents = await image.read()
     try:
         pil = ImageOps.exif_transpose(Image.open(io.BytesIO(contents))).convert("RGB")
     except Exception:
         raise HTTPException(400, "Could not read that photo")
-    pil.thumbnail((1600, 1600))
+    pil.thumbnail((2000, 2000))
     filename = f"kit_{uuid.uuid4()}.jpg"
     pil.save(UPLOAD_DIR / filename, format="JPEG", quality=88)
-    profile = _get_or_create_profile(db, sketcher_id)
-    old = profile.kit_photo_url
-    profile.kit_photo_url = f"/uploads/{filename}"
+    profile.kit_photos = photos + [f"/uploads/{filename}"]
+    profile.kit_photo_url = profile.kit_photos[0]
     db.commit()
-    if old:
-        (UPLOAD_DIR / old.rsplit("/", 1)[-1]).unlink(missing_ok=True)
-    return {"kit_photo_url": profile.kit_photo_url}
+    return {"kit_photos": profile.kit_photos, "index": len(profile.kit_photos) - 1}
 
+
+@router.delete("/profile/kit-photos/{index}")
+async def remove_kit_photo(
+    index: int,
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """Remove a bag photo. Its tools stay in the kit, without their pins;
+    the pins on later photos follow them down one place."""
+    profile = _get_or_create_profile(db, sketcher_id)
+    photos = kit_photos(profile)
+    if not 0 <= index < len(photos):
+        raise HTTPException(404, "No bag photo there")
+    gone = photos.pop(index)
+    profile.kit_photos = photos
+    profile.kit_photo_url = photos[0] if photos else None
+    for item in db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id).all():
+        spot = item.spot or {}
+        if spot.get("photo") == index:
+            item.spot = None
+        elif isinstance(spot.get("photo"), int) and spot["photo"] > index:
+            item.spot = {**spot, "photo": spot["photo"] - 1}
+    db.commit()
+    (UPLOAD_DIR / gone.rsplit("/", 1)[-1]).unlink(missing_ok=True)
+    return {"kit_photos": photos}

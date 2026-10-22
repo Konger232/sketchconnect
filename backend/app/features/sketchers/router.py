@@ -21,7 +21,7 @@ from app.core.auth import get_optional_sketcher_id
 from app.core.database import get_db
 from app.core.models import KitItem, Profile, Sketch, SketchComment, SketchLike
 from app.features.community.router import follow_counts, is_following
-from app.features.kit.router import KIND_ORDER, _to_dict as kit_item_to_dict
+from app.features.kit.router import KIND_ORDER, _to_dict as kit_item_to_dict, kit_photos
 from app.features.persona.router import admired_list, admired_to_dict
 from app.features.sketches.router import _sketch_card, card_query
 from app.core.visibility import visible_filter
@@ -83,6 +83,7 @@ def get_sketcher(
         "is_following": is_following(db, viewer_id, profile.id),
         "featured": [_sketch_card(s) for s in featured],
         "kit_photo_url": profile.kit_photo_url,
+        "kit_photos": kit_photos(profile),
         "kit": [kit_item_to_dict(i) for i in kit_rows],
         # My favorite palette: paint ids from the paint list (data/paints.js).
         "favorite_paints": profile.favorite_paints or [],

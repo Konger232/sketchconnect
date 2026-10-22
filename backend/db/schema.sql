@@ -240,3 +240,10 @@ end $$;
 -- (design doc, item 39, October 22, 2026). Safe to run again.
 alter table sketches add column if not exists style_detected text;
 alter table sketches add column if not exists style_confirmed boolean;
+
+-- What's in my bag (design doc, item 44, October 22, 2026): up to 3 bag
+-- photos, and each tool's pin on one. Safe to run again.
+alter table profiles add column if not exists kit_photos jsonb;
+update profiles set kit_photos = jsonb_build_array(kit_photo_url)
+  where kit_photos is null and kit_photo_url is not null;
+alter table kit_items add column if not exists spot jsonb;
