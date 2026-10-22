@@ -92,6 +92,8 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
         "gamut_mask": s.gamut_mask,
         "visibility": s.visibility or "members",
         "glazed": bool(s.glazed),
+        "style_detected": s.style_detected,
+        "style_confirmed": s.style_confirmed,
         # The latest critique's text, if any -- this is what
         # SketchCard.jsx's feed view shows as the sketch's description,
         # with a Read more/Show less toggle once it runs long. None (not
@@ -380,6 +382,10 @@ async def update_sketch(
         sketch.visibility = body.visibility
     if body.glazed is not None:
         sketch.glazed = body.glazed
+    if body.style_confirmed is not None:
+        sketch.style_confirmed = body.style_confirmed
+        if body.style_confirmed and sketch.style_detected:
+            sketch.style = sketch.style_detected
     if body.captured_at is not None:
         sketch.captured_at = body.captured_at
 

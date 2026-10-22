@@ -235,3 +235,8 @@ begin
       check (visibility in ('members', 'followers', 'private'));
   end if;
 end $$;
+
+-- The style the coach sees in the final sketch, and the sketcher's answer
+-- (design doc, item 39, October 22, 2026). Safe to run again.
+alter table sketches add column if not exists style_detected text;
+alter table sketches add column if not exists style_confirmed boolean;

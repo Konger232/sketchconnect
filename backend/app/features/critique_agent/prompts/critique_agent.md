@@ -70,6 +70,9 @@ Speak to the sketcher as '$persona_label' ($persona_voice, tone: $persona_tone),
 # 4. prior_review_summary
 Return a short summary of this review. The next review reads it, so it can speak to what changed.
 
+# 5. style
+When there is a final sketch, name its style in `style`, judging from the final sketch only: `ink_and_wash` (ink lines with loose washes), `realistic` (accurate proportion and tone), `minimalist` (few lines, lots of paper) or `reportage` (quick, on-the-spot story). The sketcher will be asked whether they agree. With no final sketch, leave it out.
+
 # Session journey
 Style: $style. Scene type: $scene_type.
 Images: $images

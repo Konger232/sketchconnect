@@ -38,6 +38,7 @@ from app.core.composite import (
 from app.core.gemini_service import call_gemini_json
 from app.core.paths import UPLOAD_DIR
 from app.features.scene_analysis import question_bank
+from config import STYLES
 
 PROMPTS = Path(__file__).parent / "prompts"
 
@@ -92,6 +93,8 @@ def response_schema() -> dict:
             },
             "critique": {"type": "string"},
             "final_sketch_provided": {"type": "boolean"},
+            # The style the coach sees in the final sketch (item 39).
+            "style": {"type": "string", "enum": list(STYLES)},
         },
         "required": ["prior_review_summary", "decision_trace", "critique", "final_sketch_provided"],
     }
@@ -364,4 +367,10 @@ def run_critique(db: Session, sketch: Sketch) -> None:
         prior_review_summary=result["prior_review_summary"],
         final_sketch_provided=final_image is not None,
     ))
+    # The coach names the style it sees in the final sketch. It becomes the
+    # sketch's style until the sketcher agrees or picks another (item 39).
+    if final_image is not None and result.get("style") in STYLES:
+        sketch.style_detected = result["style"]
+        if sketch.style_confirmed is None:
+            sketch.style = result["style"]
 

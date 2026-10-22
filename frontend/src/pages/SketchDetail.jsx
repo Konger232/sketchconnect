@@ -25,6 +25,7 @@ import { dateLabel, imageUrl, timeLabel } from '../lib/media'
 import { notifySketchesChanged, useSketchesVersion } from '../lib/sketchEvents'
 import Avatar from '../components/common/Avatar'
 import RightsNote from '../components/common/RightsNote'
+import StyleCheck from '../components/common/StyleCheck'
 
 const NEARBY_M = 300
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : '')
@@ -531,6 +532,10 @@ export default function SketchDetail() {
                   </div>
                 )}
                 {!critiquePending && final && latestCritique && <FeedbackBlock critique={latestCritique} />}
+                {/* The coach's style, for the owner to agree with or change (item 39). */}
+                {viewer === 'owner' && !critiquePending && final && (
+                  <StyleCheck sketch={s} onChange={(patch) => setS((prev) => ({ ...prev, ...patch }))} />
+                )}
                 {viewer === 'owner' && !final && (
                   <p className="m-0 text-sm text-ink/70">Feedback comes when you share your final sketch.</p>
                 )}
