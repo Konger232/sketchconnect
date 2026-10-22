@@ -48,9 +48,15 @@ LINK_HOURS = 2           # a signed link lasts 1 to 2 hours (rounded, so browser
 NO_AI = "noindex, noimageindex, noai, noimageai"
 
 _KEY = (os.environ.get("MEDIA_SIGNING_KEY") or secrets.token_hex(32)).encode()
-_NAME = re.compile(r"^[A-Za-z0-9_\-]+\.(?:jpg|jpeg|png|webp|heic|heif)$", re.I)
-_STORED = re.compile(rb'"/uploads/([A-Za-z0-9_\-]+\.(?:jpg|jpeg|png|webp|heic|heif))"', re.I)
-_SIGNED = re.compile(r"^/media/([A-Za-z0-9_\-]+\.\w+)\?.*$")
+# File names may hold dots (seed_avatar_dana.johnson.png), never slashes.
+_NAME = re.compile(r"^[A-Za-z0-9_\-][A-Za-z0-9_\-.]*\.(?:jpg|jpeg|png|webp|heic|heif)$", re.I)
+_STORED = re.compile(rb'"/uploads/([A-Za-z0-9_\-][A-Za-z0-9_\-.]*\.(?:jpg|jpeg|png|webp|heic|heif))"', re.I)
+_SIGNED = re.compile(r"^/media/([A-Za-z0-9_\-][A-Za-z0-9_\-.]*\.\w+)\?.*$")
+
+
+def _valid(name: str) -> bool:
+    """An original's file name: no "..", and not one of our own copies."""
+    return bool(_NAME.match(name)) and ".." not in name and not name.endswith((".display.jpg", ".teaser.jpg"))
 
 router = APIRouter(tags=["media"])
 
@@ -199,7 +205,7 @@ def _image_response(path, max_age: int, private: bool):
 @router.get("/media/{name}")
 def media(name: str, e: int = 0, s: str = ""):
     """A signed-in sketcher's display copy, while the link is valid."""
-    if not _NAME.match(name) or e < time.time() or not hmac.compare_digest(s, _sig(name, e)):
+    if not _valid(name) or e < time.time() or not hmac.compare_digest(s, _sig(name, e)):
         raise HTTPException(403, "This link has expired. Reload the page.")
     out = f"{_stem(name)}.display.jpg"
     _save_copy(name, out, _display)
@@ -211,7 +217,7 @@ def teaser(name: str):
     """For visitors: the middle of a shared final sketch, and nothing else."""
     from app.core.database import SessionLocal
     from app.core.models import Sketch
-    if not _NAME.match(name):
+    if not _valid(name):
         raise HTTPException(404, "Not found")
     db = SessionLocal()
     try:

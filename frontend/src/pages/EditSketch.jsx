@@ -680,7 +680,7 @@ export default function EditSketch() {
             onChange={(e) => setFieldNotes(e.target.value)}
             placeholder="Weather, sounds, who stopped to watch, how long you stayed…"
             rows={4}
-            className="sc-field resize-none leading-normal"
+            className="sc-field min-h-[7rem] resize-y leading-normal"
           />
         </label>
 
