@@ -448,6 +448,8 @@ alter table paint_flags enable row level security;
 insert into palette_items (sketcher_id, paint_id, position)
 select p.id, v.paint_id, (v.ord - 1)::int
 from profiles p
-cross join lateral jsonb_array_elements_text(coalesce(p.favorite_paints::jsonb, '[]'::jsonb)) with ordinality as v(paint_id, ord)
+cross join lateral jsonb_array_elements_text(
+  case when jsonb_typeof(p.favorite_paints::jsonb) = 'array' then p.favorite_paints::jsonb else '[]'::jsonb end
+) with ordinality as v(paint_id, ord)  -- some rows hold JSON null, not a list
 where exists (select 1 from paints x where x.id = v.paint_id)
 on conflict do nothing;
