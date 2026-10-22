@@ -15,9 +15,12 @@ import { imageUrl } from '../../lib/media'
  *   selectedId  the pin being edited
  *   onEdit(item), onRemove(item), onSpot({ photo, x, y })
  *   busy        a line over the photo ("Finding your gear…")
+ *   fitHeight   cap the photo's height ("58vh"); the pins stay on it
+ *   sheet, sheetAt   a form laid over the top or bottom of the photo
  */
-export default function BagPhotos({ photos, items, active = 0, onActive, editing = false, selectedId, onEdit, onRemove, onSpot, busy, alt = 'A bag of sketching gear' }) {
+export default function BagPhotos({ photos, items, active = 0, onActive, editing = false, selectedId, onEdit, onRemove, onSpot, busy, fitHeight, sheet, sheetAt = 'bottom', alt = 'A bag of sketching gear' }) {
   const [open, setOpen] = useState(null) // the pin whose card is open (tap)
+  const [ratio, setRatio] = useState(null) // width / height, to cap the height without moving the pins
   const photo = photos[active]
   const pins = items.filter((i) => i.spot && i.spot.photo === active)
 
@@ -31,8 +34,12 @@ export default function BagPhotos({ photos, items, active = 0, onActive, editing
   if (!photo) return null
   return (
     <div className="flex flex-col gap-2">
-      <div className="relative w-full">
-        <img src={imageUrl(photo)} alt={alt} onClick={tapPhoto} className={`block h-auto w-full ${editing ? 'cursor-crosshair' : ''}`} />
+      {/* With fitHeight, the box narrows so the photo is no taller than
+          that; the pins sit on the box, so they stay on the photo. */}
+      <div className="relative mx-auto w-full" style={fitHeight && ratio ? { maxWidth: `calc(${fitHeight} * ${ratio})` } : undefined}>
+        <img src={imageUrl(photo)} alt={alt} onClick={tapPhoto}
+          onLoad={(e) => setRatio(e.currentTarget.naturalWidth / e.currentTarget.naturalHeight)}
+          className={`block h-auto w-full ${editing ? 'cursor-crosshair' : ''}`} />
         {pins.map((i, n) => {
           const on = selectedId === i.id || open === i.id
           const below = i.spot.y < 0.6 // the card unfolds below a pin in the top part, above one lower down
@@ -76,6 +83,9 @@ export default function BagPhotos({ photos, items, active = 0, onActive, editing
             </span>
           )
         })}
+        {sheet && (
+          <div className={`absolute inset-x-0 z-[25] flex max-h-full flex-col ${sheetAt === 'top' ? 'top-0' : 'bottom-0'}`}>{sheet}</div>
+        )}
         {/* While the AI reads the photo: the scan line used on other
             waiting screens, a soft wash, and what is happening. */}
         {busy && (

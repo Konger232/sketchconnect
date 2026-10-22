@@ -23,6 +23,18 @@ export const KIT_CATEGORIES = [
 
 const MAX_PHOTOS = 1 // one photo for the first release (features/kit/router.py MAX_KIT_PHOTOS)
 const TIP_WORDS = 30 // features/kit/router.py MAX_NOTE_WORDS
+// A computer-sized screen (Tailwind md), where the form sits on the photo.
+function useWide() {
+  const query = '(min-width: 768px)'
+  const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches)
+  useEffect(() => {
+    const m = window.matchMedia(query)
+    const on = () => setWide(m.matches)
+    m.addEventListener('change', on)
+    return () => m.removeEventListener('change', on)
+  }, [])
+  return wide
+}
 const wordCount = (t) => (t || '').trim().split(/\s+/).filter(Boolean).length
 
 // The body PUT and POST /api/kit expect.
@@ -53,12 +65,13 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
   const fileRef = useRef(null)
   const formRef = useRef(null)
 
-  // Opening the form (a pin, a row, or Add gear at the bottom of the list)
-  // brings it into view, since it sits above the list.
+  // On a phone, opening the form (a pin, a row, or Add gear at the bottom
+  // of the list) brings it into view, since it sits above the list.
   const draftKey = draft ? draft.id || `new-${draft.spot ? 'spot' : 'list'}` : null
+  const wide = useWide()
   useEffect(() => {
-    if (draftKey) formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [draftKey])
+    if (draftKey && !wide) formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [draftKey, wide])
 
   const tools = items
   const fail = (err, fallback) => setError(typeof err?.response?.data?.detail === 'string' ? err.response.data.detail : fallback)
@@ -140,8 +153,37 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
   const editTool = (i) => { setNote(null); setDraft({ ...i, note: i.note || '', link: i.link || '' }) }
   const newTool = (spot = null) => { setNote(null); setDraft({ id: null, category: 'other', label: '', note: '', link: '', spot }) }
 
-  return (
-    <>
+  // The form for one piece of gear. On a computer it sits over the photo,
+  // on the half away from the pin, so the pin stays in view; on a phone it
+  // sits under the photo.
+  const form = draft && (
+    <div ref={formRef} onClick={(e) => e.stopPropagation()}
+      className={`flex scroll-my-4 flex-col gap-2 bg-white p-3 ${wide ? 'min-h-0 overflow-y-auto shadow-[0_0_16px_rgba(0,0,0,0.25)]' : 'border-[1.5px] border-ink'}`}>
+      <span className="ed-caption">{draft.id ? 'Edit gear' : draft.spot ? 'New gear here' : 'New gear'}</span>
+      <div className="grid gap-2 md:grid-cols-[160px_1fr]">
+        <select aria-label="Category" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className="field-select">
+          {KIT_CATEGORIES.map((k) => <option key={k.category} value={k.category}>{k.label}</option>)}
+        </select>
+        <input aria-label="Name" placeholder="Name, e.g. Lamy Safari fountain pen" maxLength={80} value={draft.label} autoFocus
+          onChange={(e) => setDraft({ ...draft, label: e.target.value })} className="field-input" />
+      </div>
+      <textarea aria-label="Tip" rows={1} placeholder="A short tip, e.g. extra fine nib, waterproof ink" value={draft.note}
+        onChange={(e) => setDraft({ ...draft, note: e.target.value })} className="field-input min-h-[42px] resize-y italic" />
+      <input aria-label="Link" type="url" placeholder="Where to get it (optional link)" maxLength={300} value={draft.link}
+        onChange={(e) => setDraft({ ...draft, link: e.target.value })} className="field-input" />
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <span className={`mr-auto text-xs ${wordCount(draft.note) > TIP_WORDS ? 'text-accent' : 'text-ink/50'}`}>
+          Tip: {wordCount(draft.note)} / {TIP_WORDS} words
+        </span>
+        {draft.id && <Button variant="editorial" size="sm" onClick={() => removeTool(draft.id)}>Remove</Button>}
+        <Button variant="editorial" size="sm" onClick={() => setDraft(null)}>Cancel</Button>
+        <Button variant="editorialSolid" size="sm" onClick={saveDraft} disabled={wordCount(draft.note) > TIP_WORDS}>Save</Button>
+      </div>
+    </div>
+  )
+  const sheetAt = draft?.spot && draft.spot.photo === active && draft.spot.y > 0.5 ? 'top' : 'bottom'
+
+  return (    <>
       <FloatPanel
         placement="modal"
         title="Edit gear"
@@ -159,8 +201,12 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
         </p>
 
         {photos.length > 0 ? (
-          <BagPhotos photos={photos} items={items} active={active} onActive={(k) => { setActive(k); setDraft(null) }}
-            editing selectedId={draft?.id} onEdit={editTool} onRemove={(i) => removeTool(i.id)} onSpot={(spot) => newTool(spot)} busy={busy} alt="Your bag" />
+          // Stays in view while the list scrolls under it (computer).
+          <div className="z-10 bg-white md:sticky md:-top-5 md:-mx-6 md:px-6 md:py-2">
+            <BagPhotos photos={photos} items={items} active={active} onActive={(k) => { setActive(k); setDraft(null) }}
+              editing selectedId={draft?.id} onEdit={editTool} onRemove={(i) => removeTool(i.id)} onSpot={(spot) => newTool(spot)} busy={busy} alt="Your bag"
+              fitHeight={wide ? '58vh' : null} sheet={wide ? form : null} sheetAt={sheetAt} />
+          </div>
         ) : (
           <button type="button" onClick={() => fileRef.current?.click()} disabled={Boolean(busy)}
             className="flex min-h-[180px] flex-col items-center justify-center gap-2 border-[1.5px] border-dashed border-ink/30 p-6 text-center hover:border-ink">
@@ -186,33 +232,8 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
         </div>
         {note && <p className="m-0 text-sm text-ink/80">{note}</p>}
 
-        {/* The tool being edited: a pin, a new spot, or a row below. */}
-        {draft && (
-          <div ref={formRef} className="flex scroll-my-4 flex-col gap-2 border-[1.5px] border-ink p-3">
-            <span className="ed-caption">{draft.id ? 'Edit gear' : draft.spot ? 'New gear here' : 'New gear'}</span>
-            <div className="grid gap-2 md:grid-cols-[160px_1fr]">
-              <select aria-label="Category" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className="field-select">
-                {KIT_CATEGORIES.map((k) => <option key={k.category} value={k.category}>{k.label}</option>)}
-              </select>
-              <input aria-label="Name" placeholder="Name, e.g. Lamy Safari fountain pen" maxLength={80} value={draft.label} autoFocus
-                onChange={(e) => setDraft({ ...draft, label: e.target.value })} className="field-input" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <textarea aria-label="Tip" rows={1} placeholder="A short tip, e.g. extra fine nib, waterproof ink" value={draft.note}
-                onChange={(e) => setDraft({ ...draft, note: e.target.value })} className="field-input min-h-[42px] resize-y italic" />
-              <span className={`self-end text-xs ${wordCount(draft.note) > TIP_WORDS ? 'text-accent' : 'text-ink/50'}`}>
-                {wordCount(draft.note)} / {TIP_WORDS} words
-              </span>
-            </div>
-            <input aria-label="Link" type="url" placeholder="Where to get it (optional link)" maxLength={300} value={draft.link}
-              onChange={(e) => setDraft({ ...draft, link: e.target.value })} className="field-input" />
-            <div className="flex flex-wrap justify-end gap-2">
-              {draft.id && <Button variant="editorial" size="sm" onClick={() => removeTool(draft.id)}>Remove</Button>}
-              <Button variant="editorial" size="sm" onClick={() => setDraft(null)}>Cancel</Button>
-              <Button variant="editorialSolid" size="sm" onClick={saveDraft} disabled={wordCount(draft.note) > TIP_WORDS}>Save</Button>
-            </div>
-          </div>
-        )}
+        {/* On a phone the form sits under the photo. */}
+        {draft && !wide && form}
 
         <ul className="m-0 flex list-none flex-col p-0">
           {tools.map((i) => {
