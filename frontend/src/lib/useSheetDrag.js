@@ -12,19 +12,22 @@ const TOP_GAP = 8
  *   const sheet = useSheetDrag(sheetOpen, setSheetOpen)
  *   <div ref={sheet.ref} className={`sc-panel sc-sheet ${sheet.className}`} style={sheet.style}>
  *     <button className="sc-sheet-handle" {...sheet.handleProps}>…   (no onClick of its own)
+ *
+ * Folded, the sheet keeps the handle and the element matching `folded`
+ * (the tabs in Edit Sketch, the title in Edit gear).
  */
-export function useSheetDrag(open, setOpen) {
+export function useSheetDrag(open, setOpen, folded = '.sc-tabs') {
   const ref = useRef(null)
   const drag = useRef(null)
   const dragged = useRef(false) // the last press was a drag, not a tap
   const [height, setHeight] = useState(null) // null: the CSS height
   const isPhone = () => window.innerWidth < 768
 
-  // The folded height: the handle and the tabs.
+  // The folded height: the handle and the tabs (or `folded`).
   const minHeight = () => {
     const el = ref.current
     const handle = el?.querySelector('.sc-sheet-handle')?.offsetHeight || 24
-    const tabs = el?.querySelector('.sc-tabs')?.offsetHeight || 0
+    const tabs = el?.querySelector(folded)?.offsetHeight || 0
     return handle + tabs
   }
   const maxHeight = () => window.innerHeight - HEADER - TOP_GAP

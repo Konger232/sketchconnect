@@ -5,6 +5,7 @@ import ConfirmDialog from './ConfirmDialog'
 import FloatPanel from './FloatPanel'
 import Icon from './Icon'
 import { api } from '../../lib/api'
+import { useSheetDrag } from '../../lib/useSheetDrag'
 
 // The fixed categories, in page order. Keys are kit_items.category
 // (features/kit/router.py). Paints are My palette, not tools.
@@ -66,12 +67,17 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
   const fileRef = useRef(null)
   const formRef = useRef(null)
 
-  // On a phone, opening the form (a pin, a row, or Add gear) brings it
-  // into view.
   const draftKey = draft ? draft.id || `new-${draft.spot ? 'spot' : 'list'}` : null
   const wide = useWide()
+  // On a phone the form is the draggable bottom sheet from Edit Sketch, in
+  // white; opening it shows the photo above it.
+  const [sheetOpen, setSheetOpen] = useState(true)
+  const sheet = useSheetDrag(sheetOpen, setSheetOpen, '.kit-sheet-title')
+  const photoRef = useRef(null)
   useEffect(() => {
-    if (draftKey && !wide) formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (!draftKey) return
+    setSheetOpen(true)
+    if (!wide) photoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [draftKey, wide])
 
   const tools = items
@@ -158,11 +164,12 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
 
   // The form for one piece of gear. On a computer it sits over the photo,
   // on the half away from the pin, so the pin stays in view; on a phone it
-  // sits under the photo.
+  // is a bottom sheet.
   const form = draft && (
     <div ref={formRef} onClick={(e) => e.stopPropagation()}
-      className={`flex scroll-my-4 flex-col gap-2 bg-white p-3 ${wide ? 'min-h-0 overflow-y-auto shadow-[0_0_16px_rgba(0,0,0,0.25)]' : 'border-[1.5px] border-ink'}`}>
-      <span className="ed-caption">{draft.id ? 'Edit gear' : draft.spot ? 'New gear here' : 'New gear'}</span>
+      className={`flex flex-col gap-2 bg-white ${wide ? 'min-h-0 overflow-y-auto p-3 shadow-[0_0_16px_rgba(0,0,0,0.25)]' : 'px-4 pb-4'}`}>
+      <span className={`ed-caption ${wide ? '' : 'kit-sheet-title py-1'}`}>{draft.id ? 'Edit gear' : draft.spot ? 'New gear here' : 'New gear'}</span>
+      <div className="kit-fields contents">
       <div className="grid gap-2 md:grid-cols-[160px_1fr]">
         <select aria-label="Category" value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className="field-select">
           {KIT_CATEGORIES.map((k) => <option key={k.category} value={k.category}>{k.label}</option>)}
@@ -181,6 +188,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
         {draft.id && <Button variant="editorial" size="sm" onClick={() => removeTool(draft.id)}>Remove</Button>}
         <Button variant="editorial" size="sm" onClick={() => setDraft(null)}>Cancel</Button>
         <Button variant="editorialSolid" size="sm" onClick={saveDraft} disabled={wordCount(draft.note) > TIP_WORDS}>Save</Button>
+      </div>
       </div>
     </div>
   )
@@ -205,7 +213,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
 
         {photos.length > 0 ? (
           // Stays in view while the list scrolls under it (computer).
-          <div className="z-10 bg-white md:sticky md:-top-5 md:-mx-6 md:px-6 md:py-2">
+          <div ref={photoRef} className="z-10 scroll-mt-2 bg-white md:sticky md:-top-5 md:-mx-6 md:px-6 md:py-2">
             <BagPhotos photos={photos} items={items} active={active} onActive={(k) => { setActive(k); setDraft(null) }}
               editing selectedId={draft?.id} onEdit={editTool} onRemove={(i) => removeTool(i.id)} onSpot={(spot) => newTool(spot)} busy={busy} alt="Your bag"
               fitHeight={wide ? '58vh' : null} sheet={wide ? form : null} sheetAt={sheetAt} />
@@ -241,8 +249,17 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
         </div>
         {note && <p className="m-0 text-sm text-ink/80">{note}</p>}
 
-        {/* On a phone the form sits under the photo. */}
-        {draft && !wide && form}
+        {/* On a phone the form is a white bottom sheet: drag the handle
+            to resize it, tap it to fold the form down to its title. */}
+        {draft && !wide && (
+          <div ref={sheet.ref} className={`sc-sheet flex flex-col bg-white max-md:!z-[1600] ${sheet.className} ${sheetOpen ? '' : '[&_.kit-fields]:hidden'}`} style={sheet.style}>
+            <button type="button" className="sc-sheet-handle touch-none" {...sheet.handleProps}
+              aria-label={sheetOpen ? 'Fold the form down' : 'Open the form'} aria-expanded={sheetOpen}>
+              <span />
+            </button>
+            <div className="min-h-0 flex-1 overflow-y-auto">{form}</div>
+          </div>
+        )}
 
         <ul className="m-0 flex list-none flex-col p-0">
           {tools.map((i) => {
