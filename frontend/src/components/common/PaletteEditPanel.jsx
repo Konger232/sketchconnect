@@ -386,8 +386,6 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
               ) : (
                 <Button variant="editorial" size="sm" onClick={() => save(paints, splitPan(layout, panAt(layout, pan.r, pan.c)))}>Half pan</Button>
               )}
-              {panPaint && <Button variant="editorial" size="sm" onClick={() => removeWithUndo(paints, emptyPan(layout, panAt(layout, pan.r, pan.c)), `Took ${paintLabel(panPaint)} out of your tin.`)}>Take out of the tin</Button>}
-              {panPaint && <Button variant="editorial" size="sm" onClick={() => removePaint(panPaint.id)}>Remove from my collection</Button>}
             </div>
             {pan.w * pan.h === 1 && !canMerge(layout, pan, 'right') && !canMerge(layout, pan, 'down') && (
               <span className="text-xs text-ink/55">A full pan takes the empty half pan to its right or below.</span>
