@@ -15,7 +15,7 @@ import { OpacityIcon, opacityOf } from './PaintTip'
  */
 export default function PaintPills({ paints, focusId, placed, onPillDown, onHover, showNames = false, children }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {paints.map((p) => (
         <button key={p.id} type="button" aria-pressed={focusId === p.id} aria-label={paintLabel(p)}
           onPointerDown={onPillDown ? (e) => onPillDown(p, e) : undefined}

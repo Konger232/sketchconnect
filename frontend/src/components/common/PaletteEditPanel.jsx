@@ -359,39 +359,27 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
         tinNote="Your field palette. Drag paints from the wheel into your pans to match your physical kit. Drag a pan out to remove it."
         editable placed={inPans} dropAt={dropAt} stageRef={stageRef} wheelRef={wheelRef}
         tinTop={(
-          <>
-            <div className="flex flex-wrap gap-4">
-              {stepper('Rows', layout.rows, (n) => save(paints, resize(layout, n, layout.cols)), MAX_ROWS)}
-              {stepper('Columns', layout.cols, (n) => save(paints, resize(layout, layout.rows, n)), MAX_COLS)}
-            </div>
-          </>
+          // Rows, columns, and for the pan picked: make it a full or a half pan.
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {stepper('Rows', layout.rows, (n) => save(paints, resize(layout, n, layout.cols)), MAX_ROWS)}
+            {stepper('Columns', layout.cols, (n) => save(paints, resize(layout, layout.rows, n)), MAX_COLS)}
+            {pan && (pan.w * pan.h === 1 ? (
+              <span className="flex gap-2">
+                <Button variant="editorial" size="sm" disabled={!canMerge(layout, pan, 'right')} title="A full pan takes the empty half pan to its right"
+                  onClick={() => save(paints, mergePan(layout, pan, 'right'))}>Full pan →</Button>
+                <Button variant="editorial" size="sm" disabled={!canMerge(layout, pan, 'down')} title="A full pan takes the empty half pan below it"
+                  onClick={() => save(paints, mergePan(layout, pan, 'down'))}>Full pan ↓</Button>
+              </span>
+            ) : (
+              <Button variant="editorial" size="sm" onClick={() => save(paints, splitPan(layout, panAt(layout, pan.r, pan.c)))}>Half pan</Button>
+            ))}
+          </div>
         )}
         pillsEnd={(
           <Button variant="editorial" size="sm" onClick={() => openForm({ mode: 'add', at: null })}>
             <Icon name="plus" size={14} /> Add paint
           </Button>
         )}
-        tinBottom={pan ? (
-          <div className="flex flex-col gap-2 border-t border-[var(--ed-row-rule)] pt-3">
-            <span className="text-sm">
-              <span className="font-semibold">{pan.w * pan.h > 1 ? 'Full pan' : 'Half pan'}</span>
-              {panPaint ? ` · ${panPaint.code} ${paintLabel(panPaint)}` : ' · empty'}
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {pan.w * pan.h === 1 ? (
-                <>
-                  <Button variant="editorial" size="sm" disabled={!canMerge(layout, pan, 'right')} onClick={() => save(paints, mergePan(layout, pan, 'right'))}>Full pan →</Button>
-                  <Button variant="editorial" size="sm" disabled={!canMerge(layout, pan, 'down')} onClick={() => save(paints, mergePan(layout, pan, 'down'))}>Full pan ↓</Button>
-                </>
-              ) : (
-                <Button variant="editorial" size="sm" onClick={() => save(paints, splitPan(layout, panAt(layout, pan.r, pan.c)))}>Half pan</Button>
-              )}
-            </div>
-            {pan.w * pan.h === 1 && !canMerge(layout, pan, 'right') && !canMerge(layout, pan, 'down') && (
-              <span className="text-xs text-ink/55">A full pan takes the empty half pan to its right or below.</span>
-            )}
-          </div>
-        ) : null}
         overlay={form && wide && cardPos && (
           // The form: a card beside the wheel (computer).
           <div ref={cardRef} className="absolute z-30 flex scroll-my-4 flex-col gap-2 rounded-lg bg-white p-3 shadow-[0_4px_24px_rgba(0,0,0,0.25)]"
