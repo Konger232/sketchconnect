@@ -4,7 +4,7 @@ import FloatPanel from './FloatPanel'
 import Icon from './Icon'
 import NewPaintForm from './NewPaintForm'
 import PaletteBoard from './PaletteBoard'
-import { STARTER_PALETTE, libraryPaints, opacityLabel, paintById, paintLabel, registerPaints } from '../../data/paints'
+import { STARTER_PALETTE, libraryPaints, opacityLabel, paintById, paintDescription, paintLabel, registerPaints } from '../../data/paints'
 import { api } from '../../lib/api'
 import { paintToWheel, wheelToHex } from '../../lib/colorWheel'
 import {
@@ -238,7 +238,7 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-sm">{paintLabel(p)}</span>
                     <span className="truncate text-[11px] text-ink/55">
-                      {mine ? 'In your palette' : [p.added_by && !p.checked ? `Added by @${p.added_by}` : p.lean, opacityLabel(p.opacity)].filter(Boolean).join(' · ')}
+                      {mine ? 'In your palette' : [p.added_by && !p.checked ? `Added by @${p.added_by}` : paintDescription(p.lean), opacityLabel(p.opacity)].filter(Boolean).join(' · ')}
                     </span>
                   </span>
                 </button>

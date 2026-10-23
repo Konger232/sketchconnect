@@ -1,4 +1,4 @@
-import { OPACITY } from '../../data/paints'
+import { OPACITY, paintDescription } from '../../data/paints'
 import TipCard from './TipCard'
 
 export const opacityOf = (paint) => OPACITY.find((o) => o.value === paint?.opacity) || null
@@ -28,7 +28,7 @@ export function OpacityIcon({ value, className = '' }) {
  * circles, the pills, the pans), one thing per line:
  *   Cadmium Yellow (PY35)        the name and its pigment(s)
  *   Daniel Smith                 the brand, when it has one
- *   a muted yellow, an earth     which way it leans
+ *   a muted yellow, an earth     what it is (not warm or cool: the wheel shows that)
  *   [square] Opaque: covers...   the tube's opacity
  */
 export function PaintTipContent({ paint }) {
@@ -37,7 +37,7 @@ export function PaintTipContent({ paint }) {
     <>
       <span className="font-semibold">{paint.name} ({paint.code})</span>
       {paint.brand && <span>{paint.brand}</span>}
-      {paint.lean && <span className="text-ink/70">{paint.lean}</span>}
+      {paintDescription(paint.lean) && <span className="text-ink/70">{paintDescription(paint.lean)}</span>}
       {op && (
         <span className="flex items-start gap-1.5 text-ink/70">
           <OpacityIcon value={op.value} className="mt-[3px] text-ink" />

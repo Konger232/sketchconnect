@@ -70,6 +70,13 @@ export const libraryPaints = () => [...PAINTS.map((p) => LIBRARY.get(p.id) || p)
 
 export const paintById = (id) => LIBRARY.get(id) || PAINTS.find((p) => p.id === id)
 
+// A paint's description without warm or cool: the wheel already shows
+// which way it leans. "blue, leaning violet (warm)" -> "blue".
+export const paintDescription = (lean) => (lean || '')
+  .replace(/\s*\((?:warm|cool)[^)]*\)/gi, '')
+  .replace(/,\s*(?:leaning [^,(]+|near the middle)/gi, '')
+  .trim() || null
+
 // "Daniel Smith French Ultramarine", or just the name for our generic paints.
 export const paintLabel = (p) => (p?.brand ? `${p.brand} ${p.name}` : p?.name || '')
 
