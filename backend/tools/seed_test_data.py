@@ -554,6 +554,35 @@ def render_avatar(name: str, color) -> Image.Image:
     return img
 
 
+# Where each kind of tool sits on render_kit_photo's flat lay (0 to 1, from
+# the top left), for the bag's pins: the tin, the four pens top to bottom,
+# the sketchbook, the brush.
+KIT_PHOTO_SPOTS = {
+    "palette": [(0.32, 0.38)],
+    "pen": [(0.45, 0.68), (0.45, 0.74), (0.45, 0.80), (0.45, 0.86)],
+    "ink": [(0.62, 0.86)],
+    "sketchbook": [(0.76, 0.39)], "paper": [(0.76, 0.39)],
+    "brush": [(0.88, 0.52)],
+}
+
+# Branded paints in a seed kit join the paint library as sketchers' own
+# (design doc, item 46): their colour, by pigment.
+SEED_PAINT_HEX = {"PB15:3": "#0f5e9c", "PV19": "#c23b6e", "PY150": "#d9a521", "PW6": "#f4f2ec"}
+
+
+def seed_tin(paints: list[str]) -> dict:
+    """My tin for a seed sketcher (item 47): the first paint in a full pan
+    (two cells, one above the other), the rest in half pans, and the last
+    paint left out of the tin, so the collection is bigger than the tin."""
+    if not paints:
+        return None
+    pans = [{"r": 0, "c": 0, "w": 1, "h": 2, "paint": paints[0]}]
+    cells = [(r, c) for r in range(2) for c in range(1, 6)]
+    for (r, c), pid in zip(cells, paints[1:-1] if len(paints) > 2 else paints[1:]):
+        pans.append({"r": r, "c": c, "w": 1, "h": 1, "paint": pid})
+    return {"rows": 2, "cols": 6, "pans": pans}
+
+
 def render_kit_photo(key: str) -> Image.Image:
     """A flat lay: a paint tin, pens and a brush on a table."""
     rnd = _rnd(key)
@@ -763,7 +792,7 @@ def build(dry_run: bool, me: str | None):
                 sys.exit(f"The username {s['username']} is taken by a real profile. Rename it in SKETCHERS.")
         ids = {s["username"]: create_login(client, f"{s['username']}@{SEED_DOMAIN}", s["name"], password) for s in SKETCHERS}
 
-    from app.core.models import (CritiqueResponse, Follow, KitItem, Persona, Profile, Sketch,
+    from app.core.models import (CritiqueResponse, Follow, KitItem, Paint, PaletteItem, Persona, Profile, Sketch,
                                  SketchComment, SketchLike, SketchUpload)
     rows, sketch_ids, counts = [], {}, {}
 
@@ -777,6 +806,7 @@ def build(dry_run: bool, me: str | None):
         kit_photo = _save(render_kit_photo(s["username"]), f"{SEED_PREFIX}kit_{s['username']}.jpg") if s.get("kit_photo") else None
         profile = Profile(id=uid, display_name=s["name"], avatar_url=avatar, location=s["location"], username=s["username"],
                           bio=s["bio"], links=s["links"] or None, kit_photo_url=kit_photo,
+                          kit_photos=[kit_photo] if kit_photo else None,
                           favorite_paints=s["favorite_paints"] or None, created_at=NOW - timedelta(days=240))
         add(profile)
 
@@ -789,19 +819,42 @@ def build(dry_run: bool, me: str | None):
             personas[a["name"]] = p
             add(p)
 
-        # The bag (item 44): paints with a pigment code are My palette
-        # (favorite_paints), not tools; the rest map to the fixed categories.
+        # The bag (item 44): paints with a pigment code are My paint
+        # collection, not tools; the rest map to the fixed categories, with a
+        # pin on the bag photo where one fits.
+        own_paints = []
+        spots_used: dict[str, int] = {}
         for i, item in enumerate(s["kit"]):
-            kind, label, details, codes, *_ = item
+            kind, label, details, codes, medium, opacity, *_ = item
             if kind == "color" and codes:
+                brand = (details or {}).get("brand")
+                if brand and all(c in SEED_PAINT_HEX for c in codes):
+                    pid = "c-seed" + hashlib.md5(f"{brand} {label}".encode()).hexdigest()[:6]
+                    add(Paint(id=pid, brand=brand, name=label, pigment_codes=codes, hex=SEED_PAINT_HEX[codes[0]],
+                              lean=None, opacity=opacity if opacity in ("transparent", "semi_transparent", "semi_opaque", "opaque") else None,
+                              added_by=uid, checked=False, created_at=NOW - timedelta(days=200)))
+                    own_paints.append(pid)
                 continue
             low = label.lower()
             category = {"line": "pen", "ink": "ink", "brush": "brush", "color": "palette"}.get(kind) or (
                 "sketchbook" if kind == "paper" and any(w in low for w in ("sketchbook", "journal", "moleskine"))
                 else "paper" if kind == "paper"
                 else "clips" if "clip" in low else "easel" if "easel" in low else "bag" if "bag" in low else "other")
+            spot = None
+            if kit_photo and KIT_PHOTO_SPOTS.get(category):
+                n = spots_used.get(category, 0)
+                if n < len(KIT_PHOTO_SPOTS[category]):
+                    x, y = KIT_PHOTO_SPOTS[category][n]
+                    spot = {"photo": 0, "x": x, "y": y}
+                    spots_used[category] = n + 1
             add(KitItem(sketcher_id=uid, category=category, label=label, note=(details or {}).get("note"),
-                        source="own", created_at=NOW - timedelta(days=200, minutes=-i)))
+                        spot=spot, source="own", created_at=NOW - timedelta(days=200, minutes=-i)))
+
+        # My paint collection (palette_items, item 46) and My tin (item 47).
+        collection = list(dict.fromkeys(s["favorite_paints"] + own_paints))
+        for pos, pid in enumerate(collection):
+            add(PaletteItem(sketcher_id=uid, paint_id=pid, position=pos, created_at=NOW - timedelta(days=200)))
+        profile.palette_layout = seed_tin(collection)
 
         for sk in s["sketches"]:
             images = sketch_images(sk)
@@ -875,7 +928,7 @@ def build(dry_run: bool, me: str | None):
         print("Dry run: images written to", UPLOAD_DIR, "| no database or logins touched.")
     else:
         # Profiles and personas first, so every foreign key has its row.
-        order = ["Profile", "Persona", "KitItem", "Sketch", "SketchUpload", "CritiqueResponse", "Follow", "SketchLike", "SketchComment"]
+        order = ["Profile", "Paint", "PaletteItem", "Persona", "KitItem", "Sketch", "SketchUpload", "CritiqueResponse", "Follow", "SketchLike", "SketchComment"]
         for name in order:
             db.add_all([r for r in rows if type(r).__name__ == name])
             db.flush()
@@ -888,8 +941,8 @@ def build(dry_run: bool, me: str | None):
 
 def reset():
     from app.core.database import SessionLocal
-    from app.core.models import (CritiqueResponse, Follow, HelpQuestLog, KitItem, Persona, Profile, Sketch,
-                                 SketchComment, SketchLike, SketchUpload)
+    from app.core.models import (CritiqueResponse, Follow, HelpQuestLog, KitItem, KitWish, Paint, PaintFlag,
+                                 PaletteItem, Persona, Profile, Sketch, SketchComment, SketchLike, SketchUpload)
     client = _admin()
     logins = seed_logins(client)
     db = SessionLocal()
@@ -906,7 +959,11 @@ def reset():
             (SketchUpload, SketchUpload.sketch_id.in_(sketch_ids)),
             (CritiqueResponse, CritiqueResponse.sketch_id.in_(sketch_ids)),
             (HelpQuestLog, HelpQuestLog.sketch_id.in_(sketch_ids)),
+            (KitWish, KitWish.sketcher_id.in_(uids)),
             (KitItem, KitItem.sketcher_id.in_(uids)),
+            (PaintFlag, PaintFlag.sketcher_id.in_(uids)),
+            (PaletteItem, PaletteItem.sketcher_id.in_(uids)),
+            (Paint, Paint.added_by.in_(uids)),
             (Sketch, Sketch.id.in_(sketch_ids)),
             (Persona, Persona.sketcher_id.in_(uids)),
             (Profile, Profile.id.in_(uids)),
