@@ -458,3 +458,45 @@ on conflict do nothing;
 -- starter paints until it is filled in.
 alter table paints add column if not exists opacity text
   check (opacity in ('transparent', 'semi_transparent', 'semi_opaque', 'opaque'));
+
+-- Opacity for our starter paints (October 23, 2026). Single pigments as
+-- Winsor & Newton Professional or Daniel Smith Extra Fine rate them; the
+-- cadmiums, Phthalo Blue and Lamp Black are opaque or transparent in every
+-- maker's chart. Only fills paints that have none yet.
+update paints p set opacity = v.opacity
+from (values
+  ('py3', 'semi_transparent'),
+  ('py97', 'semi_transparent'),
+  ('py35', 'opaque'),
+  ('py150', 'transparent'),
+  ('po49', 'transparent'),
+  ('py43', 'semi_opaque'),
+  ('pbr7-raw-sienna', 'transparent'),
+  ('pbr7-burnt-sienna', 'transparent'),
+  ('pbr7-raw-umber', 'transparent'),
+  ('pbr7-burnt-umber', 'transparent'),
+  ('po73', 'semi_transparent'),
+  ('po20', 'opaque'),
+  ('pr255', 'semi_transparent'),
+  ('pr108', 'opaque'),
+  ('pr83', 'transparent'),
+  ('pr264', 'semi_transparent'),
+  ('pv19', 'transparent'),
+  ('pr122', 'transparent'),
+  ('pv23', 'transparent'),
+  ('pb29', 'transparent'),
+  ('pb28', 'semi_transparent'),
+  ('pb35', 'semi_opaque'),
+  ('pb15-3', 'transparent'),
+  ('pb60', 'transparent'),
+  ('pg7', 'transparent'),
+  ('pg18', 'transparent'),
+  ('pg17', 'opaque'),
+  ('pbk31', 'transparent'),
+  ('paynes-gray', 'semi_opaque'),
+  ('neutral-tint', 'opaque'),
+  ('pbk9', 'opaque'),
+  ('pbk6', 'opaque'),
+  ('pw6', 'opaque')
+) as v(id, opacity)
+where p.id = v.id and p.opacity is null;
