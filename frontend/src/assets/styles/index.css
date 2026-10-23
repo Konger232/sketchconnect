@@ -65,6 +65,10 @@
     @apply pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 hidden w-max -translate-x-1/2 rounded bg-black/90 px-2 py-1 text-[11px] font-normal leading-tight text-white;
   }
   .has-tip:hover::after, .has-tip:focus-visible::after { @apply block; }
+  /* A longer tooltip that wraps. */
+  .has-tip-wrap::after { @apply w-60 whitespace-normal text-left; }
+  /* Anchored at the right edge, for a tip near the right of a box. */
+  .has-tip-end::after { @apply left-auto right-0 translate-x-0; }
 
   /* Formerly base.css's .sc-photo-placeholder -- the diagonal-stripe
      swatch shown behind a sketch photo slot before a real image loads.

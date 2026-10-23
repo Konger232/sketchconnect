@@ -73,6 +73,16 @@ export const paintById = (id) => LIBRARY.get(id) || PAINTS.find((p) => p.id === 
 // "Daniel Smith French Ultramarine", or just the name for our generic paints.
 export const paintLabel = (p) => (p?.brand ? `${p.brand} ${p.name}` : p?.name || '')
 
+// Opacity, as printed on the tube (paints.opacity), with the square
+// symbols makers use.
+export const OPACITY = [
+  { value: 'transparent', mark: '⬜', label: 'Transparent', note: 'ink lines show clearly through; good for glazing' },
+  { value: 'semi_transparent', mark: '◪', label: 'Semi-transparent', note: 'a slight veil over dark lines' },
+  { value: 'semi_opaque', mark: '◩', label: 'Semi-opaque', note: 'mutes the linework under it' },
+  { value: 'opaque', mark: '⬛', label: 'Opaque', note: 'covers ink lines and paper, like gouache' },
+]
+export const opacityLabel = (v) => OPACITY.find((o) => o.value === v)?.label || null
+
 // ---- pigment codes (features/paints/pigments.py) ----
 // The family letters after P, and where each family sits on the wheel
 // (hue in degrees, and the most chroma a family like black can have).

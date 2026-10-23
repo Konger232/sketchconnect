@@ -65,6 +65,9 @@ def paint_dicts(db: Session, paints: list[Paint]) -> list[dict]:
             "code": " + ".join(codes),
             "hex": p.hex,
             "lean": p.lean,
+            "opacity": p.opacity,
+            # One pigment mixes clean; more is a convenience mix.
+            "single": len(codes) == 1,
             "checked": bool(p.checked) or counts.get(p.id, 0) >= CHECKS_TO_CONFIRM,
             "confirmations": counts.get(p.id, 0),
             "added_by": names.get(p.added_by),
@@ -115,7 +118,8 @@ def add_paint(body: NewPaintRequest, db: Session = Depends(get_db), sketcher_id:
         raise HTTPException(409, {"error": "exists", "paint": paint_dicts(db, [same])[0],
                                   "message": f"{brand} {name} is already in the library."})
     paint = Paint(id=f"c-{secrets.token_hex(4)}", brand=brand, name=name, pigment_codes=codes,
-                  hex=body.hex.lower(), lean=(body.lean or "").strip() or None, added_by=sketcher_id)
+                  hex=body.hex.lower(), lean=(body.lean or "").strip() or None, opacity=body.opacity,
+                  added_by=sketcher_id)
     db.add(paint)
     db.flush()
     ids = palette_ids(db, sketcher_id)

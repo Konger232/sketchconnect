@@ -450,6 +450,11 @@ select p.id, v.paint_id, (v.ord - 1)::int
 from profiles p
 cross join lateral jsonb_array_elements_text(
   case when jsonb_typeof(p.favorite_paints::jsonb) = 'array' then p.favorite_paints::jsonb else '[]'::jsonb end
-) with ordinality as v(paint_id, ord)  -- some rows hold JSON null, not a list
+) with ordinality as v(paint_id, ord)
 where exists (select 1 from paints x where x.id = v.paint_id)
 on conflict do nothing;
+
+-- Opacity, as printed on the tube (October 23, 2026). Empty for our
+-- starter paints until it is filled in.
+alter table paints add column if not exists opacity text
+  check (opacity in ('transparent', 'semi_transparent', 'semi_opaque', 'opaque'));

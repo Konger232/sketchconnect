@@ -2,7 +2,7 @@
 Paint library and My palette request bodies (design doc, item 46). The
 router cleans and checks every field (paints/router.py).
 """
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -13,6 +13,7 @@ class NewPaintRequest(BaseModel):
     pigment_codes: list[str] = Field(min_length=1, max_length=4)
     hex: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
     lean: Optional[str] = Field(default=None, max_length=80)
+    opacity: Optional[Literal["transparent", "semi_transparent", "semi_opaque", "opaque"]] = None
     # A pigment code we don't know: saved only once the sketcher says the
     # tube really says so.
     confirm_unknown: bool = False

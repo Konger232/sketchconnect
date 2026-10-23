@@ -270,6 +270,8 @@ class Paint(Base):
     pigment_codes = Column(JSON, nullable=False, default=list)
     hex = Column(String, nullable=False)
     lean = Column(String, nullable=True)
+    # transparent | semi_transparent | semi_opaque | opaque, as on the tube
+    opacity = Column(String, nullable=True)
     added_by = Column(UUID(as_uuid=False), nullable=True)
     checked = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)

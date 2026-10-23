@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import Button from './Button'
-import { BRANDS, FAMILIES, colourFits, familyOf, libraryPaints, normalizeCode, paintLabel } from '../../data/paints'
+import { BRANDS, FAMILIES, OPACITY, colourFits, familyOf, libraryPaints, normalizeCode, paintLabel } from '../../data/paints'
 import { api } from '../../lib/api'
 import { paintToWheel, wheelToHex } from '../../lib/colorWheel'
 
@@ -48,15 +48,28 @@ export default function NewPaintForm({ at, tapped, onSuggest, mine, onUse, onSav
   const [brand, setBrand] = useState(BRANDS[0])
   const [otherBrand, setOtherBrand] = useState('')
   const [name, setName] = useState('')
-  const [codesText, setCodesText] = useState('')
+  // Pigment codes as chips: type one, press Enter (or a comma) for the next.
+  const [chips, setChips] = useState([])
+  const [draft, setDraft] = useState('')
+  const [draftBad, setDraftBad] = useState(null)
+  const [opacity, setOpacity] = useState('')
   const [busy, setBusy] = useState(false)
   const [server, setServer] = useState(null) // { kind: 'unknown' | 'exists' | 'error', message, paint? }
 
   const brandName = (brand === 'Other' ? otherBrand : brand).trim()
-  const raw = codesText.split(/[,+;/]+/).map((s) => s.trim()).filter(Boolean)
-  const codes = raw.map(normalizeCode)
-  const bad = raw.filter((_, i) => !codes[i])
-  const good = [...new Set(codes.filter(Boolean))]
+  // The chips, and a code still being typed when it is already valid.
+  const typed = normalizeCode(draft)
+  const good = [...new Set([...chips, ...(typed ? [typed] : [])])].slice(0, 4)
+  const bad = draftBad ? [draftBad] : []
+  function commitDraft() {
+    const parts = draft.split(/[,+;/]+/).map((x) => x.trim()).filter(Boolean)
+    if (!parts.length) return
+    const wrong = parts.find((x) => !normalizeCode(x))
+    if (wrong) { setDraftBad(wrong); return }
+    setChips((c) => [...new Set([...c, ...parts.map(normalizeCode)])].slice(0, 4))
+    setDraft('')
+    setDraftBad(null)
+  }
   const fits = colourFits(good, at)
 
   // Until the sketcher taps the wheel, the colour follows the pigment code.
@@ -93,6 +106,7 @@ export default function NewPaintForm({ at, tapped, onSuggest, mine, onUse, onSav
         // Stored so the paint lands back on this spot (lib/colorWheel paintToWheel).
         hex: wheelToHex({ h, c: Math.min(1, c * 0.9) }),
         lean: fam ? fam.word : null,
+        opacity: opacity || null,
         confirm_unknown: confirmUnknown,
       })
       onSaved(data)
@@ -128,8 +142,45 @@ export default function NewPaintForm({ at, tapped, onSuggest, mine, onUse, onSav
       </div>
       <input aria-label="Paint name" placeholder="Name on the tube, e.g. French Ultramarine" maxLength={60} value={name}
         onChange={(e) => setName(e.target.value)} className="field-input !py-2" />
-      <input aria-label="Pigment codes" placeholder="Pigment code, e.g. PB29 (PB29 + PBk9 for a mix)" maxLength={60} value={codesText}
-        onChange={(e) => setCodesText(e.target.value)} className="field-input !py-2" />
+      {/* Pigments as chips: a mix such as Sap Green is PG7 + PY110. */}
+      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-ink/20 bg-white px-2 py-1.5 focus-within:border-ink/40">
+        {chips.map((c) => (
+          <span key={c} className="flex items-center gap-1 rounded-full bg-[var(--ed-field-bg)] py-0.5 pl-2 pr-1 text-xs font-bold">
+            {c}
+            <button type="button" aria-label={`Remove ${c}`} className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-ink/10"
+              onClick={() => setChips((x) => x.filter((y) => y !== c))}>×</button>
+          </span>
+        ))}
+        {chips.length < 4 && (
+          <input aria-label="Pigment codes" maxLength={12} value={draft}
+            placeholder={chips.length ? 'Another pigment' : 'Pigment code, e.g. PB29; Enter for the next'}
+            onChange={(e) => { setDraft(e.target.value); setDraftBad(null) }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commitDraft() }
+              else if (e.key === 'Backspace' && !draft && chips.length) setChips((x) => x.slice(0, -1))
+            }}
+            onBlur={commitDraft}
+            className="min-w-[120px] flex-1 bg-transparent px-1 py-1 text-sm focus:outline-none" />
+        )}
+      </div>
+      {good.length === 1 && !bad.length && (
+        <span className="self-start rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">Single pigment: mixes clean</span>
+      )}
+      {good.length > 1 && !bad.length && (
+        <span className="has-tip has-tip-wrap self-start rounded-full bg-[var(--ed-field-bg)] px-2 py-0.5 text-[11px] font-semibold text-ink/75"
+          data-tip="A mix with another mix puts 4 or 5 pigments on the page, which can turn to mud. The fewer the pigments, the cleaner the mix." tabIndex={0}>
+          {good.length} pigments: convenience mix
+        </span>
+      )}
+      <div className="flex items-center gap-2">
+        <select aria-label="Opacity" value={opacity} onChange={(e) => setOpacity(e.target.value)} className="field-select min-w-0 flex-1 !py-2">
+          <option value="">Opacity (on the tube)</option>
+          {OPACITY.map((o) => <option key={o.value} value={o.value}>{o.mark} {o.label}</option>)}
+        </select>
+        <span className="has-tip has-tip-wrap has-tip-end flex h-7 w-7 shrink-0 cursor-help items-center justify-center rounded-full border border-ink/25 text-xs font-semibold text-ink/70"
+          tabIndex={0} aria-label="About opacity"
+          data-tip={`Opacity decides whether your pen lines and the paper glow through the wash, or the paint covers them. ${OPACITY.map((o) => `${o.mark} ${o.label}: ${o.note}.`).join(' ')}`}>i</span>
+      </div>
       <p className="m-0 text-xs text-ink/55">
         {tapped
           ? 'Its colour is the spot you tapped. Tap again to move it.'
