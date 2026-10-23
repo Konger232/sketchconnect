@@ -31,6 +31,8 @@ export default function FloatPanel({
   width,
   className = '',
   bodyClassName = '',
+  // false: a press outside does not close it (unsaved typing inside)
+  closeOnOutside = true,
   children,
 }) {
   const panelRef = useRef(null)
@@ -105,7 +107,7 @@ export default function FloatPanel({
 
   if (placement === 'modal') {
     return (
-      <div className="float-scrim flex items-end justify-center md:items-center md:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.() }}>
+      <div className="float-scrim flex items-end justify-center md:items-center md:p-6" onMouseDown={(e) => { if (closeOnOutside && e.target === e.currentTarget) onClose?.() }}>
         {panel}
       </div>
     )
@@ -114,7 +116,7 @@ export default function FloatPanel({
   // Popover: a scrim on a phone only, where it is a bottom sheet.
   return (
     <>
-      <div className="float-scrim md:hidden" onMouseDown={onClose} />
+      <div className="float-scrim md:hidden" onMouseDown={closeOnOutside ? onClose : undefined} />
       {panel}
     </>
   )

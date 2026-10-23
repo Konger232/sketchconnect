@@ -4,7 +4,6 @@ import { BRANDS, FAMILIES, colourFits, familyOf, libraryPaints, normalizeCode, p
 import { api } from '../../lib/api'
 import { paintToWheel, wheelToHex } from '../../lib/colorWheel'
 
-const TEMPS = [['warm', 'Warm'], ['cool', 'Cool'], ['', 'Neither']]
 
 // Where a family sits on the wheel, when no paint in the library shares
 // the pigment: { h, c }.
@@ -50,7 +49,6 @@ export default function NewPaintForm({ at, tapped, onSuggest, mine, onUse, onSav
   const [otherBrand, setOtherBrand] = useState('')
   const [name, setName] = useState('')
   const [codesText, setCodesText] = useState('')
-  const [temp, setTemp] = useState('')
   const [busy, setBusy] = useState(false)
   const [server, setServer] = useState(null) // { kind: 'unknown' | 'exists' | 'error', message, paint? }
 
@@ -94,7 +92,7 @@ export default function NewPaintForm({ at, tapped, onSuggest, mine, onUse, onSav
         pigment_codes: good,
         // Stored so the paint lands back on this spot (lib/colorWheel paintToWheel).
         hex: wheelToHex({ h, c: Math.min(1, c * 0.9) }),
-        lean: fam ? `${fam.word}${temp ? ` (${temp})` : ''}` : null,
+        lean: fam ? fam.word : null,
         confirm_unknown: confirmUnknown,
       })
       onSaved(data)
@@ -120,25 +118,18 @@ export default function NewPaintForm({ at, tapped, onSuggest, mine, onUse, onSav
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-[1fr_1fr] gap-2">
+      <div className={`grid gap-2 ${brand === 'Other' ? 'grid-cols-[1fr_1fr]' : ''}`}>
         <select aria-label="Brand" value={brand} onChange={(e) => setBrand(e.target.value)} className="field-select !py-2">
           {[...BRANDS, 'Other'].map((b) => <option key={b} value={b}>{b}</option>)}
         </select>
-        {brand === 'Other'
-          ? <input aria-label="Brand name" placeholder="Brand" maxLength={40} value={otherBrand} onChange={(e) => setOtherBrand(e.target.value)} className="field-input !py-2" />
-          : <select aria-label="Warm or cool" value={temp} onChange={(e) => setTemp(e.target.value)} className="field-select !py-2">
-              {TEMPS.map(([v, l]) => <option key={l} value={v}>{l}</option>)}
-            </select>}
+        {brand === 'Other' && (
+          <input aria-label="Brand name" placeholder="Brand" maxLength={40} value={otherBrand} onChange={(e) => setOtherBrand(e.target.value)} className="field-input !py-2" />
+        )}
       </div>
       <input aria-label="Paint name" placeholder="Name on the tube, e.g. French Ultramarine" maxLength={60} value={name}
         onChange={(e) => setName(e.target.value)} className="field-input !py-2" />
       <input aria-label="Pigment codes" placeholder="Pigment code, e.g. PB29 (PB29 + PBk9 for a mix)" maxLength={60} value={codesText}
         onChange={(e) => setCodesText(e.target.value)} className="field-input !py-2" />
-      {brand === 'Other' && (
-        <select aria-label="Warm or cool" value={temp} onChange={(e) => setTemp(e.target.value)} className="field-select !py-2">
-          {TEMPS.map(([v, l]) => <option key={l} value={v}>{l === 'Neither' ? 'Neither warm nor cool' : l}</option>)}
-        </select>
-      )}
       <p className="m-0 text-xs text-ink/55">
         {tapped
           ? 'Its colour is the spot you tapped. Tap again to move it.'

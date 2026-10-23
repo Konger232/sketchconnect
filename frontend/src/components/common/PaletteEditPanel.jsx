@@ -153,7 +153,12 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
         // A tap: a pan is picked; a paint opens its form.
         // A tap: a pan is picked (its paint ringed on the wheel); a paint
         // opens its form and picks its pan.
-        if (p.from) { setSel(p.from); setForm(null) } else if (p.id) {
+        // A new paint being typed keeps its form: the press only picks.
+        const typing = form?.mode === 'new'
+        if (p.from) { setSel(p.from); if (!typing) setForm(null) } else if (p.id && typing) {
+          const home = layout.pans.find((x) => x.paint === p.id)
+          setSel(home ? { r: home.r, c: home.c } : null)
+        } else if (p.id) {
           const home = layout.pans.find((x) => x.paint === p.id)
           setSel(home ? { r: home.r, c: home.c } : null)
           openForm({ mode: 'edit', id: p.id }, { y: ev.clientY })
@@ -286,6 +291,7 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
       title="Edit palette"
       width="900px"
       onClose={() => onClose()}
+      closeOnOutside={form?.mode !== 'new'}
       footer={
         <>
           {error && <span className="mr-auto text-sm text-accent">{error}</span>}
