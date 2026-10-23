@@ -19,7 +19,7 @@ import Icon from './Icon'
 // (the results dropdown's own background, the clear button's hover
 // state) need genuinely different classes on dark, not just an
 // additional override.
-export default function LocationSearchField({ location, onLocationChange, dark = false }) {
+export default function LocationSearchField({ location, onLocationChange, dark = false, withBounds = false }) {
   const [query, setQuery] = useState(location?.label || '')
   const [results, setResults] = useState([])
   const [searching, setSearching] = useState(false)
@@ -71,7 +71,8 @@ export default function LocationSearchField({ location, onLocationChange, dark =
     skipNextSearchRef.current = true
     setQuery(result.label)
     setResults([])
-    onLocationChange({ lat: result.lat, lon: result.lon, label: result.label })
+    // withBounds: the place's extent too (Explore fits the map to a city).
+    onLocationChange({ lat: result.lat, lon: result.lon, label: result.label, ...(withBounds && result.bbox ? { bbox: result.bbox } : {}) })
   }
 
   function handleClear() {

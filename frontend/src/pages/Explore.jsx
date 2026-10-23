@@ -37,9 +37,17 @@ function ViewWatcher({ onView }) {
   return null
 }
 
+// A searched place: the whole of it in view (a city, a district), else
+// close around its point.
 function FlyTo({ place }) {
   const map = useMap()
-  useEffect(() => { if (place) map.flyTo([place.lat, place.lon], NEAR_ZOOM, { duration: 0.8 }) }, [place?.lat, place?.lon]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!place) return
+    if (place.bbox) {
+      const [s, n, w, e] = place.bbox
+      map.flyToBounds([[s, w], [n, e]], { maxZoom: 15, padding: [24, 24], duration: 0.8 })
+    } else map.flyTo([place.lat, place.lon], NEAR_ZOOM, { duration: 0.8 })
+  }, [place?.lat, place?.lon]) // eslint-disable-line react-hooks/exhaustive-deps
   return null
 }
 
@@ -56,7 +64,15 @@ export default function Explore() {
   const [located, setLocated] = useState(false) // the start position is settled
   const [sketches, setSketches] = useState([])
   const [loading, setLoading] = useState(false)
+  const [map, setMap] = useState(null)
+  const [picked, setPicked] = useState(null) // the sketch picked in the list
   const timer = useRef(null)
+
+  // A card in the list: its pin to the centre of the map, at the same zoom.
+  function centreOn(s) {
+    setPicked(s.id)
+    if (map && s.location) map.panTo([s.location.lat, s.location.lon], { animate: true })
+  }
 
   // Sketches in view, a moment after the map stops or the filter changes.
   useEffect(() => {
@@ -96,7 +112,7 @@ export default function Explore() {
 
   return (
     <BasePage fullBleed className="">
-        <MapContainer center={[20, 0]} zoom={2} zoomControl={false} scrollWheelZoom className="absolute inset-0 h-full w-full">
+        <MapContainer ref={setMap} center={[20, 0]} zoom={2} zoomControl={false} scrollWheelZoom className="absolute inset-0 h-full w-full">
           <TileLayer
             attribution='Tiles &copy; Esri &mdash; Sources: Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
@@ -106,7 +122,7 @@ export default function Explore() {
           <ViewWatcher onView={setBounds} />
           <FlyTo place={place} />
           {pins.map((s) => (
-            <Marker key={s.id} position={[s.location.lat, s.location.lon]} icon={RED_PIN}>
+            <Marker key={s.id} position={[s.location.lat, s.location.lon]} icon={RED_PIN} zIndexOffset={picked === s.id ? 1000 : 0}>
               <Popup minWidth={240} maxWidth={260} className="explore-popup">
                 <SketchCard sketch={s} details />
               </Popup>
@@ -115,12 +131,29 @@ export default function Explore() {
         </MapContainer>
 
         {/* The floating panel: the place search, and the time filter on a phone. */}
-        <div className="absolute left-3 top-3 z-[1000] flex w-[min(360px,calc(100%-24px))] flex-col gap-2">
-          <div className="rounded-xl bg-white p-2 shadow-lg">
-            <LocationSearchField location={place} onLocationChange={setPlace} />
+        <div className="absolute bottom-3 left-3 top-3 z-[1000] flex w-[min(360px,calc(100%-24px))] flex-col gap-2 pointer-events-none max-md:bottom-auto">
+          <div className="pointer-events-auto flex min-h-0 flex-col rounded-xl bg-white p-2 shadow-lg">
+            <LocationSearchField location={place} onLocationChange={setPlace} withBounds />
             <p className={`m-0 px-1 pt-1.5 text-xs text-ink/60 ${loading ? 'animate-pulse' : ''}`}>
               {loading ? 'Finding sketches…' : `${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'} in view`}
             </p>
+            {/* None in view within the time filter: offer every date. */}
+            {!loading && pins.length === 0 && period !== 'all' && (
+              <p className="m-0 px-1 pt-1 text-xs text-ink/60">
+                None from the {PERIODS.find((p) => p.key === period).label.toLowerCase()}.{' '}
+                <button type="button" className="font-semibold text-ink underline" onClick={() => setPeriod('all')}>Show all dates</button>
+              </p>
+            )}
+            {/* The sketches in view, one under another; a card moves the map to it. */}
+            {pins.length > 0 && (
+              <ul className="m-0 mt-2 flex min-h-0 list-none flex-col gap-4 overflow-y-auto p-1 max-md:max-h-[38vh]">
+                {pins.map((s) => (
+                  <li key={s.id} className={`rounded-lg p-1 ${picked === s.id ? 'outline outline-2 outline-ink' : ''}`}>
+                    <SketchCard sketch={s} details onSelect={centreOn} />
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <div className="md:hidden">{pills}</div>
         </div>

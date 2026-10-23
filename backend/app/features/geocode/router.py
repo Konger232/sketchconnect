@@ -51,8 +51,15 @@ async def search(q: str):
             raise HTTPException(502, "Location search is temporarily unavailable")
     if resp.status_code != 200:
         raise HTTPException(502, "Location search is temporarily unavailable")
+    def bbox(r):
+        # Nominatim's boundingbox: [south, north, west, east], as strings.
+        try:
+            s, n, w, e = (float(v) for v in r.get("boundingbox") or [])
+            return [s, n, w, e]
+        except (TypeError, ValueError):
+            return None
     return [
-        {"label": short_label(r), "detail": r["display_name"], "lat": float(r["lat"]), "lon": float(r["lon"])}
+        {"label": short_label(r), "detail": r["display_name"], "lat": float(r["lat"]), "lon": float(r["lon"]), "bbox": bbox(r)}
         for r in resp.json()
     ]
 

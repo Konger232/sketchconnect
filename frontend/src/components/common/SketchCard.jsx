@@ -23,8 +23,10 @@ export const RATIOS = { square: '1 / 1', portrait: '4 / 5' }
  *   ratio      'square' | 'portrait' (4:5), the image shape
  *   details    the Explore popup: also the sketcher, the field notes, the
  *              place and the date
+ *   onSelect   a click picks the sketch instead of opening it (Explore's
+ *              list: the map moves to it)
  */
-export default function SketchCard({ sketch, meta, href, linkState, image, multi = false, details = false, ratio = 'square' }) {
+export default function SketchCard({ sketch, meta, href, linkState, image, multi = false, details = false, ratio = 'square', onSelect }) {
   const [like, setLike] = useState({ liked: Boolean(sketch.liked), count: sketch.like_count || 0 })
   useEffect(() => { setLike({ liked: Boolean(sketch.liked), count: sketch.like_count || 0 }) }, [sketch.id, sketch.liked, sketch.like_count])
   const { user } = useAuth()
@@ -57,7 +59,8 @@ export default function SketchCard({ sketch, meta, href, linkState, image, multi
   }
 
   return (
-    <Link to={href || `/sketches/${sketch.id}`} state={linkState} className="group flex flex-col gap-2 text-ink no-underline">
+    <Link to={href || `/sketches/${sketch.id}`} state={linkState} className="group flex flex-col gap-2 text-ink no-underline"
+      onClick={onSelect ? (e) => { e.preventDefault(); onSelect(sketch) } : undefined}>
       <span className="ed-slide" style={{ aspectRatio: RATIOS[ratio] || RATIOS.square }}>
         {src && <img src={src} alt="" loading="lazy" />}
         <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-3xs font-medium text-white">
