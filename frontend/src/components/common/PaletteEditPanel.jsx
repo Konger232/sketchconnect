@@ -325,9 +325,6 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
         </>
       }
     >
-      <p className="m-0 text-sm text-ink/70">
-        Your paint collection is every paint you own, on the wheel: tap the wheel to add a paint near that colour, tap a paint to change it. Is there a warm and a cool of each primary? Your tin is what you carry: drag paints onto its pans, laid out like your own. Changes save as you go.
-      </p>
 
       {/* A new sketcher: start from the starter set, or from nothing. */}
       {choosing && paints.length === 0 && (
@@ -353,6 +350,13 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
           selected: form && form.mode !== 'edit' ? form.at : null,
           onTapWheel: (at) => (form?.mode === 'new' ? setForm({ ...form, at, tapped: true }) : openForm({ mode: 'add', at })),
         }}
+        wheelNote={(
+          <>
+            <p className="m-0">Tap the wheel to add a paint from the library. Drag any paint off the wheel to remove it.</p>
+            <p className="m-0 mt-1 text-ink/55">(Tip: Aim for a warm and cool of each primary!)</p>
+          </>
+        )}
+        tinNote="Your field palette. Drag paints from the wheel into your pans to match your physical kit. Drag a pan out to remove it."
         editable placed={inPans} dropAt={dropAt} stageRef={stageRef} wheelRef={wheelRef}
         tinTop={(
           <>
@@ -389,9 +393,7 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
               <span className="text-xs text-ink/55">A full pan takes the empty half pan to its right or below.</span>
             )}
           </div>
-        ) : (
-          <span className="text-xs text-ink/55">Drag a paint from your collection onto a pan to put it in your tin. Tap a pan to make it a full pan. Drag a pan off the tin to take its paint out of the tin; drag a circle off the wheel to remove the paint from your collection. A dashed pill is a paint not in your tin.</span>
-        )}
+        ) : null}
         overlay={form && wide && cardPos && (
           // The form: a card beside the wheel (computer).
           <div ref={cardRef} className="absolute z-30 flex scroll-my-4 flex-col gap-2 rounded-lg bg-white p-3 shadow-[0_4px_24px_rgba(0,0,0,0.25)]"
