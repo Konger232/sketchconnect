@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import GamutWheel from '../analysis/GamutWheel'
 import Button from './Button'
 import FloatPanel from './FloatPanel'
 import Icon from './Icon'
 import NewPaintForm from './NewPaintForm'
-import PanGrid from './PanGrid'
+import PaletteBoard from './PaletteBoard'
 import { STARTER_PALETTE, libraryPaints, paintById, paintLabel, registerPaints } from '../../data/paints'
 import { api } from '../../lib/api'
 import { paintToWheel, wheelToHex } from '../../lib/colorWheel'
@@ -19,8 +18,9 @@ const DRAG_START = 5 // px before a press becomes a drag
 const CARD_W = 320
 
 /**
- * Edit palette (design doc, item 45). The paints on the Yurmby wheel, with
- * the palette as chips on top, and the pans laid out like the tin.
+ * Edit palette (design doc, item 45). The paints on the Yurmby wheel, the
+ * pans laid out like the tin, and the paints as pills under it
+ * (PaletteBoard, shared with the Sketcher page).
  *
  *   tap the wheel        add a paint near that colour (our list, nearest first)
  *   tap a paint          change it or take it out
@@ -298,73 +298,64 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
         Tap the wheel to add a paint near that colour; tap a paint to change it. Is there a warm and a cool of each primary? Then drag each paint into its pan, laid out like your tin. Changes save as you go.
       </p>
 
-      {/* The palette, on top: drag a chip onto a pan, or tap it. */}
-      <div className="flex flex-wrap gap-2">
-        {list.map((p) => (
-          <button key={p.id} type="button" onPointerDown={(e) => startPress(e, p.id)} aria-label={`${p.name}: tap to change, drag onto a pan`}
-            className={`flex touch-none items-center gap-1.5 rounded-full border py-1 pl-1 pr-2.5 text-xs ${focusId === p.id ? 'border-ink ring-1 ring-ink' : 'border-ink/20'} ${inPans.has(p.id) ? '' : 'border-dashed'}`}>
-            <span className="h-5 w-5 rounded-full border border-black/10" style={{ background: p.hex }} />
-            <span className="font-bold">{p.code}</span>
-          </button>
-        ))}
-        <Button variant="editorial" size="sm" onClick={() => openForm({ mode: 'add', at: null })}>
-          <Icon name="plus" size={14} /> Add paint
-        </Button>
-      </div>
-
-      <div ref={stageRef} className="relative grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <div ref={wheelRef} className="pb-4">
-          <GamutWheel paints={list} readOnly light ringPaint={focusId}
-            selected={form && form.mode !== 'edit' ? form.at : null}
-            onTapWheel={(at) => (form?.mode === 'new' ? setForm({ ...form, at, tapped: true }) : openForm({ mode: 'add', at }))}
-            onPaintDown={(p, e) => startPress(e, p.id)} />
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <span className="ed-caption">Your tin</span>
-          <div className="flex flex-wrap gap-4">
-            {stepper('Rows', layout.rows, (n) => save(paints, resize(layout, n, layout.cols)), MAX_ROWS)}
-            {stepper('Columns', layout.cols, (n) => save(paints, resize(layout, layout.rows, n)), MAX_COLS)}
-          </div>
-          <div>
-            <PanGrid layout={layout} editable selected={sel} dropAt={dropAt}
-              onPanDown={(p, e) => startPress(e, p.paint, { r: p.r, c: p.c })} />
-          </div>
-          {pan ? (
-            <div className="flex flex-col gap-2 border-t border-[var(--ed-row-rule)] pt-3">
-              <span className="text-sm">
-                <span className="font-semibold">{pan.w * pan.h > 1 ? 'Full pan' : 'Half pan'}</span>
-                {panPaint ? ` · ${panPaint.code} ${panPaint.name}` : ' · empty'}
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {pan.w * pan.h === 1 ? (
-                  <>
-                    <Button variant="editorial" size="sm" disabled={!canMerge(layout, pan, 'right')} onClick={() => save(paints, mergePan(layout, pan, 'right'))}>Full pan →</Button>
-                    <Button variant="editorial" size="sm" disabled={!canMerge(layout, pan, 'down')} onClick={() => save(paints, mergePan(layout, pan, 'down'))}>Full pan ↓</Button>
-                  </>
-                ) : (
-                  <Button variant="editorial" size="sm" onClick={() => save(paints, splitPan(layout, panAt(layout, pan.r, pan.c)))}>Half pan</Button>
-                )}
-                {panPaint && <Button variant="editorial" size="sm" onClick={() => save(paints, emptyPan(layout, panAt(layout, pan.r, pan.c)))}>Take out of the pan</Button>}
-                {panPaint && <Button variant="editorial" size="sm" onClick={() => { removePaint(panPaint.id) }}>Remove from palette</Button>}
-              </div>
-              {pan.w * pan.h === 1 && !canMerge(layout, pan, 'right') && !canMerge(layout, pan, 'down') && (
-                <span className="text-xs text-ink/55">A full pan takes the empty half pan to its right or below.</span>
-              )}
+      {/* The wheel, the tin and the pills under it (PaletteBoard, as on the
+          Sketcher page). Drag a circle, a pill or a pan; tap one to pick it. */}
+      <PaletteBoard
+        paints={list} layout={layout} focusId={focusId} selectedPan={sel}
+        onPaintDown={(p, e) => startPress(e, p.id)}
+        onPanDown={(p, e) => startPress(e, p.paint, { r: p.r, c: p.c })}
+        wheel={{
+          selected: form && form.mode !== 'edit' ? form.at : null,
+          onTapWheel: (at) => (form?.mode === 'new' ? setForm({ ...form, at, tapped: true }) : openForm({ mode: 'add', at })),
+        }}
+        editable placed={inPans} dropAt={dropAt} stageRef={stageRef} wheelRef={wheelRef}
+        tinTop={(
+          <>
+            <span className="ed-caption">Your tin</span>
+            <div className="flex flex-wrap gap-4">
+              {stepper('Rows', layout.rows, (n) => save(paints, resize(layout, n, layout.cols)), MAX_ROWS)}
+              {stepper('Columns', layout.cols, (n) => save(paints, resize(layout, layout.rows, n)), MAX_COLS)}
             </div>
-          ) : (
-            <span className="text-xs text-ink/55">Drag a paint onto a pan. Tap a pan to make it a full pan or remove its paint. Dragging a paint off the tin only takes it out of its pan; a dashed chip is a paint in no pan.</span>
-          )}
-        </div>
-
-        {/* The form: a card beside the wheel (computer). */}
-        {form && wide && cardPos && (
+          </>
+        )}
+        pillsEnd={(
+          <Button variant="editorial" size="sm" onClick={() => openForm({ mode: 'add', at: null })}>
+            <Icon name="plus" size={14} /> Add paint
+          </Button>
+        )}
+        tinBottom={pan ? (
+          <div className="flex flex-col gap-2 border-t border-[var(--ed-row-rule)] pt-3">
+            <span className="text-sm">
+              <span className="font-semibold">{pan.w * pan.h > 1 ? 'Full pan' : 'Half pan'}</span>
+              {panPaint ? ` · ${panPaint.code} ${paintLabel(panPaint)}` : ' · empty'}
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {pan.w * pan.h === 1 ? (
+                <>
+                  <Button variant="editorial" size="sm" disabled={!canMerge(layout, pan, 'right')} onClick={() => save(paints, mergePan(layout, pan, 'right'))}>Full pan →</Button>
+                  <Button variant="editorial" size="sm" disabled={!canMerge(layout, pan, 'down')} onClick={() => save(paints, mergePan(layout, pan, 'down'))}>Full pan ↓</Button>
+                </>
+              ) : (
+                <Button variant="editorial" size="sm" onClick={() => save(paints, splitPan(layout, panAt(layout, pan.r, pan.c)))}>Half pan</Button>
+              )}
+              {panPaint && <Button variant="editorial" size="sm" onClick={() => save(paints, emptyPan(layout, panAt(layout, pan.r, pan.c)))}>Take out of the pan</Button>}
+              {panPaint && <Button variant="editorial" size="sm" onClick={() => removePaint(panPaint.id)}>Remove from palette</Button>}
+            </div>
+            {pan.w * pan.h === 1 && !canMerge(layout, pan, 'right') && !canMerge(layout, pan, 'down') && (
+              <span className="text-xs text-ink/55">A full pan takes the empty half pan to its right or below.</span>
+            )}
+          </div>
+        ) : (
+          <span className="text-xs text-ink/55">Drag a paint onto a pan. Tap a pan to make it a full pan or remove its paint. Dragging a paint off the tin only takes it out of its pan; a dashed pill is a paint in no pan.</span>
+        )}
+        overlay={form && wide && cardPos && (
+          // The form: a card beside the wheel (computer).
           <div ref={cardRef} className="absolute z-30 flex scroll-my-4 flex-col gap-2 rounded-lg bg-white p-3 shadow-[0_4px_24px_rgba(0,0,0,0.25)]"
             style={{ left: cardPos.x, top: cardPos.y, width: CARD_W, maxHeight: cardPos.h }}>
             {formBody}
           </div>
         )}
-      </div>
+      />
 
       {/* The form: the white bottom sheet (phone). */}
       {form && !wide && (

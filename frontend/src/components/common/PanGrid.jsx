@@ -11,7 +11,8 @@ import { allPans } from '../../lib/paletteLayout'
  *   editable            pans can be picked and dragged
  *   selected { r, c }   the pan picked, outlined
  *   dropAt { r, c }     the pan a paint is being dragged over
- *   onPanDown(pan, e)   a press on a pan (Edit palette starts a drag or a pick)
+ *   onPanDown(pan, e)   a press on a pan (Edit palette: a drag or a pick;
+ *                       the Sketcher page: a pick)
  *   size                a half pan's width in px (its height is 1.24 times)
  */
 export default function PanGrid({ layout, editable = false, selected, dropAt, onPanDown, size = 34 }) {
@@ -38,9 +39,9 @@ export default function PanGrid({ layout, editable = false, selected, dropAt, on
           const on = same(selected, p) || (dropAt && same(dropAt, p))
           return (
             <div key={`${p.r}-${p.c}`} data-pan={`${p.r},${p.c}`} aria-label={tip} data-tip={paint ? tip : undefined}
-              role={editable ? 'button' : 'img'} tabIndex={editable ? 0 : undefined}
-              onPointerDown={editable ? (e) => onPanDown?.(p, e) : undefined}
-              className={`${paint ? 'has-tip' : ''} rounded-[3px] border border-black/10 bg-white p-[3px] ${editable ? 'cursor-grab touch-none' : ''} ${
+              role={onPanDown ? 'button' : 'img'} tabIndex={onPanDown ? 0 : undefined}
+              onPointerDown={onPanDown ? (e) => onPanDown(p, e) : undefined}
+              className={`${paint ? 'has-tip' : ''} rounded-[3px] border border-black/10 bg-white p-[3px] ${editable ? 'cursor-grab touch-none' : onPanDown && paint ? 'cursor-pointer' : ''} ${
                 on ? 'outline outline-2 outline-offset-1 outline-ink' : ''
               }`}
               style={{ gridRow: `${p.r + 1} / span ${p.h}`, gridColumn: `${p.c + 1} / span ${p.w}` }}>

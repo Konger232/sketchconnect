@@ -12,10 +12,9 @@ import EditProfilePanel from '../components/common/EditProfilePanel'
 import FeaturedSlideshow from '../components/common/FeaturedSlideshow'
 import FollowersPanel from '../components/common/FollowersPanel'
 import PaletteEditPanel from '../components/common/PaletteEditPanel'
-import PanGrid from '../components/common/PanGrid'
-import GamutWheel from '../components/analysis/GamutWheel'
+import PaletteBoard from '../components/common/PaletteBoard'
 import { defaultLayout } from '../lib/paletteLayout'
-import { paintById, paintLabel } from '../data/paints'
+import { paintById } from '../data/paints'
 import { api } from '../lib/api'
 import { dateLabel, imageUrl } from '../lib/media'
 import { useSketchesVersion } from '../lib/sketchEvents'
@@ -312,26 +311,8 @@ export default function SketcherProfile({ username: usernameProp }) {
           {favs.length === 0 ? (
             <p className="m-0 text-sm text-ink/60">Add the paints you carry and lay them out like your tin. The Color tab mixes its recipes from them.</p>
           ) : (
-            <div className="grid items-start gap-8 md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] md:gap-14">
-              <div className="pb-4">
-                <GamutWheel paints={paletteList} readOnly light legend={null} />
-              </div>
-              <div className="flex flex-col gap-4">
-                <div><PanGrid layout={page.palette_layout || defaultLayout(favs)} /></div>
-                <ul className="m-0 grid list-none gap-x-6 gap-y-1.5 p-0 sm:grid-cols-2">
-                  {paletteList.map((p) => (
-                    <li key={p.id} className="flex items-start gap-2.5 text-sm">
-                      {/* The swatch is data: an inline background. */}
-                      <span className="mt-0.5 h-4 w-4 shrink-0 rounded-full border border-black/10" style={{ background: p.hex }} />
-                      <span className="flex min-w-0 flex-col">
-                        <span className="text-xs font-bold">{p.code}</span>
-                        <span className="text-ink/80">{paintLabel(p)}</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+            // Tap a circle, a pan or a pill: the other two show the same paint.
+            <PaletteBoard paints={paletteList} layout={page.palette_layout || defaultLayout(favs)} showNames />
           )}
         </section>
       )}

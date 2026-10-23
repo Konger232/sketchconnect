@@ -189,7 +189,7 @@ export default function GamutWheel({ shapes = [], onChange, active, onActive, pa
       <svg
         ref={svgRef}
         viewBox={`0 0 ${SIZE} ${SIZE}`}
-        className={`absolute inset-0 h-full w-full overflow-visible ${readOnly && !onPaintDown ? "" : "touch-none"}`}
+        className={`absolute inset-0 h-full w-full overflow-visible ${readOnly && !onTapWheel ? "" : "touch-none"}`}
         style={{ cursor }}
         onPointerDown={down}
         onPointerMove={move}
