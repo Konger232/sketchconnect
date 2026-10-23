@@ -64,7 +64,7 @@ export function OpacityLegend() {
   return (
     <ul className="m-0 flex list-none flex-col gap-0.5 p-0 text-[11px] text-ink/65">
       <li className="flex items-center gap-1.5">
-        <span className="inline-block h-3 w-3 rounded-full border border-ink/40 bg-[#808080]" /> A paint in the palette
+        <span className="inline-block h-3 w-3 rounded-full border border-ink/40 bg-[#808080]" /> A paint in the collection
       </li>
       {OPACITY.map((o) => (
         <li key={o.value} className="flex items-center gap-1.5">

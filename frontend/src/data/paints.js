@@ -132,8 +132,11 @@ export function colourFits(codes, at) {
 
 export const starterPaints = () => STARTER_PALETTE.map(paintById)
 
-// The paints a sketcher mixes from: My palette (profiles.favorite_paints,
-// design doc item 44). Empty means use starterPaints().
-export function kitPaintList(favorites = []) {
-  return [...new Map(favorites.map(paintById).filter(Boolean).map((p) => [p.id, p])).values()]
+// The paints a sketcher mixes from (design doc, items 44 and 47): the ones
+// in My tin, what they carry on location; with an empty tin, the whole
+// paint collection. Empty means use starterPaints().
+export function kitPaintList(favorites = [], layout = null) {
+  const inTin = new Set((layout?.pans || []).map((p) => p.paint).filter(Boolean))
+  const ids = inTin.size ? favorites.filter((id) => inTin.has(id)) : favorites
+  return [...new Map(ids.map(paintById).filter(Boolean).map((p) => [p.id, p])).values()]
 }

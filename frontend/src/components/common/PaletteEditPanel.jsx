@@ -8,7 +8,7 @@ import { STARTER_PALETTE, libraryPaints, opacityLabel, paintById, paintDescripti
 import { api } from '../../lib/api'
 import { paintToWheel, wheelToHex } from '../../lib/colorWheel'
 import {
-  canMerge, defaultLayout, dropPaint, emptyPan, firstFree, mergePan, nearestPaints, panAt,
+  canMerge, defaultLayout, dropPaint, emptyPan, mergePan, nearestPaints, panAt,
   placePaint, placed, resize, splitPan, swapPaint, MAX_COLS, MAX_ROWS,
 } from '../../lib/paletteLayout'
 import { useSheetDrag } from '../../lib/useSheetDrag'
@@ -31,9 +31,11 @@ const CARD_W = 320
  * and is the white bottom sheet on a phone. Every change saves at once.
  */
 export default function PaletteEditPanel({ paints: startPaints, layout: startLayout, onClose }) {
-  const starter = !startPaints?.length
-  const [paints, setPaints] = useState(starter ? STARTER_PALETTE : startPaints)
-  const [layout, setLayout] = useState(() => startLayout || defaultLayout(starter ? STARTER_PALETTE : startPaints))
+  // A new sketcher picks how to start: the starter set, or nothing.
+  const [choosing, setChoosing] = useState(!startPaints?.length)
+  const [paints, setPaints] = useState(startPaints || [])
+  const [layout, setLayout] = useState(() => startLayout || defaultLayout(startPaints || []))
+  const [undo, setUndo] = useState(null) // { paints, layout, text }: the last removal, to take back
   // { mode: 'add', at: { h, c } | null } | { mode: 'edit', id } | { mode: 'new', at, tapped }
   // (`tapped`: the sketcher set the new paint's colour on the wheel)
   const [form, setForm] = useState(null)
@@ -59,6 +61,17 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
 
   const list = useMemo(() => paints.map(paintById).filter(Boolean), [paints, libTick]) // eslint-disable-line react-hooks/exhaustive-deps
   const inPans = placed(layout)
+
+  // A removal can be taken back for a few seconds.
+  useEffect(() => {
+    if (!undo) return
+    const t = setTimeout(() => setUndo(null), 8000)
+    return () => clearTimeout(t)
+  }, [undo])
+  function removeWithUndo(nextPaints, nextLayout, text) {
+    setUndo({ paints, layout, text })
+    save(nextPaints, nextLayout)
+  }
 
   async function save(nextPaints, nextLayout) {
     setPaints(nextPaints)
@@ -94,10 +107,10 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
     return (anchor ? nearestPaints(anchor) : libraryPaints()).filter((p) => !q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q))
   }, [form, anchor?.h, anchor?.c, query, libTick]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A new paint joins the collection; dragging it onto a pan puts it in the tin.
   function addPaint(id = pending) {
     if (!id || paints.includes(id)) return
-    const free = firstFree(layout)
-    save([...paints, id], free ? placePaint(layout, free, id) : layout)
+    save([...paints, id], layout)
     setForm(null)
   }
   // A new paint: the server has put it in the library and my palette.
@@ -122,15 +135,16 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
     setForm(null)
   }
   function removePaint(id) {
-    save(paints.filter((x) => x !== id), dropPaint(layout, id))
+    removeWithUndo(paints.filter((x) => x !== id), dropPaint(layout, id), `Removed ${paintLabel(paintById(id))} from your collection.`)
     setForm(null)
     setSel(null)
   }
 
   // ---- dragging a paint (from the wheel, a chip or a pan) ----
-  function startPress(e, id, from = null) {
+  // from: the pan it leaves; src: 'wheel' or 'pill' for a paint.
+  function startPress(e, id, from = null, src = null) {
     e.preventDefault()
-    press.current = { id, from, sx: e.clientX, sy: e.clientY, moved: false }
+    press.current = { id, from, src, sx: e.clientX, sy: e.clientY, moved: false }
     const move = (ev) => {
       const p = press.current
       if (!p) return
@@ -171,8 +185,14 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
         if (p.id) save(paints, placePaint(layout, { r, c }, p.id, p.from))
         setSel({ r, c })
       } else if (p.from) {
+        // A pan dragged off the tin: its paint leaves the tin, not the collection.
         const pan = panAt(layout, p.from.r, p.from.c)
-        if (pan) save(paints, emptyPan(layout, pan)) // dragged off the tin
+        if (pan?.paint) removeWithUndo(paints, emptyPan(layout, pan), `Took ${paintLabel(paintById(pan.paint))} out of your tin.`)
+      } else if (p.src === 'wheel' && p.id) {
+        // A circle dragged off the wheel: the paint leaves the collection.
+        const r = wheelRef.current?.querySelector('svg')?.getBoundingClientRect()
+        const off = !r || Math.hypot(ev.clientX - (r.left + r.width / 2), ev.clientY - (r.top + r.height / 2)) > r.width / 2
+        if (off) removePaint(p.id)
       }
     }
     window.addEventListener('pointermove', move)
@@ -295,20 +315,39 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
       footer={
         <>
           {error && <span className="mr-auto text-sm text-accent">{error}</span>}
+          {!error && undo && (
+            <span className="mr-auto flex items-center gap-2 text-sm">
+              {undo.text}
+              <button type="button" className="font-semibold underline" onClick={() => { save(undo.paints, undo.layout); setUndo(null) }}>Undo</button>
+            </span>
+          )}
           <Button variant="action" onClick={() => onClose()}>Done</Button>
         </>
       }
     >
       <p className="m-0 text-sm text-ink/70">
-        {starter ? 'This is the starter palette. Change it to the paints you carry. ' : ''}
-        Tap the wheel to add a paint near that colour; tap a paint to change it. Is there a warm and a cool of each primary? Then drag each paint into its pan, laid out like your tin. Changes save as you go.
+        Your paint collection is every paint you own, on the wheel: tap the wheel to add a paint near that colour, tap a paint to change it. Is there a warm and a cool of each primary? Your tin is what you carry: drag paints onto its pans, laid out like your own. Changes save as you go.
       </p>
+
+      {/* A new sketcher: start from the starter set, or from nothing. */}
+      {choosing && paints.length === 0 && (
+        <div className="flex flex-col gap-2 rounded-md bg-[var(--ed-field-bg)] p-3">
+          <span className="text-sm font-semibold">How would you like to start?</span>
+          <span className="text-sm text-ink/70">
+            The starter set is {STARTER_PALETTE.length} paints: a warm and a cool of each primary, two earths, a white and a grey ({STARTER_PALETTE.map((id) => paintById(id)?.name).filter(Boolean).join(', ')}). Keep it, change it, or start from nothing.
+          </span>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="editorialSolid" size="sm" onClick={() => { save(STARTER_PALETTE, defaultLayout(STARTER_PALETTE)); setChoosing(false) }}>Use the starter set</Button>
+            <Button variant="editorial" size="sm" onClick={() => setChoosing(false)}>Start with no paints</Button>
+          </div>
+        </div>
+      )}
 
       {/* The wheel, the tin and the pills under it (PaletteBoard, as on the
           Sketcher page). Drag a circle, a pill or a pan; tap one to pick it. */}
       <PaletteBoard
         paints={list} layout={layout} focusId={focusId} selectedPan={sel}
-        onPaintDown={(p, e) => startPress(e, p.id)}
+        onPaintDown={(p, e, src) => startPress(e, p.id, null, src)}
         onPanDown={(p, e) => startPress(e, p.paint, { r: p.r, c: p.c })}
         wheel={{
           selected: form && form.mode !== 'edit' ? form.at : null,
@@ -317,7 +356,6 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
         editable placed={inPans} dropAt={dropAt} stageRef={stageRef} wheelRef={wheelRef}
         tinTop={(
           <>
-            <span className="ed-caption">Your tin</span>
             <div className="flex flex-wrap gap-4">
               {stepper('Rows', layout.rows, (n) => save(paints, resize(layout, n, layout.cols)), MAX_ROWS)}
               {stepper('Columns', layout.cols, (n) => save(paints, resize(layout, layout.rows, n)), MAX_COLS)}
@@ -344,15 +382,15 @@ export default function PaletteEditPanel({ paints: startPaints, layout: startLay
               ) : (
                 <Button variant="editorial" size="sm" onClick={() => save(paints, splitPan(layout, panAt(layout, pan.r, pan.c)))}>Half pan</Button>
               )}
-              {panPaint && <Button variant="editorial" size="sm" onClick={() => save(paints, emptyPan(layout, panAt(layout, pan.r, pan.c)))}>Take out of the pan</Button>}
-              {panPaint && <Button variant="editorial" size="sm" onClick={() => removePaint(panPaint.id)}>Remove from palette</Button>}
+              {panPaint && <Button variant="editorial" size="sm" onClick={() => removeWithUndo(paints, emptyPan(layout, panAt(layout, pan.r, pan.c)), `Took ${paintLabel(panPaint)} out of your tin.`)}>Take out of the tin</Button>}
+              {panPaint && <Button variant="editorial" size="sm" onClick={() => removePaint(panPaint.id)}>Remove from my collection</Button>}
             </div>
             {pan.w * pan.h === 1 && !canMerge(layout, pan, 'right') && !canMerge(layout, pan, 'down') && (
               <span className="text-xs text-ink/55">A full pan takes the empty half pan to its right or below.</span>
             )}
           </div>
         ) : (
-          <span className="text-xs text-ink/55">Drag a paint onto a pan. Tap a pan to make it a full pan or remove its paint. Dragging a paint off the tin only takes it out of its pan; a dashed pill is a paint in no pan.</span>
+          <span className="text-xs text-ink/55">Drag a paint from your collection onto a pan to put it in your tin. Tap a pan to make it a full pan. Drag a pan off the tin to take its paint out of the tin; drag a circle off the wheel to remove the paint from your collection. A dashed pill is a paint not in your tin.</span>
         )}
         overlay={form && wide && cardPos && (
           // The form: a card beside the wheel (computer).

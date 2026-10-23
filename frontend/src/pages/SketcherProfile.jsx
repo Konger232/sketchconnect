@@ -312,7 +312,9 @@ export default function SketcherProfile({ username: usernameProp }) {
             <p className="m-0 text-sm text-ink/60">Add the paints you carry and lay them out like your tin. The Color tab mixes its recipes from them.</p>
           ) : (
             // Tap a circle, a pan or a pill: the other two show the same paint.
-            <PaletteBoard paints={paletteList} layout={page.palette_layout || defaultLayout(favs)} showNames />
+            <PaletteBoard paints={paletteList} layout={page.palette_layout || defaultLayout(favs)} showNames
+              wheelTitle={viewer === 'owner' ? 'My paint collection' : `${firstName}'s paint collection`}
+              tinTitle={viewer === 'owner' ? 'My tin' : `${firstName}'s tin`} />
           )}
         </section>
       )}

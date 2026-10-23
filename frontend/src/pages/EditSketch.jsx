@@ -372,7 +372,7 @@ export default function EditSketch() {
   useEffect(() => {
     if (tab !== 'color' || kitPaints || !sketch?.is_owner) return
     api.get('/api/profile').catch(() => ({ data: {} }))
-      .then((prof) => setKitPaints(kitPaintList(prof.data.favorite_paints || [])))
+      .then((prof) => setKitPaints(kitPaintList(prof.data.favorite_paints || [], prof.data.palette_layout)))
   }, [tab, kitPaints, sketch?.is_owner])
 
   // The mask saves itself a moment after a change ends.
