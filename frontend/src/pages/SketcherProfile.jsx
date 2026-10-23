@@ -19,6 +19,7 @@ import { api } from '../lib/api'
 import { dateLabel, imageUrl } from '../lib/media'
 import { useSketchesVersion } from '../lib/sketchEvents'
 import Avatar from '../components/common/Avatar'
+import PhotoDropzone from '../components/common/PhotoDropzone'
 
 /**
  * The sketcher page (design handoff, "Sketcher Page - Editorial"; design
@@ -209,7 +210,8 @@ export default function SketcherProfile({ username: usernameProp }) {
   return (
     <BasePage overlays={overlays}>
       {/* ---- 1. Hero ---- */}
-      <section className="grid items-center gap-7 md:grid-cols-2 md:gap-14">
+      {/* With no final sketch to show, the profile stands alone, centred. */}
+      <section className={featured.length ? 'grid items-center gap-7 md:grid-cols-2 md:gap-14' : 'flex justify-center'}>
         <div className="flex flex-col items-center gap-4 text-center md:px-6">
           {/* The profile photo, 80px; the smiley face without one. */}
           <Avatar url={page.avatar_url} className="h-20 w-20" />
@@ -240,7 +242,7 @@ export default function SketcherProfile({ username: usernameProp }) {
             </div>
           )}
         </div>
-        <FeaturedSlideshow sketches={featured} />
+        {featured.length > 0 && <FeaturedSlideshow sketches={featured} />}
       </section>
 
       {/* ---- 2. What's in my bag (design doc, item 44) ---- */}
@@ -249,17 +251,17 @@ export default function SketcherProfile({ username: usernameProp }) {
           <h2 className="ed-kicker m-0">{viewer === 'owner' ? "What's in my bag" : `What's in ${firstName}'s bag`}</h2>
           {viewer === 'owner' && <Button variant="editorial" onClick={() => setPanel('kit')}>Edit gear</Button>}
         </div>
-        <div className="grid gap-8 md:grid-cols-[3fr_2fr] md:gap-12">
+        <div className={`grid gap-8 md:gap-12 ${(page.kit_photos || []).length || viewer === 'owner' ? 'md:grid-cols-[3fr_2fr]' : ''}`}>
           {(page.kit_photos || []).length > 0 ? (
             <BagPhotos photos={page.kit_photos} items={page.kit} active={bagPhoto} onActive={setBagPhoto} alt={`${firstName}'s bag`} />
           ) : (
-            <span className="photo-placeholder relative block aspect-[4/5] w-full overflow-hidden md:aspect-auto md:min-h-[420px]">
-              {viewer === 'owner' && (
-                <button type="button" onClick={() => setPanel('kit')} className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-ink/60 underline">
-                  Upload a photo of your sketch bag or your usual sketching gear to share with the community.
-                </button>
-              )}
-            </span>
+            // No bag photo yet: the camera button from New Sketch, black on
+            // white, for the owner; for anyone else, just the list.
+            viewer === 'owner' ? (
+              <PhotoDropzone light className="min-h-[220px] w-full max-w-[420px]" onClick={() => setPanel('kit')}
+                title="Add a photo of your bag"
+                text="Your sketch bag or your usual sketching gear, to share with the community." />
+            ) : null
           )}
           <dl className="m-0 border-t border-[var(--ed-row-rule)]">
             {page.kit.length === 0 && <p className="py-4 text-sm text-ink/50">Nothing in the bag yet.</p>}
