@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import GamutWheel from '../analysis/GamutWheel'
 import PaintPills from './PaintPills'
 import PanGrid from './PanGrid'
+import PaintTip, { OpacityLegend } from './PaintTip'
 
 /**
  * My palette, one picture in three parts (design doc, items 45 and 46):
@@ -28,6 +29,14 @@ export default function PaletteBoard({
   tinTop, tinBottom, pillsEnd, stageRef, wheelRef, overlay,
 }) {
   const [own, setOwn] = useState(null) // read-only: the paint picked here
+  const [tip, setTip] = useState(null) // { paint, x, y }: a pill or pan under the mouse
+  const boxRef = useRef(null)
+  const setBox = (el) => { boxRef.current = el; if (stageRef) stageRef.current = el }
+  function hover(paint, el) {
+    if (!paint || !el || !boxRef.current) return setTip(null)
+    const b = boxRef.current.getBoundingClientRect(), r = el.getBoundingClientRect()
+    setTip({ paint, x: r.left + r.width / 2 - b.left, y: r.top - b.top })
+  }
   const driven = onPaintDown != null
   const focus = driven ? focusId : own
   const pick = (id) => setOwn((was) => (was === id ? null : id))
@@ -35,23 +44,25 @@ export default function PaletteBoard({
   const panSel = driven ? selectedPan : home ? { r: home.r, c: home.c } : null
 
   return (
-    <div ref={stageRef} className="relative grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-10">
+    <div ref={setBox} className="relative grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:gap-10">
       <div ref={wheelRef} className="pb-4">
-        <GamutWheel paints={paints} readOnly light ringPaint={focus} legend={driven ? undefined : null}
+        <GamutWheel paints={paints} readOnly light ringPaint={focus} legend={null}
           onPaintDown={driven ? onPaintDown : (p) => pick(p.id)} {...wheel} />
+        <div className="mt-3 flex justify-center"><OpacityLegend /></div>
       </div>
       <div className="flex flex-col gap-3">
         {tinTop}
         <div>
           <PanGrid layout={layout} editable={editable} selected={panSel} dropAt={dropAt}
-            onPanDown={driven ? onPanDown : (p) => p.paint && pick(p.paint)} />
+            onPanDown={driven ? onPanDown : (p) => p.paint && pick(p.paint)} onHover={hover} />
         </div>
         <PaintPills paints={paints} focusId={focus} placed={placed} showNames={showNames}
-          onPillDown={driven ? onPaintDown : (p) => pick(p.id)}>
+          onPillDown={driven ? onPaintDown : (p) => pick(p.id)} onHover={hover}>
           {pillsEnd}
         </PaintPills>
         {tinBottom}
       </div>
+      {tip && <PaintTip paint={tip.paint} x={tip.x} y={tip.y} />}
       {overlay}
     </div>
   )

@@ -13,9 +13,10 @@ import { allPans } from '../../lib/paletteLayout'
  *   dropAt { r, c }     the pan a paint is being dragged over
  *   onPanDown(pan, e)   a press on a pan (Edit palette: a drag or a pick;
  *                       the Sketcher page: a pick)
+ *   onHover(paint, el)  the pointer is over a pan with a paint (null: it left)
  *   size                a half pan's width in px (its height is 1.24 times)
  */
-export default function PanGrid({ layout, editable = false, selected, dropAt, onPanDown, size = 34 }) {
+export default function PanGrid({ layout, editable = false, selected, dropAt, onPanDown, onHover, size = 34 }) {
   // The pans shrink to fit the space they have (a 12-column tin, a phone).
   const boxRef = useRef(null)
   const [room, setRoom] = useState(null)
@@ -38,10 +39,12 @@ export default function PanGrid({ layout, editable = false, selected, dropAt, on
           const tip = paint ? `${paint.code} ${paint.name}` : p.w * p.h > 1 ? 'Empty full pan' : 'Empty half pan'
           const on = same(selected, p) || (dropAt && same(dropAt, p))
           return (
-            <div key={`${p.r}-${p.c}`} data-pan={`${p.r},${p.c}`} aria-label={tip} data-tip={paint ? tip : undefined}
+            <div key={`${p.r}-${p.c}`} data-pan={`${p.r},${p.c}`} aria-label={tip}
+              onPointerEnter={(e) => paint && e.pointerType === 'mouse' && onHover?.(paint, e.currentTarget)}
+              onPointerLeave={() => onHover?.(null)}
               role={onPanDown ? 'button' : 'img'} tabIndex={onPanDown ? 0 : undefined}
               onPointerDown={onPanDown ? (e) => onPanDown(p, e) : undefined}
-              className={`${paint ? 'has-tip' : ''} rounded-[3px] border border-black/10 bg-white p-[3px] ${editable ? 'cursor-grab touch-none' : onPanDown && paint ? 'cursor-pointer' : ''} ${
+              className={`rounded-[3px] border border-black/10 bg-white p-[3px] ${editable ? 'cursor-grab touch-none' : onPanDown && paint ? 'cursor-pointer' : ''} ${
                 on ? 'outline outline-2 outline-offset-1 outline-ink' : ''
               }`}
               style={{ gridRow: `${p.r + 1} / span ${p.h}`, gridColumn: `${p.c + 1} / span ${p.w}` }}>

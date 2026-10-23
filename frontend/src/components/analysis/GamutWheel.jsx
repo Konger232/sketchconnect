@@ -1,6 +1,7 @@
 import { useId, useMemo, useRef, useState } from 'react'
 import { angleOf, paintToWheel, wheelToXY, xyToWheel } from '../../lib/colorWheel'
 import { moveShape, shapeContains, toUnit } from '../../lib/gamutMask'
+import { PaintTipContent } from '../common/PaintTip'
 
 const SIZE = 300 // viewBox units; the wheel scales to its box
 const PAD = 20 // room outside the rim for the hue letters
@@ -236,8 +237,7 @@ export default function GamutWheel({ shapes = [], onChange, active, onActive, pa
       {hover && (
         <div role="tooltip" className="pointer-events-none absolute z-10 w-max max-w-[260px] rounded-md bg-black/90 px-2.5 py-1.5 text-xs leading-snug text-white shadow-lg"
           style={{ left: `${(hover.xy[0] / SIZE) * 100}%`, top: `${(hover.xy[1] / SIZE) * 100}%`, transform: 'translate(-50%, calc(-100% - 12px))' }}>
-          <span className="font-bold">{hover.code}</span> {hover.name}
-          {hover.lean && <span className="block text-[#cccccc]">{hover.lean}</span>}
+          <PaintTipContent paint={hover} />
         </div>
       )}
     </div>
