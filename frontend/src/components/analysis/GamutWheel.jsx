@@ -216,7 +216,8 @@ export default function GamutWheel({ shapes = [], onChange, active, onActive, pa
           <circle key={d.id} data-paint={d.id} cx={d.xy[0]} cy={d.xy[1]} r={6.5} fill={d.hex} stroke={light ? '#ffffff' : GREY80} strokeWidth={light ? 1.5 : 1} />
         ))}
         {ringPaint && squares.filter((d) => d.id === ringPaint).map((d) => (
-          <circle key="ring" cx={d.xy[0]} cy={d.xy[1]} r={10} fill="none" stroke="#111" strokeWidth={2} />
+          // The paint picked: its own border turns black, at the same size.
+          <circle key="ring" cx={d.xy[0]} cy={d.xy[1]} r={6.5} fill={d.hex} stroke="#111" strokeWidth={2} />
         ))}
         {shapes.length > 0 && <rect width={SIZE} height={SIZE} fill="rgba(0,0,0,0.68)" mask={`url(#mask-${id})`} clipPath={`url(#clip-${id})`} />}
         <circle cx={C} cy={C} r={RW} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth={0.8} />
