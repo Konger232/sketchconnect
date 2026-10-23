@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Icon from './Icon'
+import TipCard from './TipCard'
 import { imageUrl } from '../../lib/media'
 
 /**
@@ -60,7 +61,7 @@ export default function BagPhotos({ photos, items, active = 0, onActive, editing
                 className={`absolute w-max min-w-[160px] max-w-[260px] ${below ? 'top-full pt-1.5' : 'bottom-full pb-1.5'} ${right ? 'right-0' : 'left-0'} ${
                   open === i.id ? 'block' : 'hidden group-hover:block'
                 }`}>
-                <span className="flex flex-col gap-1.5 rounded-md bg-white px-3 py-2 text-left text-xs text-ink shadow-lg">
+                <TipCard className="gap-1.5">
                   <span className="font-semibold">{i.label}</span>
                   {i.note && <span className="text-ink/70">{i.note}</span>}
                   {!editing && i.link && (
@@ -78,7 +79,7 @@ export default function BagPhotos({ photos, items, active = 0, onActive, editing
                       </button>
                     </span>
                   )}
-                </span>
+                </TipCard>
               </span>
             </span>
           )
