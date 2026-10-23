@@ -15,6 +15,7 @@ const PERIODS = [
 ]
 const RED_PIN = pinIcon({ variant: 'pin', active: true })
 const NEAR_ZOOM = 13
+const GROUP_PX = 36 // pins closer than this on screen become one count disc
 
 // Starts at the sketcher's location when the browser gives it.
 function StartAtMe({ onReady }) {
@@ -49,6 +50,47 @@ function FlyTo({ place }) {
     } else map.flyTo([place.lat, place.lon], NEAR_ZOOM, { duration: 0.8 })
   }, [place?.lat, place?.lon]) // eslint-disable-line react-hooks/exhaustive-deps
   return null
+}
+
+// The pins at the map's zoom: sketches that would sit on top of each other
+// (a city seen from a country's zoom) become one count disc, the same disc
+// as SketchListMapView's; a click on it zooms in until they separate.
+function Pins({ pins, picked }) {
+  const map = useMap()
+  const [zoom, setZoom] = useState(map.getZoom())
+  useMapEvents({ zoomend: () => setZoom(map.getZoom()) })
+  const groups = useMemo(() => {
+    const out = []
+    for (const s of pins) {
+      const pt = map.project([s.location.lat, s.location.lon], zoom)
+      const g = out.find((x) => x.pt.distanceTo(pt) < GROUP_PX)
+      if (g) g.items.push(s)
+      else out.push({ pt, items: [s] })
+    }
+    return out
+  }, [pins, zoom, map])
+  return groups.map((g) => {
+    if (g.items.length === 1) {
+      const s = g.items[0]
+      return (
+        <Marker key={s.id} position={[s.location.lat, s.location.lon]} icon={RED_PIN} zIndexOffset={picked === s.id ? 1000 : 0}>
+          <Popup minWidth={240} maxWidth={260} className="explore-popup">
+            <SketchCard sketch={s} details />
+          </Popup>
+        </Marker>
+      )
+    }
+    const lats = g.items.map((s) => s.location.lat), lons = g.items.map((s) => s.location.lon)
+    const centre = [lats.reduce((a, b) => a + b) / lats.length, lons.reduce((a, b) => a + b) / lons.length]
+    return (
+      <Marker key={g.items.map((s) => s.id).join('-')} position={centre}
+        icon={pinIcon({ variant: 'count', count: g.items.length, active: true })}
+        eventHandlers={{
+          click: () => map.flyToBounds([[Math.min(...lats), Math.min(...lons)], [Math.max(...lats), Math.max(...lons)]],
+            { padding: [60, 60], maxZoom: 18, duration: 0.6 }),
+        }} />
+    )
+  })
 }
 
 /**
@@ -121,13 +163,7 @@ export default function Explore() {
           <StartAtMe onReady={() => setLocated(true)} />
           <ViewWatcher onView={setBounds} />
           <FlyTo place={place} />
-          {pins.map((s) => (
-            <Marker key={s.id} position={[s.location.lat, s.location.lon]} icon={RED_PIN} zIndexOffset={picked === s.id ? 1000 : 0}>
-              <Popup minWidth={240} maxWidth={260} className="explore-popup">
-                <SketchCard sketch={s} details />
-              </Popup>
-            </Marker>
-          ))}
+          <Pins pins={pins} picked={picked} />
         </MapContainer>
 
         {/* The floating panel: the place search, and the time filter on a phone. */}
