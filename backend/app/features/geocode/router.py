@@ -23,45 +23,25 @@ below) to store a label on Sketch.location_label the first time a
 sketch's EXIF coordinates are read, so the location editor
 (LocationSearchField.jsx) doesn't need to re-resolve one on every visit.
 """
-import httpx
 from fastapi import APIRouter, HTTPException
 
-from app.features.geocode.service import HEADERS, NOMINATIM_BASE, reverse_geocode, short_label
+from app.features.geocode.service import reverse_geocode, search_places
 
 router = APIRouter(prefix="/api/geocode", tags=["geocode"])
 
 @router.get("/search")
-async def search(q: str):
-    """Forward geocoding: a typed place name/address -> up to 5 candidates."""
+async def search(q: str, areas: bool = False):
+    """
+    Forward geocoding: a typed place name -> up to 5 places (Photon, with
+    Nominatim as the fallback; geocode/service.py search_places). areas:
+    countries, regions and cities before districts and streets (Explore).
+    """
     if not q or not q.strip():
         return []
-    async with httpx.AsyncClient(timeout=8) as client:
-        try:
-            resp = await client.get(
-                f"{NOMINATIM_BASE}/search",
-                # accept-language=en -- without it Nominatim returns
-                # display_name in whatever language is locally used at that
-                # place (e.g. Kyoto's own listing comes back in Japanese
-                # script), which reads as broken to an English-speaking
-                # sketcher rather than as a translation choice.
-                params={"q": q, "format": "jsonv2", "limit": 5, "accept-language": "en", "addressdetails": 1},
-                headers=HEADERS,
-            )
-        except httpx.HTTPError:
-            raise HTTPException(502, "Location search is temporarily unavailable")
-    if resp.status_code != 200:
+    places = await search_places(q.strip(), areas_first=areas)
+    if places is None:
         raise HTTPException(502, "Location search is temporarily unavailable")
-    def bbox(r):
-        # Nominatim's boundingbox: [south, north, west, east], as strings.
-        try:
-            s, n, w, e = (float(v) for v in r.get("boundingbox") or [])
-            return [s, n, w, e]
-        except (TypeError, ValueError):
-            return None
-    return [
-        {"label": short_label(r), "detail": r["display_name"], "lat": float(r["lat"]), "lon": float(r["lon"]), "bbox": bbox(r)}
-        for r in resp.json()
-    ]
+    return places
 
 
 @router.get("/reverse")

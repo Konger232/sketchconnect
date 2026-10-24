@@ -54,7 +54,8 @@ export default function LocationSearchField({ location, onLocationChange, dark =
       setSearching(true)
       setSearchError(null)
       try {
-        const { data } = await api.get('/api/geocode/search', { params: { q } })
+        // Explore (withBounds) wants areas first: countries, then cities, then districts.
+        const { data } = await api.get('/api/geocode/search', { params: { q, ...(withBounds ? { areas: true } : {}) } })
         setResults(data)
         if (data.length === 0) setSearchError('No matches found.')
       } catch {
@@ -62,7 +63,7 @@ export default function LocationSearchField({ location, onLocationChange, dark =
       } finally {
         setSearching(false)
       }
-    }, 350)
+    }, 250)
     return () => clearTimeout(debounceRef.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])

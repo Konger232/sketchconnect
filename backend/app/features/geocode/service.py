@@ -21,8 +21,8 @@ def short_label(r: dict) -> str | None:
     for p in candidates:
         if p and p not in parts:
             parts.append(p)
-    if len(parts) < 2 and a.get("country"):
-        parts.append(a["country"])
+    if len(parts) < 2 and a.get("country") and a["country"] not in parts:
+        parts.append(a["country"])  # "Japan", not "Japan, Japan"
     return ", ".join(parts) or r.get("display_name")
 
 
@@ -87,3 +87,107 @@ async def place_boxes(q: str, limit: int = 3) -> list[tuple[float, float, float,
         s, n, w, e = (float(v) for v in r["boundingbox"])
         boxes.append((s, n, w, e))
     return boxes
+
+
+# ---- forward search: Photon, with Nominatim as the fallback ----
+#
+# Photon (photon.komoot.io) is built on the same OpenStreetMap data and is
+# made for search as you type; Nominatim's usage policy forbids that. No
+# key. Results are kept for a day, so a place searched again comes back
+# at once, and one connection is reused for every call.
+
+import time
+
+PHOTON_URL = "https://photon.komoot.io/api/"
+CACHE_TTL = 24 * 3600
+CACHE_MAX = 500
+_cache: dict[tuple[str, bool], tuple[float, list[dict]]] = {}
+_client: httpx.AsyncClient | None = None
+
+# Areas first on Explore: a country, then a region, then a city, then a
+# district such as Gion; streets, buildings and landmarks last.
+AREA_RANK = {"country": 0, "state": 1, "region": 1, "city": 2, "town": 2, "county": 3,
+             "district": 3, "locality": 3, "suburb": 3, "village": 3}
+
+
+def _http() -> httpx.AsyncClient:
+    global _client
+    if _client is None:
+        _client = httpx.AsyncClient(timeout=6, headers=HEADERS)
+    return _client
+
+
+def _photon_place(f: dict) -> dict | None:
+    """One Photon feature -> {label, detail, lat, lon, bbox, kind}."""
+    p = f.get("properties") or {}
+    coords = (f.get("geometry") or {}).get("coordinates") or []
+    if len(coords) != 2:
+        return None
+    kind = p.get("type") or p.get("osm_value")
+    parts = []
+    for v in (p.get("name"), p.get("district") or p.get("locality"), p.get("city"), p.get("state"), p.get("country")):
+        if v and v not in parts:
+            parts.append(v)
+    # Short: the place and what it sits in, two or three names at most.
+    label = ", ".join(parts[:2] if kind in ("country", "state") else parts[:3]) or None
+    ext = p.get("extent")  # [west, north, east, south]
+    bbox = [ext[3], ext[1], ext[0], ext[2]] if isinstance(ext, list) and len(ext) == 4 else None
+    return {"label": label, "detail": ", ".join(parts), "lat": float(coords[1]), "lon": float(coords[0]),
+            "bbox": bbox, "kind": kind}
+
+
+async def _photon(q: str) -> list[dict] | None:
+    try:
+        resp = await _http().get(PHOTON_URL, params={"q": q, "limit": 8, "lang": "en"})
+    except httpx.HTTPError:
+        return None
+    if resp.status_code != 200:
+        return None
+    places = [x for x in (_photon_place(f) for f in resp.json().get("features") or []) if x and x["label"]]
+    # The same name twice (Photon lists a city and its boundary): keep one.
+    seen, out = set(), []
+    for x in places:
+        if x["label"] not in seen:
+            seen.add(x["label"])
+            out.append(x)
+    return out
+
+
+async def _nominatim(q: str) -> list[dict] | None:
+    try:
+        resp = await _http().get(f"{NOMINATIM_BASE}/search", params={
+            "q": q, "format": "jsonv2", "limit": 5, "accept-language": "en", "addressdetails": 1})
+    except httpx.HTTPError:
+        return None
+    if resp.status_code != 200:
+        return None
+    out = []
+    for r in resp.json():
+        try:
+            s, n, w, e = (float(v) for v in r.get("boundingbox") or [])
+            bbox = [s, n, w, e]
+        except (TypeError, ValueError):
+            bbox = None
+        out.append({"label": short_label(r), "detail": r["display_name"], "lat": float(r["lat"]),
+                    "lon": float(r["lon"]), "bbox": bbox, "kind": r.get("addresstype") or r.get("type")})
+    return out
+
+
+async def search_places(q: str, areas_first: bool = False) -> list[dict] | None:
+    """Up to 5 places for a search text; None when no service answers."""
+    key = (" ".join(q.lower().split()), areas_first)
+    hit = _cache.get(key)
+    if hit and time.time() - hit[0] < CACHE_TTL:
+        return hit[1]
+    places = await _photon(q)
+    if places is None:
+        places = await _nominatim(q)
+    if places is None:
+        return None
+    if areas_first:
+        places = sorted(places, key=lambda x: AREA_RANK.get(x.get("kind"), 9))  # stable: the service's order within a rank
+    places = places[:5]
+    if len(_cache) >= CACHE_MAX:
+        _cache.pop(next(iter(_cache)))
+    _cache[key] = (time.time(), places)
+    return places
