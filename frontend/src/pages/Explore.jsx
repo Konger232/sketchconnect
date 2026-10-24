@@ -177,11 +177,19 @@ export default function Explore() {
     return () => clearTimeout(timer.current)
   }, [bounds, period, located, mine])
 
+  // My sketches Only and a place are two separate queries: starting one
+  // ends the other (the place's pill and the search box clear).
+  function choosePlace(next) {
+    setPlace(next)
+    if (next) setMine(false)
+  }
+
   // My sketches: the map fits all of them, wherever they are.
   async function toggleMine() {
     const next = !mine
     setMine(next)
     setPicked(null)
+    if (next) setPlace(null)
     if (!next || !map) return
     try {
       const { data } = await api.get('/api/sketches/explore', { params: { south: -90, north: 90, west: -180, east: 180, mine: true } })
@@ -239,14 +247,14 @@ export default function Explore() {
           </button>
           <div className="flex min-h-0 flex-1 flex-col p-2 max-md:px-3 max-md:pb-3 max-md:pt-0">
             <div className="explore-top" onFocus={() => setSheetOpen(true)}>
-              <LocationSearchField location={place} onLocationChange={setPlace} withBounds />
+              <LocationSearchField location={place} onLocationChange={choosePlace} withBounds />
             </div>
             <div className="explore-more flex min-h-0 flex-1 flex-col">
             {/* The most sketched places: a tap takes the map there. */}
             {topPlaces.length > 0 && (
               <div className="flex flex-wrap gap-1.5 px-1 pt-2">
                 {topPlaces.map((t) => (
-                  <button key={t.label} type="button" onClick={() => setPlace({ label: t.label, lat: t.lat, lon: t.lon, bbox: t.bbox })}
+                  <button key={t.label} type="button" onClick={() => choosePlace({ label: t.label, lat: t.lat, lon: t.lon, bbox: t.bbox })}
                     aria-pressed={place?.label === t.label}
                     className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
                       place?.label === t.label ? 'border-ink bg-ink text-white' : 'border-ink/20 bg-white text-ink hover:border-ink'
