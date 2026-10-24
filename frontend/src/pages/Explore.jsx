@@ -266,8 +266,9 @@ export default function Explore() {
               </div>
             )}
             <p className={`m-0 px-1 pt-1.5 text-xs text-ink/60 ${loading ? 'animate-pulse' : ''}`}>
-              {loading ? 'Finding sketches…' : `${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'} in view`}
-              {mine && !loading && pins.some((s) => !s.final_sketch_url) && ' · a dashed ring is not finished yet'}
+              {loading ? 'Finding sketches…'
+                : mine ? `You have ${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'} in view.`
+                : `${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'} in view`}
             </p>
             {/* None in view within the time filter: offer every date. */}
             {!loading && pins.length === 0 && period !== 'all' && (
