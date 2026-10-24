@@ -27,8 +27,8 @@ export const RATIOS = { square: '1 / 1', portrait: '4 / 5' }
  *   onSelect   a click picks the sketch instead of opening it (Explore's
  *              list: the map moves to it)
  *   compact    a row with no picture: the sketcher's avatar (as tall as the
- *              two lines), the title, the sketcher, when (days ago within a
- *              week, else the date) and the likes (Explore's list)
+ *              lines), the title, the place, the sketcher and when (days ago
+ *              within a week, else the date), and the likes (Explore's list)
  *   selected   outlined (the compact row picked)
  *   showStatus the compact row shows the status too (Explore's My sketches,
  *              where drafts are mixed in): Sketching…, In progress, Complete
@@ -71,9 +71,10 @@ export default function SketchCard({ sketch, meta, href, linkState, image, multi
     return (
       <Link to={href || `/sketches/${sketch.id}`} state={linkState} onClick={pick}
         className={`group flex items-center gap-3 rounded-lg border px-3 py-2.5 text-ink no-underline ${selected ? 'border-[var(--tab-active)] ring-1 ring-[var(--tab-active)]' : 'border-ink/10 hover:border-ink/40'}`}>
-        <Avatar url={sketch.owner?.avatar_url} className="h-9 w-9" />
+        <Avatar url={sketch.owner?.avatar_url} className={sketch.location?.label ? 'h-14 w-14' : 'h-9 w-9'} />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate font-heading text-base font-medium leading-snug">{sketch.title || 'Untitled sketch'}</span>
+          {sketch.location?.label && <span className="truncate text-xs text-ink/65">{sketch.location.label}</span>}
           <span className="flex min-w-0 items-center gap-1.5 text-xs text-ink/65">
             {showStatus && (
               <span className={`shrink-0 rounded-full px-2 py-0.5 text-3xs font-medium ${shared ? 'bg-black/60 text-white' : 'border border-dashed border-ink/40 text-ink/70'}`}>
