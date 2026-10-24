@@ -1106,6 +1106,43 @@ def explore_sketches(
     return _with_owners(db, rows, viewer_id)
 
 
+@router.get("/explore/places")
+def explore_places(
+    limit: int = 5,
+    db: Session = Depends(get_db),
+    viewer_id: str | None = Depends(get_optional_sketcher_id),
+):
+    """
+    The Explore map's place pills: the cities with the most shared sketches
+    the viewer may see, most first, each with the area its sketches cover.
+    The city is the last part of a sketch's place name ("Gion, Kyoto" ->
+    Kyoto), as reverse_geocode writes it.
+    """
+    geom = cast(Sketch.location, Geometry(srid=4326))
+    rows = (
+        db.query(Sketch.location_label, func.ST_Y(geom), func.ST_X(geom))
+        .filter(_visible_to(viewer_id), Sketch.location.isnot(None), Sketch.location_label.isnot(None))
+        .all()
+    )
+    places: dict[str, dict] = {}
+    for label, lat, lon in rows:
+        city = (label or "").split(",")[-1].strip()
+        if not city:
+            continue
+        p = places.setdefault(city.lower(), {"label": city, "count": 0, "lats": [], "lons": []})
+        p["count"] += 1
+        p["lats"].append(lat)
+        p["lons"].append(lon)
+    top = sorted(places.values(), key=lambda p: -p["count"])[: max(1, min(limit, 10))]
+    out = []
+    for p in top:
+        s, n, w, e = min(p["lats"]), max(p["lats"]), min(p["lons"]), max(p["lons"])
+        pad = 0.01  # about a kilometre, so a single sketch is not a point
+        out.append({"label": p["label"], "count": p["count"], "lat": (s + n) / 2, "lon": (w + e) / 2,
+                    "bbox": [s - pad, n + pad, w - pad, e + pad]})
+    return out
+
+
 @router.get("/sketch-media/last")
 async def last_media(
     db: Session = Depends(get_db),

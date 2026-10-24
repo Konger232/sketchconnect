@@ -101,7 +101,10 @@ function Pins({ pins, picked }) {
  */
 export default function Explore() {
   const [place, setPlace] = useState(null)
-  const [period, setPeriod] = useState('3m')
+  // The time filter is set aside for now (all dates): it comes back as a
+  // filter panel once there are enough sketches to need it.
+  const [period, setPeriod] = useState('all')
+  const [topPlaces, setTopPlaces] = useState([]) // the most sketched cities, as pills
   const [bounds, setBounds] = useState(null)
   const [located, setLocated] = useState(false) // the start position is settled
   const [sketches, setSketches] = useState([])
@@ -137,6 +140,10 @@ export default function Explore() {
     return () => clearTimeout(timer.current)
   }, [bounds, period, located])
 
+  useEffect(() => {
+    api.get('/api/explore/places').then(({ data }) => setTopPlaces(data)).catch(() => setTopPlaces([]))
+  }, [])
+
   const pins = useMemo(() => sketches.filter((s) => s.location), [sketches])
 
   const pills = (
@@ -170,6 +177,20 @@ export default function Explore() {
         <div className="absolute bottom-3 left-3 top-3 z-[1000] flex w-[min(360px,calc(100%-24px))] flex-col gap-2 pointer-events-none max-md:bottom-auto">
           <div className="pointer-events-auto flex min-h-0 flex-col rounded-xl bg-white p-2 shadow-lg">
             <LocationSearchField location={place} onLocationChange={setPlace} withBounds />
+            {/* The most sketched places: a tap takes the map there. */}
+            {topPlaces.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-1 pt-2">
+                {topPlaces.map((t) => (
+                  <button key={t.label} type="button" onClick={() => setPlace({ label: t.label, lat: t.lat, lon: t.lon, bbox: t.bbox })}
+                    aria-pressed={place?.label === t.label}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                      place?.label === t.label ? 'border-ink bg-ink text-white' : 'border-ink/20 bg-white text-ink hover:border-ink'
+                    }`}>
+                    {t.label} <span className="font-normal opacity-60">{t.count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <p className={`m-0 px-1 pt-1.5 text-xs text-ink/60 ${loading ? 'animate-pulse' : ''}`}>
               {loading ? 'Finding sketches…' : `${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'} in view`}
             </p>
@@ -191,9 +212,10 @@ export default function Explore() {
               </ul>
             )}
           </div>
-          <div className="md:hidden">{pills}</div>
+          {/* The time filter, set aside for now (see `period`):
+          <div className="md:hidden">{pills}</div> */}
         </div>
-        <div className="absolute left-[388px] top-3 z-[1000] hidden md:block">{pills}</div>
+        {/* <div className="absolute left-[388px] top-3 z-[1000] hidden md:block">{pills}</div> */}
     </BasePage>
   )
 }
