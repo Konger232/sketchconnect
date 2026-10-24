@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, Form, HTTPException
 from PIL import Image, ImageOps
 import pillow_heif
-from sqlalchemy import cast, func, or_
+from sqlalchemy import and_, cast, func, or_
 from sqlalchemy.orm import Session, load_only
 from geoalchemy2 import Geometry
 from geoalchemy2.shape import to_shape
@@ -1087,18 +1087,21 @@ def explore_sketches(
     north: float,
     east: float,
     since_days: Optional[int] = None,
+    mine: bool = False,
     limit: int = 200,
     db: Session = Depends(get_db),
     viewer_id: str | None = Depends(get_optional_sketcher_id),
 ):
     """
     The Explore map: shared sketches inside the map's view, newest first,
-    made in the last since_days days (none: any time).
+    made in the last since_days days (none: any time). mine: only the
+    viewer's own, drafts included: their sketching trail.
     """
     geom = cast(Sketch.location, Geometry(srid=4326))
+    seen = (and_(Sketch.sketcher_id == viewer_id) if mine and viewer_id else _visible_to(viewer_id))
     query = (
         card_query(db)
-        .filter(_visible_to(viewer_id), Sketch.location.isnot(None))
+        .filter(seen, Sketch.location.isnot(None))
         .filter(func.ST_Intersects(geom, func.ST_MakeEnvelope(west, south, east, north, 4326)))
     )
     if since_days:

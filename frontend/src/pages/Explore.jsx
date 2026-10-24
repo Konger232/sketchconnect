@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MapContainer, Marker, Popup, TileLayer, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, Polyline, Popup, TileLayer, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import BasePage from '../components/common/BasePage'
@@ -133,6 +133,7 @@ export default function Explore() {
   // filter panel once there are enough sketches to need it.
   const [period, setPeriod] = useState('all')
   const [topPlaces, setTopPlaces] = useState([]) // the most sketched cities, as pills
+  const [mine, setMine] = useState(false) // only my sketches: my sketching trail
   const [bounds, setBounds] = useState(null)
   const [located, setLocated] = useState(false) // the start position is settled
   const [sketches, setSketches] = useState([])
@@ -166,6 +167,7 @@ export default function Explore() {
           south: Math.max(-90, bounds.getSouth()), north: Math.min(90, bounds.getNorth()),
           west: Math.max(-180, bounds.getWest()), east: Math.min(180, bounds.getEast()),
           ...(days ? { since_days: days } : {}),
+          ...(mine ? { mine: true } : {}),
         },
       })
         .then(({ data }) => setSketches(data))
@@ -173,7 +175,26 @@ export default function Explore() {
         .finally(() => setLoading(false))
     }, 300)
     return () => clearTimeout(timer.current)
-  }, [bounds, period, located])
+  }, [bounds, period, located, mine])
+
+  // My sketches: the map fits all of them, wherever they are.
+  async function toggleMine() {
+    const next = !mine
+    setMine(next)
+    setPicked(null)
+    if (!next || !map) return
+    try {
+      const { data } = await api.get('/api/sketches/explore', { params: { south: -90, north: 90, west: -180, east: 180, mine: true } })
+      const pts = data.filter((s) => s.location).map((s) => [s.location.lat, s.location.lon])
+      if (pts.length === 1) map.flyTo(pts[0], NEAR_ZOOM, { duration: 0.8 })
+      else if (pts.length > 1) map.flyToBounds(pts, fitOptions({ maxZoom: 15, duration: 0.8 }))
+    } catch { /* the map stays where it is */ }
+  }
+
+  // My trail: my sketches joined in the order I made them.
+  const trail = useMemo(() => (mine
+    ? [...sketches].filter((s) => s.location).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((s) => [s.location.lat, s.location.lon])
+    : []), [mine, sketches])
 
   useEffect(() => {
     api.get('/api/explore/places').then(({ data }) => setTopPlaces(data)).catch(() => setTopPlaces([]))
@@ -206,6 +227,9 @@ export default function Explore() {
           <StartAtMe onReady={() => setLocated(true)} />
           <ViewWatcher onView={setBounds} />
           <FlyTo place={place} />
+          {trail.length > 1 && (
+            <Polyline positions={trail} pathOptions={{ color: 'rgb(255, 0, 0)', weight: 2, opacity: 0.6, dashArray: '6 6' }} />
+          )}
           <Pins pins={pins} picked={picked} />
         </MapContainer>
 
@@ -265,6 +289,15 @@ export default function Explore() {
           <div className="md:hidden">{pills}</div> */}
         </div>
         {/* <div className="absolute left-[388px] top-3 z-[1000] hidden md:block">{pills}</div> */}
+        {/* Where the time filter was: a shortcut to my own sketching trail. */}
+        <div className="absolute left-3 top-3 z-[1000] md:left-[388px]">
+          <button type="button" aria-pressed={mine} onClick={toggleMine}
+            className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-semibold shadow-md transition-colors ${
+              mine ? 'border-ink bg-ink text-white' : 'border-black/10 bg-white text-ink hover:bg-black/5'
+            }`}>
+            My sketches
+          </button>
+        </div>
     </BasePage>
   )
 }
