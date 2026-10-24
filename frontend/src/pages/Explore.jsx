@@ -8,6 +8,8 @@ import SketchCard from '../components/common/SketchCard'
 import { pinIcon } from '../components/common/LocationMap'
 import { useSheetDrag } from '../lib/useSheetDrag'
 import { api } from '../lib/api'
+import { imageUrl } from '../lib/media'
+import smiley from '../assets/images/ico-profile.png'
 
 // The time filter, in place of Google Maps' category pills.
 const PERIODS = [
@@ -15,10 +17,14 @@ const PERIODS = [
   { key: '1y', label: 'Past year', days: 365 },
   { key: 'all', label: 'All', days: null },
 ]
-const RED_PIN = pinIcon({ variant: 'pin', active: true })
-const PICKED_PIN = pinIcon({ variant: 'pin', active: true, big: true }) // the card picked in the list
+
+// Each sketch's pin is its sketcher's avatar: who sketched what, near me.
+const avatarPin = (s, big) => {
+  const url = s.owner?.avatar_url
+  return pinIcon({ variant: 'avatar', src: url ? imageUrl(url) : smiley, fallback: !url, big })
+}
 const NEAR_ZOOM = 13
-const GROUP_PX = 36 // pins closer than this on screen become one count disc
+const GROUP_PX = 44 // avatar pins closer than this on screen become one count disc
 
 // Starts at the sketcher's location when the browser gives it.
 function StartAtMe({ onReady }) {
@@ -95,7 +101,7 @@ function Pins({ pins, picked }) {
     if (g.items.length === 1) {
       const s = g.items[0]
       return (
-        <Marker key={s.id} position={[s.location.lat, s.location.lon]} icon={picked === s.id ? PICKED_PIN : RED_PIN} zIndexOffset={picked === s.id ? 1000 : 0}>
+        <Marker key={s.id} position={[s.location.lat, s.location.lon]} icon={avatarPin(s, picked === s.id)} zIndexOffset={picked === s.id ? 1000 : 0}>
           <Popup minWidth={240} maxWidth={260} className="explore-popup">
             <SketchCard sketch={s} details />
           </Popup>
@@ -245,10 +251,10 @@ export default function Explore() {
             )}
             {/* The sketches in view, one under another; a card moves the map to it. */}
             {pins.length > 0 && (
-              <ul className="m-0 mt-2 flex min-h-0 flex-1 list-none flex-col gap-4 overflow-y-auto p-1">
+              <ul className="m-0 mt-2 flex min-h-0 flex-1 list-none flex-col gap-2 overflow-y-auto p-1">
                 {pins.map((s) => (
-                  <li key={s.id} className={`rounded-lg p-1 ${picked === s.id ? 'outline outline-2 outline-ink' : ''}`}>
-                    <SketchCard sketch={s} details onSelect={centreOn} />
+                  <li key={s.id}>
+                    <SketchCard sketch={s} compact selected={picked === s.id} onSelect={centreOn} />
                   </li>
                 ))}
               </ul>

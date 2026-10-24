@@ -36,6 +36,19 @@ export function pinIcon(pin) {
       iconAnchor: [16, 16],
     })
   }
+  // avatar: the sketcher's round picture as the pin (Explore: who sketched
+  // what, near me); big when picked.
+  if (pin.variant === 'avatar') {
+    const size = pin.big ? 48 : 36
+    const src = String(pin.src || '').replace(/"/g, '&quot;')
+    return L.divIcon({
+      className: '',
+      html: `<span class="ed-pin-avatar${pin.big ? ' ed-pin-avatar-big' : ''}" style="width:${size}px;height:${size}px"><img src="${src}" alt="" class="${pin.fallback ? 'ed-pin-avatar-smiley' : ''}"/></span>`,
+      iconSize: [size, size + 8],
+      iconAnchor: [size / 2, size + 8],
+      popupAnchor: [0, -size - 4],
+    })
+  }
   // big: the pin picked (Explore's list), twice the size, with a halo.
   if (pin.big) {
     return L.divIcon({

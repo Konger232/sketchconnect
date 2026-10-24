@@ -25,8 +25,11 @@ export const RATIOS = { square: '1 / 1', portrait: '4 / 5' }
  *              place and the date
  *   onSelect   a click picks the sketch instead of opening it (Explore's
  *              list: the map moves to it)
+ *   compact    a row with no picture: the title, the sketcher, when (days
+ *              ago within a week, else the date) and the likes (Explore's list)
+ *   selected   outlined (the compact row picked)
  */
-export default function SketchCard({ sketch, meta, href, linkState, image, multi = false, details = false, ratio = 'square', onSelect }) {
+export default function SketchCard({ sketch, meta, href, linkState, image, multi = false, details = false, ratio = 'square', onSelect, compact = false, selected = false }) {
   const [like, setLike] = useState({ liked: Boolean(sketch.liked), count: sketch.like_count || 0 })
   useEffect(() => { setLike({ liked: Boolean(sketch.liked), count: sketch.like_count || 0 }) }, [sketch.id, sketch.liked, sketch.like_count])
   const { user } = useAuth()
@@ -58,9 +61,31 @@ export default function SketchCard({ sketch, meta, href, linkState, image, multi
     }
   }
 
+  const pick = onSelect ? (e) => { e.preventDefault(); onSelect(sketch) } : undefined
+
+  if (compact) {
+    return (
+      <Link to={href || `/sketches/${sketch.id}`} state={linkState} onClick={pick}
+        className={`group flex items-center gap-3 rounded-lg border px-3 py-2.5 text-ink no-underline ${selected ? 'border-[var(--tab-active)] ring-1 ring-[var(--tab-active)]' : 'border-ink/10 hover:border-ink/40'}`}>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate font-heading text-base font-medium leading-snug">{sketch.title || 'Untitled sketch'}</span>
+          <span className="truncate text-xs text-ink/65">{[owner, relativeTime(sketch.created_at)].filter(Boolean).join(' · ')}</span>
+        </span>
+        {shared && (
+          <button type="button" onClick={toggleLike} aria-pressed={like.liked}
+            aria-label={isOwner ? `${like.count} likes` : like.liked ? 'Unlike' : 'Like'}
+            className={`flex h-7 shrink-0 items-center gap-1 rounded-full px-1.5 text-xs font-semibold text-ink hover:bg-ink/5 ${isOwner ? 'cursor-default' : ''}`}>
+            <Icon name={like.liked ? 'heart-filled' : 'heart'} size={14} className={like.liked ? 'text-[var(--tab-active)]' : ''} />
+            <span>{like.count}</span>
+          </button>
+        )}
+      </Link>
+    )
+  }
+
   return (
     <Link to={href || `/sketches/${sketch.id}`} state={linkState} className="group flex flex-col gap-2 text-ink no-underline"
-      onClick={onSelect ? (e) => { e.preventDefault(); onSelect(sketch) } : undefined}>
+      onClick={pick}>
       <span className="ed-slide" style={{ aspectRatio: RATIOS[ratio] || RATIOS.square }}>
         {src && <img src={src} alt="" loading="lazy" />}
         <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-3xs font-medium text-white">

@@ -1022,7 +1022,8 @@ def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:
         d = _sketch_card(s)
         d["upload_count"] = drafts.get(s.id, 0)
         p = owners.get(s.sketcher_id)
-        d["owner"] = {"display_name": p.display_name if p else None, "username": p.username if p else None}
+        d["owner"] = {"display_name": p.display_name if p else None, "username": p.username if p else None,
+                      "avatar_url": p.avatar_url if p else None}  # Explore's avatar pins
         dicts.append(d)
     return _with_likes(db, rows, viewer_id, dicts)
 
