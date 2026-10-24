@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MapContainer, Marker, Polyline, Popup, TileLayer, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, Marker, Popup, TileLayer, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import BasePage from '../components/common/BasePage'
@@ -21,7 +21,7 @@ const PERIODS = [
 // Each sketch's pin is its sketcher's avatar: who sketched what, near me.
 const avatarPin = (s, big) => {
   const url = s.owner?.avatar_url
-  return pinIcon({ variant: 'avatar', src: url ? imageUrl(url) : smiley, fallback: !url, big })
+  return pinIcon({ variant: 'avatar', src: url ? imageUrl(url) : smiley, fallback: !url, big, draft: !s.final_sketch_url })
 }
 const NEAR_ZOOM = 13
 const GROUP_PX = 44 // avatar pins closer than this on screen become one count disc
@@ -191,10 +191,6 @@ export default function Explore() {
     } catch { /* the map stays where it is */ }
   }
 
-  // My trail: my sketches joined in the order I made them.
-  const trail = useMemo(() => (mine
-    ? [...sketches].filter((s) => s.location).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((s) => [s.location.lat, s.location.lon])
-    : []), [mine, sketches])
 
   useEffect(() => {
     api.get('/api/explore/places').then(({ data }) => setTopPlaces(data)).catch(() => setTopPlaces([]))
@@ -227,9 +223,6 @@ export default function Explore() {
           <StartAtMe onReady={() => setLocated(true)} />
           <ViewWatcher onView={setBounds} />
           <FlyTo place={place} />
-          {trail.length > 1 && (
-            <Polyline positions={trail} pathOptions={{ color: 'rgb(255, 0, 0)', weight: 2, opacity: 0.6, dashArray: '6 6' }} />
-          )}
           <Pins pins={pins} picked={picked} />
         </MapContainer>
 
@@ -265,6 +258,7 @@ export default function Explore() {
             )}
             <p className={`m-0 px-1 pt-1.5 text-xs text-ink/60 ${loading ? 'animate-pulse' : ''}`}>
               {loading ? 'Finding sketches…' : `${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'} in view`}
+              {mine && !loading && pins.some((s) => !s.final_sketch_url) && ' · a dashed ring is not finished yet'}
             </p>
             {/* None in view within the time filter: offer every date. */}
             {!loading && pins.length === 0 && period !== 'all' && (
@@ -278,7 +272,7 @@ export default function Explore() {
               <ul className="m-0 mt-2 flex min-h-0 flex-1 list-none flex-col gap-2 overflow-y-auto p-1">
                 {pins.map((s) => (
                   <li key={s.id}>
-                    <SketchCard sketch={s} compact selected={picked === s.id} onSelect={centreOn} />
+                    <SketchCard sketch={s} compact selected={picked === s.id} onSelect={centreOn} showStatus={mine} />
                   </li>
                 ))}
               </ul>
@@ -295,7 +289,7 @@ export default function Explore() {
             className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-semibold shadow-md transition-colors ${
               mine ? 'border-ink bg-ink text-white' : 'border-black/10 bg-white text-ink hover:bg-black/5'
             }`}>
-            My sketches
+            My sketches Only
           </button>
         </div>
     </BasePage>

@@ -30,8 +30,10 @@ export const RATIOS = { square: '1 / 1', portrait: '4 / 5' }
  *              two lines), the title, the sketcher, when (days ago within a
  *              week, else the date) and the likes (Explore's list)
  *   selected   outlined (the compact row picked)
+ *   showStatus the compact row shows the status too (Explore's My sketches,
+ *              where drafts are mixed in): Sketching…, In progress, Complete
  */
-export default function SketchCard({ sketch, meta, href, linkState, image, multi = false, details = false, ratio = 'square', onSelect, compact = false, selected = false }) {
+export default function SketchCard({ sketch, meta, href, linkState, image, multi = false, details = false, ratio = 'square', onSelect, compact = false, selected = false, showStatus = false }) {
   const [like, setLike] = useState({ liked: Boolean(sketch.liked), count: sketch.like_count || 0 })
   useEffect(() => { setLike({ liked: Boolean(sketch.liked), count: sketch.like_count || 0 }) }, [sketch.id, sketch.liked, sketch.like_count])
   const { user } = useAuth()
@@ -72,7 +74,14 @@ export default function SketchCard({ sketch, meta, href, linkState, image, multi
         <Avatar url={sketch.owner?.avatar_url} className="h-9 w-9" />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate font-heading text-base font-medium leading-snug">{sketch.title || 'Untitled sketch'}</span>
-          <span className="truncate text-xs text-ink/65">{[owner, relativeTime(sketch.created_at)].filter(Boolean).join(' · ')}</span>
+          <span className="flex min-w-0 items-center gap-1.5 text-xs text-ink/65">
+            {showStatus && (
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-3xs font-medium ${shared ? 'bg-black/60 text-white' : 'border border-dashed border-ink/40 text-ink/70'}`}>
+                {getSketchStatus(sketch)}
+              </span>
+            )}
+            <span className="truncate">{[owner, relativeTime(sketch.created_at)].filter(Boolean).join(' · ')}</span>
+          </span>
         </span>
         {shared && (
           <button type="button" onClick={toggleLike} aria-pressed={like.liked}

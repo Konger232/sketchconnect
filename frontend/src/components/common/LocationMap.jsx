@@ -37,13 +37,13 @@ export function pinIcon(pin) {
     })
   }
   // avatar: the sketcher's round picture as the pin (Explore: who sketched
-  // what, near me); big when picked.
+  // what, near me); big when picked; a dashed grey ring when not finished.
   if (pin.variant === 'avatar') {
     const size = pin.big ? 48 : 36
     const src = String(pin.src || '').replace(/"/g, '&quot;')
     return L.divIcon({
       className: '',
-      html: `<span class="ed-pin-avatar${pin.big ? ' ed-pin-avatar-big' : ''}" style="width:${size}px;height:${size}px"><img src="${src}" alt="" class="${pin.fallback ? 'ed-pin-avatar-smiley' : ''}"/></span>`,
+      html: `<span class="ed-pin-avatar${pin.big ? ' ed-pin-avatar-big' : ''}${pin.draft ? ' ed-pin-avatar-draft' : ''}" style="width:${size}px;height:${size}px"><img src="${src}" alt="" class="${pin.fallback ? 'ed-pin-avatar-smiley' : ''}"/></span>`,
       iconSize: [size, size + 8],
       iconAnchor: [size / 2, size + 8],
       popupAnchor: [0, -size - 4],
