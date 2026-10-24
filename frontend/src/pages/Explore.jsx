@@ -6,6 +6,7 @@ import BasePage from '../components/common/BasePage'
 import LocationSearchField from '../components/common/LocationSearchField'
 import SketchCard from '../components/common/SketchCard'
 import { pinIcon } from '../components/common/LocationMap'
+import { useSheetDrag } from '../lib/useSheetDrag'
 import { api } from '../lib/api'
 
 // The time filter, in place of Google Maps' category pills.
@@ -133,6 +134,10 @@ export default function Explore() {
   const [map, setMap] = useState(null)
   const [picked, setPicked] = useState(null) // the sketch picked in the list
   const timer = useRef(null)
+  // On a phone the panel is the bottom sheet of Create and Edit Sketch:
+  // drag its handle up for more results, down to just the search.
+  const [sheetOpen, setSheetOpen] = useState(true)
+  const sheet = useSheetDrag(sheetOpen, setSheetOpen, '.explore-top')
 
   // A card in the list: its pin to the centre of the map, at the same zoom.
   function centreOn(s) {
@@ -140,6 +145,7 @@ export default function Explore() {
     if (!map || !s.location) return
     const pt = map.project([s.location.lat, s.location.lon]).subtract([panelInset() / 2, 0])
     map.panTo(map.unproject(pt), { animate: true })
+    if (!panelInset()) setSheetOpen(false) // a phone: fold the sheet so the pin shows
   }
 
   // Sketches in view, a moment after the map stops or the filter changes.
@@ -189,17 +195,30 @@ export default function Explore() {
             attribution='Tiles &copy; Esri &mdash; Sources: Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
           />
-          <ZoomControl position="bottomright" />
+          {/* Top right on a phone, clear of the bottom sheet. */}
+          <ZoomControl position={panelInset() ? 'bottomright' : 'topright'} />
           <StartAtMe onReady={() => setLocated(true)} />
           <ViewWatcher onView={setBounds} />
           <FlyTo place={place} />
           <Pins pins={pins} picked={picked} />
         </MapContainer>
 
-        {/* The floating panel: the place search, and the time filter on a phone. */}
-        <div className="absolute bottom-3 left-3 top-3 z-[1000] flex w-[min(360px,calc(100%-24px))] flex-col gap-2 pointer-events-none max-md:bottom-auto">
-          <div className="pointer-events-auto flex min-h-0 flex-col rounded-xl bg-white p-2 shadow-lg">
-            <LocationSearchField location={place} onLocationChange={setPlace} withBounds />
+        {/* The panel: the place search, the place pills and the sketches in
+            view. A floating card on a computer; the white bottom sheet on a
+            phone, folded down to the search. */}
+        <div ref={sheet.ref} style={sheet.style}
+          className={`sc-sheet ${sheet.className} flex flex-col bg-white max-md:!z-[1100] md:absolute md:left-3 md:top-3 md:z-[1000] md:max-h-[calc(100%-24px)] md:w-[360px] md:rounded-xl md:shadow-lg ${
+            sheetOpen ? '' : 'max-md:[&_.explore-more]:hidden'
+          }`}>
+          <button type="button" className="sc-sheet-handle touch-none" {...sheet.handleProps}
+            aria-label={sheetOpen ? 'Fold the results down' : 'Show the results'} aria-expanded={sheetOpen}>
+            <span />
+          </button>
+          <div className="flex min-h-0 flex-1 flex-col p-2 max-md:px-3 max-md:pb-3 max-md:pt-0">
+            <div className="explore-top" onFocus={() => setSheetOpen(true)}>
+              <LocationSearchField location={place} onLocationChange={setPlace} withBounds />
+            </div>
+            <div className="explore-more flex min-h-0 flex-1 flex-col">
             {/* The most sketched places: a tap takes the map there. */}
             {topPlaces.length > 0 && (
               <div className="flex flex-wrap gap-1.5 px-1 pt-2">
@@ -226,7 +245,7 @@ export default function Explore() {
             )}
             {/* The sketches in view, one under another; a card moves the map to it. */}
             {pins.length > 0 && (
-              <ul className="m-0 mt-2 flex min-h-0 list-none flex-col gap-4 overflow-y-auto p-1 max-md:max-h-[38vh]">
+              <ul className="m-0 mt-2 flex min-h-0 flex-1 list-none flex-col gap-4 overflow-y-auto p-1">
                 {pins.map((s) => (
                   <li key={s.id} className={`rounded-lg p-1 ${picked === s.id ? 'outline outline-2 outline-ink' : ''}`}>
                     <SketchCard sketch={s} details onSelect={centreOn} />
@@ -234,6 +253,7 @@ export default function Explore() {
                 ))}
               </ul>
             )}
+            </div>
           </div>
           {/* The time filter, set aside for now (see `period`):
           <div className="md:hidden">{pills}</div> */}
