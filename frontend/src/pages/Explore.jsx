@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MapContainer, Marker, Popup, TileLayer, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
+import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import BasePage from '../components/common/BasePage'
 import LocationSearchField from '../components/common/LocationSearchField'
@@ -34,10 +35,23 @@ function StartAtMe({ onReady }) {
 
 // The map's view, whenever it stops moving.
 function ViewWatcher({ onView }) {
-  const map = useMapEvents({ moveend: () => onView(map.getBounds()) })
-  useEffect(() => { onView(map.getBounds()) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Only the part of the map beside the panel counts as "in view".
+  const visible = () => {
+    const size = map.getSize()
+    const x = Math.min(panelInset(), size.x - 1)
+    return L.latLngBounds(map.containerPointToLatLng([x, 0]), map.containerPointToLatLng([size.x, size.y]))
+  }
+  const map = useMapEvents({ moveend: () => onView(visible()), resize: () => onView(visible()) })
+  useEffect(() => { onView(visible()) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   return null
 }
+
+// The floating panel covers the left of the map on a computer: what the map
+// fits or centres goes in the part that shows (on a phone the panel sits on
+// top, and the whole width shows).
+const PANEL_PX = 384
+const panelInset = () => (window.innerWidth >= 768 ? PANEL_PX : 0)
+const fitOptions = (extra = {}) => ({ paddingTopLeft: [panelInset() + 24, 24], paddingBottomRight: [24, 24], ...extra })
 
 // A searched place: the whole of it in view (a city, a district), else
 // close around its point.
@@ -47,8 +61,12 @@ function FlyTo({ place }) {
     if (!place) return
     if (place.bbox) {
       const [s, n, w, e] = place.bbox
-      map.flyToBounds([[s, w], [n, e]], { maxZoom: 15, padding: [24, 24], duration: 0.8 })
-    } else map.flyTo([place.lat, place.lon], NEAR_ZOOM, { duration: 0.8 })
+      map.flyToBounds([[s, w], [n, e]], fitOptions({ maxZoom: 15, duration: 0.8 }))
+    } else {
+      // The point in the middle of the part of the map that shows.
+      const pt = map.project([place.lat, place.lon], NEAR_ZOOM).subtract([panelInset() / 2, 0])
+      map.flyTo(map.unproject(pt, NEAR_ZOOM), NEAR_ZOOM, { duration: 0.8 })
+    }
   }, [place?.lat, place?.lon]) // eslint-disable-line react-hooks/exhaustive-deps
   return null
 }
@@ -90,7 +108,7 @@ function Pins({ pins, picked }) {
         icon={pinIcon({ variant: 'count', count: g.items.length, active: true })}
         eventHandlers={{
           click: () => map.flyToBounds([[Math.min(...lats), Math.min(...lons)], [Math.max(...lats), Math.max(...lons)]],
-            { padding: [60, 60], maxZoom: 18, duration: 0.6 }),
+            fitOptions({ maxZoom: 18, duration: 0.6 })),
         }} />
     )
   })
@@ -119,7 +137,9 @@ export default function Explore() {
   // A card in the list: its pin to the centre of the map, at the same zoom.
   function centreOn(s) {
     setPicked(s.id)
-    if (map && s.location) map.panTo([s.location.lat, s.location.lon], { animate: true })
+    if (!map || !s.location) return
+    const pt = map.project([s.location.lat, s.location.lon]).subtract([panelInset() / 2, 0])
+    map.panTo(map.unproject(pt), { animate: true })
   }
 
   // Sketches in view, a moment after the map stops or the filter changes.
