@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import Avatar from './Avatar'
 import Icon from './Icon'
 import { useAuth } from './AuthContext'
 import { relativeTime } from '../../lib/relativeTime'
@@ -25,8 +26,9 @@ export const RATIOS = { square: '1 / 1', portrait: '4 / 5' }
  *              place and the date
  *   onSelect   a click picks the sketch instead of opening it (Explore's
  *              list: the map moves to it)
- *   compact    a row with no picture: the title, the sketcher, when (days
- *              ago within a week, else the date) and the likes (Explore's list)
+ *   compact    a row with no picture: the sketcher's avatar (as tall as the
+ *              two lines), the title, the sketcher, when (days ago within a
+ *              week, else the date) and the likes (Explore's list)
  *   selected   outlined (the compact row picked)
  */
 export default function SketchCard({ sketch, meta, href, linkState, image, multi = false, details = false, ratio = 'square', onSelect, compact = false, selected = false }) {
@@ -67,6 +69,7 @@ export default function SketchCard({ sketch, meta, href, linkState, image, multi
     return (
       <Link to={href || `/sketches/${sketch.id}`} state={linkState} onClick={pick}
         className={`group flex items-center gap-3 rounded-lg border px-3 py-2.5 text-ink no-underline ${selected ? 'border-[var(--tab-active)] ring-1 ring-[var(--tab-active)]' : 'border-ink/10 hover:border-ink/40'}`}>
+        <Avatar url={sketch.owner?.avatar_url} className="h-9 w-9" />
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate font-heading text-base font-medium leading-snug">{sketch.title || 'Untitled sketch'}</span>
           <span className="truncate text-xs text-ink/65">{[owner, relativeTime(sketch.created_at)].filter(Boolean).join(' · ')}</span>
