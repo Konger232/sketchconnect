@@ -36,6 +36,15 @@ export function pinIcon(pin) {
       iconAnchor: [16, 16],
     })
   }
+  // big: the pin picked (Explore's list), twice the size, with a halo.
+  if (pin.big) {
+    return L.divIcon({
+      className: '',
+      html: `<span class="ed-pin ed-pin-big" data-active="${Boolean(pin.active)}">${PIN_SVG.replace('width="18" height="24"', 'width="36" height="48"')}</span>`,
+      iconSize: [36, 48],
+      iconAnchor: [18, 48],
+    })
+  }
   return L.divIcon({
     className: '',
     html: `<span class="ed-pin" data-active="${Boolean(pin.active)}">${PIN_SVG}</span>`,

@@ -536,6 +536,7 @@
 }
 /* Waiting screens: spinning step ring, moving bar, scan line over the
    image being read. Tokens: --progress-* in :root. */
+@keyframes pin-drop { 0% { transform: translateY(-12px); } 70% { transform: translateY(2px); } 100% { transform: none; } }
 @keyframes progress-spin { to { transform: rotate(360deg); } }
 @keyframes progress-pop { 0% { transform: scale(0.6); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
 @keyframes progress-bar { 0% { left: -40%; } 100% { left: 100%; } }
@@ -734,6 +735,8 @@
   /* Map pins drawn as Leaflet divIcons (LocationMap `pins`). */
   .ed-pin         { @apply relative block h-6 w-[18px]; color: var(--pin-ink); }
   .ed-pin[data-active='true'] { color: var(--pin-active); }
+  .ed-pin-big     { @apply h-12 w-9; filter: drop-shadow(0 0 0 #fff) drop-shadow(0 2px 6px rgba(0,0,0,0.45));
+                    animation: pin-drop 0.35s ease-out; }
   .ed-pin-count   { @apply flex h-8 min-w-[2rem] items-center justify-center rounded-full border-2 border-white px-1.5 text-xs font-bold text-white;
                     background: var(--pin-ink); box-shadow: 0 1px 4px rgba(0,0,0,0.35); }
   .ed-pin-count[data-active='true'] { background: var(--pin-active); }

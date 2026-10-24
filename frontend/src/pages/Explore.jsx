@@ -14,6 +14,7 @@ const PERIODS = [
   { key: 'all', label: 'All', days: null },
 ]
 const RED_PIN = pinIcon({ variant: 'pin', active: true })
+const PICKED_PIN = pinIcon({ variant: 'pin', active: true, big: true }) // the card picked in the list
 const NEAR_ZOOM = 13
 const GROUP_PX = 36 // pins closer than this on screen become one count disc
 
@@ -63,17 +64,19 @@ function Pins({ pins, picked }) {
     const out = []
     for (const s of pins) {
       const pt = map.project([s.location.lat, s.location.lon], zoom)
-      const g = out.find((x) => x.pt.distanceTo(pt) < GROUP_PX)
+      // The picked sketch always keeps its own pin, never inside a disc.
+      const g = s.id === picked ? null : out.find((x) => !x.picked && x.pt.distanceTo(pt) < GROUP_PX)
       if (g) g.items.push(s)
+      else if (s.id === picked) out.push({ pt, items: [s], picked: true })
       else out.push({ pt, items: [s] })
     }
     return out
-  }, [pins, zoom, map])
+  }, [pins, zoom, map, picked])
   return groups.map((g) => {
     if (g.items.length === 1) {
       const s = g.items[0]
       return (
-        <Marker key={s.id} position={[s.location.lat, s.location.lon]} icon={RED_PIN} zIndexOffset={picked === s.id ? 1000 : 0}>
+        <Marker key={s.id} position={[s.location.lat, s.location.lon]} icon={picked === s.id ? PICKED_PIN : RED_PIN} zIndexOffset={picked === s.id ? 1000 : 0}>
           <Popup minWidth={240} maxWidth={260} className="explore-popup">
             <SketchCard sketch={s} details />
           </Popup>
