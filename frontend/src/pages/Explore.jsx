@@ -247,7 +247,8 @@ export default function Explore() {
           </button>
           <div className="flex min-h-0 flex-1 flex-col p-2 max-md:px-3 max-md:pb-3 max-md:pt-0">
             <div className="explore-top" onFocus={() => setSheetOpen(true)}>
-              <LocationSearchField location={place} onLocationChange={choosePlace} withBounds />
+              {/* Remounted when My sketches Only turns on, so half-typed text clears too. */}
+              <LocationSearchField key={mine ? 'mine' : 'all'} location={place} onLocationChange={choosePlace} withBounds />
             </div>
             <div className="explore-more flex min-h-0 flex-1 flex-col">
             {/* The most sketched places: a tap takes the map there. */}
