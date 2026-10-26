@@ -216,6 +216,9 @@ class Profile(Base):
     favorite_paints = Column(JSON, nullable=True)
     # My palette's pans, laid out like the tin (profile/router.py, clean_palette_layout).
     palette_layout = Column(JSON, nullable=True)
+    # Events the sketcher marked Interested show on their page to others
+    # only when this is on (design doc, item 49).
+    show_attending_events = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -340,3 +343,113 @@ class SketchUpload(Base):
     position = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+
+# ---- events and scouted spots (design doc, items 49 and 50) ----
+
+class Event(Base):
+    """A sketch crawl or an organised event, always at a real place."""
+    __tablename__ = "events"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    organizer_id = Column(UUID(as_uuid=False), nullable=False, index=True)
+    kind = Column(String, nullable=False)            # crawl | organised
+    event_type = Column(String, nullable=False, default="crawl")  # crawl | workshop | symposium | festival
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    theme = Column(String, nullable=True)
+    hashtag = Column(String, nullable=False)         # without the #
+    starts_at = Column(DateTime(timezone=True), nullable=False)
+    ends_at = Column(DateTime(timezone=True), nullable=False)
+    time_zone = Column(String, nullable=False, default="UTC")
+    place_name = Column(String, nullable=False)
+    location = Column(Geography(geometry_type="POINT", srid=4326), nullable=False)
+    spot_id = Column(UUID(as_uuid=False), nullable=True)
+    org_name = Column(String, nullable=True)
+    org_url = Column(String, nullable=True)
+    cover_image_url = Column(String, nullable=True)
+    website_url = Column(String, nullable=True)
+    ticket_url = Column(String, nullable=True)
+    hidden = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class EventInstructor(Base):
+    """A featured instructor: a sketcher who confirms, or a plain name."""
+    __tablename__ = "event_instructors"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    event_id = Column(UUID(as_uuid=False), nullable=False, index=True)
+    sketcher_id = Column(UUID(as_uuid=False), nullable=True)
+    name = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="invited")  # invited | confirmed | declined
+    position = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class EventInterest(Base):
+    __tablename__ = "event_interest"
+
+    event_id = Column(UUID(as_uuid=False), primary_key=True)
+    sketcher_id = Column(UUID(as_uuid=False), primary_key=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class EventReport(Base):
+    __tablename__ = "event_reports"
+
+    event_id = Column(UUID(as_uuid=False), primary_key=True)
+    sketcher_id = Column(UUID(as_uuid=False), primary_key=True)
+    reason = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class EventComment(Base):
+    """A question or comment on an event (the Comments component)."""
+    __tablename__ = "event_comments"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    event_id = Column(UUID(as_uuid=False), nullable=False, index=True)
+    author_id = Column(UUID(as_uuid=False), nullable=False)
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class EventHiddenSketch(Base):
+    __tablename__ = "event_hidden_sketches"
+
+    event_id = Column(UUID(as_uuid=False), primary_key=True)
+    sketch_id = Column(UUID(as_uuid=False), primary_key=True)
+
+
+class SketchTag(Base):
+    """A hashtag in a sketch's title or field notes, lower case, no #."""
+    __tablename__ = "sketch_tags"
+
+    sketch_id = Column(UUID(as_uuid=False), primary_key=True)
+    tag = Column(String, primary_key=True)
+
+
+class Spot(Base):
+    """A scouted place: a name, a note and its photos (item 50)."""
+    __tablename__ = "spots"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    sketcher_id = Column(UUID(as_uuid=False), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    note = Column(Text, nullable=True)
+    place_name = Column(String, nullable=True)
+    location = Column(Geography(geometry_type="POINT", srid=4326), nullable=True)
+    visibility = Column(String, nullable=False, default="private")  # private | followers
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class SpotPhoto(Base):
+    __tablename__ = "spot_photos"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    spot_id = Column(UUID(as_uuid=False), nullable=False, index=True)
+    image_url = Column(String, nullable=False)
+    taken_at = Column(DateTime(timezone=True), nullable=True)
+    position = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)

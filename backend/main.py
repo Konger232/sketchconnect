@@ -32,6 +32,8 @@ from app.features.profile import router as profile
 from app.features.geocode import router as geocode
 from app.features.kit import router as kit
 from app.features.paints import router as paints
+from app.features.events import router as events
+from app.features.spots import router as spots
 from app.features.sketchers import router as sketchers
 from app.features.community import router as community
 
@@ -71,6 +73,8 @@ app.include_router(profile.router)
 app.include_router(geocode.router)
 app.include_router(kit.router)
 app.include_router(paints.router)
+app.include_router(events.router)
+app.include_router(spots.router)
 app.include_router(sketchers.router)
 app.include_router(community.router)
 

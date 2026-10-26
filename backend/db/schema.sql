@@ -500,3 +500,130 @@ from (values
   ('pw6', 'opaque')
 ) as v(id, opacity)
 where p.id = v.id and p.opacity is null;
+
+-- ---------------------------------------------------------------------------
+-- Events and scouted spots (design doc, items 49 and 50; October 26, 2026).
+-- Run once; safe to run again.
+
+-- A sketch crawl or an organised event, always at a real place.
+create table if not exists events (
+  id uuid primary key default gen_random_uuid(),
+  organizer_id uuid not null references auth.users (id) on delete cascade,
+  kind text not null check (kind in ('crawl', 'organised')),
+  event_type text not null default 'crawl' check (event_type in ('crawl', 'workshop', 'symposium', 'festival')),
+  title text not null check (char_length(title) between 1 and 150),
+  description text,
+  theme text,
+  hashtag text not null,                    -- without the #, unique ignoring case
+  starts_at timestamptz not null,
+  ends_at timestamptz not null,
+  time_zone text not null default 'UTC',    -- the event's own, for showing its times
+  place_name text not null,
+  location geography(Point, 4326) not null,
+  spot_id uuid,                             -- the scouted spot it started from, if any
+  org_name text,
+  org_url text,
+  cover_image_url text,
+  website_url text,                         -- the official site or brochure
+  ticket_url text,
+  hidden boolean not null default false,    -- 3 reports hide it until reviewed
+  created_at timestamptz not null default now(),
+  check (ends_at >= starts_at)
+);
+create unique index if not exists events_hashtag on events (lower(hashtag));
+create index if not exists events_location on events using gist (location);
+create index if not exists events_starts on events (starts_at);
+alter table events enable row level security;
+drop policy if exists "anyone reads events" on events;
+create policy "anyone reads events" on events for select using (not hidden);
+
+-- Featured instructors: on SketchConnect (they confirm) or a plain name.
+create table if not exists event_instructors (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references events (id) on delete cascade,
+  sketcher_id uuid references auth.users (id) on delete cascade,
+  name text,                                -- an instructor not on SketchConnect
+  status text not null default 'invited' check (status in ('invited', 'confirmed', 'declined')),
+  position integer not null default 0,
+  created_at timestamptz not null default now(),
+  check (sketcher_id is not null or name is not null)
+);
+create unique index if not exists event_instructors_one on event_instructors (event_id, sketcher_id) where sketcher_id is not null;
+alter table event_instructors enable row level security;
+
+create table if not exists event_interest (
+  event_id uuid not null references events (id) on delete cascade,
+  sketcher_id uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (event_id, sketcher_id)
+);
+alter table event_interest enable row level security;
+
+create table if not exists event_reports (
+  event_id uuid not null references events (id) on delete cascade,
+  sketcher_id uuid not null references auth.users (id) on delete cascade,
+  reason text,
+  created_at timestamptz not null default now(),
+  primary key (event_id, sketcher_id)
+);
+alter table event_reports enable row level security;
+
+create table if not exists event_comments (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references events (id) on delete cascade,
+  author_id uuid not null references auth.users (id) on delete cascade,
+  body text not null check (char_length(body) between 1 and 1000),
+  created_at timestamptz not null default now()
+);
+create index if not exists event_comments_event_idx on event_comments (event_id, created_at);
+alter table event_comments enable row level security;
+
+-- Sketches the organiser hid from the event's page.
+create table if not exists event_hidden_sketches (
+  event_id uuid not null references events (id) on delete cascade,
+  sketch_id uuid not null references sketches (id) on delete cascade,
+  primary key (event_id, sketch_id)
+);
+alter table event_hidden_sketches enable row level security;
+
+-- Hashtags in a sketch's title and field notes, lower case, without the #.
+create table if not exists sketch_tags (
+  sketch_id uuid not null references sketches (id) on delete cascade,
+  tag text not null,
+  primary key (sketch_id, tag)
+);
+create index if not exists sketch_tags_tag on sketch_tags (tag);
+alter table sketch_tags enable row level security;
+
+alter table profiles add column if not exists show_attending_events boolean not null default false;
+
+-- Scouted spots: a place and its photos, private by default.
+create table if not exists spots (
+  id uuid primary key default gen_random_uuid(),
+  sketcher_id uuid not null references auth.users (id) on delete cascade,
+  name text not null check (char_length(name) between 1 and 120),
+  note text,
+  place_name text,
+  location geography(Point, 4326),
+  visibility text not null default 'private' check (visibility in ('private', 'followers')),
+  created_at timestamptz not null default now()
+);
+create index if not exists spots_sketcher on spots (sketcher_id);
+alter table spots enable row level security;
+
+create table if not exists spot_photos (
+  id uuid primary key default gen_random_uuid(),
+  spot_id uuid not null references spots (id) on delete cascade,
+  image_url text not null,
+  taken_at timestamptz,
+  position integer not null default 0,
+  created_at timestamptz not null default now()
+);
+alter table spot_photos enable row level security;
+
+-- Hashtags already in sketches' titles and field notes (once).
+insert into sketch_tags (sketch_id, tag)
+select s.id, lower(m[1])
+from sketches s
+cross join lateral regexp_matches(coalesce(s.title, '') || ' ' || coalesce(s.field_notes, ''), '#([A-Za-z0-9_]{2,40})', 'g') as m
+on conflict do nothing;

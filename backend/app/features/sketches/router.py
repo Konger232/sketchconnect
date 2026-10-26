@@ -47,6 +47,7 @@ from config import DEBUG, MAX_MARKS, MAX_POINTS_PER_MARK
 from app.features.critique_agent.router import start_critique
 from app.features.geocode.service import place_boxes, reverse_geocode
 from app.core.visibility import can_see, visible_filter
+from app.features.events.tags import sync_tags
 
 # Registered again here (also done in scene_analysis.py) so this module
 # decodes HEIC/HEIF correctly even if imported before that one — the
@@ -388,6 +389,8 @@ async def update_sketch(
             sketch.style = sketch.style_detected
     if body.captured_at is not None:
         sketch.captured_at = body.captured_at
+    if body.title is not None or body.field_notes is not None:
+        sync_tags(db, sketch)  # hashtags join a sketch to an event (item 49)
 
     db.commit()
     db.refresh(sketch)
