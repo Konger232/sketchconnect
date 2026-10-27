@@ -39,6 +39,39 @@ from app.features.community import router as community
 
 app = FastAPI(title="SketchConnect middle server")
 
+
+@app.on_event("startup")
+def warm_up() -> None:
+    """Best effort, in the background: fetch Supabase's signing keys and open
+    a few database connections, so the first requests after a restart do not
+    pay for the TLS handshakes (each is several round trips to the database
+    region)."""
+    import threading
+
+    def run():
+        from sqlalchemy import text
+        from app.core.auth import warm_jwks
+        from app.core.database import engine
+        try:
+            warm_jwks()
+        except Exception as exc:  # noqa: BLE001 - a warm-up must never stop the server
+            print(f"warm-up: signing keys not fetched ({exc.__class__.__name__})")
+        if engine is None:
+            return
+        conns = []
+        try:
+            for _ in range(4):
+                c = engine.connect()
+                c.execute(text("select 1"))
+                conns.append(c)
+        except Exception as exc:  # noqa: BLE001
+            print(f"warm-up: database not reached ({exc.__class__.__name__})")
+        finally:
+            for c in conns:
+                c.close()  # back to the pool, still open
+
+    threading.Thread(target=run, daemon=True).start()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,

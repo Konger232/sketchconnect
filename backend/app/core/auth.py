@@ -19,6 +19,7 @@ is refreshed once before giving up.
 import time
 
 import httpx
+from starlette.concurrency import run_in_threadpool
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt
@@ -79,7 +80,9 @@ async def get_current_claims(
     try:
         unverified_header = jwt.get_unverified_header(token)
         kid = unverified_header.get("kid")
-        key = _find_key(kid) if kid else None
+        # In a thread: a cold or rotated key cache fetches the JWKS over the
+        # network, which would otherwise block every other request meanwhile.
+        key = await run_in_threadpool(_find_key, kid) if kid else None
         if key is None:
             raise HTTPException(
                 status.HTTP_401_UNAUTHORIZED,
@@ -120,3 +123,8 @@ async def get_optional_sketcher_id(
     if credentials is None:
         return None
     return await get_current_sketcher_id(credentials)
+
+
+def warm_jwks() -> None:
+    """Fill the key cache at startup, so the first request does not wait."""
+    _get_jwks()
