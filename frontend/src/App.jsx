@@ -10,7 +10,8 @@ import Explore from './pages/Explore'
 import YourWork from './pages/YourWork'
 import SketcherProfile from './pages/SketcherProfile'
 import SketchDetail from './pages/SketchDetail'
-import WorkshopsPage from './pages/WorkshopsPage'
+import Events from './pages/Events'
+import EventDetail from './pages/EventDetail'
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth()
@@ -75,7 +76,9 @@ function Router() {
         <Route path="/profile" element={<Navigate to="/" replace />} />
         <Route path="/profile/edit" element={<RequireAuth><EditProfileRedirect /></RequireAuth>} />
         <Route path="/settings" element={<Navigate to="/" replace />} />
-        <Route path="/workshops" element={<RequireAuth><WorkshopsPage /></RequireAuth>} />
+        <Route path="/events" element={<MembersOnly><Events /></MembersOnly>} /> {/* sketch crawls and organised events (item 49) */}
+        <Route path="/events/:eventId" element={<MembersOnly><EventDetail /></MembersOnly>} />
+        <Route path="/workshops" element={<Navigate to="/events" replace />} />
       </Routes>
       {/* When a route below was reached with backgroundLocation in its nav
           state (SketchCard.jsx clicking a card, Header.jsx's capture icon),

@@ -83,8 +83,8 @@ export default function Header() {
             <Link to="/explore" aria-label="Explore" className="flex items-center justify-center">
               <img src={icoAnchor} alt="Explore" className="h-8 w-8 object-contain" />
             </Link>
-            <Link to="/workshops" aria-label="Workshop Calendar" className="flex items-center justify-center">
-              <img src={icoCalendar} alt="Workshop Calendar" className="h-8 w-8 object-contain" />
+            <Link to="/events" aria-label="Events" className="flex items-center justify-center">
+              <img src={icoCalendar} alt="Events" className="h-8 w-8 object-contain" />
             </Link>
           </div>
           <Link to="/" className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center">

@@ -70,8 +70,8 @@ export default function NavDrawer({ open, onClose }) {
               <Link to="/capture" state={captureLinkState} onClick={onClose} className={linkStyle}>
                 <img src={icoCamera} alt="" className="h-5 w-5" /> Capture
               </Link>
-              <Link to="/workshops" onClick={onClose} className={linkStyle}>
-                <img src={icoCalendar} alt="" className="h-5 w-5" /> Workshop Calendar
+              <Link to="/events" onClick={onClose} className={linkStyle}>
+                <img src={icoCalendar} alt="" className="h-5 w-5" /> Events
               </Link>
               <Link to={profile?.username ? `/sketchers/${profile.username}` : '/'} onClick={onClose} className={textLinkStyle}>
                 My page
