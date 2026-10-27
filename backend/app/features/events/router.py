@@ -40,7 +40,8 @@ from geoalchemy2 import Geometry
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.shape import to_shape
 from PIL import Image, ImageOps
-from sqlalchemy import and_, cast, false, func, literal_column, or_
+from sqlalchemy import and_, cast, exists, false, func, literal_column, or_, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
@@ -446,36 +447,40 @@ def event_page(event_id: str, db: Session = Depends(get_db), viewer: str | None 
         uuid.UUID(event_id)
     except ValueError:
         raise HTTPException(404, "Event not found")
-    e = db.get(Event, event_id)
+    # The event and whether I reported it: one query.
+    reported_q = (exists().where(EventReport.event_id == Event.id, EventReport.sketcher_id == viewer)
+                  if viewer else false())
+    found = db.query(Event, reported_q).filter(Event.id == event_id).first()
+    e, reported = found if found else (None, False)
     if e is None or (e.hidden and e.organizer_id != viewer):
         raise HTTPException(404, "Event not found")
     is_org = viewer == e.organizer_id
     card = _cards(db, [e], viewer)[0]
 
-    rows = db.query(EventInstructor).filter(EventInstructor.event_id == e.id).order_by(EventInstructor.position).all()
-    people = {p.id: p for p in db.query(Profile).filter(Profile.id.in_([r.sketcher_id for r in rows if r.sketcher_id])).all()}
+    # The instructors with their profiles: one query.
     instructors = []
-    for r in rows:
+    for r, p in (db.query(EventInstructor, Profile)
+                 .outerjoin(Profile, Profile.id == EventInstructor.sketcher_id)
+                 .filter(EventInstructor.event_id == e.id).order_by(EventInstructor.position).all()):
         if r.sketcher_id and r.status != "confirmed" and not is_org and r.sketcher_id != viewer:
             continue
         instructors.append({"id": r.id, "status": r.status, "name": r.name,
-                            "sketcher": person(people.get(r.sketcher_id)) if r.sketcher_id else None,
+                            "sketcher": person(p) if r.sketcher_id else None,
                             "is_me": bool(viewer and r.sketcher_id == viewer)})
 
     # Sketchers I follow who are interested, named only if they show it.
     friends = []
-    followed = _follows(db, viewer)
-    if followed:
+    if viewer:
+        followed = select(Follow.followed_id).where(Follow.follower_id == viewer)
         friends = [person(p) for p in db.query(Profile).join(EventInterest, EventInterest.sketcher_id == Profile.id)
                    .filter(EventInterest.event_id == e.id, Profile.id.in_(followed),
                            Profile.show_attending_events.is_(True)).limit(12).all()]
 
-    reported = bool(viewer) and db.get(EventReport, (e.id, viewer)) is not None
     return {
         **card, "description": e.description,
         "org_url": e.org_url, "website_url": e.website_url, "ticket_url": e.ticket_url, "spot_id": e.spot_id,
         "instructors": instructors, "friends_interested": friends,
-        "is_organizer": is_org, "reported": reported, "hidden": e.hidden,
+        "is_organizer": is_org, "reported": bool(reported), "hidden": e.hidden,
         "sketches": event_sketches(db, e, viewer),
     }
 
@@ -484,13 +489,15 @@ def event_sketches(db: Session, e: Event, viewer: str | None) -> list[dict]:
     """The participants' work: shared sketches carrying the hashtag, newest
     first; the organiser's hidden ones only to the organiser, marked."""
     from app.features.sketches.router import _with_owners, card_query  # the sketches router imports events/tags
-    hidden = {s for (s,) in db.query(EventHiddenSketch.sketch_id).filter(EventHiddenSketch.event_id == e.id).all()}
-    rows = (card_query(db).join(SketchTag, SketchTag.sketch_id == Sketch.id)
+    # Whether the organiser hid each one, in the same query.
+    hidden_q = exists().where(EventHiddenSketch.event_id == e.id, EventHiddenSketch.sketch_id == Sketch.id)
+    rows = (card_query(db, hidden_q).join(SketchTag, SketchTag.sketch_id == Sketch.id)
             .filter(SketchTag.tag == e.hashtag.lower(), visible_filter(viewer), Sketch.final_sketch_url.isnot(None))
             .order_by(Sketch.created_at.desc()).limit(200).all())
     is_org = viewer == e.organizer_id
-    rows = [s for s in rows if is_org or s.id not in hidden]
-    cards = _with_owners(db, rows, viewer)
+    rows = [(s, h) for s, h in rows if is_org or not h]
+    hidden = {s.id for s, h in rows if h}
+    cards = _with_owners(db, [s for s, _ in rows], viewer)
     for c in cards:
         c["hidden_from_event"] = c["id"] in hidden
     return cards
@@ -498,24 +505,40 @@ def event_sketches(db: Session, e: Event, viewer: str | None) -> list[dict]:
 
 @router.post("/events/{event_id}/interest")
 def interested(event_id: str, db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
-    if db.get(Event, event_id) is None:
-        raise HTTPException(404, "Event not found")
-    if not db.get(EventInterest, (event_id, me)):
-        db.add(EventInterest(event_id=event_id, sketcher_id=me))
+    """Add my interest and return the new count, in one statement."""
+    _uuid_or_404(event_id)
+    try:
+        n = db.execute(text("""
+            with ins as (
+              insert into event_interest (event_id, sketcher_id) values (:e, :me)
+              on conflict do nothing returning 1)
+            select (select count(*) from event_interest where event_id = :e) + (select count(*) from ins)
+        """), {"e": event_id, "me": me}).scalar()
         db.commit()
-    return _interest(db, event_id, True)
+    except IntegrityError:  # no such event
+        db.rollback()
+        raise HTTPException(404, "Event not found")
+    return {"interested_count": n, "is_interested": True}
 
 
 @router.delete("/events/{event_id}/interest")
 def not_interested(event_id: str, db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
-    db.query(EventInterest).filter(EventInterest.event_id == event_id, EventInterest.sketcher_id == me).delete()
+    """Remove my interest and return the new count, in one statement."""
+    _uuid_or_404(event_id)
+    n = db.execute(text("""
+        with del as (
+          delete from event_interest where event_id = :e and sketcher_id = :me returning 1)
+        select (select count(*) from event_interest where event_id = :e) - (select count(*) from del)
+    """), {"e": event_id, "me": me}).scalar()
     db.commit()
-    return _interest(db, event_id, False)
+    return {"interested_count": n, "is_interested": False}
 
 
-def _interest(db: Session, event_id: str, mine: bool) -> dict:
-    n = db.query(func.count()).select_from(EventInterest).filter(EventInterest.event_id == event_id).scalar()
-    return {"interested_count": n, "is_interested": mine}
+def _uuid_or_404(event_id: str) -> None:
+    try:
+        uuid.UUID(event_id)
+    except ValueError:
+        raise HTTPException(404, "Event not found")
 
 
 @router.post("/events/{event_id}/report")

@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, Form, HTTPException
 from PIL import Image, ImageOps
 import pillow_heif
-from sqlalchemy import and_, cast, func, or_
+from sqlalchemy import and_, cast, false, func, or_
 from sqlalchemy.orm import Session, load_only
 from geoalchemy2 import Geometry
 from geoalchemy2.shape import to_shape
@@ -29,7 +29,7 @@ from geoalchemy2.functions import ST_Distance, ST_DWithin
 
 from app.core.database import get_db
 from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
-from app.core.models import Sketch, CritiqueResponse, Persona, Profile, SketchUpload
+from app.core.models import Sketch, CritiqueResponse, Persona, Profile, SketchLike, SketchUpload
 from app.core.debug import DEBUG_DIR
 from app.features.sketches.schemas import (
     AdoptMarkRequest, MarkSelectionRequest, SketchUpdateRequest, SketcherFocalPointInput,
@@ -1018,18 +1018,29 @@ def list_recent_sketches(
 
 def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:
     """Public cards with the sketcher's name and username, and likes."""
-    ids = {s.sketcher_id for s in rows}
-    owners = {p.id: p for p in db.query(Profile).filter(Profile.id.in_(ids)).all()} if ids else {}
+    # One query for the owners and the likes (each query is a round trip).
+    info = {}
+    if rows:
+        mine = func.bool_or(SketchLike.sketcher_id == viewer_id) if viewer_id else false()
+        info = {sid: (p, n, bool(liked)) for sid, p, n, liked in (
+            db.query(Sketch.id, Profile, func.count(SketchLike.sketcher_id), mine)
+            .select_from(Sketch)
+            .outerjoin(Profile, Profile.id == Sketch.sketcher_id)
+            .outerjoin(SketchLike, SketchLike.sketch_id == Sketch.id)
+            .filter(Sketch.id.in_([s.id for s in rows]))
+            .group_by(Sketch.id, Profile.id).all())}
     drafts = upload_counts(db, [s.id for s in rows if not s.final_sketch_url])
     dicts = []
     for s in rows:
         d = _sketch_card(s)
         d["upload_count"] = drafts.get(s.id, 0)
-        p = owners.get(s.sketcher_id)
+        p, n, liked = info.get(s.id, (None, 0, False))
         d["owner"] = {"display_name": p.display_name if p else None, "username": p.username if p else None,
                       "avatar_url": p.avatar_url if p else None}  # Explore's avatar pins
+        d["like_count"], d["liked"] = n, liked
+        d["is_owner"] = bool(viewer_id) and s.sketcher_id == viewer_id
         dicts.append(d)
-    return _with_likes(db, rows, viewer_id, dicts)
+    return dicts
 
 
 def _visible_to(viewer_id: str | None):

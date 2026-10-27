@@ -150,24 +150,15 @@ def liked_by(db: Session, viewer_id: str | None, sketch_id: str) -> bool:
 
 
 def like_summary(db: Session, sketch_ids: list[str], viewer_id: str | None) -> dict:
-    """Likes for a list of sketches in two queries: {id: (count, liked)}.
+    """Likes for a list of sketches in one query: {id: (count, liked)}.
     For the sketch cards in feeds and search."""
     if not sketch_ids:
         return {}
-    counts = dict(
-        db.query(SketchLike.sketch_id, func.count())
-        .filter(SketchLike.sketch_id.in_(sketch_ids))
-        .group_by(SketchLike.sketch_id)
-        .all()
-    )
-    mine = set()
-    if viewer_id:
-        mine = {
-            r[0] for r in db.query(SketchLike.sketch_id)
-            .filter(SketchLike.sketch_id.in_(sketch_ids), SketchLike.sketcher_id == viewer_id)
-            .all()
-        }
-    return {i: (counts.get(i, 0), i in mine) for i in sketch_ids}
+    mine = func.bool_or(SketchLike.sketcher_id == viewer_id) if viewer_id else false()
+    rows = (db.query(SketchLike.sketch_id, func.count(), mine)
+            .filter(SketchLike.sketch_id.in_(sketch_ids))
+            .group_by(SketchLike.sketch_id).all())
+    return {sid: (n, bool(liked)) for sid, n, liked in rows}
 
 
 # ---- comments ----
