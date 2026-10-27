@@ -4,12 +4,13 @@ import Icon from './Icon'
 import SketchListMapView from './SketchListMapView'
 import { api } from '../../lib/api'
 import { dateLabel, imageUrl } from '../../lib/media'
+import { handle } from '../../lib/people'
 
 // A sketch from the API as a SketchListMapView item.
 export const toListItem = (s) => ({
   id: s.id,
   title: s.title,
-  meta: [s.owner?.display_name || s.owner?.username, s.location?.label].filter(Boolean).join(' · '),
+  meta: [s.owner && handle(s.owner), s.location?.label].filter(Boolean).join(' · '),
   date: dateLabel(s.created_at),
   place: s.location?.label,
   lat: s.location?.lat,

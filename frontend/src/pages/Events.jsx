@@ -8,6 +8,7 @@ import Icon from '../components/common/Icon'
 import { useAuth } from '../components/common/AuthContext'
 import { api } from '../lib/api'
 import { useGeolocation } from '../lib/useGeolocation'
+import { handle } from '../lib/people'
 
 /**
  * Events (design doc, item 49): what is coming up near me; events where a
@@ -83,7 +84,7 @@ export default function Events() {
           <ul className="m-0 flex list-none flex-col gap-3 p-0">
             {invites.map((e) => (
               <li key={e.id} className="flex flex-wrap items-center gap-3 rounded-md border border-ink/10 p-3">
-                <span className="min-w-0 flex-1"><b>{e.title}</b> <span className="text-sm text-ink/60">by {e.organizer?.display_name || `@${e.organizer?.username}`}</span></span>
+                <span className="min-w-0 flex-1"><b>{e.title}</b> <span className="text-sm text-ink/60">by {handle(e.organizer)}</span></span>
                 <Button variant="editorial" size="sm" onClick={() => navigate(`/events/${e.id}`)}>See it</Button>
                 <Button variant="editorial" size="sm" onClick={() => answer(e, false)}>Decline</Button>
                 <Button variant="editorialSolid" size="sm" onClick={() => answer(e, true)}>Accept</Button>
@@ -96,7 +97,7 @@ export default function Events() {
       {home?.teaching?.length > 0 && (
         <section className="ed-section">
           <h2 className="ed-kicker m-0">Sketchers you follow are teaching</h2>
-          {grid(home.teaching, (e) => `Teaching: ${e.instructor?.display_name || `@${e.instructor?.username}`}`)}
+          {grid(home.teaching, (e) => `Teaching: ${handle(e.instructor)}`)}
         </section>
       )}
 

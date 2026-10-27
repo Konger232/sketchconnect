@@ -24,6 +24,7 @@ import { runGuideAnalysis } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
 import { STYLES, sceneTypeLabel } from '../data/styles'
 import { useSheetDrag } from '../lib/useSheetDrag'
+import { handle } from '../lib/people'
 
 const NOTE_LIMIT = 500
 
@@ -729,7 +730,7 @@ export default function EditSketch() {
       {chips}
       <h2 className="font-heading text-xl font-bold text-white">{sketch.title || 'Untitled sketch'}</h2>
       <p className="text-base text-sc-text3">
-        {sketch.owner?.display_name || 'Sketcher'}
+        {handle(sketch.owner, 'Sketcher')}
         {sketch.captured_at && ` · ${new Date(sketch.captured_at).toLocaleDateString()}`}
       </p>
       {sketch.field_notes && <p className="whitespace-pre-line text-md text-sc-text2">{sketch.field_notes}</p>}

@@ -13,6 +13,8 @@ import { useAuth } from '../components/common/AuthContext'
 import { api } from '../lib/api'
 import { imageUrl } from '../lib/media'
 import { FORMATS, eventWhen } from '../lib/events'
+import NameHandle from '../components/common/NameHandle'
+import { handle } from '../lib/people'
 
 /**
  * An event (design doc, item 49), as an announcement: cover, title, when
@@ -133,7 +135,7 @@ export default function EventDetail() {
             {e.friends_interested.length > 0 && (
               <span className="flex items-center gap-2 text-sm text-ink/70">
                 <span className="flex -space-x-2">{e.friends_interested.slice(0, 4).map((p) => <Avatar key={p.username} url={p.avatar_url} className="h-7 w-7 border-2 border-white" />)}</span>
-                {e.friends_interested.slice(0, 2).map((p) => p.display_name || `@${p.username}`).join(', ')}
+                {e.friends_interested.slice(0, 2).map((p) => handle(p)).join(', ')}
                 {e.friends_interested.length > 2 ? ` and ${e.friends_interested.length - 2} more you follow` : ' (you follow)'}
               </span>
             )}
@@ -143,7 +145,7 @@ export default function EventDetail() {
             <span className="ed-caption">Organised by</span>
             <Link to={`/sketchers/${e.organizer.username}`} className="flex items-center gap-2.5 text-ink no-underline">
               <Avatar url={e.organizer.avatar_url} className="h-9 w-9" />
-              <span className="font-semibold">{e.organizer.display_name || `@${e.organizer.username}`}</span>
+              <NameHandle person={e.organizer} />
             </Link>
           </div>
 
@@ -156,7 +158,7 @@ export default function EventDetail() {
                     {i.sketcher ? (
                       <Link to={`/sketchers/${i.sketcher.username}`} className="flex items-center gap-2.5 text-ink no-underline">
                         <Avatar url={i.sketcher.avatar_url} className="h-9 w-9" />
-                        <span className="font-semibold">{i.sketcher.display_name || `@${i.sketcher.username}`}</span>
+                        <NameHandle person={i.sketcher} />
                       </Link>
                     ) : <span className="flex items-center gap-2.5"><Avatar className="h-9 w-9" /> <span className="font-semibold">{i.name}</span></span>}
                   </li>

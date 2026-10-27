@@ -26,6 +26,8 @@ import { notifySketchesChanged, useSketchesVersion } from '../lib/sketchEvents'
 import Avatar from '../components/common/Avatar'
 import RightsNote from '../components/common/RightsNote'
 import StyleCheck from '../components/common/StyleCheck'
+import NameHandle from '../components/common/NameHandle'
+import { handle } from '../lib/people'
 
 const NEARBY_M = 300
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : '')
@@ -117,7 +119,7 @@ export default function SketchDetail() {
   const nearbyItems = useMemo(() => nearby.map((n) => ({
     id: n.id,
     title: n.title,
-    meta: [n.owner?.display_name || n.owner?.username, `${n.distance_m} m`].filter(Boolean).join(' · '),
+    meta: [n.owner && handle(n.owner), `${n.distance_m} m`].filter(Boolean).join(' · '),
     date: dateLabel(n.created_at),
     lat: n.location?.lat,
     lon: n.location?.lon,
@@ -289,7 +291,7 @@ export default function SketchDetail() {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-base">
             <Link to={s.owner?.username ? `/sketchers/${s.owner.username}` : '#'} className="flex items-center gap-2 font-semibold text-ink no-underline hover:underline">
               <Avatar url={s.owner?.avatar_url} className="h-8 w-8" />
-              {s.owner?.display_name || s.owner?.username || 'A sketcher'}
+              {s.owner?.username ? <NameHandle person={s.owner} /> : 'A sketcher'}
             </Link>
             {/* Follow the sketcher from their sketch (not on your own). */}
             {viewer === 'member' && s.owner?.username && (

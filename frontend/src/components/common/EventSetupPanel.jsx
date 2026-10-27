@@ -251,7 +251,7 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
                 <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0">
                   {f.instructors.map((i, n) => (
                     <li key={n} className="flex items-center gap-1 rounded-full border border-ink/20 py-1 pl-3 pr-1 text-xs font-semibold">
-                      {i.username ? (i.display_name ? `${i.display_name} @${i.username}` : `@${i.username}`) : i.name}
+                      {i.username ? `@${i.username}` : i.name}
                       <button type="button" aria-label="Remove" className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-ink/10"
                         onClick={() => set({ instructors: f.instructors.filter((_, k) => k !== n) })}>×</button>
                     </li>
