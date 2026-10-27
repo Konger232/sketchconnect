@@ -71,10 +71,10 @@ import os as _os
 DEBUG = _os.environ.get("DEBUG", "false").strip().lower() in ("1", "true", "yes")
 
 # --- Events (design doc, item 49) ---
-# EVENT_RULES=relaxed in backend/.env, for testing only: anyone can set up
-# events (no 5 completed sketches, paint collection or bag) and there is no
-# monthly or one-at-a-time limit. Leave it out, or "strict", for real use.
-EVENT_RULES_RELAXED = _os.environ.get("EVENT_RULES", "strict").strip().lower() == "relaxed"
+# RELAXED_EVENT_RULES=true in backend/.env, for testing only: anyone can
+# set up events (no 5 completed sketches, paint collection or bag) and there
+# is no monthly or one-at-a-time limit. Leave it out, or false, for real use.
+EVENT_RULES_RELAXED = _os.environ.get("RELAXED_EVENT_RULES", "false").strip().lower() in ("1", "true", "yes")
 
 DATABASE_URL = _os.environ.get("DATABASE_URL", "")
 

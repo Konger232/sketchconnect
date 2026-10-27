@@ -237,7 +237,7 @@ def _checklist(db: Session, me: str) -> dict:
     palette = bool(palette_ids(db, me))
     return {"completed_sketches": completed, "needed_sketches": MIN_COMPLETED,
             "has_palette": palette, "has_bag": bag, "relaxed": EVENT_RULES_RELAXED,
-            # EVENT_RULES=relaxed (testing): no earn-it rule (config.py).
+            # RELAXED_EVENT_RULES=true (testing): no earn-it rule (config.py).
             "earned": EVENT_RULES_RELAXED or (completed >= MIN_COMPLETED and palette and bag)}
 
 
