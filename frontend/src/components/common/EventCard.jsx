@@ -12,6 +12,8 @@ import { FORMATS, eventDay, eventWhen } from '../../lib/events'
  */
 export default function EventCard({ event: e, note, compact = false, selected = false, onSelect }) {
   const past = new Date(e.ends_at) < new Date()
+  // Who runs it: the organisation when there is one, else the sketcher.
+  const by = e.org_name || e.organizer?.display_name || (e.organizer?.username ? `@${e.organizer.username}` : null)
   // compact: a row for Explore's list, with the date tile the map pin uses.
   if (compact) {
     const { day, month } = eventDay(e)
@@ -29,6 +31,7 @@ export default function EventCard({ event: e, note, compact = false, selected = 
             <span className="shrink-0 rounded-full bg-black/60 px-2 py-0.5 text-3xs font-medium text-white">{past ? 'Past' : FORMATS[e.format] || 'Event'}</span>
             <span className="truncate">{eventWhen(e)}</span>
           </span>
+          {by && <span className="truncate text-xs text-ink/65">By {by}</span>}
         </span>
       </Link>
     )
@@ -48,6 +51,7 @@ export default function EventCard({ event: e, note, compact = false, selected = 
       <span className="-mt-1 flex flex-col gap-0.5 text-sm text-ink/70">
         <span>{eventWhen(e)}</span>
         <span className="truncate">{e.place_name}</span>
+        {by && <span className="truncate">By {by}</span>}
         {e.interested_count > 0 && (
           <span className="flex items-center gap-1 text-xs text-ink/55"><Icon name="star" size={12} /> {e.interested_count} interested</span>
         )}
