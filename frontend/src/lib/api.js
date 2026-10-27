@@ -15,6 +15,20 @@ export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`,
 })
 
+// The same GET already on its way: share it rather than send it twice (React
+// runs effects twice in development, and two parts of a page can ask for the
+// same thing at once). Requests that can be cancelled are left alone.
+const inflight = new Map()
+const sendGet = api.get.bind(api)
+api.get = (url, config = {}) => {
+  if (config.signal || config.responseType) return sendGet(url, config)
+  const key = `${url}?${JSON.stringify(config.params || {})}`
+  if (inflight.has(key)) return inflight.get(key)
+  const request = sendGet(url, config).finally(() => inflight.delete(key))
+  inflight.set(key, request)
+  return request
+}
+
 api.interceptors.request.use(async (config) => {
   const { data } = await supabase.auth.getSession()
   const token = data?.session?.access_token
