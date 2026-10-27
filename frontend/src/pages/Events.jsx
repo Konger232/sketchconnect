@@ -17,16 +17,17 @@ import { useGeolocation } from '../lib/useGeolocation'
 export default function Events() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const { coords, status } = useGeolocation()
+  const { coords } = useGeolocation()
   const [home, setHome] = useState(null)
   const [invites, setInvites] = useState([])
   const [panel, setPanel] = useState(false)
 
+  // Load straight away; the browser's location can take seconds (or wait on
+  // a permission prompt), so it only re-sorts "Coming up" when it arrives.
   useEffect(() => {
-    if (status === 'idle' || status === 'locating') return
     api.get('/api/events/home', { params: coords ? { lat: coords.lat, lon: coords.lon } : {} })
-      .then(({ data }) => setHome(data)).catch(() => setHome({ mine: [], upcoming: [], teaching: [] }))
-  }, [status, coords])
+      .then(({ data }) => setHome(data)).catch(() => setHome((h) => h || { mine: [], mine_past: [], upcoming: [], teaching: [] }))
+  }, [coords])
   useEffect(() => {
     if (user) api.get('/api/events/invites/mine').then(({ data }) => setInvites(data)).catch(() => setInvites([]))
   }, [user])

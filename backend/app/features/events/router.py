@@ -5,7 +5,7 @@ at a real place, announced and found; no sessions or sign-ups.
 Rules (decided October 26, 2026):
 - Earn it: 5 completed sketches, a paint collection and a bag, to set one up.
 - At most 4 casual meet-ups a month, and 1 organised event at a time.
-- Crawls stay local: shown within 50 km and in the next 14 days, except to
+- Meet-ups stay local: shown within 50 km and in the next 3 months, except to
   the organiser's followers. Organised events show to everyone.
 - 3 reports hide an event until it is reviewed.
 - An ended event with no tagged sketches drops off the map.
@@ -60,7 +60,7 @@ router = APIRouter(prefix="/api", tags=["events"])
 MIN_COMPLETED = 5
 MEETUPS_PER_MONTH = 4
 LOCAL_KM = 50
-LOCAL_DAYS = 14
+LOCAL_DAYS = 90  # about 3 months: room to plan a trip
 REPORTS_TO_HIDE = 3
 SUGGEST_KM = 5
 
@@ -124,7 +124,7 @@ def _cards(db: Session, events: list[Event], viewer: str | None) -> list[dict]:
     return [event_card(e, orgs.get(e.organizer_id), counts.get(e.id, 0), e.id in mine) for e in events]
 
 
-def _reach(db: Session, viewer: str | None, near: tuple[float, float] | None):
+def _reach(db: Session, viewer: str | None, near: tuple[float, float] | None, followed: set[str] | None = None):
     """Who sees which events (the local-reach rule): organised events
     everywhere; meet-ups nearby and soon, or anywhere to the organiser's
     followers and the organiser."""
@@ -136,7 +136,7 @@ def _reach(db: Session, viewer: str | None, near: tuple[float, float] | None):
                           func.ST_DWithin(Event.location, _point(*near), LOCAL_KM * 1000)))
     if viewer:
         local.append(Event.organizer_id == viewer)
-        followed = _follows(db, viewer)
+        followed = _follows(db, viewer) if followed is None else followed
         if followed:
             local.append(Event.organizer_id.in_(followed))
     return and_(Event.hidden.is_(False), or_(*local))
@@ -187,47 +187,48 @@ def events_in_view(south: float, north: float, west: float, east: float,
 @router.get("/events/home")
 def events_for_home(lat: float | None = None, lon: float | None = None,
                     db: Session = Depends(get_db), viewer: str | None = Depends(get_optional_sketcher_id)):
-    """Home: your own events (upcoming, then recent past); upcoming events,
-    nearest first when the location is known; and
-    for a member, events where someone they follow or whose sketches they
-    liked is a confirmed featured instructor."""
+    """The Events page in one call: your own events (upcoming, and the last
+    12 past, for you only); upcoming events, nearest first when the location
+    is known; and events where someone you follow or whose sketches you
+    liked is a confirmed featured instructor. Kept to a few queries: each
+    one is a round trip to the database."""
+    now = _now()
     near = (lat, lon) if lat is not None and lon is not None else None
-    q = db.query(Event).filter(_reach(db, viewer, near), Event.ends_at >= _now())
-    if near:
-        q = q.order_by(func.ST_Distance(Event.location, _point(*near)), Event.starts_at)
-    else:
-        q = q.order_by(Event.starts_at)
-    # The viewer's own events have their own section, so not here too.
-    if viewer:
-        q = q.filter(Event.organizer_id != viewer)
-    upcoming = _cards(db, q.limit(12).all(), viewer)
+    followed = _follows(db, viewer)
 
-    # Yours: the events you organise. Past events show only here, to their
-    # organiser (to set up the next one from, later: Save as).
-    mine, mine_past = [], []
+    q = db.query(Event).filter(_reach(db, viewer, near, followed), Event.ends_at >= now)
     if viewer:
-        ahead = (db.query(Event).filter(Event.organizer_id == viewer, Event.ends_at >= _now())
-                 .order_by(Event.starts_at).all())
-        past = (db.query(Event).filter(Event.organizer_id == viewer, Event.ends_at < _now())
-                .order_by(Event.starts_at.desc()).limit(12).all())
-        mine, mine_past = _cards(db, ahead, viewer), _cards(db, past, viewer)
+        q = q.filter(Event.organizer_id != viewer)  # yours have their own section
+    q = q.order_by(func.ST_Distance(Event.location, _point(*near)), Event.starts_at) if near else q.order_by(Event.starts_at)
+    upcoming = q.limit(12).all()
 
-    teaching = []
+    ahead, past, teach_rows = [], [], []
     if viewer:
-        people = _follows(db, viewer) | {o for (o,) in db.query(Sketch.sketcher_id).join(
-            SketchLike, SketchLike.sketch_id == Sketch.id).filter(SketchLike.sketcher_id == viewer).distinct().all()}
-        people.discard(viewer)
+        # Yours, in one query: coming up first, then the most recent past.
+        own = db.query(Event).filter(Event.organizer_id == viewer).order_by(Event.starts_at).all()
+        ahead = [e for e in own if _aware(e.ends_at) >= now]
+        past = sorted((e for e in own if _aware(e.ends_at) < now), key=lambda e: e.starts_at, reverse=True)[:12]
+
+        liked = {o for (o,) in db.query(Sketch.sketcher_id).join(SketchLike, SketchLike.sketch_id == Sketch.id)
+                 .filter(SketchLike.sketcher_id == viewer).distinct().all()}
+        people = (followed | liked) - {viewer}
         if people:
-            rows = (db.query(Event, EventInstructor.sketcher_id)
-                    .join(EventInstructor, EventInstructor.event_id == Event.id)
-                    .filter(EventInstructor.sketcher_id.in_(people), EventInstructor.status == "confirmed",
-                            Event.hidden.is_(False), Event.ends_at >= _now())
-                    .order_by(Event.starts_at).limit(12).all())
-            who = {p.id: p for p in db.query(Profile).filter(Profile.id.in_({s for _, s in rows})).all()}
-            cards = {c["id"]: c for c in _cards(db, list({e.id: e for e, _ in rows}.values()), viewer)}
-            for e, sid in rows:
-                teaching.append({**cards[e.id], "instructor": person(who.get(sid))})
-    return {"mine": mine, "mine_past": mine_past, "upcoming": upcoming, "teaching": teaching}
+            teach_rows = (db.query(Event, EventInstructor.sketcher_id)
+                          .join(EventInstructor, EventInstructor.event_id == Event.id)
+                          .filter(EventInstructor.sketcher_id.in_(people), EventInstructor.status == "confirmed",
+                                  Event.hidden.is_(False), Event.ends_at >= now)
+                          .order_by(Event.starts_at).limit(12).all())
+
+    # One set of card queries for every event on the page.
+    every = {e.id: e for e in [*upcoming, *ahead, *past, *(e for e, _ in teach_rows)]}
+    cards = {c["id"]: c for c in _cards(db, list(every.values()), viewer)}
+    who = {p.id: p for p in db.query(Profile).filter(Profile.id.in_({sid for _, sid in teach_rows})).all()} if teach_rows else {}
+    return {
+        "mine": [cards[e.id] for e in ahead],
+        "mine_past": [cards[e.id] for e in past],
+        "upcoming": [cards[e.id] for e in upcoming],
+        "teaching": [{**cards[e.id], "instructor": person(who.get(sid))} for e, sid in teach_rows],
+    }
 
 
 @router.get("/events/search")
