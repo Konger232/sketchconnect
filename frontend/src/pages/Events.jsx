@@ -91,6 +91,15 @@ export default function Events() {
         {home && home.upcoming.length > 0 && grid(home.upcoming)}
       </section>
 
+      {/* Past events show only to their organiser, for now. */}
+      {home?.mine_past?.length > 0 && (
+        <section className="ed-section">
+          <h2 className="ed-kicker m-0">Your past events</h2>
+          <p className="-mt-2 m-0 text-xs text-ink/55">Only you see these.</p>
+          {grid(home.mine_past)}
+        </section>
+      )}
+
       {panel && <EventSetupPanel onClose={() => setPanel(false)} onSaved={(e) => { setPanel(false); navigate(`/events/${e.id}`) }} />}
     </BasePage>
   )
