@@ -12,8 +12,8 @@ import { FORMATS, eventDay, eventWhen } from '../../lib/events'
  */
 export default function EventCard({ event: e, note, compact = false, selected = false, onSelect }) {
   const past = new Date(e.ends_at) < new Date()
-  // Who runs it: the organisation when there is one, else the sketcher.
-  const by = e.org_name || e.organizer?.display_name || (e.organizer?.username ? `@${e.organizer.username}` : null)
+  // Who runs it: the organisation when there is one, else the sketcher's @username.
+  const by = e.org_name || (e.organizer?.username ? `@${e.organizer.username}` : null)
   // compact: a row for Explore's list, with the date tile the map pin uses.
   if (compact) {
     const { day, month } = eventDay(e)
