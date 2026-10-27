@@ -15,7 +15,8 @@ export function eventWhen(e) {
   return `${day(a, { day: 'numeric', month: 'short' })} – ${day(b, { day: 'numeric', month: 'short', year: 'numeric' })} (${city})`
 }
 
-export const EVENT_TYPES = { crawl: 'Sketch crawl', workshop: 'Workshop', symposium: 'Symposium', festival: 'Festival' }
+// The format, for either type of event (casual meet-up or organised event).
+export const FORMATS = { crawl: 'Sketch crawl', workshop: 'Workshop', symposium: 'Symposium', festival: 'Festival' }
 
 // A hashtag from a title: "Saturday tram crawl" -> "SaturdayTramCrawl".
 export const hashtagFrom = (title) => (title || '')

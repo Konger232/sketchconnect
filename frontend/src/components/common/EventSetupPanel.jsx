@@ -5,15 +5,15 @@ import LocationSearchField from './LocationSearchField'
 import { api } from '../../lib/api'
 import { hashtagFrom, localInput } from '../../lib/events'
 
-const TYPES = [['workshop', 'Workshop'], ['symposium', 'Symposium'], ['festival', 'Festival']]
+const FORMAT_OPTIONS = [['crawl', 'Sketch crawl or walk'], ['workshop', 'Workshop'], ['festival', 'Festival'], ['symposium', 'Symposium']]
 
 /**
  * Set up an event (design doc, item 49): a floating panel (the bottom sheet
- * on a phone) that starts with the two kinds:
- *   Sketch crawl     a casual gathering: title, when, where (a scouted spot
+ * on a phone) that starts with the two types:
+ *   Casual meet-up   a casual gathering: title, when, where (a scouted spot
  *                    or the place search), theme, hashtag
  *   Organised event  run by an organisation: also its name and website, the
- *                    type, a cover image, the description, the website or
+ *                    a cover image, the description, the website or
  *                    brochure and ticket links, and featured instructors
  * Every event is at a real place. Times are in the browser's time zone,
  * which is the event's own when it is set up from there.
@@ -23,7 +23,7 @@ const TYPES = [['workshop', 'Workshop'], ['symposium', 'Symposium'], ['festival'
  */
 export default function EventSetupPanel({ event, onSaved, onClose }) {
   const editing = Boolean(event)
-  const [kind, setKind] = useState(event?.kind || null)
+  const [type, setType] = useState(event?.type || null)
   const [check, setCheck] = useState(null) // the earn-it checklist and the caps
   const [spots, setSpots] = useState([])
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
@@ -35,7 +35,7 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
     ends: localInput(event ? new Date(event.ends_at) : new Date(start0.getTime() + 3 * 3600000)),
     place: event?.location ? { lat: event.location.lat, lon: event.location.lon, label: event.place_name } : null,
     spot_id: event?.spot_id || null,
-    event_type: event?.event_type && event.event_type !== 'crawl' ? event.event_type : 'workshop',
+    format: event?.format || 'crawl',
     org_name: event?.org_name || '', org_url: event?.org_url || '',
     website_url: event?.website_url || '', ticket_url: event?.ticket_url || '',
     instructors: (event?.instructors || []).map((i) => (i.sketcher ? { username: i.sketcher.username } : { name: i.name })),
@@ -55,8 +55,8 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
   const setTitle = (title) => set({ title, ...(f.tagTouched ? {} : { hashtag: hashtagFrom(title) }) })
 
   const blocked = !editing && check && !check.earned
-  const crawlFull = !editing && check && !check.relaxed && kind === 'crawl' && check.crawls_this_month >= check.crawls_per_month
-  const orgOpen = !editing && check && !check.relaxed && kind === 'organised' && check.organised_open
+  const meetupsFull = !editing && check && !check.relaxed && type === 'meetup' && check.meetups_this_month >= check.meetups_per_month
+  const orgOpen = !editing && check && !check.relaxed && type === 'organised' && check.organised_open
   const ready = f.title.trim() && f.hashtag.trim().length >= 3 && f.place && f.starts && f.ends && !busy
 
   function addInstructor() {
@@ -70,13 +70,13 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
     setBusy(true)
     setError(null)
     const body = {
-      kind, event_type: kind === 'crawl' ? 'crawl' : f.event_type,
+      type, format: f.format,
       title: f.title, theme: f.theme || null, description: f.description || null,
       hashtag: f.hashtag.replace(/^#/, ''),
       starts_at: new Date(f.starts).toISOString(), ends_at: new Date(f.ends).toISOString(), time_zone: event?.time_zone || tz,
       place_name: f.place.label || 'Meeting point', lat: f.place.lat, lon: f.place.lon, spot_id: f.spot_id,
       org_name: f.org_name || null, org_url: f.org_url || null, website_url: f.website_url || null, ticket_url: f.ticket_url || null,
-      instructors: kind === 'organised' ? f.instructors : [],
+      instructors: type === 'organised' ? f.instructors : [],
     }
     try {
       const { data } = editing ? await api.put(`/api/events/${event.id}`, body) : await api.post('/api/events', body)
@@ -103,7 +103,7 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
     </label>
   )
 
-  // ---- the first step: which kind ----
+  // ---- the first step: which type ----
   const choose = (
     <div className="flex flex-col gap-4">
       {check && !check.earned && (
@@ -117,12 +117,12 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
       {check?.relaxed && <p className="m-0 rounded bg-amber-50 px-3 py-2 text-xs text-amber-900">Testing: the event rules are off (RELAXED_EVENT_RULES).</p>}
       <div className="grid gap-3 md:grid-cols-2">
         {[
-          ['crawl', 'Sketch crawl', 'A casual gathering at a real place: a few sketchers, a time and a meeting spot.',
-            check && !check.relaxed ? `${check.crawls_this_month} of ${check.crawls_per_month} this month` : null],
-          ['organised', 'Organised event', 'A workshop, symposium or festival run by an organisation, with its website and instructors.',
+          ['meetup', 'Casual meet-up', 'A casual gathering at a real place: a few sketchers, a time and a meeting spot.',
+            check && !check.relaxed ? `${check.meetups_this_month} of ${check.meetups_per_month} this month` : null],
+          ['organised', 'Organised event', 'A sketch crawl, workshop or festival run by an organisation, with its website and instructors.',
             check && !check.relaxed && check.organised_open ? 'You have one coming up' : 'One at a time'],
         ].map(([k, title, text, note]) => (
-          <button key={k} type="button" disabled={blocked} onClick={() => setKind(k)}
+          <button key={k} type="button" disabled={blocked} onClick={() => setType(k)}
             className="flex flex-col gap-1.5 rounded-lg border-[1.5px] border-ink/20 p-4 text-left hover:border-ink disabled:opacity-50">
             <span className="font-heading text-lg font-semibold">{title}</span>
             <span className="text-sm text-ink/70">{text}</span>
@@ -137,24 +137,24 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
   const form = (
     <div className="flex flex-col gap-4">
       {!editing && (
-        <button type="button" className="self-start text-xs font-semibold underline" onClick={() => setKind(null)}>← Choose the other kind</button>
+        <button type="button" className="self-start text-xs font-semibold underline" onClick={() => setType(null)}>← Choose the other type</button>
       )}
-      {(crawlFull || orgOpen) && (
+      {(meetupsFull || orgOpen) && (
         <p className="m-0 rounded bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          {crawlFull ? `You have set up ${check.crawls_per_month} sketch crawls this month. Pick a date next month.` : 'You have an organised event coming up. You can set up the next one once it has ended.'}
+          {meetupsFull ? `You have set up ${check.meetups_per_month} casual meet-ups this month. Pick a date next month.` : 'You have an organised event coming up. You can set up the next one once it has ended.'}
         </p>
       )}
-      {kind === 'organised' && (
+      {type === 'organised' && (
         <div className="grid gap-3 md:grid-cols-2">
           {field('Organisation', <input className="field-input" maxLength={150} value={f.org_name} onChange={(e) => set({ org_name: e.target.value })} placeholder="e.g. Urban Sketchers Bangkok" />)}
           {field("Organisation's website", <input className="field-input" type="url" maxLength={300} value={f.org_url} onChange={(e) => set({ org_url: e.target.value })} placeholder="https://" />)}
         </div>
       )}
       {field('Title', <input className="field-input" maxLength={150} value={f.title} autoFocus onChange={(e) => setTitle(e.target.value)}
-        placeholder={kind === 'crawl' ? 'e.g. Saturday morning at the river' : 'e.g. Sketch Festival 2027'} />)}
-      {kind === 'organised' && field('Type', (
-        <select className="field-select" value={f.event_type} onChange={(e) => set({ event_type: e.target.value })}>
-          {TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        placeholder={type === 'meetup' ? 'e.g. Saturday morning at the river' : 'e.g. Sketch Festival 2027'} />)}
+      {field('Format', (
+        <select className="field-select" value={f.format} onChange={(e) => set({ format: e.target.value })}>
+          {FORMAT_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
       ))}
       <div className="grid gap-3 md:grid-cols-2">
@@ -163,7 +163,7 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
       </div>
       <span className="-mt-2 text-xs text-ink/55">Times in {(event?.time_zone || tz).replace(/_/g, ' ')}.</span>
 
-      {field(kind === 'crawl' ? 'Meeting spot' : 'Place', (
+      {field(type === 'meetup' ? 'Meeting spot' : 'Place', (
         <div className="flex flex-col gap-2">
           {spots.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
@@ -182,7 +182,7 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
 
       {field('Theme (optional)', <input className="field-input" maxLength={120} value={f.theme} onChange={(e) => set({ theme: e.target.value })} placeholder="e.g. Doors of the old town" />)}
       {field('Description', <textarea className="field-input min-h-[84px] resize-y" maxLength={4000} value={f.description} onChange={(e) => set({ description: e.target.value })}
-        placeholder={kind === 'crawl' ? 'Where to meet, what to bring, coffee after?' : 'What the event is, who it is for, what happens.'} />)}
+        placeholder={type === 'meetup' ? 'Where to meet, what to bring, coffee after?' : 'What the event is, who it is for, what happens.'} />)}
 
       {field('Hashtag', (
         <span className="flex items-center gap-1">
@@ -191,7 +191,7 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
         </span>
       ), 'Sketchers add it to a sketch\'s title or notes, and the sketch shows on the event page.')}
 
-      {kind === 'organised' && (
+      {type === 'organised' && (
         <>
           <div className="grid gap-3 md:grid-cols-2">
             {field('Website or brochure', <input className="field-input" type="url" maxLength={300} value={f.website_url} onChange={(e) => set({ website_url: e.target.value })} placeholder="https://" />)}
@@ -224,17 +224,17 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
   )
 
   return (
-    <FloatPanel placement="modal" title={editing ? 'Edit event' : kind === 'crawl' ? 'Set up a sketch crawl' : kind === 'organised' ? 'Set up an organised event' : 'Set up an event'}
-      width="760px" onClose={onClose} closeOnOutside={!kind}
-      footer={kind ? (
+    <FloatPanel placement="modal" title={editing ? 'Edit event' : type === 'meetup' ? 'Set up a casual meet-up' : type === 'organised' ? 'Set up an organised event' : 'Set up an event'}
+      width="760px" onClose={onClose} closeOnOutside={!type}
+      footer={type ? (
         <>
           {error && <span className="mr-auto text-sm text-accent">{error}</span>}
           <Button variant="editorial" onClick={onClose}>Cancel</Button>
-          <Button variant="action" disabled={!ready || crawlFull || orgOpen} onClick={save}>{busy ? 'Saving…' : editing ? 'Save' : 'Set it up'}</Button>
+          <Button variant="action" disabled={!ready || meetupsFull || orgOpen} onClick={save}>{busy ? 'Saving…' : editing ? 'Save' : 'Set it up'}</Button>
         </>
       ) : null}>
-      {kind ? form : choose}
-      {!kind && !check && <p className="m-0 text-sm text-ink/50">Checking…</p>}
+      {type ? form : choose}
+      {!type && !check && <p className="m-0 text-sm text-ink/50">Checking…</p>}
     </FloatPanel>
   )
 }

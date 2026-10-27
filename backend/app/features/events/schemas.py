@@ -15,8 +15,8 @@ class InstructorIn(BaseModel):
 
 
 class EventRequest(BaseModel):
-    kind: Literal["crawl", "organised"]
-    event_type: Literal["crawl", "workshop", "symposium", "festival"] = "crawl"
+    type: Literal["meetup", "organised"]
+    format: Literal["crawl", "workshop", "symposium", "festival"] = "crawl"
     title: str = Field(min_length=1, max_length=150)
     description: Optional[str] = Field(default=None, max_length=4000)
     theme: Optional[str] = Field(default=None, max_length=120)

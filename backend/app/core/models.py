@@ -348,13 +348,13 @@ class SketchUpload(Base):
 # ---- events and scouted spots (design doc, items 49 and 50) ----
 
 class Event(Base):
-    """A sketch crawl or an organised event, always at a real place."""
+    """A casual meet-up or an organised event, always at a real place."""
     __tablename__ = "events"
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
     organizer_id = Column(UUID(as_uuid=False), nullable=False, index=True)
-    kind = Column(String, nullable=False)            # crawl | organised
-    event_type = Column(String, nullable=False, default="crawl")  # crawl | workshop | symposium | festival
+    type = Column(String, nullable=False)            # meetup | organised (who sets it up, how far it reaches)
+    format = Column(String, nullable=False, default="crawl")  # crawl | workshop | symposium | festival
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     theme = Column(String, nullable=True)

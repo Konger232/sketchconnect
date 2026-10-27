@@ -46,7 +46,7 @@ export default function Events() {
     <BasePage>
       <section className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <span className="ed-kicker">Sketch crawls, workshops, festivals</span>
+          <span className="ed-kicker">Meet-ups, sketch crawls, workshops, festivals</span>
           <h1 className="ed-title">Events</h1>
         </div>
         {user && (

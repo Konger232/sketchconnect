@@ -505,12 +505,12 @@ where p.id = v.id and p.opacity is null;
 -- Events and scouted spots (design doc, items 49 and 50; October 26, 2026).
 -- Run once; safe to run again.
 
--- A sketch crawl or an organised event, always at a real place.
+-- A casual meet-up or an organised event, always at a real place.
 create table if not exists events (
   id uuid primary key default gen_random_uuid(),
   organizer_id uuid not null references auth.users (id) on delete cascade,
-  kind text not null check (kind in ('crawl', 'organised')),
-  event_type text not null default 'crawl' check (event_type in ('crawl', 'workshop', 'symposium', 'festival')),
+  type text not null check (type in ('meetup', 'organised')),
+  format text not null default 'crawl' check (format in ('crawl', 'workshop', 'symposium', 'festival')),
   title text not null check (char_length(title) between 1 and 150),
   description text,
   theme text,
@@ -627,3 +627,21 @@ select s.id, lower(m[1])
 from sketches s
 cross join lateral regexp_matches(coalesce(s.title, '') || ' ' || coalesce(s.field_notes, ''), '#([A-Za-z0-9_]{2,40})', 'g') as m
 on conflict do nothing;
+
+-- ---------------------------------------------------------------------------
+-- Events: `kind` becomes `type` (meetup | organised) and `event_type` becomes
+-- `format` (crawl | workshop | symposium | festival), for either type
+-- (October 27, 2026). Runs once: does nothing when `kind` is gone.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_name = 'events' and column_name = 'kind') then
+    alter table events drop constraint if exists events_kind_check;
+    alter table events drop constraint if exists events_event_type_check;
+    update events set kind = 'meetup' where kind = 'crawl';
+    alter table events rename column kind to type;
+    alter table events rename column event_type to format;
+    alter table events add constraint events_type_check check (type in ('meetup', 'organised'));
+    alter table events add constraint events_format_check check (format in ('crawl', 'workshop', 'symposium', 'festival'));
+  end if;
+end $$;

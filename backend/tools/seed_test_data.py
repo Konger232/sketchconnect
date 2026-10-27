@@ -917,9 +917,9 @@ def build(dry_run: bool, me: str | None):
     # with its recap, an upcoming crawl, and an organised festival with
     # instructors (one confirmed, one invited, one not on SketchConnect).
     # Names are made up; none stands for a real group.
-    def event(key, organizer, kind, title, tag, days, hours, at, place, **extra):
-        e = Event(id=str(uuid.uuid4()), organizer_id=ids[organizer], kind=kind, title=title, hashtag=tag,
-                  event_type=extra.pop("event_type", "crawl"), starts_at=NOW + timedelta(days=days),
+    def event(key, organizer, type_, title, tag, days, hours, at, place, **extra):
+        e = Event(id=str(uuid.uuid4()), organizer_id=ids[organizer], type=type_, title=title, hashtag=tag,
+                  format=extra.pop("format", "crawl"), starts_at=NOW + timedelta(days=days),
                   ends_at=NOW + timedelta(days=days, hours=hours), time_zone=extra.pop("tz", "UTC"),
                   place_name=place, location=WKTElement(f"POINT({at[1]} {at[0]})", srid=4326),
                   created_at=NOW - timedelta(days=30), **extra)
@@ -931,17 +931,17 @@ def build(dry_run: bool, me: str | None):
         sk.field_notes = f"{sk.field_notes}\n\n#{tag}" if sk.field_notes else f"#{tag}"
         add(SketchTag(sketch_id=sk.id, tag=tag.lower()))
 
-    alfama = event("alfama", "lena.ortiz", "crawl", "Alfama rooftops crawl", "AlfamaCrawl", -21, 3,
+    alfama = event("alfama", "lena.ortiz", "meetup", "Alfama rooftops crawl", "AlfamaCrawl", -21, 3,
                    (38.7114, -9.1300), "Miradouro de Santa Luzia, Lisbon", tz="Europe/Lisbon",
                    theme="Roofs stepping down the hill",
                    description="Meet at the viewpoint at 9. We sketch the rooftops, then walk down to the river.")
     tag_sketch("lena_alfama", "AlfamaCrawl")
-    tram = event("tram", "lena.ortiz", "crawl", "Saturday tram line crawl", "Tram28Crawl", 4, 3,
+    tram = event("tram", "lena.ortiz", "meetup", "Saturday tram line crawl", "Tram28Crawl", 4, 3,
                  (38.7107, -9.1366), "Rua da Conceição, Baixa, Lisbon", tz="Europe/Lisbon",
                  theme="Trams and the people waiting for them",
                  description="Bring a small book; the stops are narrow. Coffee after at the corner café.")
     festival = event("festival", "marcus.tan", "organised", "Lion City Sketch Festival (test)", "LionCitySketch2027", 40, 72,
-                     (1.2834, 103.8443), "Chinatown, Singapore", tz="Asia/Singapore", event_type="festival",
+                     (1.2834, 103.8443), "Chinatown, Singapore", tz="Asia/Singapore", format="festival",
                      org_name="Lion City Sketchers (test group)", org_url="https://example.com/lion-city-sketchers",
                      website_url="https://example.com/lion-city-sketch-festival", ticket_url="https://example.com/tickets",
                      theme="Shophouses and hawker centres",

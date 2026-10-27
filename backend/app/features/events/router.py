@@ -1,10 +1,10 @@
 """
-Events (design doc, item 49): sketch crawls and organised events, always
+Events (design doc, item 49): casual meet-ups and organised events, always
 at a real place, announced and found; no sessions or sign-ups.
 
 Rules (decided October 26, 2026):
 - Earn it: 5 completed sketches, a paint collection and a bag, to set one up.
-- At most 4 sketch crawls a month, and 1 organised event at a time.
+- At most 4 casual meet-ups a month, and 1 organised event at a time.
 - Crawls stay local: shown within 50 km and in the next 14 days, except to
   the organiser's followers. Organised events show to everyone.
 - 3 reports hide an event until it is reviewed.
@@ -58,7 +58,7 @@ from config import EVENT_RULES_RELAXED
 router = APIRouter(prefix="/api", tags=["events"])
 
 MIN_COMPLETED = 5
-CRAWLS_PER_MONTH = 4
+MEETUPS_PER_MONTH = 4
 LOCAL_KM = 50
 LOCAL_DAYS = 14
 REPORTS_TO_HIDE = 3
@@ -104,7 +104,7 @@ def _has_sketches(db: Session, event_ids: list[str]) -> set[str]:
 def event_card(e: Event, organizer: Profile | None = None, interested: int = 0, mine: bool = False) -> dict:
     pt = to_shape(e.location)
     return {
-        "id": e.id, "kind": e.kind, "event_type": e.event_type, "title": e.title, "theme": e.theme,
+        "id": e.id, "type": e.type, "format": e.format, "title": e.title, "theme": e.theme,
         "hashtag": e.hashtag, "starts_at": _aware(e.starts_at), "ends_at": _aware(e.ends_at), "time_zone": e.time_zone,
         "place_name": e.place_name, "location": {"lat": pt.y, "lon": pt.x, "label": e.place_name},
         "cover_image_url": e.cover_image_url, "org_name": e.org_name,
@@ -126,13 +126,13 @@ def _cards(db: Session, events: list[Event], viewer: str | None) -> list[dict]:
 
 def _reach(db: Session, viewer: str | None, near: tuple[float, float] | None):
     """Who sees which events (the local-reach rule): organised events
-    everywhere; crawls nearby and soon, or anywhere to the organiser's
+    everywhere; meet-ups nearby and soon, or anywhere to the organiser's
     followers and the organiser."""
     now = _now()
     soon = and_(Event.starts_at <= now + timedelta(days=LOCAL_DAYS))
-    local = [Event.kind == "organised"]
+    local = [Event.type == "organised"]
     if near:
-        local.append(and_(Event.kind == "crawl", soon,
+        local.append(and_(Event.type == "meetup", soon,
                           func.ST_DWithin(Event.location, _point(*near), LOCAL_KM * 1000)))
     if viewer:
         local.append(Event.organizer_id == viewer)
@@ -247,9 +247,9 @@ def can_host(db: Session = Depends(get_db), me: str = Depends(get_current_sketch
     now = _now()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     crawls = db.query(func.count()).select_from(Event).filter(
-        Event.organizer_id == me, Event.kind == "crawl", Event.starts_at >= month_start).scalar()
-    open_org = db.query(Event.id).filter(Event.organizer_id == me, Event.kind == "organised", Event.ends_at >= now).first()
-    return {**c, "crawls_this_month": crawls, "crawls_per_month": CRAWLS_PER_MONTH,
+        Event.organizer_id == me, Event.type == "meetup", Event.starts_at >= month_start).scalar()
+    open_org = db.query(Event.id).filter(Event.organizer_id == me, Event.type == "organised", Event.ends_at >= now).first()
+    return {**c, "meetups_this_month": crawls, "meetups_per_month": MEETUPS_PER_MONTH,
             "organised_open": open_org is not None}
 
 
@@ -266,17 +266,17 @@ def _check_caps(db: Session, me: str, body: EventRequest, exclude: str | None = 
     if EVENT_RULES_RELAXED:
         return  # testing: no limits (config.py)
     starts = _aware(body.starts_at)
-    if body.kind == "crawl":
+    if body.type == "meetup":
         m0 = starts.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         m1 = (m0 + timedelta(days=32)).replace(day=1)
         q = db.query(func.count()).select_from(Event).filter(
-            Event.organizer_id == me, Event.kind == "crawl", Event.starts_at >= m0, Event.starts_at < m1)
+            Event.organizer_id == me, Event.type == "meetup", Event.starts_at >= m0, Event.starts_at < m1)
         if exclude:
             q = q.filter(Event.id != exclude)
-        if q.scalar() >= CRAWLS_PER_MONTH:
-            raise HTTPException(422, f"You can set up at most {CRAWLS_PER_MONTH} sketch crawls a month.")
+        if q.scalar() >= MEETUPS_PER_MONTH:
+            raise HTTPException(422, f"You can set up at most {MEETUPS_PER_MONTH} casual meet-ups a month.")
     else:
-        q = db.query(Event.id).filter(Event.organizer_id == me, Event.kind == "organised", Event.ends_at >= _now())
+        q = db.query(Event.id).filter(Event.organizer_id == me, Event.type == "organised", Event.ends_at >= _now())
         if exclude:
             q = q.filter(Event.id != exclude)
         if q.first():
@@ -292,8 +292,8 @@ def _apply(db: Session, e: Event, body: EventRequest, me: str) -> None:
         raise HTTPException(409, f"#{tag} is taken. Try another.")
     if _aware(body.ends_at) < _aware(body.starts_at):
         raise HTTPException(422, "The event ends before it starts.")
-    e.kind = body.kind
-    e.event_type = "crawl" if body.kind == "crawl" else (body.event_type if body.event_type != "crawl" else "workshop")
+    e.type = body.type
+    e.format = body.format  # any format for either type: chapters call 3-day festivals sketch crawls
     e.title = " ".join(body.title.split())
     e.description = (body.description or "").strip() or None
     e.theme = (body.theme or "").strip() or None
@@ -303,7 +303,7 @@ def _apply(db: Session, e: Event, body: EventRequest, me: str) -> None:
     e.place_name = body.place_name.strip()
     e.location = _point(body.lat, body.lon)
     e.spot_id = body.spot_id
-    organised = body.kind == "organised"
+    organised = body.type == "organised"
     e.org_name = (body.org_name or "").strip() or None if organised else None
     e.org_url = _clean_url(body.org_url) if organised else None
     e.website_url = _clean_url(body.website_url) if organised else None
@@ -313,7 +313,7 @@ def _apply(db: Session, e: Event, body: EventRequest, me: str) -> None:
 def _set_instructors(db: Session, e: Event, body: EventRequest) -> None:
     """Organised events only. A sketcher is invited and appears once they
     confirm; one already confirmed stays confirmed."""
-    if e.kind != "organised":
+    if e.type != "organised":
         db.query(EventInstructor).filter(EventInstructor.event_id == e.id).delete()
         return
     old = {i.sketcher_id: i for i in db.query(EventInstructor).filter(EventInstructor.event_id == e.id).all() if i.sketcher_id}
@@ -361,7 +361,7 @@ def _mine(db: Session, event_id: str, me: str) -> Event:
 @router.put("/events/{event_id}")
 def update_event(event_id: str, body: EventRequest, db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
     e = _mine(db, event_id, me)
-    if body.kind != e.kind or _aware(body.starts_at) != _aware(e.starts_at):
+    if body.type != e.type or _aware(body.starts_at) != _aware(e.starts_at):
         _check_caps(db, me, body, exclude=e.id)
     _apply(db, e, body, me)
     _set_instructors(db, e, body)

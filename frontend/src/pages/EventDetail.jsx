@@ -12,7 +12,7 @@ import SketchCard from '../components/common/SketchCard'
 import { useAuth } from '../components/common/AuthContext'
 import { api } from '../lib/api'
 import { imageUrl } from '../lib/media'
-import { EVENT_TYPES, eventWhen } from '../lib/events'
+import { FORMATS, eventWhen } from '../lib/events'
 
 /**
  * An event (design doc, item 49), as an announcement: cover, title, when
@@ -92,7 +92,7 @@ export default function EventDetail() {
               ? <img src={imageUrl(e.cover_image_url)} alt="" className="h-full w-full object-cover" />
               : <span className="flex h-full w-full items-center justify-center font-heading text-2xl font-semibold text-ink/40">#{e.hashtag}</span>}
           </span>
-          <span className="ed-kicker">{past ? 'Past · ' : ''}{EVENT_TYPES[e.kind === 'crawl' ? 'crawl' : e.event_type] || 'Event'}{e.org_name ? ` · ${e.org_name}` : ''}</span>
+          <span className="ed-kicker">{past ? 'Past · ' : ''}{FORMATS[e.format] || 'Event'}{e.org_name ? ` · ${e.org_name}` : ''}</span>
           <h1 className="ed-title">{e.title}</h1>
           <p className="m-0 text-lg">{eventWhen(e)}</p>
           <p className="m-0 flex items-center gap-1.5 text-base text-ink/80"><Icon name="location" size={16} /> {e.place_name}</p>

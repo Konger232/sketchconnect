@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import Icon from './Icon'
 import { imageUrl } from '../../lib/media'
-import { EVENT_TYPES, eventWhen } from '../../lib/events'
+import { FORMATS, eventWhen } from '../../lib/events'
 
 /**
  * An event in a list (design doc, item 49): its cover (or its type on a
@@ -19,7 +19,7 @@ export default function EventCard({ event: e, note }) {
           ? <img src={imageUrl(e.cover_image_url)} alt="" loading="lazy" className="h-full w-full object-cover" />
           : <span className="flex h-full w-full items-center justify-center font-heading text-lg font-semibold text-ink/40">#{e.hashtag}</span>}
         <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-3xs font-medium text-white">
-          {past ? 'Past' : EVENT_TYPES[e.kind === 'crawl' ? 'crawl' : e.event_type] || 'Event'}
+          {past ? 'Past' : FORMATS[e.format] || 'Event'}
         </span>
       </span>
       {note && <span className="ed-caption">{note}</span>}
