@@ -43,36 +43,46 @@ app = FastAPI(title="SketchConnect middle server")
 @app.on_event("startup")
 def warm_up() -> None:
     """Best effort, in the background: fetch Supabase's signing keys and open
-    a few database connections, so the first requests after a restart do not
-    pay for the TLS handshakes (each is several round trips to the database
-    region)."""
+    database connections, all at once, so the first requests after a restart
+    do not pay for the TLS handshakes (each is several round trips to the
+    database region, about 0.6 s from Bangkok)."""
     import threading
+    from sqlalchemy import text
+    from app.core.auth import warm_jwks
+    from app.core.database import engine, read_engine
 
-    def run():
-        from sqlalchemy import text
-        from app.core.auth import warm_jwks
-        from app.core.database import engine, read_engine
+    def keys():
         try:
             warm_jwks()
         except Exception as exc:  # noqa: BLE001 - a warm-up must never stop the server
             print(f"warm-up: signing keys not fetched ({exc.__class__.__name__})")
-        if engine is None:
-            return
-        conns = []
+
+    def connect(eng, held, done):
         try:
-            # Reads (GET) are most requests: 4 ready for them, 2 for writes.
-            for eng, n in ((read_engine, 4), (engine, 2)):
-                for _ in range(n):
-                    c = eng.connect()
-                    c.execute(text("select 1"))
-                    conns.append(c)
+            c = eng.connect()
+            c.execute(text("select 1"))
+            held.append(c)
         except Exception as exc:  # noqa: BLE001
             print(f"warm-up: database not reached ({exc.__class__.__name__})")
         finally:
-            for c in conns:
-                c.close()  # back to the pool, still open
+            done.release()
 
-    threading.Thread(target=run, daemon=True).start()
+    def connections():
+        if engine is None:
+            return
+        # Reads (GET) are most requests: 4 for them, 2 for writes. Each is
+        # held until all are open, so the pool keeps 6, not the same one 6 times.
+        plan = [read_engine] * 4 + [engine] * 2
+        held, done = [], threading.Semaphore(0)
+        for eng in plan:
+            threading.Thread(target=connect, args=(eng, held, done), daemon=True).start()
+        for _ in plan:
+            done.acquire(timeout=20)
+        for c in held:
+            c.close()  # back to the pool, still open
+
+    threading.Thread(target=keys, daemon=True).start()
+    threading.Thread(target=connections, daemon=True).start()
 
 app.add_middleware(
     CORSMiddleware,
