@@ -36,6 +36,17 @@ export function pinIcon(pin) {
       iconAnchor: [16, 16],
     })
   }
+  // event: a date tile (Explore): the day and month, with a tail.
+  if (pin.variant === 'event') {
+    const size = pin.big ? 48 : 38
+    return L.divIcon({
+      className: '',
+      html: `<span class="ed-pin-event${pin.big ? ' ed-pin-event-big' : ''}${pin.past ? ' ed-pin-event-past' : ''}" style="width:${size}px;height:${size}px"><b>${pin.day}</b><i>${pin.month}</i></span>`,
+      iconSize: [size, size + 8],
+      iconAnchor: [size / 2, size + 8],
+      popupAnchor: [0, -size - 4],
+    })
+  }
   // avatar: the sketcher's round picture as the pin (Explore: who sketched
   // what, near me); big when picked; a dashed grey ring when not finished.
   if (pin.variant === 'avatar') {

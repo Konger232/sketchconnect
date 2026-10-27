@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import Icon from './Icon'
 import { imageUrl } from '../../lib/media'
-import { FORMATS, eventWhen } from '../../lib/events'
+import { FORMATS, eventDay, eventWhen } from '../../lib/events'
 
 /**
  * An event in a list (design doc, item 49): its cover (or its type on a
@@ -10,8 +10,29 @@ import { FORMATS, eventWhen } from '../../lib/events'
  *
  *   event   as the API returns it      note   a line on top ("Teaching: Lena")
  */
-export default function EventCard({ event: e, note }) {
+export default function EventCard({ event: e, note, compact = false, selected = false, onSelect }) {
   const past = new Date(e.ends_at) < new Date()
+  // compact: a row for Explore's list, with the date tile the map pin uses.
+  if (compact) {
+    const { day, month } = eventDay(e)
+    return (
+      <Link to={`/events/${e.id}`} onClick={(ev) => { if (onSelect && !selected) { ev.preventDefault(); onSelect(e) } }}
+        className={`group flex items-center gap-3 rounded-lg border px-3 py-2.5 text-ink no-underline ${selected ? 'border-[var(--tab-active)] ring-1 ring-[var(--tab-active)]' : 'border-ink/10 hover:border-ink/40'}`}>
+        <span className={`flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-md ${past ? 'bg-ink/40' : 'bg-ink'} text-white`}>
+          <span className="font-heading text-xl font-semibold leading-none">{day}</span>
+          <span className="text-3xs uppercase tracking-wider">{month}</span>
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate font-heading text-base font-medium leading-snug">{e.title}</span>
+          <span className="truncate text-xs text-ink/65">{e.place_name}</span>
+          <span className="flex min-w-0 items-center gap-1.5 text-xs text-ink/65">
+            <span className="shrink-0 rounded-full bg-black/60 px-2 py-0.5 text-3xs font-medium text-white">{past ? 'Past' : FORMATS[e.format] || 'Event'}</span>
+            <span className="truncate">{eventWhen(e)}</span>
+          </span>
+        </span>
+      </Link>
+    )
+  }
   return (
     <Link to={`/events/${e.id}`} className="group flex flex-col gap-2 text-ink no-underline">
       <span className="relative block aspect-[16/9] overflow-hidden rounded-md bg-[var(--ed-field-bg)]">

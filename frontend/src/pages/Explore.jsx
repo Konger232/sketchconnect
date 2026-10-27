@@ -5,6 +5,8 @@ import 'leaflet/dist/leaflet.css'
 import BasePage from '../components/common/BasePage'
 import LocationSearchField from '../components/common/LocationSearchField'
 import SketchCard from '../components/common/SketchCard'
+import EventCard from '../components/common/EventCard'
+import { eventDay } from '../lib/events'
 import { pinIcon } from '../components/common/LocationMap'
 import { useSheetDrag } from '../lib/useSheetDrag'
 import { api } from '../lib/api'
@@ -121,6 +123,22 @@ function Pins({ pins, picked }) {
   })
 }
 
+// Events in view (design doc, item 49): a date tile each, never grouped,
+// above the sketches' pins; a tile opens the event's card.
+function EventPins({ events, picked }) {
+  return events.map((e) => {
+    const { day, month } = eventDay(e)
+    return (
+      <Marker key={e.id} position={[e.location.lat, e.location.lon]} zIndexOffset={picked === e.id ? 2000 : 500}
+        icon={pinIcon({ variant: 'event', day, month, big: picked === e.id, past: new Date(e.ends_at) < new Date() })}>
+        <Popup minWidth={240} maxWidth={260} className="explore-popup">
+          <EventCard event={e} />
+        </Popup>
+      </Marker>
+    )
+  })
+}
+
 /**
  * Explore (design doc, Search): the whole page is the map. A floating panel
  * in the top left searches for a place; the time filter sits beside it.
@@ -137,6 +155,7 @@ export default function Explore() {
   const [bounds, setBounds] = useState(null)
   const [located, setLocated] = useState(false) // the start position is settled
   const [sketches, setSketches] = useState([])
+  const [events, setEvents] = useState([]) // events in view (not with My sketches Only)
   const [loading, setLoading] = useState(false)
   const [map, setMap] = useState(null)
   const [picked, setPicked] = useState(null) // the sketch picked in the list
@@ -173,6 +192,15 @@ export default function Explore() {
         .then(({ data }) => setSketches(data))
         .catch(() => setSketches([]))
         .finally(() => setLoading(false))
+      if (mine) setEvents([])
+      else {
+        api.get('/api/events', {
+          params: {
+            south: Math.max(-90, bounds.getSouth()), north: Math.min(90, bounds.getNorth()),
+            west: Math.max(-180, bounds.getWest()), east: Math.min(180, bounds.getEast()),
+          },
+        }).then(({ data }) => setEvents(data.filter((e) => e.location))).catch(() => setEvents([]))
+      }
     }, 300)
     return () => clearTimeout(timer.current)
   }, [bounds, period, located, mine])
@@ -232,6 +260,7 @@ export default function Explore() {
           <ViewWatcher onView={setBounds} />
           <FlyTo place={place} />
           <Pins pins={pins} picked={picked} />
+          <EventPins events={events} picked={picked} />
         </MapContainer>
 
         {/* The panel: the place search, the place pills and the sketches in
@@ -268,7 +297,8 @@ export default function Explore() {
             <p className={`m-0 px-1 pt-1.5 text-xs text-ink/60 ${loading ? 'animate-pulse' : ''}`}>
               {loading ? 'Finding sketches…'
                 : mine ? `You have ${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'} in view.`
-                : `${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'} in view`}
+                : [events.length ? `${events.length} ${events.length === 1 ? 'event' : 'events'}` : null,
+                  `${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'} in view`].filter(Boolean).join(' · ')}
             </p>
             {/* None in view within the time filter: offer every date. */}
             {!loading && pins.length === 0 && period !== 'all' && (
@@ -278,8 +308,14 @@ export default function Explore() {
               </p>
             )}
             {/* The sketches in view, one under another; a card moves the map to it. */}
-            {pins.length > 0 && (
+            {(pins.length > 0 || events.length > 0) && (
               <ul className="m-0 mt-2 flex min-h-0 flex-1 list-none flex-col gap-2 overflow-y-auto p-1">
+                {/* Events first: there are few, and they have a date. */}
+                {events.map((e) => (
+                  <li key={e.id}>
+                    <EventCard event={e} compact selected={picked === e.id} onSelect={centreOn} />
+                  </li>
+                ))}
                 {pins.map((s) => (
                   <li key={s.id}>
                     <SketchCard sketch={s} compact selected={picked === s.id} onSelect={centreOn} showStatus={mine} />

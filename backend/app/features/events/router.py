@@ -170,7 +170,8 @@ def events_in_view(south: float, north: float, west: float, east: float,
 @router.get("/events/home")
 def events_for_home(lat: float | None = None, lon: float | None = None,
                     db: Session = Depends(get_db), viewer: str | None = Depends(get_optional_sketcher_id)):
-    """Home: upcoming events, nearest first when the location is known; and
+    """Home: your own events (upcoming, then recent past); upcoming events,
+    nearest first when the location is known; and
     for a member, events where someone they follow or whose sketches they
     liked is a confirmed featured instructor."""
     near = (lat, lon) if lat is not None and lon is not None else None
@@ -179,7 +180,19 @@ def events_for_home(lat: float | None = None, lon: float | None = None,
         q = q.order_by(func.ST_Distance(Event.location, _point(*near)), Event.starts_at)
     else:
         q = q.order_by(Event.starts_at)
+    # The viewer's own events have their own section, so not here too.
+    if viewer:
+        q = q.filter(Event.organizer_id != viewer)
     upcoming = _cards(db, q.limit(12).all(), viewer)
+
+    # Yours: the events you organise, coming up first, then the last few past.
+    mine = []
+    if viewer:
+        ahead = (db.query(Event).filter(Event.organizer_id == viewer, Event.ends_at >= _now())
+                 .order_by(Event.starts_at).all())
+        past = (db.query(Event).filter(Event.organizer_id == viewer, Event.ends_at < _now())
+                .order_by(Event.starts_at.desc()).limit(6).all())
+        mine = _cards(db, ahead + past, viewer)
 
     teaching = []
     if viewer:
@@ -196,7 +209,7 @@ def events_for_home(lat: float | None = None, lon: float | None = None,
             cards = {c["id"]: c for c in _cards(db, list({e.id: e for e, _ in rows}.values()), viewer)}
             for e, sid in rows:
                 teaching.append({**cards[e.id], "instructor": person(who.get(sid))})
-    return {"upcoming": upcoming, "teaching": teaching}
+    return {"mine": mine, "upcoming": upcoming, "teaching": teaching}
 
 
 @router.get("/events/search")

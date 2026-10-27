@@ -31,3 +31,10 @@ export const localInput = (d) => {
   const p = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
+
+// The event's first day in its own time zone, for the date tile: { day: '14', month: 'Nov' }.
+export function eventDay(e) {
+  const d = new Date(e.starts_at)
+  const f = (o) => new Intl.DateTimeFormat(undefined, { timeZone: e.time_zone || 'UTC', ...o }).format(d)
+  return { day: f({ day: 'numeric' }), month: f({ month: 'short' }) }
+}

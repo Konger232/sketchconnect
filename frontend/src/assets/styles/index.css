@@ -746,6 +746,17 @@
   /* Not finished yet (My sketches): a dashed grey ring and tail. */
   .ed-pin-avatar-draft { border-style: dashed; border-color: #8a8a8a; }
   .ed-pin-avatar-draft::after { border-top-color: #8a8a8a; }
+  /* Explore's event pins: a date tile in ink, with a tail. */
+  .ed-pin-event   { @apply relative flex flex-col items-center justify-center rounded-md bg-ink leading-none text-white;
+                    border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
+  .ed-pin-event b { @apply font-heading text-base font-semibold; }
+  .ed-pin-event i { @apply text-[9px] not-italic uppercase tracking-wider; }
+  .ed-pin-event::after { content: ''; position: absolute; left: 50%; bottom: -9px; transform: translateX(-50%);
+                    border: 6px solid transparent; border-top: 7px solid var(--pin-ink); border-bottom: 0; }
+  .ed-pin-event-big { animation: pin-drop 0.35s ease-out; }
+  .ed-pin-event-big b { @apply text-xl; }
+  .ed-pin-event-past { @apply bg-[#8a8a8a]; }
+  .ed-pin-event-past::after { border-top-color: #8a8a8a; }
   .ed-pin-big     { @apply h-12 w-9; filter: drop-shadow(0 0 0 #fff) drop-shadow(0 2px 6px rgba(0,0,0,0.45));
                     animation: pin-drop 0.35s ease-out; }
   .ed-pin-count   { @apply flex h-8 min-w-[2rem] items-center justify-center rounded-full border-2 border-white px-1.5 text-xs font-bold text-white;

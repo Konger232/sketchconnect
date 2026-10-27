@@ -25,7 +25,7 @@ export default function Events() {
   useEffect(() => {
     if (status === 'idle' || status === 'locating') return
     api.get('/api/events/home', { params: coords ? { lat: coords.lat, lon: coords.lon } : {} })
-      .then(({ data }) => setHome(data)).catch(() => setHome({ upcoming: [], teaching: [] }))
+      .then(({ data }) => setHome(data)).catch(() => setHome({ mine: [], upcoming: [], teaching: [] }))
   }, [status, coords])
   useEffect(() => {
     if (user) api.get('/api/events/invites/mine').then(({ data }) => setInvites(data)).catch(() => setInvites([]))
@@ -53,6 +53,13 @@ export default function Events() {
           <Button variant="editorialSolid" onClick={() => setPanel(true)}><Icon name="plus" size={14} /> Set up an event</Button>
         )}
       </section>
+
+      {home?.mine?.length > 0 && (
+        <section className="ed-section">
+          <h2 className="ed-kicker m-0">Your events</h2>
+          {grid(home.mine)}
+        </section>
+      )}
 
       {invites.length > 0 && (
         <section className="ed-section">
