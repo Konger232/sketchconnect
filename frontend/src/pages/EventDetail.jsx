@@ -31,6 +31,7 @@ export default function EventDetail() {
   const [removing, setRemoving] = useState(false)
   const [reporting, setReporting] = useState(false)
   const [copied, setCopied] = useState(null)
+  const [uploading, setUploading] = useState(false)
 
   const load = () => api.get(`/api/events/${eventId}`).then(({ data }) => setE(data))
     .catch((err) => setError(err.response?.status === 404 ? 'This event is not here any more.' : 'Could not load the event.'))
@@ -62,6 +63,18 @@ export default function EventDetail() {
     await api.delete(`/api/events/${e.id}`)
     navigate('/events')
   }
+  async function changeCover(ev) {
+    const file = ev.target.files?.[0]
+    ev.target.value = ''
+    if (!file) return
+    setUploading(true)
+    try {
+      const form = new FormData()
+      form.append('image', file)
+      const { data } = await api.post(`/api/events/${e.id}/cover`, form)
+      setE((x) => ({ ...x, cover_image_url: data.cover_image_url }))
+    } finally { setUploading(false) }
+  }
   async function toggleHidden(s) {
     if (s.hidden_from_event) await api.delete(`/api/events/${e.id}/hidden/${s.id}`)
     else await api.post(`/api/events/${e.id}/hidden/${s.id}`)
@@ -87,7 +100,13 @@ export default function EventDetail() {
       {/* ---- the announcement ---- */}
       <section className="grid items-start gap-8 md:grid-cols-[3fr_2fr] md:gap-12">
         <div className="flex flex-col gap-4">
-          <span className="block aspect-[16/9] overflow-hidden rounded-md bg-[var(--ed-field-bg)]">
+          <span className="relative block aspect-[16/9] overflow-hidden rounded-md bg-[var(--ed-field-bg)]">
+            {e.is_organizer && (
+              <label className="absolute bottom-3 right-3 z-10 cursor-pointer rounded bg-white px-3 py-1.5 text-sm font-semibold text-ink shadow hover:bg-ink/5">
+                {uploading ? 'Uploading…' : e.cover_image_url ? 'Change cover' : 'Add a cover photo'}
+                <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={changeCover} />
+              </label>
+            )}
             {e.cover_image_url
               ? <img src={imageUrl(e.cover_image_url)} alt="" className="h-full w-full object-cover" />
               : <span className="flex h-full w-full items-center justify-center font-heading text-2xl font-semibold text-ink/40">#{e.hashtag}</span>}

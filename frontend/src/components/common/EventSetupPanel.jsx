@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Button from './Button'
 import FloatPanel from './FloatPanel'
 import LocationSearchField from './LocationSearchField'
+import PhotoDropzone from './PhotoDropzone'
 import { api } from '../../lib/api'
+import { imageUrl } from '../../lib/media'
 import { hashtagFrom, localInput } from '../../lib/events'
 
 const FORMAT_OPTIONS = [['crawl', 'Sketch crawl or walk'], ['workshop', 'Workshop'], ['festival', 'Festival'], ['symposium', 'Symposium']]
@@ -13,7 +15,7 @@ const FORMAT_OPTIONS = [['crawl', 'Sketch crawl or walk'], ['workshop', 'Worksho
  *   Casual meet-up   a casual gathering: title, when, where (a scouted spot
  *                    or the place search), theme, hashtag
  *   Organised event  run by an organisation: also its name and website, the
- *                    a cover image, the description, the website or
+ *                    the description, the website or
  *                    brochure and ticket links, and featured instructors
  * Every event is at a real place. Times are in the browser's time zone,
  * which is the event's own when it is set up from there.
@@ -42,6 +44,9 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
   }))
   const [newInstructor, setNewInstructor] = useState('')
   const [cover, setCover] = useState(null)
+  const coverInput = useRef(null)
+  const coverPreview = useMemo(() => (cover ? URL.createObjectURL(cover) : imageUrl(event?.cover_image_url)), [cover, event?.cover_image_url])
+  useEffect(() => () => { if (cover && coverPreview) URL.revokeObjectURL(coverPreview) }, [cover, coverPreview])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -154,6 +159,23 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
           {field("Organisation's website", <input className="field-input" type="url" maxLength={300} value={f.org_url} onChange={(e) => set({ org_url: e.target.value })} placeholder="https://" />)}
         </div>
       )}
+      {/* The cover: a photo of the place or the poster; it shows on the event card. */}
+      <div className="flex flex-col gap-1">
+        <span className="ed-caption">Cover photo (optional)</span>
+        <input ref={coverInput} type="file" accept="image/*" className="hidden" onChange={(e) => { setCover(e.target.files?.[0] || null); e.target.value = '' }} />
+        {coverPreview ? (
+          <span className="relative block h-56 overflow-hidden rounded-md bg-[var(--ed-field-bg)]">
+            <img src={coverPreview} alt="" className="h-full w-full object-cover" />
+            <span className="absolute bottom-2 right-2 flex gap-1.5">
+              <Button variant="editorial" size="sm" onClick={() => coverInput.current?.click()}>Change</Button>
+              {cover && <Button variant="editorial" size="sm" onClick={() => setCover(null)}>Undo</Button>}
+            </span>
+          </span>
+        ) : (
+          <PhotoDropzone light className="aspect-[16/9] max-h-56" title="Add a cover photo"
+            text="A photo of the place or your poster. It shows on the event card." onClick={() => coverInput.current?.click()} />
+        )}
+      </div>
       {field('Title', <input className="field-input" maxLength={150} value={f.title} autoFocus onChange={(e) => setTitle(e.target.value)}
         placeholder={type === 'meetup' ? 'e.g. Saturday morning at the river' : 'e.g. Sketch Festival 2027'} />)}
       {field('Format', (
@@ -206,7 +228,6 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
             {field('Website or brochure', <input className="field-input" type="url" maxLength={300} value={f.website_url} onChange={(e) => set({ website_url: e.target.value })} placeholder="https://" />)}
             {field('Tickets (optional)', <input className="field-input" type="url" maxLength={300} value={f.ticket_url} onChange={(e) => set({ ticket_url: e.target.value })} placeholder="https://" />)}
           </div>
-          {field('Cover image', <input type="file" accept="image/*" onChange={(e) => setCover(e.target.files?.[0] || null)} className="text-sm" />)}
           {field('Featured instructors', (
             <div className="flex flex-col gap-2">
               {f.instructors.length > 0 && (
