@@ -24,6 +24,8 @@ from app.core.models import Paint, PaintFlag, PaletteItem, Profile
 from app.features.paints.pigments import KNOWN, normalize
 from app.features.paints.schemas import FlagRequest, NewPaintRequest, PaletteRequest
 
+from app.core.ttlcache import TTLCache
+
 router = APIRouter(prefix="/api", tags=["paints"])
 
 MAX_PALETTE = 48
@@ -75,10 +77,19 @@ def paint_dicts(db: Session, paints: list[Paint]) -> list[dict]:
     return out
 
 
+# The library is the same for everyone and changes only when a paint is
+# added, flagged or a palette changes (confirmations): cached, and cleared
+# by those writes.
+LIBRARY_CACHE = TTLCache(seconds=600)
+
+
 @router.get("/paints")
 def library(db: Session = Depends(get_db), _: str = Depends(get_current_sketcher_id)):
+    hit = LIBRARY_CACHE.get("library")
+    if hit is not None:
+        return hit
     rows = db.query(Paint).order_by(Paint.checked.desc(), Paint.name).limit(2000).all()
-    return {"library": paint_dicts(db, rows)}
+    return LIBRARY_CACHE.put("library", {"library": paint_dicts(db, rows)})
 
 
 def _brand(raw: str) -> str:
@@ -126,6 +137,7 @@ def add_paint(body: NewPaintRequest, db: Session = Depends(get_db), sketcher_id:
     if len(ids) < MAX_PALETTE:
         db.add(PaletteItem(sketcher_id=sketcher_id, paint_id=paint.id, position=len(ids)))
     db.commit()
+    LIBRARY_CACHE.clear()
     return paint_dicts(db, [paint])[0]
 
 
@@ -138,6 +150,7 @@ def flag_paint(paint_id: str, body: FlagRequest, db: Session = Depends(get_db), 
     flag.resolved = False
     db.merge(flag)
     db.commit()
+    LIBRARY_CACHE.clear()
     return {"ok": True}
 
 
@@ -157,6 +170,7 @@ def palette_paints(db: Session, sketcher_id: str) -> list[dict]:
 
 def set_palette(db: Session, sketcher_id: str, ids: list[str]) -> list[str]:
     """Replace my palette with these paints (library ids), in this order."""
+    LIBRARY_CACHE.clear()  # confirmations change with palettes
     wanted = list(dict.fromkeys(i for i in ids if isinstance(i, str)))[:MAX_PALETTE]
     real = {i for (i,) in db.query(Paint.id).filter(Paint.id.in_(wanted)).all()} if wanted else set()
     wanted = [i for i in wanted if i in real]
@@ -225,4 +239,5 @@ def put_palette(body: PaletteRequest, db: Session = Depends(get_db), sketcher_id
     ids = set_palette(db, sketcher_id, body.paints)
     profile.palette_layout = clean_palette_layout(body.layout if body.layout is not None else profile.palette_layout, ids)
     db.commit()
+    LIBRARY_CACHE.clear()
     return {"palette_paints": palette_paints(db, sketcher_id), "layout": profile.palette_layout}

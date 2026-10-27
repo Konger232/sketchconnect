@@ -47,6 +47,7 @@ from config import DEBUG, MAX_MARKS, MAX_POINTS_PER_MARK
 from app.features.critique_agent.router import start_critique
 from app.features.geocode.service import place_boxes, reverse_geocode
 from app.core.visibility import can_see, visible_filter
+from app.core.ttlcache import TTLCache
 from app.features.events.tags import sync_tags
 
 # Registered again here (also done in scene_analysis.py) so this module
@@ -1314,6 +1315,11 @@ COUNTRIES = {
 }
 
 
+# The place pills change slowly: 5 minutes per viewer (what they may see
+# depends on whom they follow).
+PLACES_CACHE = TTLCache(seconds=300)
+
+
 @router.get("/explore/places")
 def explore_places(
     limit: int = 5,
@@ -1327,6 +1333,10 @@ def explore_places(
     Kyoto), as reverse_geocode writes it, or the part before a country
     ("Sintra, Portugal" -> Sintra).
     """
+    key = (viewer_id, limit)
+    hit = PLACES_CACHE.get(key)
+    if hit is not None:
+        return hit
     geom = cast(Sketch.location, Geometry(srid=4326))
     rows = (
         db.query(Sketch.location_label, func.ST_Y(geom), func.ST_X(geom))
@@ -1352,7 +1362,7 @@ def explore_places(
         pad = 0.01  # about a kilometre, so a single sketch is not a point
         out.append({"label": p["label"], "count": p["count"], "lat": (s + n) / 2, "lon": (w + e) / 2,
                     "bbox": [s - pad, n + pad, w - pad, e + pad]})
-    return out
+    return PLACES_CACHE.put(key, out)
 
 
 @router.get("/sketch-media/last")

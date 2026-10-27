@@ -17,7 +17,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import ALLOWED_ORIGINS, ALLOWED_ORIGIN_REGEX, DEBUG
+from config import ALLOWED_ORIGINS, ALLOWED_ORIGIN_REGEX, DEBUG, QUERY_LOG
 from app.core.debug import DebugTrafficMiddleware
 from app.core import media
 # One folder per feature under app/features/ (router, service, schemas,
@@ -89,6 +89,12 @@ app.add_middleware(media.MediaLinkMiddleware)
 # the terminal (app/core/debug.py). Added last, so it sits outermost.
 if DEBUG:
     app.add_middleware(DebugTrafficMiddleware)
+
+# QUERY_LOG=true in .env: one line per /api request with its database
+# query count and time (app/core/querylog.py).
+if QUERY_LOG:
+    from app.core.querylog import QueryLogMiddleware
+    app.add_middleware(QueryLogMiddleware)
 
 # The uploads folder is not served as is: images go out through
 # /media (signed-in sketchers) and /teaser (visitors) only.

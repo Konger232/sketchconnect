@@ -70,6 +70,10 @@ import os as _os
 # Off (the default): one short line per call with its token counts.
 DEBUG = _os.environ.get("DEBUG", "false").strip().lower() in ("1", "true", "yes")
 
+# QUERY_LOG=true in backend/.env prints, for each /api request, how many
+# database queries it made and how long they took (app/core/querylog.py).
+QUERY_LOG = _os.environ.get("QUERY_LOG", "false").strip().lower() in ("1", "true", "yes")
+
 # --- Events (design doc, item 49) ---
 # RELAXED_EVENT_RULES=true in backend/.env, for testing only: anyone can
 # set up events (no 5 completed sketches, paint collection or bag) and there
