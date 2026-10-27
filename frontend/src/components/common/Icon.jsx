@@ -307,6 +307,22 @@ const ICONS = {
     draw: STROKE,
     content: <path d="M12 20s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 10c0 5.65-7 10-7 10z" />,
   },
+  // Interested in an event (Explore's event rows, the event page)
+  checkbox: {
+    viewBox: '0 0 24 24',
+    draw: STROKE,
+    content: <rect x="4" y="4" width="16" height="16" rx="3" />,
+  },
+  'checkbox-checked': {
+    viewBox: '0 0 24 24',
+    draw: STROKE,
+    content: (
+      <>
+        <rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" />
+        <path d="M8 12.5l2.7 2.7L16.2 9.5" stroke="#fff" />
+      </>
+    ),
+  },
   'heart-filled': {
     viewBox: '0 0 24 24',
     draw: FILL,

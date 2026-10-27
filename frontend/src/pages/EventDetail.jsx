@@ -129,7 +129,7 @@ export default function EventDetail() {
         <aside className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
             <Button variant={e.is_interested ? 'editorial' : 'editorialSolid'} onClick={toggleInterest} disabled={e.is_organizer}>
-              <Icon name={e.is_interested ? 'star-filled' : 'star'} size={15} /> {e.is_interested ? 'Interested' : "I'm interested"}
+              <Icon name={e.is_interested ? 'checkbox-checked' : 'checkbox'} size={15} /> {e.is_interested ? 'Interested' : "I'm interested"}
             </Button>
             <span className="text-sm text-ink/70">{e.interested_count} {e.interested_count === 1 ? 'sketcher' : 'sketchers'} interested</span>
             {e.friends_interested.length > 0 && (

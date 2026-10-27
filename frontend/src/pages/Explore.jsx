@@ -156,7 +156,6 @@ export default function Explore() {
   const [located, setLocated] = useState(false) // the start position is settled
   const [sketches, setSketches] = useState([])
   const [events, setEvents] = useState([]) // events in view (not with My sketches Only)
-  const [show, setShow] = useState('all') // all | sketches | events: what the map and list show
   const [loading, setLoading] = useState(false)
   const [map, setMap] = useState(null)
   const [picked, setPicked] = useState(null) // the sketch picked in the list
@@ -218,7 +217,7 @@ export default function Explore() {
     const next = !mine
     setMine(next)
     setPicked(null)
-    if (next) { setPlace(null); setShow('all') }
+    if (next) setPlace(null)
     if (!next || !map) return
     try {
       const { data } = await api.get('/api/sketches/explore', { params: { south: -90, north: 90, west: -180, east: 180, mine: true } })
@@ -233,16 +232,8 @@ export default function Explore() {
     api.get('/api/explore/places').then(({ data }) => setTopPlaces(data)).catch(() => setTopPlaces([]))
   }, [])
 
-  const allPins = useMemo(() => sketches.filter((s) => s.location), [sketches])
-  // Sketches only / Events only. My sketches Only is sketches by nature.
-  const pins = show === 'events' ? [] : allPins
-  const shownEvents = mine || show === 'sketches' ? [] : events
-  function chooseShow(next) {
-    // A second tap shows both again; leaving My sketches Only shows everyone's.
-    setShow((cur) => (cur === next && !mine ? 'all' : next))
-    setPicked(null)
-    setMine(false)
-  }
+  const pins = useMemo(() => sketches.filter((s) => s.location), [sketches])
+  const shownEvents = mine ? [] : events // My sketches Only is sketches by nature
 
   const pills = (
     <div className="flex gap-2 overflow-x-auto" role="radiogroup" aria-label="When">
@@ -307,9 +298,8 @@ export default function Explore() {
             <p className={`m-0 px-1 pt-1.5 text-xs text-ink/60 ${loading ? 'animate-pulse' : ''}`}>
               {loading ? 'Finding sketches…'
                 : mine ? `You have ${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'} in view.`
-                : [show !== 'sketches' ? `${shownEvents.length} ${shownEvents.length === 1 ? 'event' : 'events'}` : null,
-                  show !== 'events' ? `${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'}` : null,
-                  ].filter(Boolean).join(' · ') + ' in view'}
+                : [shownEvents.length ? `${shownEvents.length} ${shownEvents.length === 1 ? 'event' : 'events'}` : null,
+                  `${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'}`].filter(Boolean).join(' · ') + ' in view'}
             </p>
             {/* None in view within the time filter: offer every date. */}
             {!loading && pins.length === 0 && period !== 'all' && (
@@ -340,12 +330,10 @@ export default function Explore() {
           <div className="md:hidden">{pills}</div> */}
         </div>
         {/* <div className="absolute left-[388px] top-3 z-[1000] hidden md:block">{pills}</div> */}
-        {/* Where the time filter was: my own sketching trail, and what to show. */}
+        {/* Where the time filter was: my filters (My sketches; My events later). */}
         <div className="absolute left-3 top-3 z-[1000] flex flex-wrap gap-2 md:left-[388px]">
           {[
             ['mine', 'My sketches Only', mine, toggleMine],
-            ['sketches', 'Sketches Only', show === 'sketches' && !mine, () => chooseShow('sketches')],
-            ['events', 'Events Only', show === 'events', () => chooseShow('events')],
           ].map(([key, label, on, onClick]) => (
             <button key={key} type="button" aria-pressed={on} onClick={onClick}
               className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-semibold shadow-md transition-colors ${
