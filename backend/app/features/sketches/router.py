@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, Form, HTTPException
 from PIL import Image, ImageOps
 import pillow_heif
-from sqlalchemy import and_, cast, false, func, or_
+from sqlalchemy import and_, cast, false, func, or_, select
 from sqlalchemy.orm import Session, load_only
 from geoalchemy2 import Geometry
 from geoalchemy2.shape import to_shape
@@ -1339,7 +1339,7 @@ def explore_places(
 ):
     """
     The Explore map's place pills: the cities with the most shared sketches
-    the viewer may see, most first, each with the area its sketches cover.
+    and upcoming events the viewer may see, most first, each with the area its sketches cover.
     The city is the last part of a sketch's place name ("Gion, Kyoto" ->
     Kyoto), as reverse_geocode writes it, or the part before a country
     ("Sintra, Portugal" -> Sintra).
@@ -1354,24 +1354,41 @@ def explore_places(
         .filter(_visible_to(viewer_id), Sketch.location.isnot(None), Sketch.location_label.isnot(None))
         .all()
     )
+    # Upcoming events count too: those the viewer would see on the map there
+    # (organised ones; meet-ups in the next 3 months; their own and those of
+    # sketchers they follow).
+    from app.features.events.router import LOCAL_DAYS
+    from app.core.models import Event, Follow
+    now = datetime.now(timezone.utc)
+    egeom = cast(Event.location, Geometry(srid=4326))
+    seen = [Event.type == "organised", Event.starts_at <= now + timedelta(days=LOCAL_DAYS)]
+    if viewer_id:
+        seen += [Event.organizer_id == viewer_id,
+                 Event.organizer_id.in_(select(Follow.followed_id).where(Follow.follower_id == viewer_id))]
+    events = (db.query(Event.place_name, func.ST_Y(egeom), func.ST_X(egeom))
+              .filter(Event.hidden.is_(False), Event.ends_at >= now, or_(*seen)).all())
+
     places: dict[str, dict] = {}
-    for label, lat, lon in rows:
-        parts = [x.strip() for x in (label or "").split(",") if x.strip()]
-        while len(parts) > 1 and parts[-1] in COUNTRIES:
-            parts.pop()
-        city = parts[-1] if parts else ""
-        if not city:
-            continue
-        p = places.setdefault(city.lower(), {"label": city, "count": 0, "lats": [], "lons": []})
-        p["count"] += 1
-        p["lats"].append(lat)
-        p["lons"].append(lon)
+    for kind, found in (("sketches", rows), ("events", events)):
+        for label, lat, lon in found:
+            parts = [x.strip() for x in (label or "").split(",") if x.strip()]
+            while len(parts) > 1 and parts[-1] in COUNTRIES:
+                parts.pop()
+            city = parts[-1] if parts else ""
+            if not city:
+                continue
+            p = places.setdefault(city.lower(), {"label": city, "count": 0, "sketches": 0, "events": 0, "lats": [], "lons": []})
+            p["count"] += 1
+            p[kind] += 1
+            p["lats"].append(lat)
+            p["lons"].append(lon)
     top = sorted(places.values(), key=lambda p: -p["count"])[: max(1, min(limit, 10))]
     out = []
     for p in top:
         s, n, w, e = min(p["lats"]), max(p["lats"]), min(p["lons"]), max(p["lons"])
         pad = 0.01  # about a kilometre, so a single sketch is not a point
-        out.append({"label": p["label"], "count": p["count"], "lat": (s + n) / 2, "lon": (w + e) / 2,
+        out.append({"label": p["label"], "count": p["count"], "sketches": p["sketches"], "events": p["events"],
+                    "lat": (s + n) / 2, "lon": (w + e) / 2,
                     "bbox": [s - pad, n + pad, w - pad, e + pad]})
     return PLACES_CACHE.put(key, out)
 

@@ -392,7 +392,14 @@ def create_event(body: EventRequest, db: Session = Depends(get_db), me: str = De
     db.flush()
     _set_instructors(db, e, body)
     db.commit()
+    _places_changed()
     return event_page(e.id, db, me)
+
+
+def _places_changed() -> None:
+    """Explore's place pills count events: start them afresh."""
+    from app.features.sketches.router import PLACES_CACHE
+    PLACES_CACHE.clear()
 
 
 def _mine(db: Session, event_id: str, me: str) -> Event:
@@ -410,6 +417,7 @@ def update_event(event_id: str, body: EventRequest, db: Session = Depends(get_db
     _apply(db, e, body, me)
     _set_instructors(db, e, body)
     db.commit()
+    _places_changed()
     return event_page(e.id, db, me)
 
 
@@ -420,6 +428,7 @@ def delete_event(event_id: str, db: Session = Depends(get_db), me: str = Depends
         db.query(model).filter(model.event_id == e.id).delete()
     db.delete(e)
     db.commit()
+    _places_changed()
     return {"deleted": True}
 
 

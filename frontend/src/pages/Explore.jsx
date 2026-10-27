@@ -156,6 +156,7 @@ export default function Explore() {
   const [located, setLocated] = useState(false) // the start position is settled
   const [sketches, setSketches] = useState([])
   const [events, setEvents] = useState([]) // events in view (not with My sketches Only)
+  const [show, setShow] = useState('all') // all | sketches | events: what the map and list show
   const [loading, setLoading] = useState(false)
   const [map, setMap] = useState(null)
   const [picked, setPicked] = useState(null) // the sketch picked in the list
@@ -217,7 +218,7 @@ export default function Explore() {
     const next = !mine
     setMine(next)
     setPicked(null)
-    if (next) setPlace(null)
+    if (next) { setPlace(null); setShow('all') }
     if (!next || !map) return
     try {
       const { data } = await api.get('/api/sketches/explore', { params: { south: -90, north: 90, west: -180, east: 180, mine: true } })
@@ -232,7 +233,16 @@ export default function Explore() {
     api.get('/api/explore/places').then(({ data }) => setTopPlaces(data)).catch(() => setTopPlaces([]))
   }, [])
 
-  const pins = useMemo(() => sketches.filter((s) => s.location), [sketches])
+  const allPins = useMemo(() => sketches.filter((s) => s.location), [sketches])
+  // Sketches only / Events only. My sketches Only is sketches by nature.
+  const pins = show === 'events' ? [] : allPins
+  const shownEvents = mine || show === 'sketches' ? [] : events
+  function chooseShow(next) {
+    // A second tap shows both again; leaving My sketches Only shows everyone's.
+    setShow((cur) => (cur === next && !mine ? 'all' : next))
+    setPicked(null)
+    setMine(false)
+  }
 
   const pills = (
     <div className="flex gap-2 overflow-x-auto" role="radiogroup" aria-label="When">
@@ -260,7 +270,7 @@ export default function Explore() {
           <ViewWatcher onView={setBounds} />
           <FlyTo place={place} />
           <Pins pins={pins} picked={picked} />
-          <EventPins events={events} picked={picked} />
+          <EventPins events={shownEvents} picked={picked} />
         </MapContainer>
 
         {/* The panel: the place search, the place pills and the sketches in
@@ -297,8 +307,9 @@ export default function Explore() {
             <p className={`m-0 px-1 pt-1.5 text-xs text-ink/60 ${loading ? 'animate-pulse' : ''}`}>
               {loading ? 'Finding sketches…'
                 : mine ? `You have ${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'} in view.`
-                : [events.length ? `${events.length} ${events.length === 1 ? 'event' : 'events'}` : null,
-                  `${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'} in view`].filter(Boolean).join(' · ')}
+                : [show !== 'sketches' ? `${shownEvents.length} ${shownEvents.length === 1 ? 'event' : 'events'}` : null,
+                  show !== 'events' ? `${pins.length} ${pins.length === 1 ? 'sketch' : 'sketches'}` : null,
+                  ].filter(Boolean).join(' · ') + ' in view'}
             </p>
             {/* None in view within the time filter: offer every date. */}
             {!loading && pins.length === 0 && period !== 'all' && (
@@ -308,10 +319,10 @@ export default function Explore() {
               </p>
             )}
             {/* The sketches in view, one under another; a card moves the map to it. */}
-            {(pins.length > 0 || events.length > 0) && (
+            {(pins.length > 0 || shownEvents.length > 0) && (
               <ul className="m-0 mt-2 flex min-h-0 flex-1 list-none flex-col gap-2 overflow-y-auto p-1">
                 {/* Events first: there are few, and they have a date. */}
-                {events.map((e) => (
+                {shownEvents.map((e) => (
                   <li key={e.id}>
                     <EventCard event={e} compact selected={picked === e.id} onSelect={centreOn} />
                   </li>
@@ -329,14 +340,20 @@ export default function Explore() {
           <div className="md:hidden">{pills}</div> */}
         </div>
         {/* <div className="absolute left-[388px] top-3 z-[1000] hidden md:block">{pills}</div> */}
-        {/* Where the time filter was: a shortcut to my own sketching trail. */}
-        <div className="absolute left-3 top-3 z-[1000] md:left-[388px]">
-          <button type="button" aria-pressed={mine} onClick={toggleMine}
-            className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-semibold shadow-md transition-colors ${
-              mine ? 'border-ink bg-ink text-white' : 'border-black/10 bg-white text-ink hover:bg-black/5'
-            }`}>
-            My sketches Only
-          </button>
+        {/* Where the time filter was: my own sketching trail, and what to show. */}
+        <div className="absolute left-3 top-3 z-[1000] flex flex-wrap gap-2 md:left-[388px]">
+          {[
+            ['mine', 'My sketches Only', mine, toggleMine],
+            ['sketches', 'Sketches Only', show === 'sketches' && !mine, () => chooseShow('sketches')],
+            ['events', 'Events Only', show === 'events', () => chooseShow('events')],
+          ].map(([key, label, on, onClick]) => (
+            <button key={key} type="button" aria-pressed={on} onClick={onClick}
+              className={`shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-semibold shadow-md transition-colors ${
+                on ? 'border-ink bg-ink text-white' : 'border-black/10 bg-white text-ink hover:bg-black/5'
+              }`}>
+              {label}
+            </button>
+          ))}
         </div>
     </BasePage>
   )
