@@ -53,6 +53,7 @@ from app.features.events.schemas import CommentRequest, EventRequest, ReportRequ
 from app.features.events.tags import HASHTAG
 from app.features.kit.router import kit_photos
 from app.features.paints.router import palette_ids
+from config import EVENT_RULES_RELAXED
 
 router = APIRouter(prefix="/api", tags=["events"])
 
@@ -235,8 +236,9 @@ def _checklist(db: Session, me: str) -> dict:
     bag = bool(kit_photos(profile)) or db.query(KitItem.id).filter(KitItem.sketcher_id == me).first() is not None
     palette = bool(palette_ids(db, me))
     return {"completed_sketches": completed, "needed_sketches": MIN_COMPLETED,
-            "has_palette": palette, "has_bag": bag,
-            "earned": completed >= MIN_COMPLETED and palette and bag}
+            "has_palette": palette, "has_bag": bag, "relaxed": EVENT_RULES_RELAXED,
+            # EVENT_RULES=relaxed (testing): no earn-it rule (config.py).
+            "earned": EVENT_RULES_RELAXED or (completed >= MIN_COMPLETED and palette and bag)}
 
 
 @router.get("/events/can-host")
@@ -261,6 +263,8 @@ def _clean_url(u: str | None) -> str | None:
 
 
 def _check_caps(db: Session, me: str, body: EventRequest, exclude: str | None = None) -> None:
+    if EVENT_RULES_RELAXED:
+        return  # testing: no limits (config.py)
     starts = _aware(body.starts_at)
     if body.kind == "crawl":
         m0 = starts.replace(day=1, hour=0, minute=0, second=0, microsecond=0)

@@ -70,6 +70,12 @@ import os as _os
 # Off (the default): one short line per call with its token counts.
 DEBUG = _os.environ.get("DEBUG", "false").strip().lower() in ("1", "true", "yes")
 
+# --- Events (design doc, item 49) ---
+# EVENT_RULES=relaxed in backend/.env, for testing only: anyone can set up
+# events (no 5 completed sketches, paint collection or bag) and there is no
+# monthly or one-at-a-time limit. Leave it out, or "strict", for real use.
+EVENT_RULES_RELAXED = _os.environ.get("EVENT_RULES", "strict").strip().lower() == "relaxed"
+
 DATABASE_URL = _os.environ.get("DATABASE_URL", "")
 
 # Supabase issues auth JWTs; this backend verifies them directly against

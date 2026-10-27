@@ -792,9 +792,11 @@ def build(dry_run: bool, me: str | None):
                 sys.exit(f"The username {s['username']} is taken by a real profile. Rename it in SKETCHERS.")
         ids = {s["username"]: create_login(client, f"{s['username']}@{SEED_DOMAIN}", s["name"], password) for s in SKETCHERS}
 
-    from app.core.models import (CritiqueResponse, Follow, KitItem, Paint, PaletteItem, Persona, Profile, Sketch,
-                                 SketchComment, SketchLike, SketchUpload)
+    from app.core.models import (CritiqueResponse, Event, EventComment, EventInstructor, EventInterest, Follow,
+                                 KitItem, Paint, PaletteItem, Persona, Profile, Sketch, SketchComment, SketchLike,
+                                 SketchTag, SketchUpload, Spot, SpotPhoto)
     rows, sketch_ids, counts = [], {}, {}
+    sketch_rows, profiles = {}, {}
 
     def add(row):
         rows.append(row)
@@ -890,6 +892,7 @@ def build(dry_run: bool, me: str | None):
                                    "sketch": (s["favorite_paints"] or ["pb29", "pbr7-burnt-sienna"])[:4]}
             add(sketch)
             sketch_ids[sk["key"]] = sketch.id
+            sketch_rows[sk["key"]] = sketch
             for pos, url in enumerate(images["pages"]):
                 add(SketchUpload(sketch_id=sketch.id, sketcher_id=uid, url=url, position=pos,
                                  created_at=created + timedelta(hours=pos + 1)))
@@ -901,6 +904,7 @@ def build(dry_run: bool, me: str | None):
 
         if s.get("featured"):
             profile.featured_sketch_ids = [sketch_ids[k] for k in s["featured"]]
+        profiles[s["username"]] = profile
 
     for a, b in FOLLOWS:
         add(Follow(follower_id=ids[a], followed_id=ids[b], created_at=NOW - timedelta(days=30)))
@@ -908,6 +912,63 @@ def build(dry_run: bool, me: str | None):
         add(SketchLike(sketch_id=sketch_ids[k], sketcher_id=ids[h], created_at=NOW - timedelta(days=1)))
     for h, k, days, body in COMMENTS:
         add(SketchComment(sketch_id=sketch_ids[k], author_id=ids[h], body=body[:1000], created_at=NOW - timedelta(days=days)))
+
+    # Events and scouted spots (design doc, items 49 and 50): a past crawl
+    # with its recap, an upcoming crawl, and an organised festival with
+    # instructors (one confirmed, one invited, one not on SketchConnect).
+    # Names are made up; none stands for a real group.
+    def event(key, organizer, kind, title, tag, days, hours, at, place, **extra):
+        e = Event(id=str(uuid.uuid4()), organizer_id=ids[organizer], kind=kind, title=title, hashtag=tag,
+                  event_type=extra.pop("event_type", "crawl"), starts_at=NOW + timedelta(days=days),
+                  ends_at=NOW + timedelta(days=days, hours=hours), time_zone=extra.pop("tz", "UTC"),
+                  place_name=place, location=WKTElement(f"POINT({at[1]} {at[0]})", srid=4326),
+                  created_at=NOW - timedelta(days=30), **extra)
+        add(e)
+        return e
+
+    def tag_sketch(key, tag):
+        sk = sketch_rows[key]
+        sk.field_notes = f"{sk.field_notes}\n\n#{tag}" if sk.field_notes else f"#{tag}"
+        add(SketchTag(sketch_id=sk.id, tag=tag.lower()))
+
+    alfama = event("alfama", "lena.ortiz", "crawl", "Alfama rooftops crawl", "AlfamaCrawl", -21, 3,
+                   (38.7114, -9.1300), "Miradouro de Santa Luzia, Lisbon", tz="Europe/Lisbon",
+                   theme="Roofs stepping down the hill",
+                   description="Meet at the viewpoint at 9. We sketch the rooftops, then walk down to the river.")
+    tag_sketch("lena_alfama", "AlfamaCrawl")
+    tram = event("tram", "lena.ortiz", "crawl", "Saturday tram line crawl", "Tram28Crawl", 4, 3,
+                 (38.7107, -9.1366), "Rua da Conceição, Baixa, Lisbon", tz="Europe/Lisbon",
+                 theme="Trams and the people waiting for them",
+                 description="Bring a small book; the stops are narrow. Coffee after at the corner café.")
+    festival = event("festival", "marcus.tan", "organised", "Lion City Sketch Festival (test)", "LionCitySketch2027", 40, 72,
+                     (1.2834, 103.8443), "Chinatown, Singapore", tz="Asia/Singapore", event_type="festival",
+                     org_name="Lion City Sketchers (test group)", org_url="https://example.com/lion-city-sketchers",
+                     website_url="https://example.com/lion-city-sketch-festival", ticket_url="https://example.com/tickets",
+                     theme="Shophouses and hawker centres",
+                     description="Three days of sketch walks, demos and a big group sketch at the end. Test data.")
+    add(EventInstructor(event_id=festival.id, sketcher_id=ids["lena.ortiz"], status="confirmed", position=0))
+    add(EventInstructor(event_id=festival.id, sketcher_id=ids["david.whitfield"], status="invited", position=1))
+    add(EventInstructor(event_id=festival.id, name="Mei Ling Ho (not on SketchConnect)", status="confirmed", position=2))
+    for h, e in [("priya.nair", festival), ("dana.johnson", festival), ("david.whitfield", festival),
+                 ("dana.johnson", tram), ("marcus.tan", tram), ("priya.nair", alfama)]:
+        add(EventInterest(event_id=e.id, sketcher_id=ids[h], created_at=NOW - timedelta(days=2)))
+    profiles["dana.johnson"].show_attending_events = True  # her Interested events show on her page
+    add(EventComment(event_id=festival.id, author_id=ids["priya.nair"], body="Is there a meeting point on the first morning?",
+                     created_at=NOW - timedelta(days=3)))
+    add(EventComment(event_id=festival.id, author_id=ids["marcus.tan"], body="Yes: the temple steps on South Bridge Road at 8:30.",
+                     created_at=NOW - timedelta(days=2)))
+
+    # Lena's scouted spots, with her reference photos as the spot photos.
+    for name, note, key, vis in [
+        ("Miradouro de Santa Luzia", "Benches in the shade till 11. Busy with tours after.", "lena_alfama", "followers"),
+        ("Corner café, Rua da Conceição", "Window seat faces the tram stop. Quiet before 10.", "lena_tram", "private"),
+    ]:
+        sk = sketch_rows[key]
+        spot = Spot(id=str(uuid.uuid4()), sketcher_id=ids["lena.ortiz"], name=name, note=note,
+                    place_name=sk.location_label, location=sk.location, visibility=vis, created_at=NOW - timedelta(days=10))
+        add(spot)
+        for pos, url in enumerate([sk.reference_image_url, sk.final_sketch_url or sk.reference_image_url]):
+            add(SpotPhoto(spot_id=spot.id, image_url=url, position=pos, created_at=NOW - timedelta(days=10)))
 
     if me and not dry_run:
         owner = db.query(Profile).filter(Profile.username == me.lstrip("@").lower()).first()
@@ -928,7 +989,9 @@ def build(dry_run: bool, me: str | None):
         print("Dry run: images written to", UPLOAD_DIR, "| no database or logins touched.")
     else:
         # Profiles and personas first, so every foreign key has its row.
-        order = ["Profile", "Paint", "PaletteItem", "Persona", "KitItem", "Sketch", "SketchUpload", "CritiqueResponse", "Follow", "SketchLike", "SketchComment"]
+        order = ["Profile", "Paint", "PaletteItem", "Persona", "KitItem", "Sketch", "SketchUpload", "CritiqueResponse",
+                 "Follow", "SketchLike", "SketchComment", "SketchTag", "Event", "EventInstructor", "EventInterest",
+                 "EventComment", "Spot", "SpotPhoto"]
         for name in order:
             db.add_all([r for r in rows if type(r).__name__ == name])
             db.flush()
@@ -941,15 +1004,29 @@ def build(dry_run: bool, me: str | None):
 
 def reset():
     from app.core.database import SessionLocal
-    from app.core.models import (CritiqueResponse, Follow, HelpQuestLog, KitItem, KitWish, Paint, PaintFlag,
-                                 PaletteItem, Persona, Profile, Sketch, SketchComment, SketchLike, SketchUpload)
+    from app.core.models import (CritiqueResponse, Event, EventComment, EventHiddenSketch, EventInstructor,
+                                 EventInterest, EventReport, Follow, HelpQuestLog, KitItem, KitWish, Paint, PaintFlag,
+                                 PaletteItem, Persona, Profile, Sketch, SketchComment, SketchLike, SketchTag,
+                                 SketchUpload, Spot, SpotPhoto)
+    from sqlalchemy import or_
     client = _admin()
     logins = seed_logins(client)
     db = SessionLocal()
     uids = list(logins.values())
     if uids:
         sketch_ids = [r[0] for r in db.query(Sketch.id).filter(Sketch.sketcher_id.in_(uids)).all()]
+        event_ids = [r[0] for r in db.query(Event.id).filter(Event.organizer_id.in_(uids)).all()]
+        spot_ids = [r[0] for r in db.query(Spot.id).filter(Spot.sketcher_id.in_(uids)).all()]
         for model, cond in [
+            (EventComment, or_(EventComment.event_id.in_(event_ids), EventComment.author_id.in_(uids))),
+            (EventInterest, or_(EventInterest.event_id.in_(event_ids), EventInterest.sketcher_id.in_(uids))),
+            (EventReport, or_(EventReport.event_id.in_(event_ids), EventReport.sketcher_id.in_(uids))),
+            (EventInstructor, or_(EventInstructor.event_id.in_(event_ids), EventInstructor.sketcher_id.in_(uids))),
+            (EventHiddenSketch, EventHiddenSketch.event_id.in_(event_ids)),
+            (Event, Event.id.in_(event_ids)),
+            (SpotPhoto, SpotPhoto.spot_id.in_(spot_ids)),
+            (Spot, Spot.id.in_(spot_ids)),
+            (SketchTag, SketchTag.sketch_id.in_(sketch_ids)),
             (SketchComment, SketchComment.author_id.in_(uids)),
             (SketchComment, SketchComment.sketch_id.in_(sketch_ids)),
             (SketchLike, SketchLike.sketcher_id.in_(uids)),
