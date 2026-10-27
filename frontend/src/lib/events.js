@@ -1,7 +1,8 @@
 // Events (design doc, item 49): small helpers shared by the event pages.
 
-// The event's dates in its own time zone: "Sat 1 Nov, 9:00 – 12:00 (Lisbon)"
-// or, over several days, "12 – 15 Mar 2027 (Singapore)".
+// The event's dates in its own time zone. A casual meet-up has a day and a
+// start time: "Sat 1 Nov, 9:00 (Lisbon)". An organised event on one day:
+// "Sat 1 Nov, 9:00 – 12:00 (Lisbon)"; over several: "12 – 15 Mar 2027 (Singapore)".
 export function eventWhen(e) {
   if (!e?.starts_at) return ''
   const tz = e.time_zone || 'UTC'
@@ -9,6 +10,7 @@ export function eventWhen(e) {
   const day = (d, o) => new Intl.DateTimeFormat(undefined, { timeZone: tz, ...o }).format(d)
   const sameDay = day(a, { year: 'numeric', month: 'numeric', day: 'numeric' }) === day(b, { year: 'numeric', month: 'numeric', day: 'numeric' })
   const city = tz.includes('/') ? tz.split('/').pop().replace(/_/g, ' ') : tz
+  if (e.type === 'meetup') return `${day(a, { weekday: 'short', day: 'numeric', month: 'short' })}, ${day(a, { hour: 'numeric', minute: '2-digit' })} (${city})`
   if (sameDay) {
     return `${day(a, { weekday: 'short', day: 'numeric', month: 'short' })}, ${day(a, { hour: 'numeric', minute: '2-digit' })} – ${day(b, { hour: 'numeric', minute: '2-digit' })} (${city})`
   }

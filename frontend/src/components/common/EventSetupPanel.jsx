@@ -57,7 +57,11 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
   const blocked = !editing && check && !check.earned
   const meetupsFull = !editing && check && !check.relaxed && type === 'meetup' && check.meetups_this_month >= check.meetups_per_month
   const orgOpen = !editing && check && !check.relaxed && type === 'organised' && check.organised_open
-  const ready = f.title.trim() && f.hashtag.trim().length >= 3 && f.place && f.starts && f.ends && !busy
+  // A casual meet-up has a date and a start time; it ends with its day.
+  const meetup = type === 'meetup'
+  const [date, time] = f.starts.split('T')
+  const ends = meetup ? `${date}T23:59` : f.ends
+  const ready = f.title.trim() && f.hashtag.trim().length >= 3 && f.place && date && time && ends && !busy
 
   function addInstructor() {
     const t = newInstructor.trim()
@@ -73,7 +77,7 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
       type, format: f.format,
       title: f.title, theme: f.theme || null, description: f.description || null,
       hashtag: f.hashtag.replace(/^#/, ''),
-      starts_at: new Date(f.starts).toISOString(), ends_at: new Date(f.ends).toISOString(), time_zone: event?.time_zone || tz,
+      starts_at: new Date(f.starts).toISOString(), ends_at: new Date(ends).toISOString(), time_zone: event?.time_zone || tz,
       place_name: f.place.label || 'Meeting point', lat: f.place.lat, lon: f.place.lon, spot_id: f.spot_id,
       org_name: f.org_name || null, org_url: f.org_url || null, website_url: f.website_url || null, ticket_url: f.ticket_url || null,
       instructors: type === 'organised' ? f.instructors : [],
@@ -158,8 +162,13 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
         </select>
       ))}
       <div className="grid gap-3 md:grid-cols-2">
-        {field('Starts', <input className="field-input" type="datetime-local" value={f.starts} onChange={(e) => set({ starts: e.target.value })} />)}
-        {field('Ends', <input className="field-input" type="datetime-local" value={f.ends} min={f.starts} onChange={(e) => set({ ends: e.target.value })} />)}
+        {meetup ? (<>
+          {field('Date', <input className="field-input" type="date" value={date} onChange={(e) => set({ starts: `${e.target.value}T${time || '09:00'}` })} />)}
+          {field('Start time', <input className="field-input" type="time" value={time} onChange={(e) => set({ starts: `${date}T${e.target.value}` })} />)}
+        </>) : (<>
+          {field('Starts', <input className="field-input" type="datetime-local" value={f.starts} onChange={(e) => set({ starts: e.target.value })} />)}
+          {field('Ends', <input className="field-input" type="datetime-local" value={f.ends} min={f.starts} onChange={(e) => set({ ends: e.target.value })} />)}
+        </>)}
       </div>
       <span className="-mt-2 text-xs text-ink/55">Times in {(event?.time_zone || tz).replace(/_/g, ' ')}.</span>
 
