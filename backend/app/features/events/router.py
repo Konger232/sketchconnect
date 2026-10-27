@@ -40,7 +40,7 @@ from geoalchemy2 import Geometry
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.shape import to_shape
 from PIL import Image, ImageOps
-from sqlalchemy import and_, cast, func, or_
+from sqlalchemy import and_, cast, false, func, literal_column, or_
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
@@ -113,15 +113,20 @@ def event_card(e: Event, organizer: Profile | None = None, interested: int = 0, 
 
 
 def _cards(db: Session, events: list[Event], viewer: str | None) -> list[dict]:
+    """Cards for a list of events, in one query: each event's organiser,
+    how many are interested, and whether the viewer is."""
     ids = [e.id for e in events]
     if not ids:
         return []
-    counts = dict(db.query(EventInterest.event_id, func.count()).filter(EventInterest.event_id.in_(ids))
-                  .group_by(EventInterest.event_id).all())
-    mine = {i for (i,) in db.query(EventInterest.event_id).filter(
-        EventInterest.event_id.in_(ids), EventInterest.sketcher_id == viewer).all()} if viewer else set()
-    orgs = {p.id: p for p in db.query(Profile).filter(Profile.id.in_({e.organizer_id for e in events})).all()}
-    return [event_card(e, orgs.get(e.organizer_id), counts.get(e.id, 0), e.id in mine) for e in events]
+    is_mine = (func.coalesce(func.bool_or(EventInterest.sketcher_id == viewer), False) if viewer else false())
+    rows = (db.query(Event.id, Profile, func.count(EventInterest.sketcher_id), is_mine)
+            .select_from(Event)
+            .outerjoin(Profile, Profile.id == Event.organizer_id)
+            .outerjoin(EventInterest, EventInterest.event_id == Event.id)
+            .filter(Event.id.in_(ids))
+            .group_by(Event.id, Profile.id).all())
+    info = {eid: (org, n, bool(mine)) for eid, org, n, mine in rows}
+    return [event_card(e, *info.get(e.id, (None, 0, False))) for e in events]
 
 
 def _reach(db: Session, viewer: str | None, near: tuple[float, float] | None, followed: set[str] | None = None):
@@ -190,11 +195,19 @@ def events_for_home(lat: float | None = None, lon: float | None = None,
     """The Events page in one call: your own events (upcoming, and the last
     12 past, for you only); upcoming events, nearest first when the location
     is known; and events where someone you follow or whose sketches you
-    liked is a confirmed featured instructor. Kept to a few queries: each
-    one is a round trip to the database."""
+    liked is a confirmed featured instructor. Five queries: each one is a
+    round trip to the database (about 120 ms from Bangkok to Tokyo in dev)."""
     now = _now()
     near = (lat, lon) if lat is not None and lon is not None else None
-    followed = _follows(db, viewer)
+    # Who you follow and whose sketches you liked, in one query.
+    followed, liked = set(), set()
+    if viewer:
+        kinds = (db.query(literal_column("'f'").label("k"), Follow.followed_id.label("p")).filter(Follow.follower_id == viewer)
+                 .union_all(db.query(literal_column("'l'").label("k"), Sketch.sketcher_id.label("p"))
+                            .join(SketchLike, SketchLike.sketch_id == Sketch.id)
+                            .filter(SketchLike.sketcher_id == viewer)).all())
+        followed = {p for k, p in kinds if k == "f"}
+        liked = {p for k, p in kinds if k == "l"}
 
     q = db.query(Event).filter(_reach(db, viewer, near, followed), Event.ends_at >= now)
     if viewer:
@@ -209,25 +222,23 @@ def events_for_home(lat: float | None = None, lon: float | None = None,
         ahead = [e for e in own if _aware(e.ends_at) >= now]
         past = sorted((e for e in own if _aware(e.ends_at) < now), key=lambda e: e.starts_at, reverse=True)[:12]
 
-        liked = {o for (o,) in db.query(Sketch.sketcher_id).join(SketchLike, SketchLike.sketch_id == Sketch.id)
-                 .filter(SketchLike.sketcher_id == viewer).distinct().all()}
         people = (followed | liked) - {viewer}
         if people:
-            teach_rows = (db.query(Event, EventInstructor.sketcher_id)
+            teach_rows = (db.query(Event, Profile)
                           .join(EventInstructor, EventInstructor.event_id == Event.id)
+                          .outerjoin(Profile, Profile.id == EventInstructor.sketcher_id)
                           .filter(EventInstructor.sketcher_id.in_(people), EventInstructor.status == "confirmed",
                                   Event.hidden.is_(False), Event.ends_at >= now)
                           .order_by(Event.starts_at).limit(12).all())
 
-    # One set of card queries for every event on the page.
+    # One card query for every event on the page.
     every = {e.id: e for e in [*upcoming, *ahead, *past, *(e for e, _ in teach_rows)]}
     cards = {c["id"]: c for c in _cards(db, list(every.values()), viewer)}
-    who = {p.id: p for p in db.query(Profile).filter(Profile.id.in_({sid for _, sid in teach_rows})).all()} if teach_rows else {}
     return {
         "mine": [cards[e.id] for e in ahead],
         "mine_past": [cards[e.id] for e in past],
         "upcoming": [cards[e.id] for e in upcoming],
-        "teaching": [{**cards[e.id], "instructor": person(who.get(sid))} for e, sid in teach_rows],
+        "teaching": [{**cards[e.id], "instructor": person(p)} for e, p in teach_rows],
     }
 
 

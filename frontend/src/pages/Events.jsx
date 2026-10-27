@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BasePage from '../components/common/BasePage'
 import Button from '../components/common/Button'
@@ -22,12 +22,27 @@ export default function Events() {
   const [invites, setInvites] = useState([])
   const [panel, setPanel] = useState(false)
 
-  // Load straight away; the browser's location can take seconds (or wait on
-  // a permission prompt), so it only re-sorts "Coming up" when it arrives.
+  // One call where possible. With location already allowed, wait up to
+  // 1.5 s for the position and send it; otherwise load straight away (a
+  // permission prompt can wait forever) and re-sort when it arrives.
+  const [ready, setReady] = useState(false)
+  const fetched = useRef(null)
   useEffect(() => {
+    const go = () => setReady(true)
+    const timer = setTimeout(go, 1500)
+    if (navigator.permissions?.query) {
+      navigator.permissions.query({ name: 'geolocation' }).then((p) => { if (p.state !== 'granted') go() }).catch(go)
+    } else go()
+    return () => clearTimeout(timer)
+  }, [])
+  useEffect(() => {
+    if (!ready && !coords) return
+    const key = coords ? `${coords.lat},${coords.lon}` : 'none'
+    if (fetched.current === key) return
+    fetched.current = key
     api.get('/api/events/home', { params: coords ? { lat: coords.lat, lon: coords.lon } : {} })
       .then(({ data }) => setHome(data)).catch(() => setHome((h) => h || { mine: [], mine_past: [], upcoming: [], teaching: [] }))
-  }, [coords])
+  }, [ready, coords])
   useEffect(() => {
     if (user) api.get('/api/events/invites/mine').then(({ data }) => setInvites(data)).catch(() => setInvites([]))
   }, [user])
