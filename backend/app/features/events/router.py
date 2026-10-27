@@ -150,6 +150,22 @@ def _drop_empty_past(db: Session, events: list[Event]) -> list[Event]:
     return [e for e in events if _aware(e.ends_at) >= now or e.id in keep]
 
 
+# ---- finding sketchers (the featured instructors field) ----
+
+@router.get("/sketcher-lookup")
+def sketcher_lookup(q: str, db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
+    """Up to 8 sketchers whose username or name matches, usernames that
+    start with the text first."""
+    text = q.strip().lstrip("@")
+    if len(text) < 2:
+        return []
+    like = f"%{text}%"
+    rows = (db.query(Profile).filter(Profile.username.isnot(None))
+            .filter(or_(Profile.username.ilike(like), Profile.display_name.ilike(like)))
+            .order_by(Profile.username.ilike(f"{text}%").desc(), Profile.username).limit(8).all())
+    return [person(p) for p in rows]
+
+
 # ---- finding events ----
 
 @router.get("/events")

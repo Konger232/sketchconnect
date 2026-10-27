@@ -3,6 +3,7 @@ import Button from './Button'
 import FloatPanel from './FloatPanel'
 import LocationSearchField from './LocationSearchField'
 import PhotoDropzone from './PhotoDropzone'
+import Avatar from './Avatar'
 import { api } from '../../lib/api'
 import { imageUrl } from '../../lib/media'
 import { hashtagFrom, localInput } from '../../lib/events'
@@ -43,6 +44,22 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
     instructors: (event?.instructors || []).map((i) => (i.sketcher ? { username: i.sketcher.username } : { name: i.name })),
   }))
   const [newInstructor, setNewInstructor] = useState('')
+  const [matches, setMatches] = useState([]) // sketchers matching what is typed
+  useEffect(() => {
+    const t = newInstructor.trim().replace(/^@/, '')
+    if (t.length < 2) { setMatches([]); return undefined }
+    const timer = setTimeout(() => {
+      api.get('/api/sketcher-lookup', { params: { q: t } })
+        .then(({ data }) => setMatches(data.filter((p) => !f.instructors.some((i) => i.username === p.username))))
+        .catch(() => setMatches([]))
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [newInstructor]) // eslint-disable-line react-hooks/exhaustive-deps
+  function pickInstructor(p) {
+    set({ instructors: [...f.instructors, { username: p.username, display_name: p.display_name, avatar_url: p.avatar_url }] })
+    setNewInstructor('')
+    setMatches([])
+  }
   const [cover, setCover] = useState(null)
   const coverInput = useRef(null)
   const coverPreview = useMemo(() => (cover ? URL.createObjectURL(cover) : imageUrl(event?.cover_image_url)), [cover, event?.cover_image_url])
@@ -234,7 +251,7 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
                 <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0">
                   {f.instructors.map((i, n) => (
                     <li key={n} className="flex items-center gap-1 rounded-full border border-ink/20 py-1 pl-3 pr-1 text-xs font-semibold">
-                      {i.username ? `@${i.username}` : i.name}
+                      {i.username ? (i.display_name ? `${i.display_name} @${i.username}` : `@${i.username}`) : i.name}
                       <button type="button" aria-label="Remove" className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-ink/10"
                         onClick={() => set({ instructors: f.instructors.filter((_, k) => k !== n) })}>×</button>
                     </li>
@@ -243,11 +260,28 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
               )}
               <span className="flex gap-2">
                 <input className="field-input" value={newInstructor} onChange={(e) => setNewInstructor(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addInstructor() } }} placeholder="@username, or a name" />
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); if (matches.length) pickInstructor(matches[0]); else addInstructor() }
+                    if (e.key === 'Escape') setMatches([])
+                  }} placeholder="Search sketchers, or type a name" />
                 <Button variant="editorial" size="sm" onClick={addInstructor}>Add</Button>
               </span>
+              {/* Sketchers on SketchConnect matching the text: a tap adds one. */}
+              {matches.length > 0 && (
+                <ul className="m-0 list-none overflow-hidden rounded-md border border-ink/15 bg-white p-0">
+                  {matches.map((p) => (
+                    <li key={p.username}>
+                      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pickInstructor(p)}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-ink/5">
+                        <Avatar url={p.avatar_url} className="h-7 w-7" />
+                        <span className="min-w-0 truncate text-sm"><b>{p.display_name || p.username}</b> <span className="text-ink/55">@{p.username}</span></span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          ), 'A sketcher on SketchConnect (@username) gets a request and shows once they accept. Others show by name.')}
+          ), 'Pick a sketcher from the list: they get a request and show once they accept. Anyone else shows by name.')}
         </>
       )}
     </div>
