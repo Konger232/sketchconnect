@@ -189,6 +189,16 @@ def read_kit_photo(body: KitReadRequest, db: Session = Depends(get_db), sketcher
 
 # ---- the wish list ----
 
+def kit_with_wishes(db: Session, owner_id: str, viewer_id: str | None) -> tuple[list, set[str]]:
+    """A sketcher's bag, sorted, and which tools the viewer starred: one query."""
+    if viewer_id and viewer_id != owner_id:
+        rows = (db.query(KitItem, KitWish.kit_item_id)
+                .outerjoin(KitWish, (KitWish.kit_item_id == KitItem.id) & (KitWish.sketcher_id == viewer_id))
+                .filter(KitItem.sketcher_id == owner_id).all())
+        return sort_kit([i for i, _ in rows]), {w for _, w in rows if w}
+    return sort_kit(db.query(KitItem).filter(KitItem.sketcher_id == owner_id).all()), set()
+
+
 def wished_ids(db: Session, sketcher_id: str | None, item_ids: list[str]) -> set[str]:
     """Which of these tools the sketcher has starred."""
     if not sketcher_id or not item_ids:

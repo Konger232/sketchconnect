@@ -51,11 +51,13 @@ def _confirmations(db: Session, paint_ids: list[str]) -> dict[str, int]:
     return dict(rows)
 
 
-def paint_dicts(db: Session, paints: list[Paint]) -> list[dict]:
-    """The library's shape, as the frontend's paint list (data/paints.js)."""
+def paint_dicts(db: Session, paints: list[Paint], names: dict | None = None) -> list[dict]:
+    """The library's shape, as the frontend's paint list (data/paints.js).
+    `names` ({profile id: username}) saves a query when the caller has them."""
     counts = _confirmations(db, [p.id for p in paints])
-    adders = {p.added_by for p in paints if p.added_by}
-    names = dict(db.query(Profile.id, Profile.username).filter(Profile.id.in_(adders)).all()) if adders else {}
+    if names is None:
+        adders = {p.added_by for p in paints if p.added_by}
+        names = dict(db.query(Profile.id, Profile.username).filter(Profile.id.in_(adders)).all()) if adders else {}
     out = []
     for p in paints:
         codes = list(p.pigment_codes or [])
@@ -162,10 +164,15 @@ def palette_ids(db: Session, sketcher_id: str) -> list[str]:
 
 
 def palette_paints(db: Session, sketcher_id: str) -> list[dict]:
-    """My palette as paint dicts, in order."""
-    ids = palette_ids(db, sketcher_id)
-    by_id = {p.id: p for p in db.query(Paint).filter(Paint.id.in_(ids)).all()} if ids else {}
-    return paint_dicts(db, [by_id[i] for i in ids if i in by_id])
+    """My palette as paint dicts, in order: two queries (the paints with who
+    added them, then the confirmations)."""
+    rows = (db.query(Paint, Profile.username)
+            .join(PaletteItem, PaletteItem.paint_id == Paint.id)
+            .outerjoin(Profile, Profile.id == Paint.added_by)
+            .filter(PaletteItem.sketcher_id == sketcher_id)
+            .order_by(PaletteItem.position, PaletteItem.created_at).all())
+    names = {p.added_by: u for p, u in rows if p.added_by}
+    return paint_dicts(db, [p for p, _ in rows], names)
 
 
 def set_palette(db: Session, sketcher_id: str, ids: list[str]) -> list[str]:

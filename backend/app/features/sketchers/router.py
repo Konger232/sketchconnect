@@ -14,15 +14,15 @@ critique agent is only ever sent to the sketcher who owns it. Follower
 counts, likes and comments come from features/community.
 """
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_optional_sketcher_id
 from app.core.database import get_db
 from app.core.models import KitItem, Profile, Sketch, SketchComment, SketchLike
-from app.features.community.router import follow_counts, is_following
-from app.features.kit.router import _to_dict as kit_item_to_dict, kit_photos, sort_kit, wished_ids
-from app.features.paints.router import palette_ids, palette_paints
+from app.features.community.router import follow_summary
+from app.features.kit.router import _to_dict as kit_item_to_dict, kit_photos, kit_with_wishes
+from app.features.paints.router import palette_paints
 from app.features.persona.router import admired_list, admired_to_dict
 from app.features.sketches.router import _sketch_card, card_query
 from app.core.visibility import visible_filter
@@ -63,9 +63,10 @@ def get_sketcher(
     by_id = {s.id: s for s in shared}
     featured = [by_id[i] for i in (profile.featured_sketch_ids or []) if i in by_id][:MAX_FEATURED]
 
-    kit_rows = sort_kit(db.query(KitItem).filter(KitItem.sketcher_id == profile.id).all())
     # Another sketcher sees which of these tools they starred (item 44).
-    wished = set() if is_owner else wished_ids(db, viewer_id, [i.id for i in kit_rows])
+    kit_rows, wished = kit_with_wishes(db, profile.id, viewer_id)
+    counts, following = follow_summary(db, viewer_id, profile.id)
+    paints = palette_paints(db, profile.id)
 
     data = {
         "username": profile.username,
@@ -78,17 +79,17 @@ def get_sketcher(
         "stats": {
             "sketches": len(shared),
             "cities": len({c for c in (_city(s.location_label) for s in shared) if c}),
-            **follow_counts(db, profile.id),
+            **counts,
         },
-        "is_following": is_following(db, viewer_id, profile.id),
+        "is_following": following,
         "featured": [_sketch_card(s) for s in featured],
         "kit_photo_url": profile.kit_photo_url,
         "kit_photos": kit_photos(profile),
         "kit": [{**kit_item_to_dict(i), "wished": i.id in wished} for i in kit_rows],
         # My palette (palette_items, item 46): the ids, and the paints from
         # the library. The colour recipes mix from these.
-        "favorite_paints": palette_ids(db, profile.id),
-        "palette_paints": palette_paints(db, profile.id),
+        "favorite_paints": [p["id"] for p in paints],
+        "palette_paints": paints,
         "palette_layout": profile.palette_layout,
     }
     if is_owner:
@@ -106,26 +107,24 @@ def list_sketcher_sketches(
     sketches in progress, each marked `shared: false`."""
     profile = _profile_by_username(db, username)
     is_owner = viewer_id == profile.id
-    q = card_query(db).filter(Sketch.sketcher_id == profile.id)
+    # Likes and comments counted in the same query (each query is a round trip).
+    n_likes = (select(func.count()).select_from(SketchLike)
+               .where(SketchLike.sketch_id == Sketch.id).correlate(Sketch).scalar_subquery())
+    n_comments = (select(func.count()).select_from(SketchComment)
+                  .where(SketchComment.sketch_id == Sketch.id).correlate(Sketch).scalar_subquery())
+    q = card_query(db, n_likes, n_comments).filter(Sketch.sketcher_id == profile.id)
     if not is_owner:
         q = q.filter(visible_filter(viewer_id))
     rows = q.order_by(Sketch.created_at.desc()).all()
-    ids = [s.id for s in rows]
-    likes = dict(
-        db.query(SketchLike.sketch_id, func.count()).filter(SketchLike.sketch_id.in_(ids)).group_by(SketchLike.sketch_id).all()
-    ) if ids else {}
-    comments = dict(
-        db.query(SketchComment.sketch_id, func.count()).filter(SketchComment.sketch_id.in_(ids)).group_by(SketchComment.sketch_id).all()
-    ) if ids else {}
     from app.features.sketches.router import upload_counts
-    uploads = upload_counts(db, ids) if is_owner else {}
+    uploads = upload_counts(db, [s.id for s, _, _ in rows]) if is_owner else {}
     out = []
-    for s in rows:
+    for s, likes, comments in rows:
         d = _sketch_card(s)
         d["shared"] = s.final_sketch_url is not None
         d["upload_count"] = uploads.get(s.id, 0)
         d["place"] = _city(s.location_label)
-        d["like_count"] = likes.get(s.id, 0)
-        d["comment_count"] = comments.get(s.id, 0)
+        d["like_count"] = likes or 0
+        d["comment_count"] = comments or 0
         out.append(d)
     return out

@@ -18,7 +18,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import func
+from sqlalchemy import exists, false, func, select
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
@@ -103,6 +103,15 @@ def follow_counts(db: Session, sketcher_id: str) -> dict:
         "followers": db.query(func.count()).select_from(Follow).filter(Follow.followed_id == sketcher_id).scalar(),
         "following": db.query(func.count()).select_from(Follow).filter(Follow.follower_id == sketcher_id).scalar(),
     }
+
+
+def follow_summary(db: Session, viewer_id: str | None, sketcher_id: str) -> tuple[dict, bool]:
+    """Followers, following and whether the viewer follows them, in one query."""
+    followers = select(func.count()).select_from(Follow).where(Follow.followed_id == sketcher_id).scalar_subquery()
+    following = select(func.count()).select_from(Follow).where(Follow.follower_id == sketcher_id).scalar_subquery()
+    mine = (exists().where(Follow.follower_id == viewer_id, Follow.followed_id == sketcher_id) if viewer_id else false())
+    n_in, n_out, yes = db.query(followers, following, mine).one()
+    return {"followers": n_in, "following": n_out}, bool(yes)
 
 
 def is_following(db: Session, viewer_id: str | None, sketcher_id: str) -> bool:
