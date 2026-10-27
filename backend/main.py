@@ -51,7 +51,7 @@ def warm_up() -> None:
     def run():
         from sqlalchemy import text
         from app.core.auth import warm_jwks
-        from app.core.database import engine
+        from app.core.database import engine, read_engine
         try:
             warm_jwks()
         except Exception as exc:  # noqa: BLE001 - a warm-up must never stop the server
@@ -60,10 +60,12 @@ def warm_up() -> None:
             return
         conns = []
         try:
-            for _ in range(4):
-                c = engine.connect()
-                c.execute(text("select 1"))
-                conns.append(c)
+            # Reads (GET) are most requests: 4 ready for them, 2 for writes.
+            for eng, n in ((read_engine, 4), (engine, 2)):
+                for _ in range(n):
+                    c = eng.connect()
+                    c.execute(text("select 1"))
+                    conns.append(c)
         except Exception as exc:  # noqa: BLE001
             print(f"warm-up: database not reached ({exc.__class__.__name__})")
         finally:

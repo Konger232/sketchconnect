@@ -122,7 +122,7 @@ class MediaLinkMiddleware(BaseHTTPMiddleware):
 def _owner_name(name: str) -> str | None:
     """Whose image this is, for the copyright note in the file."""
     from sqlalchemy import Text, cast, or_
-    from app.core.database import SessionLocal
+    from app.core.database import ReadSession as SessionLocal  # reads only
     from app.core.models import Profile, Sketch, SketchUpload
     url = f"/uploads/{name}"
     db = SessionLocal()
@@ -251,7 +251,7 @@ def media(name: str, e: int = 0, s: str = ""):
 @router.get("/teaser/{name}")
 def teaser(name: str):
     """For visitors: the middle of a shared final sketch, and nothing else."""
-    from app.core.database import SessionLocal
+    from app.core.database import ReadSession as SessionLocal  # reads only
     from app.core.models import Sketch
     if not _valid(name):
         raise HTTPException(404, "Not found")
