@@ -14,7 +14,7 @@ from app.core.gemini_service import call_gemini_json
 MAX_TOOLS = 20
 CATEGORIES = ["pen", "ink", "brush", "paper", "sketchbook", "palette", "clips", "easel", "bag", "other"]
 # Near misses the AI sometimes writes, mapped to a category.
-NEAR = {"pencil": "pen", "pencils": "pen", "marker": "pen", "markers": "pen", "fineliner": "pen",
+NEAR = {"pencil": "pen", "pencils": "pen", "pens": "pen", "brushes": "brush", "inks": "ink", "sketchbooks": "sketchbook", "palettes": "palette", "marker": "pen", "markers": "pen", "fineliner": "pen",
         "fountain pen": "pen", "gel pen": "pen", "crayon": "pen", "pastel": "pen",
         "paint": "palette", "paints": "palette", "watercolour": "palette", "watercolor": "palette",
         "tube": "palette", "tubes": "palette", "journal": "sketchbook", "notebook": "sketchbook",
