@@ -83,6 +83,9 @@ def warm_up() -> None:
 
     threading.Thread(target=keys, daemon=True).start()
     threading.Thread(target=connections, daemon=True).start()
+    # Then keep them alive (app/core/database.py).
+    from app.core.database import keep_warm
+    threading.Thread(target=keep_warm, daemon=True).start()
 
 app.add_middleware(
     CORSMiddleware,

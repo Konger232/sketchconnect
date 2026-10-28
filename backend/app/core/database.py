@@ -12,7 +12,10 @@ every trip a request saves counts (October 27, 2026):
                each statement just commits on its own.
 
 A connection is checked only after it sat idle a minute (pool_pre_ping
-checked on every request, one more trip each time).
+checked on every request, one more trip each time). Idle connections get
+dropped somewhere on the way (a home router, a VPN, the pooler), and a new
+one costs about 0.6 s, so they are kept alive: TCP keepalives, and a small
+background ping (keep_warm) every 45 seconds on the ones not in use.
 """
 import time
 
@@ -30,9 +33,14 @@ if not DATABASE_URL:
 
 IDLE_PING_SECONDS = 60
 
-engine = create_engine(DATABASE_URL, pool_recycle=1800) if DATABASE_URL else None
-read_engine = (create_engine(DATABASE_URL, pool_recycle=1800, isolation_level="AUTOCOMMIT")
+# libpq keepalives: the OS sends a probe on an idle connection, so routers
+# and VPNs see traffic and keep it open.
+_KEEPALIVE = ({"keepalives": 1, "keepalives_idle": 30, "keepalives_interval": 10, "keepalives_count": 3}
+              if DATABASE_URL.startswith("postgres") else {}) if DATABASE_URL else {}
+engine = create_engine(DATABASE_URL, pool_recycle=1800, connect_args=_KEEPALIVE) if DATABASE_URL else None
+read_engine = (create_engine(DATABASE_URL, pool_recycle=1800, isolation_level="AUTOCOMMIT", connect_args=_KEEPALIVE)
                if DATABASE_URL else None)
+KEEP_WARM_SECONDS = 45
 
 
 def _tune(eng) -> None:
@@ -69,6 +77,29 @@ def _tune(eng) -> None:
 for _eng in (engine, read_engine):
     if _eng is not None:
         _tune(_eng)
+
+def keep_warm() -> None:
+    """Every KEEP_WARM_SECONDS, ping the pooled connections nobody is using,
+    so none sits idle long enough to be dropped, and a dropped one is
+    replaced here rather than in someone's request. Runs in a thread."""
+    from sqlalchemy import text
+    while True:
+        time.sleep(KEEP_WARM_SECONDS)
+        for eng in (read_engine, engine):
+            if eng is None:
+                continue
+            held = []
+            try:
+                for _ in range(eng.pool.checkedin()):
+                    c = eng.connect()
+                    c.execute(text("select 1"))
+                    held.append(c)
+            except Exception as exc:  # noqa: BLE001 - never stop the loop
+                print(f"keep-warm: {exc.__class__.__name__}")
+            finally:
+                for c in held:
+                    c.close()
+
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 ReadSession = sessionmaker(autocommit=False, autoflush=False, bind=read_engine)

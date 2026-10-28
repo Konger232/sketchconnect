@@ -48,6 +48,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
   const [photos, setPhotos] = useState(startPhotos || [])
   const [active, setActive] = useState(0)
   const [busy, setBusy] = useState(null) // a line over the photo while the AI reads it
+  const [saving, setSaving] = useState(false) // a save or remove on its way: one at a time
   const [note, setNote] = useState(null) // what just happened
   const [error, setError] = useState(null)
   const [draft, setDraft] = useState(null) // the tool being edited: { id?, kind, label, note, spot }
@@ -131,7 +132,9 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
 
   async function saveDraft() {
     if (!draft.label.trim()) return setError('Every piece of gear needs a name.')
+    if (saving) return
     setError(null)
+    setSaving(true)
     try {
       const { data } = draft.id
         ? await api.put(`/api/kit/${draft.id}`, body(draft))
@@ -140,16 +143,22 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
       setDraft(null)
     } catch (err) {
       fail(err, 'Could not save this gear.')
+    } finally {
+      setSaving(false)
     }
   }
 
   async function removeTool(id) {
+    if (saving) return
+    setSaving(true)
     try {
       await api.delete(`/api/kit/${id}`)
       setItems((list) => list.filter((i) => i.id !== id))
       setDraft(null)
     } catch (err) {
       fail(err, 'Could not remove this gear.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -179,9 +188,9 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
         <span className={`mr-auto text-xs ${wordCount(draft.note) > TIP_WORDS ? 'text-accent' : 'text-ink/50'}`}>
           Tip: {wordCount(draft.note)} / {TIP_WORDS} words
         </span>
-        {draft.id && <Button variant="editorial" size="sm" onClick={() => removeTool(draft.id)}>Remove</Button>}
+        {draft.id && <Button variant="editorial" size="sm" disabled={saving} onClick={() => removeTool(draft.id)}>Remove</Button>}
         <Button variant="editorial" size="sm" onClick={() => setDraft(null)}>Cancel</Button>
-        <Button variant="editorialSolid" size="sm" onClick={saveDraft} disabled={wordCount(draft.note) > TIP_WORDS}>Save</Button>
+        <Button variant="editorialSolid" size="sm" onClick={saveDraft} disabled={saving || wordCount(draft.note) > TIP_WORDS}>{saving ? 'Saving…' : 'Save'}</Button>
       </div>
       </div>
     </div>
