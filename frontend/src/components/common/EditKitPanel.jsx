@@ -70,6 +70,11 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
   }, [draftKey, wide])
 
   const tools = items
+  // After a read: how many are on the photo now, so it follows each removal.
+  const onPhoto = items.filter((i) => i.spot && i.spot.photo === active).length
+  const foundLine = onPhoto
+    ? `${onPhoto} ${onPhoto === 1 ? 'piece' : 'pieces'} of gear on this photo. Tap a pin to fix a name or add a tip; tap the photo to add one it missed.`
+    : 'No gear on this photo now. Tap the photo to add some.'
   const fail = (err, fallback) => setError(typeof err?.response?.data?.detail === 'string' ? err.response.data.detail : fallback)
 
   async function readPhoto(index) {
@@ -80,9 +85,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
     try {
       const { data } = await api.post('/api/kit/read', { photo: index })
       setItems(data.kit)
-      setNote(data.found
-        ? `Found ${data.found} ${data.found === 1 ? 'piece' : 'pieces'} of gear. Tap a pin to fix a name or add a tip; tap the photo to add one it missed.`
-        : 'No gear found on this photo. Tap the photo to add it yourself.')
+      setNote(data.found ? 'found' : 'No gear found on this photo. Tap the photo to add it yourself.')
     } catch (err) {
       fail(err, 'Could not read the gear right now. Try again, or tap the photo to add it yourself.')
       setReadFailed(index)
@@ -117,6 +120,8 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
       setPhotos(data.kit_photos)
       setActive(0)
       setDraft(null)
+      setNote(null)
+      setReadFailed(null)
       const kit = await api.get('/api/kit')
       setItems(kit.data)
     } catch (err) {
@@ -236,7 +241,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
           </Button>
           <input ref={fileRef} type="file" accept="image/*" onChange={addPhoto} className="hidden" />
         </div>
-        {note && <p className="m-0 text-sm text-ink/80">{note}</p>}
+        {note && <p className="m-0 text-sm text-ink/80">{note === 'found' ? foundLine : note}</p>}
 
         {/* On a phone the form is a white bottom sheet: drag the handle
             to resize it, tap it to fold the form down to its title. */}
@@ -280,7 +285,7 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
       <ConfirmDialog
         open={removingPhoto !== null}
         title="Remove this photo?"
-        message="Its gear stays in your bag, without the pins."
+        message={photos.length > 1 ? 'The gear pinned on it goes too.' : 'Your gear list goes with it.'}
         confirmLabel="Remove"
         cancelLabel="Keep it"
         onConfirm={() => removePhoto(removingPhoto)}

@@ -26,7 +26,7 @@ from app.core.models import Profile, Sketch
 from app.core.paths import UPLOAD_DIR
 from app.features.profile.schemas import ProfileUpdateRequest
 from app.core.media import stored_url
-from app.core.models import KitItem
+from app.core.models import KitItem, KitWish
 from app.features.kit.router import MAX_KIT_PHOTOS, kit_photos
 from app.features.paints.router import clean_palette_layout, palette_ids, palette_paints, set_palette
 
@@ -188,8 +188,9 @@ async def remove_kit_photo(
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
-    """Remove a bag photo. Its tools stay in the kit, without their pins;
-    the pins on later photos follow them down one place."""
+    """Remove a bag photo and the gear pinned on it (and with the last
+    photo, the whole bag). The pins on later photos follow them down one
+    place. Removed gear leaves everyone's wish list too."""
     profile = _get_or_create_profile(db, sketcher_id)
     photos = kit_photos(profile)
     if not 0 <= index < len(photos):
@@ -197,12 +198,16 @@ async def remove_kit_photo(
     gone = photos.pop(index)
     profile.kit_photos = photos
     profile.kit_photo_url = photos[0] if photos else None
+    gone_ids = []
     for item in db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id).all():
         spot = item.spot or {}
-        if spot.get("photo") == index:
-            item.spot = None
+        if spot.get("photo") == index or not photos:
+            gone_ids.append(item.id)
         elif isinstance(spot.get("photo"), int) and spot["photo"] > index:
             item.spot = {**spot, "photo": spot["photo"] - 1}
+    if gone_ids:
+        db.query(KitWish).filter(KitWish.kit_item_id.in_(gone_ids)).delete(synchronize_session=False)
+        db.query(KitItem).filter(KitItem.id.in_(gone_ids)).delete(synchronize_session=False)
     db.commit()
     (UPLOAD_DIR / gone.rsplit("/", 1)[-1]).unlink(missing_ok=True)
     return {"kit_photos": photos}
