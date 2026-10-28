@@ -645,3 +645,9 @@ begin
     alter table events add constraint events_format_check check (format in ('crawl', 'workshop', 'symposium', 'festival'));
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- A spatial index on where sketches were made (October 28, 2026): Explore's
+-- map, Home's "near you" and an event's participants' work (made within
+-- 5 or 25 km) all search by place. Safe to run again.
+create index if not exists sketches_location on sketches using gist (location);

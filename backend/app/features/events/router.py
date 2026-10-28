@@ -40,7 +40,7 @@ from geoalchemy2 import Geometry
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.shape import to_shape
 from PIL import Image, ImageOps
-from sqlalchemy import and_, cast, exists, false, func, literal_column, or_, select, text
+from sqlalchemy import and_, case, cast, exists, false, func, literal_column, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -90,14 +90,38 @@ def _follows(db: Session, viewer: str | None) -> set[str]:
     return {f for (f,) in db.query(Follow.followed_id).filter(Follow.follower_id == viewer).all()}
 
 
+# A tagged sketch joins an event only if it was made there and then
+# (October 28, 2026): the photo's time (or, without one, when the sketch was
+# made) from a day before the start to a day after the end, a day either
+# side for time zones (EXIF times carry none) and sketches finished at home;
+# and, when the sketch has a place, within 5 km of a meet-up or 25 km of an
+# organised event (a festival spreads across a city). The hashtag index
+# finds the few candidates first; these checks run on those only.
+TAG_SLACK = timedelta(days=1)
+TAG_KM = {"meetup": 5, "organised": 25}
+
+
+def made_at_event(event_starts, event_ends, event_location, radius_m):
+    """SQL conditions on Sketch for one event, or (with column arguments)
+    for a join against events."""
+    when = func.coalesce(Sketch.captured_at, Sketch.created_at)
+    return and_(
+        when >= event_starts - TAG_SLACK,
+        when <= event_ends + TAG_SLACK,
+        or_(Sketch.location.is_(None), func.ST_DWithin(Sketch.location, event_location, radius_m)),
+    )
+
+
 def _has_sketches(db: Session, event_ids: list[str]) -> set[str]:
-    """Events with at least one shared sketch carrying their hashtag."""
+    """Events with at least one shared sketch made there with their hashtag."""
     if not event_ids:
         return set()
+    radius = case((Event.type == "meetup", TAG_KM["meetup"] * 1000), else_=TAG_KM["organised"] * 1000)
     rows = (db.query(Event.id)
             .join(SketchTag, SketchTag.tag == func.lower(Event.hashtag))
             .join(Sketch, Sketch.id == SketchTag.sketch_id)
-            .filter(Event.id.in_(event_ids), Sketch.final_sketch_url.isnot(None))
+            .filter(Event.id.in_(event_ids), Sketch.final_sketch_url.isnot(None),
+                    made_at_event(Event.starts_at, Event.ends_at, Event.location, radius))
             .distinct().all())
     return {i for (i,) in rows}
 
@@ -495,13 +519,17 @@ def event_page(event_id: str, db: Session = Depends(get_db), viewer: str | None 
 
 
 def event_sketches(db: Session, e: Event, viewer: str | None) -> list[dict]:
-    """The participants' work: shared sketches carrying the hashtag, newest
-    first; the organiser's hidden ones only to the organiser, marked."""
+    """The participants' work: shared sketches carrying the hashtag and made
+    at the event (made_at_event), newest first; the organiser's hidden ones
+    only to the organiser, marked."""
     from app.features.sketches.router import _with_owners, card_query  # the sketches router imports events/tags
     # Whether the organiser hid each one, in the same query.
     hidden_q = exists().where(EventHiddenSketch.event_id == e.id, EventHiddenSketch.sketch_id == Sketch.id)
+    here = to_shape(e.location)
     rows = (card_query(db, hidden_q).join(SketchTag, SketchTag.sketch_id == Sketch.id)
-            .filter(SketchTag.tag == e.hashtag.lower(), visible_filter(viewer), Sketch.final_sketch_url.isnot(None))
+            .filter(SketchTag.tag == e.hashtag.lower(), visible_filter(viewer), Sketch.final_sketch_url.isnot(None),
+                    made_at_event(_aware(e.starts_at), _aware(e.ends_at), _point(here.y, here.x),
+                                  TAG_KM.get(e.type, 25) * 1000))
             .order_by(Sketch.created_at.desc()).limit(200).all())
     is_org = viewer == e.organizer_id
     rows = [(s, h) for s, h in rows if is_org or not h]
