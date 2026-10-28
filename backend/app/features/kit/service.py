@@ -13,13 +13,20 @@ from app.core.gemini_service import call_gemini_json
 
 MAX_TOOLS = 20
 CATEGORIES = ["pen", "ink", "brush", "paper", "sketchbook", "palette", "clips", "easel", "bag", "other"]
+# Near misses the AI sometimes writes, mapped to a category.
+NEAR = {"pencil": "pen", "pencils": "pen", "marker": "pen", "markers": "pen", "fineliner": "pen",
+        "fountain pen": "pen", "gel pen": "pen", "crayon": "pen", "pastel": "pen",
+        "paint": "palette", "paints": "palette", "watercolour": "palette", "watercolor": "palette",
+        "tube": "palette", "tubes": "palette", "journal": "sketchbook", "notebook": "sketchbook",
+        "pad": "paper", "clip": "clips", "tripod": "easel", "pouch": "bag", "case": "bag"}
 
 PROMPT = """# Role & Task
 You are looking at one photo of an urban sketcher's kit: the tools spread out on a table, or an open bag. List the sketching tools you can see, and where each one is. You only identify tools. You never judge the kit or suggest buying anything.
 
 # What to list
-- Look over the whole photo, corner to corner, before you answer. List up to 20 entries, the most clearly visible first.
-- A cup, case, tin or roll holding several similar tools is one entry, pinned on the group: "coloured pencils", "brushes, 5", "acrylic markers, 6". A tool lying on its own is its own entry.
+- Look over the whole photo, corner to corner, before you answer: the middle, the edges and the corners. A flat lay or an open bag usually holds 10 to 20 tools. List each one you can see, the small ones too: pens, fountain pens, gel pens, fineliners, pencils, markers, brushes, ink bottles, paint tubes, an eraser, a sharpener, clips. Do not stop at the biggest few.
+- List up to 20 entries, the most clearly visible first.
+- A cup, case, tin or roll holding several similar tools is one entry, pinned on the group: "coloured pencils", "brushes, 5", "acrylic markers, 6". Several similar tools lying loose side by side are one entry too ("gel pens, 8"). A tool lying on its own is its own entry.
 - `category`, exactly one of:
   - `pen`: pens, fountain pens, fineliners, brush pens, dip pens, pencils, coloured pencils, markers, crayons, pastels.
   - `ink`: bottles or cartridges of ink.
@@ -82,19 +89,36 @@ def read_kit(image: Image.Image) -> list[dict]:
     """The tools in the photo: [{category, label, note, x, y}], x and y the
     tool's centre from 0 to 1, from the top left."""
     result = call_gemini_json(PROMPT, SCHEMA, image, mock_name="kit_reading")
-    print(f"[kit] the AI listed {len(result.get('tools') or [])} things")
-    tools = []
-    for t in (result.get("tools") or [])[:MAX_TOOLS]:
-        box = t.get("box_2d") or []
+    listed = result.get("tools") or []
+    tools, dropped = [], 0
+    for t in listed[:MAX_TOOLS]:
         label = " ".join(str(t.get("label") or "").split())[:80]
-        if t.get("category") not in CATEGORIES or not label or len(box) != 4:
+        # Forgiving: an odd category becomes "other", and a box with extra
+        # numbers keeps its first four. Only an entry with no name, or no
+        # place to pin it, is left out.
+        category = str(t.get("category") or "").strip().lower()
+        category = NEAR.get(category, category.rstrip("s") if category.rstrip("s") in CATEGORIES else category)
+        if category not in CATEGORIES:
+            category = "other"
+        try:
+            box = [int(float(v)) for v in (t.get("box_2d") or [])][:4]
+        except (TypeError, ValueError):
+            box = []
+        if not label or len(box) != 4:
+            dropped += 1
             continue
-        ymin, xmin, ymax, xmax = (max(0, min(1000, int(v))) for v in box)
+        ymin, xmin, ymax, xmax = (max(0, min(1000, v)) for v in box)
+        if ymin > ymax:
+            ymin, ymax = ymax, ymin
+        if xmin > xmax:
+            xmin, xmax = xmax, xmin
         tools.append({
-            "category": t["category"],
+            "category": category,
             "label": label,
             "note": _note(t),
             "x": round((xmin + xmax) / 2000, 3),
             "y": round((ymin + ymax) / 2000, 3),
         })
+    print(f"[kit] the AI listed {len(listed)} things; kept {len(tools)}"
+          + (f", left out {dropped} with no name or box" if dropped else ""))
     return tools
