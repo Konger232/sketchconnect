@@ -1326,6 +1326,17 @@ COUNTRIES = {
 }
 
 
+MERGE_KM = 30  # a place this close to a bigger one joins its pill
+
+
+def _km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Distance on the earth, in km (haversine)."""
+    import math
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    a = math.sin((p2 - p1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(math.radians(lon2 - lon1) / 2) ** 2
+    return 12742 * math.asin(math.sqrt(a))
+
+
 # The place pills change slowly: 5 minutes per viewer (what they may see
 # depends on whom they follow).
 PLACES_CACHE = TTLCache(seconds=300)
@@ -1382,11 +1393,29 @@ def explore_places(
             p[kind] += 1
             p["lats"].append(lat)
             p["lons"].append(lon)
-    top = sorted(places.values(), key=lambda p: -p["count"])[: max(1, min(limit, 10))]
+    # Suburbs join their city: a place whose centre is within MERGE_KM of a
+    # bigger one counts toward it ("Pak Kret City Municipality" into
+    # Bangkok), since place names stop at the district or the municipality.
+    def centre(p):
+        return sum(p["lats"]) / len(p["lats"]), sum(p["lons"]) / len(p["lons"])
+
+    merged: list[dict] = []
+    for p in sorted(places.values(), key=lambda p: -p["count"]):
+        lat, lon = centre(p)
+        home = next((m for m in merged if _km(lat, lon, *centre(m)) <= MERGE_KM), None)
+        if home is None:
+            merged.append(p)
+            continue
+        for k in ("count", "sketches", "events"):
+            home[k] += p[k]
+        home["lats"] += p["lats"]
+        home["lons"] += p["lons"]
+
+    top = sorted(merged, key=lambda p: -p["count"])[: max(1, min(limit, 10))]
     out = []
     for p in top:
         s, n, w, e = min(p["lats"]), max(p["lats"]), min(p["lons"]), max(p["lons"])
-        pad = 0.01  # about a kilometre, so a single sketch is not a point
+        pad = 0.05  # about 5 km, so the map shows the area around them, not a point
         out.append({"label": p["label"], "count": p["count"], "sketches": p["sketches"], "events": p["events"],
                     "lat": (s + n) / 2, "lon": (w + e) / 2,
                     "bbox": [s - pad, n + pad, w - pad, e + pad]})
