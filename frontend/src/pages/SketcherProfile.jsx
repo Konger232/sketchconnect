@@ -46,7 +46,7 @@ export default function SketcherProfile({ username: usernameProp }) {
   const [page, setPage] = useState(null)
   const [sketches, setSketches] = useState([])
   const [error, setError] = useState(null)
-  const [panel, setPanel] = useState(null) // 'profile' | 'kit' | 'palette' | 'admired' | 'followers'
+  const [panel, setPanel] = useState(null) // 'profile' | 'kit' | 'palette' | 'admired' | 'followers' | 'following'
   const [place, setPlace] = useState(null)
   const [filter, setFilter] = useState('') // the search bar over the sketches
   const [bagPhoto, setBagPhoto] = useState(0) // the bag photo shown
@@ -173,7 +173,9 @@ export default function SketcherProfile({ username: usernameProp }) {
       <button type="button" className="whitespace-nowrap hover:underline" onClick={() => setPanel('followers')}>
         {page.stats.followers} {page.stats.followers === 1 ? 'follower' : 'followers'}
       </button>
-      <span className="whitespace-nowrap">{page.stats.following} following</span>
+      <button type="button" className="whitespace-nowrap hover:underline" onClick={() => setPanel('following')}>
+        {page.stats.following} following
+      </button>
     </div>
   )
 
@@ -203,7 +205,7 @@ export default function SketcherProfile({ username: usernameProp }) {
       {panel === 'admired' && (
         <AdmiredPanel list={page.admired || []} onClose={() => setPanel(null)} onChange={(list) => setPage((p) => ({ ...p, admired: list }))} />
       )}
-      {panel === 'followers' && <FollowersPanel username={page.username} onClose={() => setPanel(null)} />}
+      {(panel === 'followers' || panel === 'following') && <FollowersPanel username={page.username} mode={panel} onClose={() => setPanel(null)} />}
     </>
   )
 

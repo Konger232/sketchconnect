@@ -6,6 +6,7 @@ final sketch (item 30), and only shared sketches take likes and comments.
 
 POST/DELETE /api/sketchers/{username}/follow     follow or unfollow
 GET         /api/sketchers/{username}/followers  who follows them, newest first
+GET         /api/sketchers/{username}/following  whom they follow, newest first
 POST/DELETE /api/sketches/{sketch_id}/like     like or unlike
 GET         /api/sketches/{sketch_id}/comments oldest first
 POST        /api/sketches/{sketch_id}/comments add one (1 to 1000 characters)
@@ -19,7 +20,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import exists, false, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
 from app.core.database import get_db
@@ -91,6 +92,22 @@ async def followers(username: str, db: Session = Depends(get_db)):
         db.query(Profile)
         .join(Follow, Follow.follower_id == Profile.id)
         .filter(Follow.followed_id == target.id)
+        .order_by(Follow.created_at.desc())
+        .limit(200)
+        .all()
+    )
+    return [person(p) for p in rows]
+
+
+@router.get("/sketchers/{username}/following")
+async def following(username: str, db: Session = Depends(get_db)):
+    """Whom a sketcher follows, newest first: one query."""
+    target = aliased(Profile)
+    rows = (
+        db.query(Profile)
+        .join(Follow, Follow.followed_id == Profile.id)
+        .join(target, target.id == Follow.follower_id)
+        .filter(target.username == username.strip().lstrip("@").lower())
         .order_by(Follow.created_at.desc())
         .limit(200)
         .all()
