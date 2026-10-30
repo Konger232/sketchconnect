@@ -5,6 +5,7 @@ import SketchListMapView from '../components/common/SketchListMapView'
 import { useGeolocation } from '../lib/useGeolocation'
 import { api } from '../lib/api'
 import { dateLabel, imageUrl } from '../lib/media'
+import { sketchDate } from '../lib/sketchDate'
 
 // What SketchConnect does, for visitors (design doc: core flow and the
 // Sketcher to Sketcher expansion). The first three get a picture each.
@@ -139,7 +140,7 @@ export default function VisitorHome() {
     id: s.id,
     title: s.title,
     place: s.location?.label,
-    date: dateLabel(s.created_at),
+    date: dateLabel(sketchDate(s)),
     lat: s.location?.lat,
     lon: s.location?.lon,
     image: imageUrl(s.final_sketch_url || s.reference_image_url),

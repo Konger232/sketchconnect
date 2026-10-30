@@ -234,7 +234,16 @@ export default function Explore() {
       .then(({ data }) => setTopPlaces(data)).catch(() => setTopPlaces([]))
   }, [mine])
 
-  const pins = useMemo(() => sketches.filter((s) => s.location), [sketches])
+  // Explore is about where: the list runs nearest first, from the middle of
+  // the map (which starts at the sketcher's location). Every other list is
+  // latest to oldest (October 30, 2026).
+  const pins = useMemo(() => {
+    const located = sketches.filter((s) => s.location)
+    if (!bounds) return located
+    const c = bounds.getCenter()
+    const away = (s) => (s.location.lat - c.lat) ** 2 + ((s.location.lon - c.lng) * Math.cos((c.lat * Math.PI) / 180)) ** 2
+    return [...located].sort((a, b) => away(a) - away(b))
+  }, [sketches, bounds])
   const shownEvents = mine ? [] : events // My sketches Only is sketches by nature
 
   const pills = (

@@ -5,6 +5,7 @@ import Icon from './Icon'
 import SketchCard, { RATIOS } from './SketchCard'
 import LocationMap from './LocationMap'
 import LocationSearchField from './LocationSearchField'
+import { sketchDate } from '../../lib/sketchDate'
 
 /**
  * GRID / MAP tabs over a list of sketches (design handoff,
@@ -34,8 +35,13 @@ const COLS = { 2: 'md:grid-cols-2', 3: 'md:grid-cols-3', 4: 'md:grid-cols-4' }
 const CARD_W = 220
 const CARD_H = 340 // image 4:5 at 220 px, plus the caption
 
+const stamp = (it) => {
+  const t = Date.parse(sketchDate(it.sketch) || '')
+  return Number.isNaN(t) ? 0 : t
+}
+
 export default function SketchListMapView({
-  items = [],
+  items: given = [],
   view: initialView = 'grid',
   pinMode = 'sketch',
   center,
@@ -45,6 +51,9 @@ export default function SketchListMapView({
   onPlaceSelect,
   searchPlaces = false,
 }) {
+  // Always latest to oldest, by the sketch's date (lib/sketchDate.js),
+  // whatever order the page passed in (October 30, 2026).
+  const items = useMemo(() => [...given].sort((a, b) => stamp(b) - stamp(a)), [given])
   const [view, setView] = useState(initialView)
   const [picked, setPicked] = useState(null) // { key, x, y }
   const [focus, setFocus] = useState(null) // a place picked in the search over the map
