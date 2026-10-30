@@ -116,14 +116,17 @@ def list_sketcher_sketches(
     if not is_owner:
         q = q.filter(visible_filter(viewer_id))
     rows = q.order_by(SHOWN_AT.desc()).all()
-    from app.features.sketches.router import upload_counts
+    from app.features.sketches.router import place_names, upload_counts
     uploads = upload_counts(db, [s.id for s, _, _ in rows]) if is_owner else {}
+    # The place circles: grouped like Explore's pills (Pak Kret -> Bangkok).
+    cards = [(s, _sketch_card(s)) for s, _, _ in rows]
+    places = place_names(db, viewer_id, [(s.id, s.location_label, (d["location"] or {}).get("lat"), (d["location"] or {}).get("lon"))
+                                         for s, d in cards])
     out = []
-    for s, likes, comments in rows:
-        d = _sketch_card(s)
+    for (s, likes, comments), (_, d) in zip(rows, cards):
         d["shared"] = s.final_sketch_url is not None
         d["upload_count"] = uploads.get(s.id, 0)
-        d["place"] = _city(s.location_label)
+        d["place"] = places.get(s.id) or _city(s.location_label)
         d["like_count"] = likes or 0
         d["comment_count"] = comments or 0
         out.append(d)

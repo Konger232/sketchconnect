@@ -1346,6 +1346,55 @@ COUNTRIES = {
 MERGE_KM = 30  # a place this close to a bigger one joins its pill
 
 
+def city_of(label: str | None) -> str:
+    """The city in a place name: its last part, countries dropped
+    ("Pak Kret City Municipality, Thailand" -> "Pak Kret City Municipality")."""
+    parts = [x.strip() for x in (label or "").split(",") if x.strip()]
+    while len(parts) > 1 and parts[-1] in COUNTRIES:
+        parts.pop()
+    return parts[-1] if parts else ""
+
+
+def place_names(db: Session, viewer_id: str | None, points: list[tuple]) -> dict:
+    """{key: place} for a sketcher's page, grouped as Explore's pills are
+    (October 30, 2026): by city, a city within MERGE_KM of a bigger one
+    joining it, and named after the pill everyone sees nearby ("Bangkok").
+    points: [(key, label, lat, lon)], lat and lon may be None."""
+    groups: dict[str, dict] = {}
+    for key, label, lat, lon in points:
+        city = city_of(label)
+        if not city:
+            continue
+        g = groups.setdefault(city.lower(), {"label": city, "keys": [], "lats": [], "lons": []})
+        g["keys"].append(key)
+        if lat is not None and lon is not None:
+            g["lats"].append(lat)
+            g["lons"].append(lon)
+
+    def centre(g):
+        return (sum(g["lats"]) / len(g["lats"]), sum(g["lons"]) / len(g["lons"])) if g["lats"] else None
+
+    merged: list[dict] = []
+    for g in sorted(groups.values(), key=lambda g: (-len(g["keys"]), len(g["label"]))):
+        c = centre(g)
+        home = next((m for m in merged if c and centre(m) and _km(*c, *centre(m)) <= MERGE_KM), None)
+        if home is None:
+            merged.append(g)
+            continue
+        home["keys"] += g["keys"]
+        home["lats"] += g["lats"]
+        home["lons"] += g["lons"]
+    everyone = explore_places(limit=10, mine=False, db=db, viewer_id=viewer_id)
+    out = {}
+    for m in merged:
+        c = centre(m)
+        near = min(everyone, key=lambda e: _km(*c, e["lat"], e["lon"]), default=None) if c else None
+        name = near["label"] if near and _km(*c, near["lat"], near["lon"]) <= MERGE_KM else m["label"]
+        for k in m["keys"]:
+            out[k] = name
+    return out
+
+
 def _km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Distance on the earth, in km (haversine)."""
     import math
