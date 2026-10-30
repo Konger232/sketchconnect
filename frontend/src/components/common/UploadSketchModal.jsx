@@ -50,6 +50,10 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
   const sheet = useSheetDrag(sheetOpen, setSheetOpen)
   const libraryRef = useRef(null)
   const cameraRef = useRef(null)
+  // A phone or tablet opens its camera; a computer has none to shoot with,
+  // so its photo picker opens instead, where several can be chosen at once.
+  const touch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
+  const takePhoto = () => (touch ? cameraRef : libraryRef).current?.click()
   const pickRef = useRef(0)
 
   useEffect(() => {
@@ -162,7 +166,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
   return (
     <SketchModal title={upload ? 'Make it the final sketch' : 'Upload sketch'} onClose={onClose}>
       <input ref={libraryRef} type="file" accept="image/*,.heic" multiple onChange={pickFiles} className="hidden" />
-      <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={pickFiles} className="hidden" />
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" multiple onChange={pickFiles} className="hidden" />
 
       {/* Left: the photo stage, the same strip as Edit Sketch. Before a
           photo is picked, New Sketch's dropzone. key: a new photo remounts
@@ -173,8 +177,8 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
         <div className="relative flex min-h-[55vh] flex-1 flex-col bg-sc-modal md:min-h-0">
           <PhotoDropzone
             title="Photograph your sketch"
-            text="Flat and in focus. Crop out your hand and the table. Several photos? Pick them all from your library."
-            onClick={() => cameraRef.current?.click()}
+            text={touch ? 'Flat and in focus. Crop out your hand and the table. Several photos? Pick them all from your library.' : 'Flat and in focus. Choose one photo or several: hold ⌘ (Ctrl on Windows) to pick more than one.'}
+            onClick={takePhoto}
           />
         </div>
       )}
@@ -250,7 +254,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
         </div>
         <div className="sc-footer">
           {!upload && shown && (
-            <Button variant="secondaryOnDark" className="mr-auto" onClick={() => cameraRef.current?.click()} disabled={sending || n >= room}>Take another</Button>
+            <Button variant="secondaryOnDark" className="mr-auto" onClick={takePhoto} disabled={sending || n >= room}>{touch ? 'Take another' : 'Add more'}</Button>
           )}
           {!upload && !shown && (
             <Button variant="secondaryOnDark" className="mr-auto" onClick={() => libraryRef.current?.click()}>From library</Button>
