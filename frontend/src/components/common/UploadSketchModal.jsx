@@ -6,6 +6,7 @@ import PhotoDropzone from './PhotoDropzone'
 import AdmiredPanel from './AdmiredPanel'
 import { api } from '../../lib/api'
 import { previewUrl } from '../../lib/previewUrl'
+import { imageUrl as mediaUrl } from '../../lib/media'
 import { useSheetDrag } from '../../lib/useSheetDrag'
 import RightsNote from './RightsNote'
 
@@ -13,10 +14,12 @@ import RightsNote from './RightsNote'
  * Upload sketch (design doc, item 38): the black modal from New Sketch,
  * with only the upload. Opened from the SketchDetail page by the owner.
  *
- * Several photos at once (October 30, 2026): pick them, put them in order
- * (drag on a computer, the arrows on a phone; they start in the order they
- * were taken), remove any, and mark one as the final if it is done. One
- * send uploads the set (POST /uploads/batch).
+ * Several photos at once (October 30, 2026): the uploads already on the
+ * sketch come first, then the new ones; put them in order (drag on a
+ * computer, the arrows on a phone; new ones start in the order they were
+ * taken), remove any, and mark one as the final. Save then: uploads the new
+ * photos (POST /uploads/batch), makes an existing one the final if you
+ * picked it, deletes the removed ones, and saves the order (PUT /order).
  *
  *   Progress sketch  added to the sketch's uploads. No feedback.
  *   Final sketch     shares the sketch and asks the SketchConnect coach for
@@ -34,13 +37,17 @@ const MAX_UPLOADS = 10 // features/sketches/router.py MAX_SKETCH_UPLOADS
 export default function UploadSketchModal({ sketch, upload = null, imageUrl, onClose, onDone }) {
   const hasFinal = Boolean(sketch.final_sketch_url)
   const pending = sketch.critique_status === 'pending'
-  const room = MAX_UPLOADS - (sketch.uploads?.length || 0) // a sketch holds up to 10 uploads
-  const [photos, setPhotos] = useState([]) // [{ key, file, preview }], in the sketcher's order
+  // The uploads already on the sketch, in their order: { key, uploadId, preview }.
+  const existing = (sketch.uploads || []).map((u) => ({ key: `u-${u.id}`, uploadId: u.id, preview: mediaUrl(u.url), isFinal: u.is_final }))
+  const startFinal = existing.find((p) => p.isFinal)?.key || null
+  const room = MAX_UPLOADS // a sketch holds up to 10 uploads, these included
+  const [photos, setPhotos] = useState(existing) // existing and new ({ key, file, preview }), in order
   const [shownKey, setShownKey] = useState(null) // the photo on the stage
-  const [finalKey, setFinalKey] = useState(null) // the photo marked final, or none
+  const [finalKey, setFinalKey] = useState(startFinal) // the photo marked final, or none
   const [dragKey, setDragKey] = useState(null)
   const [note, setNote] = useState(null) // e.g. "Only 3 more fit"
-  const kind = upload || finalKey ? 'final' : 'progress'
+  // A new final (a new photo, or another existing one) asks for feedback.
+  const kind = upload || (finalKey && finalKey !== startFinal) ? 'final' : 'progress'
   const [admired, setAdmired] = useState([]) // the sketchers you admire: they shape the coach's feedback
   const [sending, setSending] = useState(false)
   const [editingAdmired, setEditingAdmired] = useState(false) // the white Admired sketchers panel, over this modal
@@ -61,7 +68,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
   }, [])
   const photosRef = useRef(photos)
   photosRef.current = photos
-  useEffect(() => () => photosRef.current.forEach((p) => URL.revokeObjectURL(p.preview)), [])
+  useEffect(() => () => photosRef.current.forEach((p) => { if (p.file) URL.revokeObjectURL(p.preview) }), [])
 
   // Add the picked photos after the ones already in the set, oldest first
   // (a photo's file time is when it was taken, for camera-roll photos).
@@ -116,7 +123,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
   function remove(key) {
     setPhotos((list) => {
       const gone = list.find((p) => p.key === key)
-      if (gone) URL.revokeObjectURL(gone.preview)
+      if (gone?.file) URL.revokeObjectURL(gone.preview)
       const next = list.filter((p) => p.key !== key)
       if (shownKey === key) setShownKey(next[next.length - 1]?.key || null)
       return next
@@ -126,7 +133,9 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
   }
   // One final at most, and it goes to the end of the set.
   function toggleFinal(key) {
-    if (finalKey === key) return setFinalKey(null)
+    // The shared final stays until another is marked: unmarking it would
+    // unshare the sketch (remove it for that).
+    if (finalKey === key) return key === startFinal ? undefined : setFinalKey(startFinal && photos.some((p) => p.key === startFinal) ? startFinal : null)
     setFinalKey(key)
     setPhotos((list) => [...list.filter((p) => p.key !== key), list.find((p) => p.key === key)])
   }
@@ -139,11 +148,30 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
       if (upload) {
         ;({ data } = await api.post(`/api/sketches/${sketch.id}/uploads/${upload.id}/final`, {}))
       } else {
-        const form = new FormData()
-        photos.forEach((p) => form.append('images', p.file))
-        const fin = photos.findIndex((p) => p.key === finalKey)
-        if (fin >= 0) form.append('final_index', String(fin))
-        ;({ data } = await api.post(`/api/sketches/${sketch.id}/uploads/batch`, form))
+        const base = `/api/sketches/${sketch.id}/uploads`
+        const ids = Object.fromEntries(photos.filter((p) => p.uploadId).map((p) => [p.key, p.uploadId]))
+        // 1. The new photos, after the existing ones; a new final shares now.
+        const fresh = photos.filter((p) => p.file)
+        if (fresh.length) {
+          const form = new FormData()
+          fresh.forEach((p) => form.append('images', p.file))
+          const fin = fresh.findIndex((p) => p.key === finalKey)
+          if (fin >= 0) form.append('final_index', String(fin))
+          ;({ data } = await api.post(`${base}/batch`, form))
+          const before = new Set(existing.map((p) => p.uploadId))
+          const added = (data?.uploads || []).filter((u) => !before.has(u.id)).map((u) => u.id)
+          fresh.forEach((p, i) => { ids[p.key] = added[i] })
+        }
+        // 2. Another existing photo as the final.
+        const pick = photos.find((p) => p.key === finalKey)
+        if (pick?.uploadId && finalKey !== startFinal) ({ data } = await api.post(`${base}/${pick.uploadId}/final`, {}))
+        // 3. The ones removed from the list.
+        for (const p of existing.filter((e) => !photos.some((x) => x.key === e.key))) {
+          ;({ data } = await api.delete(`${base}/${p.uploadId}`))
+        }
+        // 4. The order, when there is more than one.
+        const order = photos.map((p) => ids[p.key]).filter(Boolean)
+        if (order.length > 1) ({ data } = await api.put(`${base}/order`, { ids: order }))
       }
       onDone?.(data)
     } catch (err) {
@@ -155,13 +183,16 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
 
   const shownPhoto = photos.find((p) => p.key === shownKey) || photos[photos.length - 1]
   const shown = upload ? imageUrl : shownPhoto?.preview
-  const ready = upload || photos.length > 0
+  const changed = photos.length !== existing.length || photos.some((p, i) => p.key !== existing[i]?.key) || finalKey !== startFinal
+  const ready = upload || (photos.length > 0 && changed)
   const finalBlocked = pending && kind === 'final'
   const n = photos.length
-  const submitLabel = sending ? 'Uploading…'
+  const nNew = photos.filter((p) => p.file).length
+  const submitLabel = sending ? 'Saving…'
     : upload ? 'Share and get feedback'
-    : n <= 1 ? (finalKey ? 'Share and get feedback' : 'Add progress sketch')
-    : finalKey ? `Upload ${n} and share the final` : `Add ${n} progress sketches`
+    : !nNew ? (kind === 'final' ? 'Save and get feedback' : 'Save')
+    : kind === 'final' ? (nNew === 1 ? 'Add and share the final' : `Add ${nNew} and share the final`)
+    : nNew === 1 ? 'Add progress sketch' : `Add ${nNew} progress sketches`
 
   return (
     <SketchModal title={upload ? 'Make it the final sketch' : 'Upload sketch'} onClose={onClose}>
@@ -203,6 +234,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
             <div className="flex flex-col gap-2">
               <p className="text-md text-sc-text2">
                 {n === 1 ? 'Your photo.' : `${n} photos, in order.`} {n > 1 ? 'Drag to reorder, or use the arrows. ' : ''}Use Mark as final on the finished sketch to share it and get feedback.
+                {existing.length > 0 && ' Photos marked New are not uploaded yet.'}
               </p>
               <ol className="m-0 flex list-none flex-col gap-1.5 p-0">
                 {photos.map((p, i) => {
@@ -214,6 +246,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
                       <button type="button" onClick={() => setShownKey(p.key)} className="shrink-0" aria-label={`Show photo ${i + 1}`}>
                         <img src={p.preview} alt="" className="h-12 w-12 cursor-grab rounded object-cover" draggable={false} />
                       </button>
+                      {p.file && <span className="rounded bg-white/15 px-1.5 py-0.5 text-3xs font-bold uppercase tracking-wider text-white">New</span>}
                       <button type="button" onClick={() => toggleFinal(p.key)} aria-pressed={isFinal}
                         className={`rounded-full border px-2.5 py-1 text-xs font-bold ${isFinal ? 'border-sc-action bg-sc-action text-sc-action-ink' : 'border-white/30 text-white hover:bg-white/10'}`}>
                         {isFinal ? 'Final ✓' : 'Mark as final'}
@@ -231,7 +264,8 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
                 <button type="button" onClick={() => libraryRef.current?.click()} className="self-start text-sm font-semibold text-white underline">+ Add more photos</button>
               )}
               {note && <p className="text-sm text-sc-text3">{note}</p>}
-              {hasFinal && finalKey && <p className="text-sm text-sc-text3">The new final replaces your final sketch, shares it and asks for new feedback.</p>}
+              {hasFinal && finalKey && finalKey !== startFinal && <p className="text-sm text-sc-text3">The new final replaces your final sketch and asks for new feedback.</p>}
+              {startFinal && !photos.some((p) => p.key === startFinal) && <p className="text-sm text-sc-text3">Removing the final unshares the sketch. Its feedback stays.</p>}
             </div>
           )}
           {upload && <p className="text-md text-sc-text2">This shares the sketch publicly and asks for feedback on it.</p>}
@@ -249,7 +283,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
               <RightsNote dark />
             </div>
           )}
-          {finalBlocked && <p className="text-base text-sc-text3">Feedback on your last final sketch is still on its way. Add these as progress sketches now (unmark Final), or wait a minute.</p>}
+          {finalBlocked && <p className="text-base text-sc-text3">Feedback on your last final sketch is still on its way. Save these as progress sketches now, or wait a minute.</p>}
           {error && <p className="text-base text-accent">{error}</p>}
         </div>
         <div className="sc-footer">
