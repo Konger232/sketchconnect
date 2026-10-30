@@ -39,8 +39,8 @@ export default function EventDetail() {
     .catch((err) => setError(err.response?.status === 404 ? 'This event is not here any more.' : 'Could not load the event.'))
   useEffect(() => { load() }, [eventId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (error) return <BasePage><PageMessage>{error}</PageMessage></BasePage>
-  if (!e) return <BasePage><PageMessage muted>Loading…</PageMessage></BasePage>
+  if (error) return <PageMessage>{error}</PageMessage>
+  if (!e) return <PageMessage muted>Loading…</PageMessage>
 
   const past = new Date(e.ends_at) < new Date()
   const pageUrl = `${window.location.origin}/events/${e.id}`
