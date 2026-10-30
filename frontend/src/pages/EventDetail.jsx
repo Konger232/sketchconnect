@@ -8,7 +8,7 @@ import ConfirmDialog from '../components/common/ConfirmDialog'
 import EventSetupPanel from '../components/common/EventSetupPanel'
 import Icon from '../components/common/Icon'
 import LocationMap from '../components/common/LocationMap'
-import SketchCard from '../components/common/SketchCard'
+import SketchListMapView from '../components/common/SketchListMapView'
 import { useAuth } from '../components/common/AuthContext'
 import { api } from '../lib/api'
 import { imageUrl } from '../lib/media'
@@ -221,18 +221,22 @@ export default function EventDetail() {
       <section className="ed-section">
         <h2 className="ed-kicker m-0">{past ? 'Sketches from the event' : "Participants' work"} · {e.sketches.length}</h2>
         {e.sketches.length === 0 && <p className="m-0 text-sm text-ink/60">No sketches yet. Add #{e.hashtag} to a sketch's title or notes to show it here.</p>}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-6 md:grid-cols-3">
-          {e.sketches.map((s) => (
-            <div key={s.id} className={`flex flex-col gap-1 ${s.hidden_from_event ? 'opacity-50' : ''}`}>
-              <SketchCard sketch={s} />
-              {e.is_organizer && (
-                <button type="button" className="self-start text-xs text-ink/60 underline" onClick={() => toggleHidden(s)}>
-                  {s.hidden_from_event ? 'Show on the event page' : 'Hide from the event page'}
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
+        {/* Grid and Map: where everyone sketched, around the meeting point
+            and inside the area that counts as at the event (5 or 25 km). */}
+        {e.sketches.length > 0 && (
+          <SketchListMapView
+            items={e.sketches.map((s) => ({
+              id: s.id, title: s.title, place: s.location?.label, lat: s.location?.lat, lon: s.location?.lon,
+              image: imageUrl(s.final_sketch_url || s.reference_image_url), sketch: s, dim: s.hidden_from_event,
+            }))}
+            center={{ lat: e.location.lat, lon: e.location.lon, radius: (e.type === 'meetup' ? 5 : 25) * 1000 }}
+            below={e.is_organizer ? (it) => (
+              <button type="button" className="self-start text-xs text-ink/60 underline" onClick={() => toggleHidden(it.sketch)}>
+                {it.sketch.hidden_from_event ? 'Show on the event page' : 'Hide from the event page'}
+              </button>
+            ) : undefined}
+          />
+        )}
       </section>
 
       <Comments base={`/api/events/${e.id}`} removeBase="/api/event-comments" viewer={!user ? 'visitor' : e.is_organizer ? 'owner' : 'member'} userId={user?.id}

@@ -27,6 +27,8 @@ import { sketchDate } from '../../lib/sketchDate'
  *              differ.
  *   onPlaceSelect(place)  (unused on the map since it works like Explore)
  *   searchPlaces          a place search over the map, to move it (Home)
+ *   below(item)           grid only: something under each card (the event
+ *                         organiser's hide / show); item.dim fades the card
  *
  * Map: the same as Explore's (October 30, 2026): the mouse wheel zooms,
  * each sketch is its sketcher's avatar pin, pins that overlap become a
@@ -51,6 +53,7 @@ export default function SketchListMapView({
   emptyText = 'No sketches yet.',
   onPlaceSelect,
   searchPlaces = false,
+  below,
 }) {
   // Always latest to oldest, by the sketch's date (lib/sketchDate.js),
   // whatever order the page passed in (October 30, 2026).
@@ -84,7 +87,14 @@ export default function SketchListMapView({
         <div className={`grid grid-cols-2 gap-x-4 gap-y-6 md:gap-x-7 md:gap-y-8 ${COLS[cols] || COLS[3]}`}>
           {items.map((it) => it.sketch ? (
             // A sketch: the shared card, with its status and like.
-            <SketchCard key={it.id} sketch={it.sketch} meta={it.meta} href={it.href} linkState={it.linkState} image={it.image} multi={it.multi} ratio={ratio} />
+            below ? (
+              <div key={it.id} className={`flex flex-col gap-1 ${it.dim ? 'opacity-50' : ''}`}>
+                <SketchCard sketch={it.sketch} meta={it.meta} href={it.href} linkState={it.linkState} image={it.image} multi={it.multi} ratio={ratio} />
+                {below(it)}
+              </div>
+            ) : (
+              <SketchCard key={it.id} sketch={it.sketch} meta={it.meta} href={it.href} linkState={it.linkState} image={it.image} multi={it.multi} ratio={ratio} />
+            )
           ) : (
             <Link key={it.id} to={it.href || `/sketches/${it.id}`} state={it.linkState} className="group flex flex-col gap-2 text-ink no-underline">
               <span className="ed-slide" style={{ aspectRatio: RATIOS[ratio] || RATIOS.square }}>
