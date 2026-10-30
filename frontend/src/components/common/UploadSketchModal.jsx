@@ -202,7 +202,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
           {!upload && n > 0 && (
             <div className="flex flex-col gap-2">
               <p className="text-md text-sc-text2">
-                {n === 1 ? 'Your photo.' : `${n} photos, in order.`} {n > 1 ? 'Drag to reorder, or use the arrows. ' : ''}Mark the finished sketch as Final to share it and get feedback.
+                {n === 1 ? 'Your photo.' : `${n} photos, in order.`} {n > 1 ? 'Drag to reorder, or use the arrows. ' : ''}Use Mark as final on the finished sketch to share it and get feedback.
               </p>
               <ol className="m-0 flex list-none flex-col gap-1.5 p-0">
                 {photos.map((p, i) => {
@@ -216,7 +216,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
                       </button>
                       <button type="button" onClick={() => toggleFinal(p.key)} aria-pressed={isFinal}
                         className={`rounded-full border px-2.5 py-1 text-xs font-bold ${isFinal ? 'border-sc-action bg-sc-action text-sc-action-ink' : 'border-white/30 text-white hover:bg-white/10'}`}>
-                        {isFinal ? 'Final ✓' : 'Final'}
+                        {isFinal ? 'Final ✓' : 'Mark as final'}
                       </button>
                       <span className="ml-auto flex shrink-0 items-center">
                         <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => move(p.key, -1)} className="flex h-8 w-8 items-center justify-center rounded text-white hover:bg-white/10 disabled:opacity-30">↑</button>
