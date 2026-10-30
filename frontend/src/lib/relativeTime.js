@@ -7,5 +7,7 @@ export function relativeTime(dateString) {
   if (days <= 0) return 'Today'
   if (days === 1) return 'Yesterday'
   if (days < 7) return `${days} days ago`
-  return date.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })
+  // Over a week: the date, with the year when it is not this year.
+  const year = date.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}
+  return date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', ...year })
 }
