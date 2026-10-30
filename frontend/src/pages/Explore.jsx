@@ -229,8 +229,10 @@ export default function Explore() {
 
 
   useEffect(() => {
-    api.get('/api/explore/places').then(({ data }) => setTopPlaces(data)).catch(() => setTopPlaces([]))
-  }, [])
+    // With My sketches Only: my places and my counts.
+    api.get('/api/explore/places', { params: mine ? { mine: true } : {} })
+      .then(({ data }) => setTopPlaces(data)).catch(() => setTopPlaces([]))
+  }, [mine])
 
   const pins = useMemo(() => sketches.filter((s) => s.location), [sketches])
   const shownEvents = mine ? [] : events // My sketches Only is sketches by nature
@@ -281,11 +283,12 @@ export default function Explore() {
               <LocationSearchField key={mine ? 'mine' : 'all'} location={place} onLocationChange={choosePlace} withBounds />
             </div>
             <div className="explore-more flex min-h-0 flex-1 flex-col">
-            {/* The most sketched places: a tap takes the map there. */}
+            {/* The most sketched places: a tap takes the map there. With My
+                sketches Only they are my places, and the filter stays on. */}
             {topPlaces.length > 0 && (
               <div className="flex flex-wrap gap-1.5 px-1 pt-2">
                 {topPlaces.map((t) => (
-                  <button key={t.label} type="button" onClick={() => choosePlace({ label: t.label, lat: t.lat, lon: t.lon, bbox: t.bbox })}
+                  <button key={t.label} type="button" onClick={() => (mine ? setPlace : choosePlace)({ label: t.label, lat: t.lat, lon: t.lon, bbox: t.bbox })}
                     aria-pressed={place?.label === t.label}
                     className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
                       place?.label === t.label ? 'border-ink bg-ink text-white' : 'border-ink/20 bg-white text-ink hover:border-ink'

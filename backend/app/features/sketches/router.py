@@ -1345,6 +1345,7 @@ PLACES_CACHE = TTLCache(seconds=300)
 @router.get("/explore/places")
 def explore_places(
     limit: int = 5,
+    mine: bool = False,
     db: Session = Depends(get_db),
     viewer_id: str | None = Depends(get_optional_sketcher_id),
 ):
@@ -1354,15 +1355,22 @@ def explore_places(
     The city is the last part of a sketch's place name ("Gion, Kyoto" ->
     Kyoto), as reverse_geocode writes it, or the part before a country
     ("Sintra, Portugal" -> Sintra).
+
+    With mine (My sketches Only): the viewer's own sketches, drafts too, and
+    no events; each pill takes the name of the city pill everyone sees
+    nearby, so sketches in Pak Kret show under "Bangkok".
     """
-    key = (viewer_id, limit)
+    if mine and not viewer_id:
+        return []
+    key = (viewer_id, limit, mine)
     hit = PLACES_CACHE.get(key)
     if hit is not None:
         return hit
     geom = cast(Sketch.location, Geometry(srid=4326))
+    whose = (Sketch.sketcher_id == viewer_id) if mine else _visible_to(viewer_id)
     rows = (
         db.query(Sketch.location_label, func.ST_Y(geom), func.ST_X(geom))
-        .filter(_visible_to(viewer_id), Sketch.location.isnot(None), Sketch.location_label.isnot(None))
+        .filter(whose, Sketch.location.isnot(None), Sketch.location_label.isnot(None))
         .all()
     )
     # Upcoming events count too: those the viewer would see on the map there
@@ -1376,8 +1384,8 @@ def explore_places(
     if viewer_id:
         seen += [Event.organizer_id == viewer_id,
                  Event.organizer_id.in_(select(Follow.followed_id).where(Follow.follower_id == viewer_id))]
-    events = (db.query(Event.place_name, func.ST_Y(egeom), func.ST_X(egeom))
-              .filter(Event.hidden.is_(False), Event.ends_at >= now, or_(*seen)).all())
+    events = [] if mine else (db.query(Event.place_name, func.ST_Y(egeom), func.ST_X(egeom))
+                              .filter(Event.hidden.is_(False), Event.ends_at >= now, or_(*seen)).all())
 
     places: dict[str, dict] = {}
     for kind, found in (("sketches", rows), ("events", events)):
@@ -1400,7 +1408,7 @@ def explore_places(
         return sum(p["lats"]) / len(p["lats"]), sum(p["lons"]) / len(p["lons"])
 
     merged: list[dict] = []
-    for p in sorted(places.values(), key=lambda p: -p["count"]):
+    for p in sorted(places.values(), key=lambda p: (-p["count"], len(p["label"]))):
         lat, lon = centre(p)
         home = next((m for m in merged if _km(lat, lon, *centre(m)) <= MERGE_KM), None)
         if home is None:
@@ -1410,6 +1418,27 @@ def explore_places(
             home[k] += p[k]
         home["lats"] += p["lats"]
         home["lons"] += p["lons"]
+
+    if mine:
+        # Borrow the names of the pills everyone sees, when one is nearby.
+        everyone = explore_places(limit=10, mine=False, db=db, viewer_id=viewer_id)
+        for m in merged:
+            lat, lon = centre(m)
+            near = min(everyone, key=lambda e: _km(lat, lon, e["lat"], e["lon"]), default=None)
+            if near and _km(lat, lon, near["lat"], near["lon"]) <= MERGE_KM:
+                m["label"] = near["label"]
+        # Two groups that took the same name become one.
+        by_name: dict[str, dict] = {}
+        for m in merged:
+            if m["label"] in by_name:
+                h = by_name[m["label"]]
+                for k in ("count", "sketches", "events"):
+                    h[k] += m[k]
+                h["lats"] += m["lats"]
+                h["lons"] += m["lons"]
+            else:
+                by_name[m["label"]] = m
+        merged = list(by_name.values())
 
     top = sorted(merged, key=lambda p: -p["count"])[: max(1, min(limit, 10))]
     out = []
