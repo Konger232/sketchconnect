@@ -28,6 +28,7 @@ import RightsNote from '../components/common/RightsNote'
 import StyleCheck from '../components/common/StyleCheck'
 import NameHandle from '../components/common/NameHandle'
 import { handle } from '../lib/people'
+import { sketchDate } from '../lib/sketchDate'
 
 const NEARBY_M = 300
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : '')
@@ -120,7 +121,7 @@ export default function SketchDetail() {
     id: n.id,
     title: n.title,
     meta: [n.owner && handle(n.owner), `${n.distance_m} m`].filter(Boolean).join(' · '),
-    date: dateLabel(n.created_at),
+    date: dateLabel(sketchDate(n)),
     lat: n.location?.lat,
     lon: n.location?.lon,
     image: imageUrl(n.final_sketch_url || n.reference_image_url),
@@ -147,7 +148,7 @@ export default function SketchDetail() {
   const shownUpload = uploads.find((u) => u.id === picked) || finalUpload || lastUpload
   const heroImage = final || imageUrl(lastUpload?.url) || reference
   const critiquePending = s.critique_status === 'pending'
-  const when = s.captured_at || s.created_at
+  const when = sketchDate(s)
   const scenePaints = (s.palettes?.scene || []).map(paintById).filter(Boolean)
   const sketchPaints = (s.palettes?.sketch || []).map(paintById).filter(Boolean)
   const latestCritique = viewer === 'owner' ? s.critiques?.[s.critiques.length - 1] : null

@@ -896,6 +896,8 @@ def build(dry_run: bool, me: str | None):
             for pos, url in enumerate(images["pages"]):
                 add(SketchUpload(sketch_id=sketch.id, sketcher_id=uid, url=url, position=pos,
                                  created_at=created + timedelta(hours=pos + 1)))
+            if sketch.final_sketch_url:
+                sketch.final_at = created + timedelta(hours=len(images["pages"]))  # the last page's upload
             if sk["critique"] and sk["stage"] == "complete":
                 c = critique_row(sk, sk["persona"])
                 add(CritiqueResponse(sketch_id=sketch.id, sketcher_id=uid, final_sketch_provided=True,

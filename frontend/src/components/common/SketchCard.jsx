@@ -8,6 +8,7 @@ import { getSketchStatus } from '../../lib/sketchStatus'
 import { imageUrl } from '../../lib/media'
 import { api } from '../../lib/api'
 import { handle } from '../../lib/people'
+import { sketchDate } from '../../lib/sketchDate'
 
 export const RATIOS = { square: '1 / 1', portrait: '4 / 5' }
 
@@ -82,7 +83,7 @@ export default function SketchCard({ sketch, meta, href, linkState, image, multi
                 {getSketchStatus(sketch)}
               </span>
             )}
-            <span className="truncate">{[owner, relativeTime(sketch.created_at)].filter(Boolean).join(' · ')}</span>
+            <span className="truncate">{[owner, relativeTime(sketchDate(sketch))].filter(Boolean).join(' · ')}</span>
           </span>
         </span>
         {shared && (
@@ -133,7 +134,7 @@ export default function SketchCard({ sketch, meta, href, linkState, image, multi
         <span className="-mt-1 flex flex-col gap-1">
           {owner && <span className="text-sm font-semibold text-ink/80">{owner}</span>}
           {sketch.field_notes && <span className="line-clamp-3 text-sm text-ink/70">{sketch.field_notes}</span>}
-          <span className="text-xs text-ink/60">{[sketch.location?.label, relativeTime(sketch.created_at)].filter(Boolean).join(' · ')}</span>
+          <span className="text-xs text-ink/60">{[sketch.location?.label, relativeTime(sketchDate(sketch))].filter(Boolean).join(' · ')}</span>
         </span>
       )}
     </Link>

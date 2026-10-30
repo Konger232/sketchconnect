@@ -651,3 +651,15 @@ end $$;
 -- map, Home's "near you" and an event's participants' work (made within
 -- 5 or 25 km) all search by place. Safe to run again.
 create index if not exists sketches_location on sketches using gist (location);
+
+-- ---------------------------------------------------------------------------
+-- When a sketch's final was uploaded (October 30, 2026): a completed sketch
+-- shows and sorts by this date everywhere; a sketch in progress by its
+-- photo's date, else when it was started. Filled in from the uploads for
+-- sketches already completed. Safe to run again.
+alter table sketches add column if not exists final_at timestamp;
+update sketches s set final_at = u.created_at
+  from sketch_uploads u
+  where u.sketch_id = s.id and u.url = s.final_sketch_url and s.final_at is null;
+update sketches set final_at = created_at
+  where final_sketch_url is not null and final_at is null;

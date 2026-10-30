@@ -24,7 +24,7 @@ from app.features.community.router import follow_summary
 from app.features.kit.router import _to_dict as kit_item_to_dict, kit_photos, kit_with_wishes
 from app.features.paints.router import palette_paints
 from app.features.persona.router import admired_list, admired_to_dict
-from app.features.sketches.router import _sketch_card, card_query
+from app.features.sketches.router import SHOWN_AT, _sketch_card, card_query
 from app.core.visibility import visible_filter
 
 router = APIRouter(prefix="/api", tags=["sketchers"])
@@ -115,7 +115,7 @@ def list_sketcher_sketches(
     q = card_query(db, n_likes, n_comments).filter(Sketch.sketcher_id == profile.id)
     if not is_owner:
         q = q.filter(visible_filter(viewer_id))
-    rows = q.order_by(Sketch.created_at.desc()).all()
+    rows = q.order_by(SHOWN_AT.desc()).all()
     from app.features.sketches.router import upload_counts
     uploads = upload_counts(db, [s.id for s, _, _ in rows]) if is_owner else {}
     out = []

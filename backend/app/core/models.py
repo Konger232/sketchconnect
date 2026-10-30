@@ -49,6 +49,7 @@ class Sketch(Base):
 
     reference_image_url = Column(String, nullable=True)
     final_sketch_url = Column(String, nullable=True)
+    final_at = Column(DateTime, nullable=True)  # when the final was uploaded (its upload's time)
     final_sketch_provided = Column(Boolean, default=False)
     # Critique call progress: None (never run) | 'pending' | 'done' | 'failed'.
     # Set by features/critique_agent/router.py, polled by EditSketch.jsx.

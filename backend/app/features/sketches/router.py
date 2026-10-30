@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, Form, HTTPException
 from PIL import Image, ImageOps
 import pillow_heif
-from sqlalchemy import and_, cast, false, func, or_, select
+from sqlalchemy import and_, case, cast, false, func, or_, select
 from sqlalchemy.orm import Session, load_only
 from geoalchemy2 import Geometry
 from geoalchemy2.shape import to_shape
@@ -89,6 +89,8 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
         # Which grid to offer: "grid" (square) or "rule_of_thirds", by style.
         "grid": question_bank.grid_action(s.style),
         "created_at": s.created_at,
+        "final_at": s.final_at,
+        "shown_at": shown_at(s),
         "palettes": s.palettes or {},
         "value_levels": s.value_levels,
         "gamut_mask": s.gamut_mask,
@@ -112,8 +114,21 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
 CARD_COLUMNS = (
     Sketch.id, Sketch.sketcher_id, Sketch.title, Sketch.field_notes, Sketch.style, Sketch.scene_type,
     Sketch.reference_image_url, Sketch.final_sketch_url, Sketch.location, Sketch.location_label,
-    Sketch.captured_at, Sketch.created_at, Sketch.visibility, Sketch.glazed,
+    Sketch.captured_at, Sketch.created_at, Sketch.visibility, Sketch.glazed, Sketch.final_at,
 )
+
+# A sketch's date (October 30, 2026): once completed, when its final was
+# uploaded; while in progress, when its photo was taken, else when it was
+# started. Shown on every card and page, and the order of every list.
+SHOWN_AT = case(
+    (Sketch.final_sketch_url.isnot(None), func.coalesce(Sketch.final_at, Sketch.created_at)),
+    else_=func.coalesce(Sketch.captured_at, Sketch.created_at),
+)
+
+
+def shown_at(s: Sketch):
+    """SHOWN_AT for a loaded sketch."""
+    return (s.final_at or s.created_at) if s.final_sketch_url else (s.captured_at or s.created_at)
 
 
 def card_query(db: Session, *extra):
@@ -138,6 +153,8 @@ def _sketch_card(s: Sketch) -> dict:
         "location": location,
         "captured_at": s.captured_at,
         "created_at": s.created_at,
+        "final_at": s.final_at,
+        "shown_at": shown_at(s),
         "visibility": s.visibility or "members",
         "glazed": bool(s.glazed),
     }
@@ -960,7 +977,7 @@ async def list_sketches(
     rows = (
         db.query(Sketch)
         .filter(Sketch.sketcher_id == sketcher_id)
-        .order_by(Sketch.created_at.desc())
+        .order_by(SHOWN_AT.desc())
         .all()
     )
     latest = _latest_critiques_by_sketch(db, [s.id for s in rows])
@@ -1008,7 +1025,7 @@ def list_recent_sketches(
         q = card_query(db).filter(visible_filter(viewer_id))
         if near_ids:
             q = q.filter(Sketch.id.notin_(near_ids))
-        rest = q.order_by(Sketch.created_at.desc()).limit(limit - len(nearby)).all()
+        rest = q.order_by(SHOWN_AT.desc()).limit(limit - len(nearby)).all()
     rows = nearby + rest
     out = _with_owners(db, rows, viewer_id)
     for d in out:
@@ -1091,7 +1108,7 @@ async def search_sketches(
             .all()
         ):
             found[s.id] = s
-    rows = sorted(found.values(), key=lambda s: s.created_at, reverse=True)[: max(1, min(limit, 200))]
+    rows = sorted(found.values(), key=shown_at, reverse=True)[: max(1, min(limit, 200))]
     return _with_owners(db, rows, viewer_id)
 
 
@@ -1121,7 +1138,7 @@ def explore_sketches(
     )
     if since_days:
         query = query.filter(Sketch.created_at >= datetime.now(timezone.utc) - timedelta(days=since_days))
-    rows = query.order_by(Sketch.created_at.desc()).limit(max(1, min(limit, 500))).all()
+    rows = query.order_by(SHOWN_AT.desc()).limit(max(1, min(limit, 500))).all()
     return _with_owners(db, rows, viewer_id)
 
 
@@ -1705,6 +1722,7 @@ def _check_persona(db: Session, persona_id: Optional[str], sketcher_id: str) -> 
 def _make_final(db: Session, sketch: Sketch, upload: SketchUpload, persona_id: Optional[str], background_tasks: BackgroundTasks) -> None:
     """Share the sketch with this upload as its final, and run the critique."""
     sketch.final_sketch_url = upload.url
+    sketch.final_at = upload.created_at  # the date it shows from now on
     sketch.final_sketch_provided = True
     sketch.persona_id = persona_id or None
     start_critique(db, sketch, background_tasks)  # commits
@@ -1851,6 +1869,7 @@ async def delete_upload(
         if sketch.critique_status == "pending":
             raise HTTPException(409, "Feedback is still being prepared for this sketch")
         sketch.final_sketch_url = None
+        sketch.final_at = None
         sketch.final_sketch_provided = False
         sketch.critique_status = None
     _delete_upload_file(upload.url)

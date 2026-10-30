@@ -20,6 +20,7 @@ import { dateLabel, imageUrl } from '../lib/media'
 import { useSketchesVersion } from '../lib/sketchEvents'
 import Avatar from '../components/common/Avatar'
 import PhotoDropzone from '../components/common/PhotoDropzone'
+import { sketchDate } from '../lib/sketchDate'
 
 /**
  * The sketcher page (design handoff, "Sketcher Page - Editorial"; design
@@ -92,7 +93,7 @@ export default function SketcherProfile({ username: usernameProp }) {
     title: s.title,
     meta: s.place || '',
     place: s.place,
-    date: dateLabel(s.created_at),
+    date: dateLabel(sketchDate(s)),
     lat: s.location?.lat,
     lon: s.location?.lon,
     image: imageUrl(s.final_sketch_url || s.reference_image_url),

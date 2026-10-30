@@ -522,7 +522,7 @@ def event_sketches(db: Session, e: Event, viewer: str | None) -> list[dict]:
     """The participants' work: shared sketches carrying the hashtag and made
     at the event (made_at_event), newest first; the organiser's hidden ones
     only to the organiser, marked."""
-    from app.features.sketches.router import _with_owners, card_query  # the sketches router imports events/tags
+    from app.features.sketches.router import SHOWN_AT, _with_owners, card_query  # the sketches router imports events/tags
     # Whether the organiser hid each one, in the same query.
     hidden_q = exists().where(EventHiddenSketch.event_id == e.id, EventHiddenSketch.sketch_id == Sketch.id)
     here = to_shape(e.location)
@@ -530,7 +530,7 @@ def event_sketches(db: Session, e: Event, viewer: str | None) -> list[dict]:
             .filter(SketchTag.tag == e.hashtag.lower(), visible_filter(viewer), Sketch.final_sketch_url.isnot(None),
                     made_at_event(_aware(e.starts_at), _aware(e.ends_at), _point(here.y, here.x),
                                   TAG_KM.get(e.type, 25) * 1000))
-            .order_by(Sketch.created_at.desc()).limit(200).all())
+            .order_by(SHOWN_AT.desc()).limit(200).all())
     is_org = viewer == e.organizer_id
     rows = [(s, h) for s, h in rows if is_org or not h]
     hidden = {s.id for s, h in rows if h}
