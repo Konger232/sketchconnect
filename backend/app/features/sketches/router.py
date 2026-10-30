@@ -1730,6 +1730,56 @@ async def add_upload(
     return _uploads_response(db, sketch)
 
 
+@router.post("/sketches/{sketch_id}/uploads/batch")
+async def add_uploads(
+    sketch_id: str,
+    background_tasks: BackgroundTasks,
+    images: list[UploadFile] = File(...),
+    final_index: Optional[int] = Form(None),
+    persona_id: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """Several photos of one sketch at once, in the sketcher's order, after
+    the uploads already there (October 30, 2026). `final_index`, when set,
+    makes that photo the final: it shares the sketch and runs the critique,
+    as one upload with final=true does. Every photo is read before any is
+    saved, so a bad one leaves nothing half done."""
+    sketch = _owned_sketch(db, sketch_id, sketcher_id)
+    rows = _uploads(db, sketch_id)
+    if not images:
+        raise HTTPException(400, "Pick at least one photo.")
+    if len(rows) + len(images) > MAX_SKETCH_UPLOADS:
+        room = MAX_SKETCH_UPLOADS - len(rows)
+        raise HTTPException(400, f"A sketch holds up to {MAX_SKETCH_UPLOADS} uploads; there is room for {room} more.")
+    if final_index is not None:
+        if not 0 <= final_index < len(images):
+            raise HTTPException(400, "The final photo is not in this set.")
+        _check_persona(db, persona_id, sketcher_id)
+        if sketch.critique_status == "pending":
+            raise HTTPException(409, "Feedback is still being prepared for the last final sketch")
+
+    decoded = []
+    for n, image in enumerate(images, start=1):
+        try:
+            decoded.append(ImageOps.exif_transpose(Image.open(io.BytesIO(await image.read()))).convert("RGB"))
+        except Exception:
+            raise HTTPException(400, f"Could not read photo {n}. Try a JPEG or PNG.")
+
+    start = max((u.position for u in rows), default=-1) + 1
+    added = []
+    for n, pil_image in enumerate(decoded):
+        filename = f"{uuid.uuid4()}.jpg"
+        pil_image.save(UPLOAD_DIR / filename, format="JPEG", quality=90)
+        upload = SketchUpload(sketch_id=sketch.id, sketcher_id=sketcher_id, url=f"/uploads/{filename}", position=start + n)
+        db.add(upload)
+        added.append(upload)
+    db.commit()
+    if final_index is not None:
+        _make_final(db, sketch, added[final_index], persona_id, background_tasks)
+    return _uploads_response(db, sketch)
+
+
 class MakeFinalRequest(BaseModel):
     persona_id: Optional[str] = None
 
