@@ -1688,7 +1688,8 @@ def nearby_sketches(
     for s, d, p in rows:
         item = _sketch_card(s)
         item["distance_m"] = round(d or 0)
-        item["owner"] = {"display_name": p.display_name if p else None, "username": p.username if p else None}
+        item["owner"] = {"display_name": p.display_name if p else None, "username": p.username if p else None,
+                         "avatar_url": p.avatar_url if p else None}  # the avatar pins on the map
         out.append(item)
     return out
 
