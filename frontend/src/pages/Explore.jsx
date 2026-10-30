@@ -5,13 +5,12 @@ import 'leaflet/dist/leaflet.css'
 import BasePage from '../components/common/BasePage'
 import LocationSearchField from '../components/common/LocationSearchField'
 import SketchCard from '../components/common/SketchCard'
+import SketchPins from '../components/common/SketchPins'
 import EventCard from '../components/common/EventCard'
 import { eventDay } from '../lib/events'
 import { pinIcon } from '../components/common/LocationMap'
 import { useSheetDrag } from '../lib/useSheetDrag'
 import { api } from '../lib/api'
-import { imageUrl } from '../lib/media'
-import smiley from '../assets/images/ico-profile.png'
 
 // The time filter, in place of Google Maps' category pills.
 const PERIODS = [
@@ -20,13 +19,7 @@ const PERIODS = [
   { key: 'all', label: 'All', days: null },
 ]
 
-// Each sketch's pin is its sketcher's avatar: who sketched what, near me.
-const avatarPin = (s, big) => {
-  const url = s.owner?.avatar_url
-  return pinIcon({ variant: 'avatar', src: url ? imageUrl(url) : smiley, fallback: !url, big, draft: !s.final_sketch_url })
-}
 const NEAR_ZOOM = 13
-const GROUP_PX = 44 // avatar pins closer than this on screen become one count disc
 
 // Starts at the sketcher's location when the browser gives it.
 function StartAtMe({ onReady }) {
@@ -78,49 +71,6 @@ function FlyTo({ place }) {
     }
   }, [place?.lat, place?.lon]) // eslint-disable-line react-hooks/exhaustive-deps
   return null
-}
-
-// The pins at the map's zoom: sketches that would sit on top of each other
-// (a city seen from a country's zoom) become one count disc, the same disc
-// as SketchListMapView's; a click on it zooms in until they separate.
-function Pins({ pins, picked }) {
-  const map = useMap()
-  const [zoom, setZoom] = useState(map.getZoom())
-  useMapEvents({ zoomend: () => setZoom(map.getZoom()) })
-  const groups = useMemo(() => {
-    const out = []
-    for (const s of pins) {
-      const pt = map.project([s.location.lat, s.location.lon], zoom)
-      // The picked sketch always keeps its own pin, never inside a disc.
-      const g = s.id === picked ? null : out.find((x) => !x.picked && x.pt.distanceTo(pt) < GROUP_PX)
-      if (g) g.items.push(s)
-      else if (s.id === picked) out.push({ pt, items: [s], picked: true })
-      else out.push({ pt, items: [s] })
-    }
-    return out
-  }, [pins, zoom, map, picked])
-  return groups.map((g) => {
-    if (g.items.length === 1) {
-      const s = g.items[0]
-      return (
-        <Marker key={s.id} position={[s.location.lat, s.location.lon]} icon={avatarPin(s, picked === s.id)} zIndexOffset={picked === s.id ? 1000 : 0}>
-          <Popup minWidth={240} maxWidth={260} className="explore-popup">
-            <SketchCard sketch={s} details />
-          </Popup>
-        </Marker>
-      )
-    }
-    const lats = g.items.map((s) => s.location.lat), lons = g.items.map((s) => s.location.lon)
-    const centre = [lats.reduce((a, b) => a + b) / lats.length, lons.reduce((a, b) => a + b) / lons.length]
-    return (
-      <Marker key={g.items.map((s) => s.id).join('-')} position={centre}
-        icon={pinIcon({ variant: 'count', count: g.items.length, active: true })}
-        eventHandlers={{
-          click: () => map.flyToBounds([[Math.min(...lats), Math.min(...lons)], [Math.max(...lats), Math.max(...lons)]],
-            fitOptions({ maxZoom: 18, duration: 0.6 })),
-        }} />
-    )
-  })
 }
 
 // Events in view (design doc, item 49): a date tile each, never grouped,
@@ -271,7 +221,7 @@ export default function Explore() {
           <StartAtMe onReady={() => setLocated(true)} />
           <ViewWatcher onView={setBounds} />
           <FlyTo place={place} />
-          <Pins pins={pins} picked={picked} />
+          <SketchPins sketches={pins} picked={picked} fit={fitOptions} />
           <EventPins events={shownEvents} picked={picked} />
         </MapContainer>
 

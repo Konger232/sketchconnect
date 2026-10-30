@@ -97,7 +97,8 @@ export default function SketcherProfile({ username: usernameProp }) {
     lat: s.location?.lat,
     lon: s.location?.lon,
     image: imageUrl(s.final_sketch_url || s.reference_image_url),
-    sketch: s,
+    // The sketcher, for the avatar pins on the Map tab and the popup card.
+    sketch: { ...s, owner: s.owner || { display_name: page?.display_name, username: page?.username, avatar_url: page?.avatar_url } },
     ...extra,
   })
   // One list: the shared sketches, and for the owner their drafts too

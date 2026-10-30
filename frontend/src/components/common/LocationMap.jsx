@@ -79,7 +79,7 @@ export function pinIcon(pin) {
 
 // Flies the map to `focus` { lat, lon, zoom? } when it changes (a place
 // picked in the search over the map).
-function FlyTo({ focus }) {
+export function FlyTo({ focus }) {
   const map = useMap()
   useEffect(() => {
     if (focus) map.flyTo([focus.lat, focus.lon], focus.zoom || 13, { duration: 0.8 })
@@ -88,7 +88,7 @@ function FlyTo({ focus }) {
 }
 
 // Clicks on the map itself, to close an open pin card.
-function MapClicks({ onMapClick }) {
+export function MapClicks({ onMapClick }) {
   useMapEvents({ click: () => onMapClick?.() })
   return null
 }
@@ -107,7 +107,7 @@ function ClickToSetLocation({ onLocationChange }) {
 
 // Fits the view to every marker (or centres on a single one). Needed
 // because MapContainer's center/zoom props are only read once, on mount.
-function FitToMarkers({ markers, zoom }) {
+export function FitToMarkers({ markers, zoom }) {
   const map = useMap()
   const key = markers.map((p) => `${p.lat},${p.lon}`).join('|')
   useEffect(() => {
@@ -156,7 +156,7 @@ export default function LocationMap({
 
   return (
     <div>
-      <MapContainer center={center} zoom={initialZoom} scrollWheelZoom={editable} className={`${height} w-full ${rounded ? 'rounded-lg' : ''}`}>
+      <MapContainer center={center} zoom={initialZoom} scrollWheelZoom className={`${height} w-full ${rounded ? 'rounded-lg' : ''}`}>
         <TileLayer
             attribution='Tiles &copy; Esri &mdash; Sources: Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
