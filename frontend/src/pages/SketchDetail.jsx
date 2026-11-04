@@ -277,7 +277,7 @@ export default function SketchDetail() {
         onCancel={() => setDeleting(null)}
       />
       {sharing && (
-        <SharePanel sketch={s} images={{ final, reference }} palette={sketchPaints} pageUrl={pageUrl} onClose={() => setSharing(false)} />
+        <SharePanel sketch={s} images={{ final, reference, progress: uploads.filter((u) => !u.is_final).map((u) => imageUrl(u.url)) }} palette={sketchPaints} pageUrl={pageUrl} onClose={() => setSharing(false)} />
       )}
     </>
   )

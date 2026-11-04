@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Button from './Button'
 import FloatPanel from './FloatPanel'
 import Icon from './Icon'
@@ -20,14 +20,23 @@ const slug = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '')
  * Facebook. Nothing is ever posted for the sketcher.
  */
 export default function SharePanel({ sketch, images, palette, pageUrl, onClose }) {
-  const slides = useMemo(() => [
-    images.final && { key: 'final', label: 'Final sketch', src: images.final },
-    images.reference && { key: 'reference', label: 'Reference', src: images.reference },
-    images.reference && sketch.marks?.length > 0 && { key: 'plan', label: 'Plan', src: images.reference, plan: true },
-    palette.length > 0 && { key: 'palette', label: 'Palette', palette: true },
-  ].filter(Boolean), [images, sketch.marks, palette])
+  // Final, the progress shots in order, reference, plan, palette: up to 10,
+  // Instagram's limit for one post (progress shots give way first).
+  const slides = useMemo(() => {
+    const fixed = [
+      images.reference && { key: 'reference', label: 'Reference', src: images.reference },
+      images.reference && sketch.marks?.length > 0 && { key: 'plan', label: 'Plan', src: images.reference, plan: true },
+      palette.length > 0 && { key: 'palette', label: 'Palette', palette: true },
+    ].filter(Boolean)
+    const head = images.final ? [{ key: 'final', label: 'Final sketch', src: images.final }] : []
+    const room = 10 - head.length - fixed.length
+    const progress = (images.progress || []).slice(0, Math.max(0, room))
+      .map((src, i) => ({ key: `progress-${i}`, label: `In progress ${i + 1}`, src }))
+    return [...head, ...progress, ...fixed]
+  }, [images, sketch.marks, palette])
 
-  const city = (sketch.location?.label || '').split(',').pop()?.trim()
+  // The city as Explore groups it (Pak Kret -> Bangkok), for #usk<city>.
+  const city = sketch.place || (sketch.location?.label || '').split(',').pop()?.trim()
   const tools = (sketch.media || []).map(mediaLabel)
   const draft = [
     sketch.title || 'New sketch',
@@ -43,41 +52,66 @@ export default function SharePanel({ sketch, images, palette, pageUrl, onClose }
   const [watermark, setWatermark] = useState(true)
   const [busy, setBusy] = useState(null)
   const [note, setNote] = useState(null)
+  // The images, made as soon as the panel opens (and again when the set
+  // changes): a phone opens its share sheet only straight after a tap, too
+  // soon to draw them then.
+  const [files, setFiles] = useState(null) // null while making them
+  const [failed, setFailed] = useState(null)
 
   const toggle = (key) => setIncluded((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n })
 
-  async function build() {
-    const files = []
-    const name = slug(sketch.title) || 'sketch'
-    for (const [i, s] of slides.filter((x) => included.has(x.key)).entries()) {
-      let blob
-      if (s.palette) blob = await paletteSlide(sketch.title, palette, readableInk, { watermark })
-      else if (s.plan) blob = await planSlide(s.src, sketch.marks, { watermark })
-      else blob = await photoSlide(s.src, { watermark })
-      files.push(new File([blob], `${name}-${i + 1}-${s.key}.jpg`, { type: 'image/jpeg' }))
-    }
-    return files
+  useEffect(() => {
+    let live = true
+    setFiles(null)
+    setFailed(null)
+    const timer = setTimeout(async () => {
+      const out = []
+      const name = slug(sketch.title) || 'sketch'
+      for (const [i, s] of slides.filter((x) => included.has(x.key)).entries()) {
+        try {
+          let blob
+          if (s.palette) blob = await paletteSlide(sketch.title, palette, readableInk, { watermark })
+          else if (s.plan) blob = await planSlide(s.src, sketch.marks, { watermark })
+          else blob = await photoSlide(s.src, { watermark })
+          out.push(new File([blob], `${name}-${i + 1}-${s.key}.jpg`, { type: 'image/jpeg' }))
+        } catch {
+          if (live) setFailed(s.label)
+        }
+      }
+      if (live) setFiles(out)
+    }, 250)
+    return () => { live = false; clearTimeout(timer) }
+  }, [slides, included, watermark]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The caption goes to the clipboard: Instagram and Facebook drop text
+  // that comes with shared images, so the sketcher pastes it there.
+  function copyQuietly() {
+    return navigator.clipboard?.writeText(caption).then(() => true, () => false) ?? Promise.resolve(false)
   }
 
+  // Phone (and browsers with a share sheet): one tap copies the caption and
+  // opens the sheet with the images. Where that fails, download instead.
   async function shareSheet() {
-    setBusy('share'); setNote(null)
+    if (!files?.length) return
+    setNote(null)
+    const copied = copyQuietly() // started in the tap, not awaited first
     try {
-      const files = await build()
-      await navigator.share({ files, text: caption, title: sketch.title || 'Sketch' })
+      await navigator.share({ files, title: sketch.title || 'Sketch' })
+      setNote((await copied) ? 'Caption copied: paste it into your post.' : 'Copy the caption below into your post.')
     } catch (err) {
-      if (err?.name !== 'AbortError') setNote('Could not open the share sheet. Download the images instead.')
-    } finally { setBusy(null) }
+      if (err?.name === 'AbortError') return
+      await downloadAndCopy()
+    }
   }
 
-  async function downloadAll() {
-    setBusy('download'); setNote(null)
-    try {
-      const files = await build()
-      files.forEach((f) => download(f, f.name))
-      setNote(`${files.length} images downloaded.`)
-    } catch {
-      setNote('Could not make the images.')
-    } finally { setBusy(null) }
+  // A computer: one click downloads the images and copies the caption.
+  async function downloadAndCopy() {
+    if (!files?.length) return
+    setBusy('download')
+    files.forEach((f) => download(f, f.name))
+    const copied = await copyQuietly()
+    setNote(`${files.length} ${files.length === 1 ? 'image' : 'images'} downloaded. ${copied ? 'Caption copied: paste it into your post.' : 'Copy the caption below.'}`)
+    setBusy(null)
   }
 
   async function copyCaption() {
@@ -85,26 +119,27 @@ export default function SharePanel({ sketch, images, palette, pageUrl, onClose }
   }
 
   const facebook = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(pageUrl)}`
-  const sheet = canShareFiles([new File([''], 'x.jpg', { type: 'image/jpeg' })])
+  // The share sheet only on a phone or tablet; a computer downloads.
+  const touch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
+  const sheet = touch && canShareFiles([new File([''], 'x.jpg', { type: 'image/jpeg' })])
   const count = slides.filter((s) => included.has(s.key)).length
+  const ready = Boolean(files?.length)
 
   return (
     <FloatPanel placement="modal" title="Share" onClose={onClose}
       footer={
         <div className="flex w-full flex-wrap items-center justify-end gap-2">
-          {note && <span className="mr-auto text-sm text-ink/70">{note}</span>}
+          {(note || failed) && <span className="mr-auto text-sm text-ink/70">{note || `Could not prepare ${failed}; it is left out.`}</span>}
+          <a href={facebook} target="_blank" rel="noopener noreferrer" className="text-sm font-bold underline">Share link on Facebook</a>
+          <Button variant="editorial" size="sm" onClick={copyCaption}>Copy caption</Button>
           {sheet ? (
-            <Button variant="editorialSolid" onClick={shareSheet} disabled={!count || busy}>
-              <Icon name="share" size={15} /> {busy === 'share' ? 'Preparing…' : 'Share'}
+            <Button variant="editorialSolid" onClick={shareSheet} disabled={!count || !ready}>
+              <Icon name="share" size={15} /> {ready ? 'Share' : 'Preparing…'}
             </Button>
           ) : (
-            <>
-              <a href={facebook} target="_blank" rel="noopener noreferrer" className="text-sm font-bold underline">Share link on Facebook</a>
-              <Button variant="editorial" size="sm" onClick={copyCaption}>Copy caption</Button>
-              <Button variant="editorialSolid" size="sm" onClick={downloadAll} disabled={!count || busy}>
-                {busy === 'download' ? 'Preparing…' : `Download ${count} images`}
-              </Button>
-            </>
+            <Button variant="editorialSolid" size="sm" onClick={downloadAndCopy} disabled={!count || !ready || busy}>
+              {!ready ? 'Preparing…' : `Download ${files.length} ${files.length === 1 ? 'image' : 'images'} and copy caption`}
+            </Button>
           )}
         </div>
       }>

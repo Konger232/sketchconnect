@@ -1355,6 +1355,16 @@ def city_of(label: str | None) -> str:
     return parts[-1] if parts else ""
 
 
+def _place_of(db: Session, sketch: Sketch, viewer_id: str | None) -> str | None:
+    """One sketch's place, as its sketcher's page and the share caption name it
+    ("Bangkok" for Pak Kret)."""
+    lat = lon = None
+    if sketch.location is not None:
+        pt = to_shape(sketch.location)
+        lat, lon = pt.y, pt.x
+    return place_names(db, viewer_id, [(sketch.id, sketch.location_label, lat, lon)]).get(sketch.id) or city_of(sketch.location_label) or None
+
+
 def place_names(db: Session, viewer_id: str | None, points: list[tuple]) -> dict:
     """{key: place} for a sketcher's page, grouped as Explore's pills are
     (October 30, 2026): by city, a city within MERGE_KM of a bigger one
@@ -1599,6 +1609,7 @@ async def get_sketch(
         data["plan_short"] = [p.get("principle") for p in principles if p.get("group") in ("strong", "moderate")][:3]
         data["media"] = cleaned.get("media") or []
         data["uploads"] = uploads_to_list(sketch, _uploads(db, sketch.id))
+        data["place"] = _place_of(db, sketch, sketcher_id)
         return data
 
     critiques = (
@@ -1651,6 +1662,7 @@ async def get_sketch(
         )
         data["voice_default"] = last[0] if last else None
     data["is_owner"] = True
+    data["place"] = _place_of(db, sketch, sketcher_id)
     return data
 
 

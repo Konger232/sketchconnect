@@ -11,7 +11,9 @@ function loadImage(src) {
     img.crossOrigin = 'anonymous' // the API serves uploads with CORS headers
     img.onload = () => resolve(img)
     img.onerror = () => reject(new Error(`Could not load ${src}`))
-    img.src = src
+    // A copy of its own: the page's cached copy came without CORS, and a
+    // canvas that draws it can't be saved ("tainted").
+    img.src = src + (src.includes('?') ? '&' : '?') + 'share=1'
   })
 }
 
