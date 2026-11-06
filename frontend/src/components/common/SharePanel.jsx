@@ -15,9 +15,15 @@ const slug = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '')
  * The caption is drafted and editable; the place is left out when the
  * sketch has no location. An optional SketchConnect mark.
  *
- * A phone with the share sheet (Web Share API) gets "Share". Otherwise:
- * download the images, copy the caption, or share the page's link on
- * Facebook. Nothing is ever posted for the sketcher.
+ * First: Instagram or Facebook (November 6, 2026), since they differ.
+ *   Instagram  the images; a caption with hashtags and no link (links in
+ *              Instagram captions can't be tapped)
+ *   Facebook   the images, or just a link to the sketch's page; a caption
+ *              with the link and fewer hashtags
+ * A phone opens its share sheet (Web Share API) with the images; a computer
+ * downloads them. The caption always goes to the clipboard: both apps drop
+ * text that comes with shared images. Nothing is ever posted for the
+ * sketcher.
  */
 export default function SharePanel({ sketch, images, palette, pageUrl, onClose }) {
   // Final, the progress shots in order, reference, plan, palette: up to 10,
@@ -38,17 +44,26 @@ export default function SharePanel({ sketch, images, palette, pageUrl, onClose }
   // The city as Explore groups it (Pak Kret -> Bangkok), for #usk<city>.
   const city = sketch.place || (sketch.location?.label || '').split(',').pop()?.trim()
   const tools = (sketch.media || []).map(mediaLabel)
-  const draft = [
+  const about = [
     sketch.title || 'New sketch',
     sketch.location?.label ? `📍 ${sketch.location.label}` : null,
     tools.length ? `With ${tools.join(', ').toLowerCase()}.` : null,
-    '',
-    ['#urbansketchers', '#sketchconnect', city ? `#usk${slug(city)}` : null].filter(Boolean).join(' '),
-    pageUrl,
-  ].filter((l) => l !== null).join('\n')
+  ].filter(Boolean)
+  const cityTag = city ? `#usk${slug(city)}` : null
+  const captionFor = (to) => (to === 'instagram'
+    ? [...about, '', ['#urbansketchers', '#usk', cityTag, '#sketchconnect'].filter(Boolean).join(' ')]
+    : [...about, '', `See how it was made on SketchConnect: ${pageUrl}`, '', ['#urbansketchers', cityTag].filter(Boolean).join(' ')]
+  ).join('\n')
 
   const [included, setIncluded] = useState(() => new Set(slides.map((s) => s.key)))
-  const [caption, setCaption] = useState(draft)
+  const [to, setTo] = useState(null) // 'instagram' | 'facebook', asked first
+  const [fbMode, setFbMode] = useState('photos') // Facebook: 'photos' | 'link'
+  const [caption, setCaption] = useState('')
+  function choose(next) {
+    setTo(next)
+    setCaption(captionFor(next))
+    setNote(null)
+  }
   const [watermark, setWatermark] = useState(true)
   const [busy, setBusy] = useState(null)
   const [note, setNote] = useState(null)
@@ -124,52 +139,124 @@ export default function SharePanel({ sketch, images, palette, pageUrl, onClose }
   const sheet = touch && canShareFiles([new File([''], 'x.jpg', { type: 'image/jpeg' })])
   const count = slides.filter((s) => included.has(s.key)).length
   const ready = Boolean(files?.length)
+  const name = to === 'instagram' ? 'Instagram' : 'Facebook'
+  const site = to === 'instagram' ? 'https://www.instagram.com/' : 'https://www.facebook.com/'
+  const photos = to === 'instagram' || fbMode === 'photos'
+
+  // Facebook's link share: copy the caption first (Facebook drops text sent
+  // with a link), then its own share window.
+  async function shareLink() {
+    const copied = await copyQuietly()
+    window.open(facebook, '_blank', 'noopener,width=640,height=560')
+    setNote(copied ? 'Caption copied: paste it above the link.' : 'Copy the caption below.')
+  }
+
+  const footer = !to ? null : (
+    <div className="flex w-full flex-wrap items-center justify-end gap-2">
+      {(note || failed) && <span className="mr-auto text-sm text-ink/70">{note || `Could not prepare ${failed}; it is left out.`}</span>}
+      <Button variant="editorial" size="sm" onClick={copyCaption}>Copy caption</Button>
+      {!photos ? (
+        <Button variant="editorialSolid" size="sm" onClick={shareLink}><Icon name="share" size={14} /> Share link on Facebook</Button>
+      ) : sheet ? (
+        <Button variant="editorialSolid" onClick={shareSheet} disabled={!count || !ready}>
+          <Icon name="share" size={15} /> {ready ? `Share to ${name}` : 'Preparing…'}
+        </Button>
+      ) : (
+        <>
+          <a href={site} target="_blank" rel="noopener noreferrer" className="text-sm font-bold underline">Open {name} ↗</a>
+          <Button variant="editorialSolid" size="sm" onClick={downloadAndCopy} disabled={!count || !ready || busy}>
+            {!ready ? 'Preparing…' : `Download ${files.length} ${files.length === 1 ? 'image' : 'images'} and copy caption`}
+          </Button>
+        </>
+      )}
+    </div>
+  )
 
   return (
-    <FloatPanel placement="modal" title="Share" onClose={onClose}
-      footer={
-        <div className="flex w-full flex-wrap items-center justify-end gap-2">
-          {(note || failed) && <span className="mr-auto text-sm text-ink/70">{note || `Could not prepare ${failed}; it is left out.`}</span>}
-          <a href={facebook} target="_blank" rel="noopener noreferrer" className="text-sm font-bold underline">Share link on Facebook</a>
-          <Button variant="editorial" size="sm" onClick={copyCaption}>Copy caption</Button>
-          {sheet ? (
-            <Button variant="editorialSolid" onClick={shareSheet} disabled={!count || !ready}>
-              <Icon name="share" size={15} /> {ready ? 'Share' : 'Preparing…'}
-            </Button>
-          ) : (
-            <Button variant="editorialSolid" size="sm" onClick={downloadAndCopy} disabled={!count || !ready || busy}>
-              {!ready ? 'Preparing…' : `Download ${files.length} ${files.length === 1 ? 'image' : 'images'} and copy caption`}
-            </Button>
-          )}
+    <FloatPanel placement="modal" title={to ? `Share to ${name}` : 'Share'} onClose={onClose} footer={footer}>
+      {/* ---- First: where to ---- */}
+      {!to && (
+        <div className="flex flex-col gap-3">
+          <p className="m-0 text-sm text-ink/70">Where do you want to share it?</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            {[
+              ['instagram', 'Instagram', 'A carousel of up to 10 images: the final sketch, your progress, the reference, the plan and the palette. A caption with hashtags.'],
+              ['facebook', 'Facebook', 'The same images, or just a link to this sketch on SketchConnect. A caption with the link.'],
+            ].map(([key, title, text]) => (
+              <button key={key} type="button" onClick={() => choose(key)}
+                className="flex flex-col gap-1.5 rounded-lg border-[1.5px] border-ink/20 p-4 text-left hover:border-ink">
+                <span className="font-heading text-lg font-semibold">{title}</span>
+                <span className="text-sm text-ink/70">{text}</span>
+              </button>
+            ))}
+          </div>
+          <p className="m-0 text-xs text-ink/55">Nothing is posted for you. SketchConnect gets the images and the caption ready; you post them.</p>
         </div>
-      }>
-      <span className="ed-caption">Carousel · tap to leave an image out</span>
-      <div className="flex gap-2.5 overflow-x-auto pb-1">
-        {slides.map((s, i) => {
-          const on = included.has(s.key)
-          return (
-            <button key={s.key} type="button" onClick={() => toggle(s.key)} aria-pressed={on}
-              className={`relative w-[104px] shrink-0 text-left ${on ? '' : 'opacity-40'}`}>
-              <span className="ed-slide block border border-ink/10">
-                {s.src && <img src={s.src} alt="" />}
-                {s.palette && (
-                  <span className="absolute inset-2 flex flex-col">
-                    {palette.map((p) => <span key={p.id} className="flex-1" style={{ background: p.hex }} />)}
-                  </span>
-                )}
-              </span>
-              <span className="mt-1 block text-xs font-semibold">{on ? `${i + 1}. ` : ''}{s.label}</span>
-            </button>
-          )
-        })}
-      </div>
-      <label className="block">
-        <span>Caption</span>
-        <textarea className="field-input mt-1.5 min-h-[140px]" value={caption} onChange={(e) => setCaption(e.target.value)} />
-      </label>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={watermark} onChange={(e) => setWatermark(e.target.checked)} /> Add a small SketchConnect mark
-      </label>
+      )}
+
+      {to && (
+        <>
+          <button type="button" className="self-start text-xs font-semibold underline" onClick={() => { setTo(null); setNote(null) }}>
+            ← Instagram or Facebook
+          </button>
+
+          {to === 'facebook' && (
+            <div className="flex gap-2" role="radiogroup" aria-label="What to share">
+              {[['photos', 'Post the images'], ['link', 'Share a link']].map(([key, label]) => (
+                <button key={key} type="button" role="radio" aria-checked={fbMode === key} onClick={() => { setFbMode(key); setNote(null) }}
+                  className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold ${fbMode === key ? 'border-ink bg-ink text-white' : 'border-ink/20 bg-white text-ink hover:border-ink'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {photos && (
+            <>
+              <span className="ed-caption">Carousel · tap to leave an image out</span>
+              <div className="flex gap-2.5 overflow-x-auto pb-1">
+                {slides.map((s, i) => {
+                  const on = included.has(s.key)
+                  return (
+                    <button key={s.key} type="button" onClick={() => toggle(s.key)} aria-pressed={on}
+                      className={`relative w-[104px] shrink-0 text-left ${on ? '' : 'opacity-40'}`}>
+                      <span className="ed-slide block border border-ink/10">
+                        {s.src && <img src={s.src} alt="" />}
+                        {s.palette && (
+                          <span className="absolute inset-2 flex flex-col">
+                            {palette.map((p) => <span key={p.id} className="flex-1" style={{ background: p.hex }} />)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-1 block text-xs font-semibold">{on ? `${i + 1}. ` : ''}{s.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
+          {!photos && (
+            <p className="m-0 text-sm text-ink/70">
+              Facebook shows a link to this sketch's page. The preview picture and title appear once SketchConnect is online at a public address.
+            </p>
+          )}
+
+          <label className="block">
+            <span>Caption</span>
+            <textarea className="field-input mt-1.5 min-h-[140px]" value={caption} onChange={(e) => setCaption(e.target.value)} />
+          </label>
+          <p className="-mt-2 m-0 text-xs text-ink/55">
+            {photos
+              ? `${sheet ? `Share to ${name} opens your phone's share list: pick ${name} there.` : `Then open ${name}, start a new post with the downloaded images.`} The caption is copied for you to paste: ${name} doesn't take it from SketchConnect.`
+              : 'The caption is copied for you to paste above the link.'}
+          </p>
+          {photos && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={watermark} onChange={(e) => setWatermark(e.target.checked)} /> Add a small SketchConnect mark
+            </label>
+          )}
+        </>
+      )}
     </FloatPanel>
   )
 }
