@@ -3,7 +3,6 @@ import Button from './Button'
 import FloatPanel from './FloatPanel'
 import Icon from './Icon'
 import { readableInk } from '../../lib/color'
-import { mediaLabel } from '../../data/media'
 import { canShareFiles, download, paletteSlide, photoSlide, planSlide } from '../../lib/shareCarousel'
 
 const slug = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '')
@@ -43,11 +42,11 @@ export default function SharePanel({ sketch, images, palette, pageUrl, onClose }
 
   // The city as Explore groups it (Pak Kret -> Bangkok), for #usk<city>.
   const city = sketch.place || (sketch.location?.label || '').split(',').pop()?.trim()
-  const tools = (sketch.media || []).map(mediaLabel)
+  // The body is the scene description from the scene analysis.
   const about = [
     sketch.title || 'New sketch',
     sketch.location?.label ? `📍 ${sketch.location.label}` : null,
-    tools.length ? `With ${tools.join(', ').toLowerCase()}.` : null,
+    sketch.scene?.summary ? `\n${sketch.scene.summary.trim()}` : null,
   ].filter(Boolean)
   const cityTag = city ? `#usk${slug(city)}` : null
   const captionFor = (to) => (to === 'instagram'
