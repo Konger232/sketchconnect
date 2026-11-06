@@ -115,17 +115,21 @@ export default function SharePanel({ sketch, images, palette, pageUrl, onClose }
       setNote((await copied) ? 'Caption copied: paste it into your post.' : 'Copy the caption below into your post.')
     } catch (err) {
       if (err?.name === 'AbortError') return
-      await downloadAndCopy()
+      await saveAndOpen()
     }
   }
 
-  // A computer: one click downloads the images and copies the caption.
-  async function downloadAndCopy() {
+  // A computer: one click copies the caption, saves the images and opens
+  // the app in a new tab. Everything starts inside the click, so the
+  // browser allows the new tab and the clipboard.
+  async function saveAndOpen() {
     if (!files?.length) return
     setBusy('download')
+    const copied = copyQuietly()
     files.forEach((f) => download(f, f.name))
-    const copied = await copyQuietly()
-    setNote(`${files.length} ${files.length === 1 ? 'image' : 'images'} downloaded. ${copied ? 'Caption copied: paste it into your post.' : 'Copy the caption below.'}`)
+    window.open(site, '_blank', 'noopener')
+    const n = `${files.length} ${files.length === 1 ? 'image' : 'images'}`
+    setNote(`${n} saved to Downloads. ${(await copied) ? 'Caption copied: paste it into your post.' : 'Copy the caption below.'}`)
     setBusy(null)
   }
 
@@ -154,20 +158,12 @@ export default function SharePanel({ sketch, images, palette, pageUrl, onClose }
   const footer = !to ? null : (
     <div className="flex w-full flex-wrap items-center justify-end gap-2">
       {(note || failed) && <span className="mr-auto text-sm text-ink/70">{note || `Could not prepare ${failed}; it is left out.`}</span>}
-      <Button variant="editorial" size="sm" onClick={copyCaption}>Copy caption</Button>
       {!photos ? (
-        <Button variant="editorialSolid" size="sm" onClick={shareLink}><Icon name="share" size={14} /> Share link on Facebook</Button>
-      ) : sheet ? (
-        <Button variant="editorialSolid" onClick={shareSheet} disabled={!count || !ready}>
-          <Icon name="share" size={15} /> {ready ? `Share to ${name}` : 'Preparing…'}
-        </Button>
+        <Button variant="editorialSolid" size="sm" onClick={shareLink}><Icon name="share" size={14} /> Copy caption and open Facebook</Button>
       ) : (
-        <>
-          <a href={site} target="_blank" rel="noopener noreferrer" className="text-sm font-bold underline">Open {name} ↗</a>
-          <Button variant="editorialSolid" size="sm" onClick={downloadAndCopy} disabled={!count || !ready || busy}>
-            {!ready ? 'Preparing…' : `Download ${files.length} ${files.length === 1 ? 'image' : 'images'} and copy caption`}
-          </Button>
-        </>
+        <Button variant="editorialSolid" size="sm" onClick={sheet ? shareSheet : saveAndOpen} disabled={!count || !ready || busy}>
+          <Icon name="share" size={14} /> {!ready ? 'Preparing…' : sheet ? `Share to ${name}` : `Save ${files.length} ${files.length === 1 ? 'image' : 'images'} and open ${name}`}
+        </Button>
       )}
     </div>
   )
@@ -242,13 +238,16 @@ export default function SharePanel({ sketch, images, palette, pageUrl, onClose }
           )}
 
           <label className="block">
-            <span>Caption</span>
+            <span className="flex items-baseline justify-between">
+              <span>Caption</span>
+              <button type="button" className="text-xs font-bold underline" onClick={copyCaption}>Copy</button>
+            </span>
             <textarea className="field-input mt-1.5 min-h-[140px]" value={caption} onChange={(e) => setCaption(e.target.value)} />
           </label>
           <p className="-mt-2 m-0 text-xs text-ink/55">
             {photos
-              ? `${sheet ? `Share to ${name} opens your phone's share list: pick ${name} there.` : `Then open ${name}, start a new post with the downloaded images.`} The caption is copied for you to paste: ${name} doesn't take it from SketchConnect.`
-              : 'The caption is copied for you to paste above the link.'}
+              ? sheet ? `Pick ${name} in your phone's share list, then paste the caption: it is copied for you.` : `The button copies the caption, saves the images and opens ${name}. Start a new post there with the saved images and paste the caption.`
+              : 'The button copies the caption and opens Facebook. Paste the caption above the link.'}
           </p>
           {photos && (
             <label className="flex items-center gap-2 text-sm">
