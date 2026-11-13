@@ -34,25 +34,26 @@ Secrets are typed into your own terminal. They never go in a file in the repo.
 
 ## 1. Secrets (once)
 
-Four values go in Secret Manager. For each name below, copy its value (only
-the part after `=` in backend/.env) to the clipboard, then run:
+Four values go in Secret Manager. For each NAME below, run these two lines.
+Replace `[VALUE]` with the value after `=` in backend/.env, inside the
+single quotes:
 
 ```
 gcloud secrets create NAME --replication-policy=automatic
-printf '%s' "$(pbpaste)" | gcloud secrets versions add NAME --data-file=-
+printf '%s' '[VALUE]' | gcloud secrets versions add NAME --data-file=-
 ```
 
-`pbpaste` reads the clipboard and `printf '%s'` sends it without a line break,
-so the value never shows on screen or in the shell history. A wrong value:
-run the `printf` line again with the right one (`:latest` takes the newest).
-Check the names with `gcloud secrets list`.
+A wrong value: run the `printf` line again with the right one (`:latest`
+takes the newest). Check the names with `gcloud secrets list`. Afterwards,
+clear the values from the terminal history with `history -p` and close the
+window.
 
 | NAME | Value |
 |---|---|
 | `GEMINI_API_KEY` | from backend/.env |
 | `DATABASE_URL` | from backend/.env. Must be Supabase's **pooler** string (Session pooler): Cloud Run can't reach the direct connection. |
 | `SUPABASE_SERVICE_ROLE_KEY` | from backend/.env |
-| `MEDIA_SIGNING_KEY` | from backend/.env. None yet: `openssl rand -hex 32 \| tr -d '\n' \| pbcopy` puts a new one on the clipboard; add it to backend/.env too |
+| `MEDIA_SIGNING_KEY` | from backend/.env. None yet: make one with `openssl rand -hex 32` and add it to backend/.env too |
 
 Let Cloud Run read them:
 
