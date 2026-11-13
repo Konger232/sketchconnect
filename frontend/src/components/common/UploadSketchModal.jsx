@@ -6,6 +6,7 @@ import PhotoDropzone from './PhotoDropzone'
 import AdmiredPanel from './AdmiredPanel'
 import { api } from '../../lib/api'
 import { previewUrl } from '../../lib/previewUrl'
+import { shrinkPhoto } from '../../lib/shrinkPhoto'
 import { imageUrl as mediaUrl } from '../../lib/media'
 import { useSheetDrag } from '../../lib/useSheetDrag'
 import RightsNote from './RightsNote'
@@ -154,7 +155,7 @@ export default function UploadSketchModal({ sketch, upload = null, imageUrl, onC
         const fresh = photos.filter((p) => p.file)
         if (fresh.length) {
           const form = new FormData()
-          fresh.forEach((p) => form.append('images', p.file))
+          ;(await Promise.all(fresh.map((p) => shrinkPhoto(p.file)))).forEach((f) => form.append('images', f))
           const fin = fresh.findIndex((p) => p.key === finalKey)
           if (fin >= 0) form.append('final_index', String(fin))
           ;({ data } = await api.post(`${base}/batch`, form))

@@ -81,7 +81,5 @@ npm run dev
 
 ## Notes on this setup vs. production
 
-- CORS in `backend/config.py`'s `ALLOWED_ORIGINS` is locked to
-  `http://localhost:5173`. Update before deploying.
-- Drop `--reload` from the backend's run command before deploying to
-  Cloud Run.
+- Deploying: see `DEPLOY.md`. CORS allows `http://localhost:5173` plus
+  whatever `FRONTEND_ORIGINS` lists on the server.

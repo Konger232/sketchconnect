@@ -1,0 +1,14 @@
+# Kept out of the server image. .env above all: secrets are set in
+# Cloud Run, never baked into the image.
+.env
+.env.*
+!.env.example
+uploads/
+debug_out/
+marks_eval_out/
+plan_read_out/
+**/__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store

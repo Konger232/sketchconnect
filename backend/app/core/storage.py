@@ -63,7 +63,31 @@ def _write_local(name: str, data: bytes) -> Path:
     tmp = path.parent / f"{path.name}.{uuid.uuid4().hex}.part"
     tmp.write_bytes(data)
     tmp.replace(path)
+    if REMOTE:
+        _trim_cache()
     return path
+
+
+# On Cloud Run the scratch folder sits in memory, so it is kept under
+# STORAGE_CACHE_MB (default 200): past that, the least recently used
+# copies go. They come back from the bucket when needed.
+_CACHE_LIMIT = int(os.environ.get("STORAGE_CACHE_MB") or 200) * 1024 * 1024
+
+
+def _trim_cache() -> None:
+    files = [p for p in CACHE.iterdir() if p.is_file() and not p.name.endswith(".part")]
+    total = sum(p.stat().st_size for p in files)
+    if total <= _CACHE_LIMIT:
+        return
+    for p in sorted(files, key=lambda p: p.stat().st_mtime):
+        try:
+            size = p.stat().st_size
+            p.unlink()
+            total -= size
+        except OSError:
+            continue
+        if total <= _CACHE_LIMIT * 0.8:
+            break
 
 
 def save_bytes(name: str, data: bytes, content_type: str = "image/jpeg") -> str:
@@ -96,6 +120,11 @@ def fetch(url: str | None) -> Path | None:
         return None
     path = _local(url)
     if path.exists():
+        if REMOTE:
+            try:
+                os.utime(path)  # recently used: trimmed last
+            except OSError:
+                pass
         return path
     if not REMOTE:
         return None
