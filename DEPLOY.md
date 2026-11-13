@@ -16,9 +16,14 @@ Secrets are typed into your own terminal. They never go in a file in the repo.
 
 1. Images are in the bucket: `STORAGE_BUCKET=sketch-images` in `backend/.env`,
    `python tools/upload_to_supabase.py` has run, and the app works locally.
-2. Install the Google Cloud CLI (`gcloud`) and the Firebase CLI
-   (`npm install -g firebase-tools`).
-3. Sign in and pick the project:
+2. Install the Google Cloud CLI (`gcloud`): `brew install --cask google-cloud-sdk`,
+   or the macOS installer from cloud.google.com/sdk. Check with `gcloud --version`.
+3. The Firebase CLI runs through `npx`, with no global install (a global
+   `npm install -g` fails with a permission error on this Mac; don't use
+   `sudo`). Check with `npx firebase-tools --version` and answer `y` the first
+   time. Everywhere below, `npx firebase-tools` is the `firebase` command.
+4. Sign in, then find the project ID and number with `gcloud projects list`
+   (the ID is the lowercase name with dashes, not the display name):
 
    ```
    gcloud auth login
@@ -83,8 +88,8 @@ Why these settings:
 Add Firebase to the same Google project (once):
 
 ```
-firebase login
-firebase projects:addfirebase PROJECT_ID
+npx firebase-tools login
+npx firebase-tools projects:addfirebase PROJECT_ID
 ```
 
 From the `frontend` folder, create `.env.production` with the backend's
@@ -99,7 +104,7 @@ they are. Then build and publish:
 
 ```
 npm run build
-firebase deploy --only hosting --project PROJECT_ID
+npx firebase-tools deploy --only hosting --project PROJECT_ID
 ```
 
 The site is at `https://PROJECT_ID.web.app`.
@@ -138,7 +143,8 @@ Cloud Run > sketchconnect-api > Logs.
 ## 6. Day to day
 
 - Backend changes: run the step 2 command again from `backend`.
-- Frontend changes: `npm run build` then `firebase deploy --only hosting`.
+- Frontend changes, from `frontend`: `npm run build` then
+  `npx firebase-tools deploy --only hosting --project PROJECT_ID`.
 - Review week, no waiting on first visit (costs while on):
 
   ```
