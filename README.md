@@ -72,7 +72,7 @@ npm run dev
   directly as you go.
 - Image storage (`backend/app/core/storage.py`): without `STORAGE_BUCKET`,
   images are written to `backend/uploads/`. With `STORAGE_BUCKET`,
-  `SUPABASE_URL` and `SUPABASE_SECRET_KEY` set, they go to that private
+  `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set, they go to that private
   Supabase Storage bucket. Copy the existing images across once with
   `python tools/upload_to_supabase.py`.
 - A previous Cloud Run deployment of the *old* OpenCV backend exists

@@ -2,7 +2,7 @@
 
 Local development keeps them in backend/uploads. With STORAGE_BUCKET set,
 they live in a private Supabase Storage bucket, reached with the
-backend's secret key (SUPABASE_SECRET_KEY). Either way the database keeps
+backend's secret key (SUPABASE_SERVICE_ROLE_KEY). Either way the database keeps
 "/uploads/<file>": only this module knows where the bytes are.
 
 With the bucket, reads are kept in a scratch folder on the server's own
@@ -27,7 +27,7 @@ from app.core.paths import UPLOAD_DIR
 BUCKET = os.environ.get("STORAGE_BUCKET", "").strip()
 REMOTE = bool(BUCKET)
 _URL = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
-_KEY = os.environ.get("SUPABASE_SECRET_KEY", "").strip()
+_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 
 CACHE = (Path(os.environ.get("STORAGE_CACHE_DIR") or Path(tempfile.gettempdir()) / "sketchconnect-images")
          if REMOTE else UPLOAD_DIR)
@@ -40,7 +40,7 @@ def _http() -> httpx.Client:
     global _client
     if _client is None:
         if not (_URL and _KEY):
-            raise RuntimeError("STORAGE_BUCKET is set, but SUPABASE_URL or SUPABASE_SECRET_KEY is missing.")
+            raise RuntimeError("STORAGE_BUCKET is set, but SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing.")
         headers = {"apikey": _KEY}
         if _KEY.startswith("eyJ"):  # the older service_role key is a JWT
             headers["Authorization"] = f"Bearer {_KEY}"

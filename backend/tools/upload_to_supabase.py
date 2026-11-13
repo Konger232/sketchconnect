@@ -1,7 +1,7 @@
 """Copy the images in backend/uploads to the Supabase Storage bucket.
 
 Run once, before the backend starts using the bucket (core/storage.py).
-Reads SUPABASE_URL, SUPABASE_SECRET_KEY and STORAGE_BUCKET from
+Reads SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and STORAGE_BUCKET from
 backend/.env. Files already in the bucket are skipped, so it is safe to
 run again. The display and teaser copies are skipped too: the backend
 makes them again on first view.
