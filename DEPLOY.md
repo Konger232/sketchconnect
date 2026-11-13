@@ -6,9 +6,9 @@ the private Supabase Storage bucket `sketch-images`.
 
 In the commands below, replace:
 
-- `PROJECT_ID`: your Google Cloud project ID
-- `PROJECT_NUMBER`: its project number (on the project's Dashboard)
-- `SUPABASE_URL_VALUE`: your Supabase project URL (`https://….supabase.co`)
+- `PROJECT_ID`: sketchconnect-app-2026
+- `PROJECT_NUMBER`: 799683070133
+- `SUPABASE_URL_VALUE`: https://vsjfzoljlpvctrepxbde.supabase.co
 
 Secrets are typed into your own terminal. They never go in a file in the repo.
 
@@ -34,20 +34,25 @@ Secrets are typed into your own terminal. They never go in a file in the repo.
 
 ## 1. Secrets (once)
 
-Four values go in Secret Manager. For each name below, run the two commands,
-paste the value when the second one waits, press Enter, then Ctrl-D:
+Four values go in Secret Manager. For each name below, copy its value (only
+the part after `=` in backend/.env) to the clipboard, then run:
 
 ```
 gcloud secrets create NAME --replication-policy=automatic
-gcloud secrets versions add NAME --data-file=-
+printf '%s' "$(pbpaste)" | gcloud secrets versions add NAME --data-file=-
 ```
+
+`pbpaste` reads the clipboard and `printf '%s'` sends it without a line break,
+so the value never shows on screen or in the shell history. A wrong value:
+run the `printf` line again with the right one (`:latest` takes the newest).
+Check the names with `gcloud secrets list`.
 
 | NAME | Value |
 |---|---|
 | `GEMINI_API_KEY` | from backend/.env |
 | `DATABASE_URL` | from backend/.env. Must be Supabase's **pooler** string (Session pooler): Cloud Run can't reach the direct connection. |
 | `SUPABASE_SERVICE_ROLE_KEY` | from backend/.env |
-| `MEDIA_SIGNING_KEY` | from backend/.env, or a new long random string |
+| `MEDIA_SIGNING_KEY` | from backend/.env. None yet: `openssl rand -hex 32 \| tr -d '\n' \| pbcopy` puts a new one on the clipboard; add it to backend/.env too |
 
 Let Cloud Run read them:
 
