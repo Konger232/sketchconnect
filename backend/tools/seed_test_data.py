@@ -12,10 +12,11 @@ Run from backend/ with the venv on:
   python tools/seed_test_data.py --dry-run      images and a row count, no database
   python tools/seed_test_data.py                create everything
   python tools/seed_test_data.py --me <username>  also link the seed sketchers to your account
-  python tools/seed_test_data.py --reset        remove all seed data
+  python tools/seed_test_data.py --reset --dry-run  count the seed data, remove nothing
+  python tools/seed_test_data.py --reset        remove all seed data (asks first)
   python tools/seed_test_data.py --fixtures     photos for the live upload tests, in debug_out/
 
-Two values in backend/.env that the app itself does not read:
+Two values in backend/.env the seed tool needs:
 
   SUPABASE_SERVICE_ROLE_KEY  creates and deletes the seed logins
   SEED_PASSWORD              the password every seed sketcher signs in with
@@ -1013,7 +1014,10 @@ def build(dry_run: bool, me: str | None):
         print(f"  {name:16} {n}")
 
 
-def reset():
+def reset(dry_run: bool = False, yes: bool = False):
+    """Remove every seed login, every row they made or that points at their
+    work (also your likes, comments, wishes and palette picks on it), and
+    every seed image. dry_run: count only. Asks before deleting unless yes."""
     from app.core.database import SessionLocal
     from app.core.models import (CritiqueResponse, Event, EventComment, EventHiddenSketch, EventInstructor,
                                  EventInterest, EventReport, Follow, HelpQuestLog, KitItem, KitWish, Paint, PaintFlag,
@@ -1022,49 +1026,71 @@ def reset():
     from sqlalchemy import or_
     client = _admin()
     logins = seed_logins(client)
-    db = SessionLocal()
+    files = storage.list_names(SEED_PREFIX)
     uids = list(logins.values())
+    db = SessionLocal()
+    steps = []
     if uids:
-        sketch_ids = [r[0] for r in db.query(Sketch.id).filter(Sketch.sketcher_id.in_(uids)).all()]
-        event_ids = [r[0] for r in db.query(Event.id).filter(Event.organizer_id.in_(uids)).all()]
-        spot_ids = [r[0] for r in db.query(Spot.id).filter(Spot.sketcher_id.in_(uids)).all()]
-        for model, cond in [
+        ids = lambda q: [r[0] for r in q.all()]  # noqa: E731
+        sketch_ids = ids(db.query(Sketch.id).filter(Sketch.sketcher_id.in_(uids)))
+        event_ids = ids(db.query(Event.id).filter(Event.organizer_id.in_(uids)))
+        spot_ids = ids(db.query(Spot.id).filter(Spot.sketcher_id.in_(uids)))
+        kit_ids = ids(db.query(KitItem.id).filter(KitItem.sketcher_id.in_(uids)))
+        paint_ids = ids(db.query(Paint.id).filter(Paint.added_by.in_(uids)))
+        # Children before parents, so no row is left pointing at a removed one.
+        steps = [
             (EventComment, or_(EventComment.event_id.in_(event_ids), EventComment.author_id.in_(uids))),
             (EventInterest, or_(EventInterest.event_id.in_(event_ids), EventInterest.sketcher_id.in_(uids))),
             (EventReport, or_(EventReport.event_id.in_(event_ids), EventReport.sketcher_id.in_(uids))),
             (EventInstructor, or_(EventInstructor.event_id.in_(event_ids), EventInstructor.sketcher_id.in_(uids))),
-            (EventHiddenSketch, EventHiddenSketch.event_id.in_(event_ids)),
+            (EventHiddenSketch, or_(EventHiddenSketch.event_id.in_(event_ids), EventHiddenSketch.sketch_id.in_(sketch_ids))),
             (Event, Event.id.in_(event_ids)),
             (SpotPhoto, SpotPhoto.spot_id.in_(spot_ids)),
             (Spot, Spot.id.in_(spot_ids)),
             (SketchTag, SketchTag.sketch_id.in_(sketch_ids)),
-            (SketchComment, SketchComment.author_id.in_(uids)),
-            (SketchComment, SketchComment.sketch_id.in_(sketch_ids)),
-            (SketchLike, SketchLike.sketcher_id.in_(uids)),
-            (SketchLike, SketchLike.sketch_id.in_(sketch_ids)),
-            (Follow, Follow.follower_id.in_(uids)),
-            (Follow, Follow.followed_id.in_(uids)),
+            (SketchComment, or_(SketchComment.author_id.in_(uids), SketchComment.sketch_id.in_(sketch_ids))),
+            (SketchLike, or_(SketchLike.sketcher_id.in_(uids), SketchLike.sketch_id.in_(sketch_ids))),
+            (Follow, or_(Follow.follower_id.in_(uids), Follow.followed_id.in_(uids))),
             (SketchUpload, SketchUpload.sketch_id.in_(sketch_ids)),
             (CritiqueResponse, CritiqueResponse.sketch_id.in_(sketch_ids)),
             (HelpQuestLog, HelpQuestLog.sketch_id.in_(sketch_ids)),
-            (KitWish, KitWish.sketcher_id.in_(uids)),
-            (KitItem, KitItem.sketcher_id.in_(uids)),
-            (PaintFlag, PaintFlag.sketcher_id.in_(uids)),
-            (PaletteItem, PaletteItem.sketcher_id.in_(uids)),
-            (Paint, Paint.added_by.in_(uids)),
+            (KitWish, or_(KitWish.sketcher_id.in_(uids), KitWish.kit_item_id.in_(kit_ids))),
+            (KitItem, KitItem.id.in_(kit_ids)),
+            (PaintFlag, or_(PaintFlag.sketcher_id.in_(uids), PaintFlag.paint_id.in_(paint_ids))),
+            (PaletteItem, or_(PaletteItem.sketcher_id.in_(uids), PaletteItem.paint_id.in_(paint_ids))),
+            (Paint, Paint.id.in_(paint_ids)),
             (Sketch, Sketch.id.in_(sketch_ids)),
             (Persona, Persona.sketcher_id.in_(uids)),
             (Profile, Profile.id.in_(uids)),
-        ]:
-            db.query(model).filter(cond).delete(synchronize_session=False)
-        db.commit()
+        ]
+
+    counts = {}
+    for model, cond in steps:
+        counts[model.__tablename__] = counts.get(model.__tablename__, 0) + db.query(model).filter(cond).count()
+    print(f"Seed logins: {len(logins)}")
+    for table, n in counts.items():
+        if n:
+            print(f"  {table}: {n} rows")
+    print(f"Seed images: {len(files)}")
+    if dry_run or not (logins or files):
+        db.close()
+        print("Nothing removed." if dry_run else "Nothing to remove.")
+        return
+    if not yes and input("Remove all of this? Type DELETE to go ahead: ").strip() != "DELETE":
+        db.close()
+        print("Nothing removed.")
+        return
+
+    for model, cond in steps:
+        db.query(model).filter(cond).delete(synchronize_session=False)
+    db.commit()
     db.close()
     for email, uid in logins.items():
         client.delete(f"/users/{uid}").raise_for_status()
-    files = storage.list_names(SEED_PREFIX)
     for f in files:
         storage.delete(f)
-    print(f"Removed {len(logins)} seed logins, their rows and {len(files)} seed images.")
+    print(f"Removed {len(logins)} seed logins, {sum(counts.values())} rows and {len(files)} seed images.")
+    print("Restart the backend so its cached place names and lists drop the seed data.")
 
 
 def _gps(value: float):
@@ -1116,12 +1142,13 @@ def fixtures():
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dry-run", action="store_true", help="write the images, touch no database or logins")
-    ap.add_argument("--reset", action="store_true", help="remove every seed login, row and image")
+    ap.add_argument("--reset", action="store_true", help="remove every seed login, row and image (with --dry-run: count only)")
+    ap.add_argument("--yes", action="store_true", help="with --reset: don't ask before deleting")
     ap.add_argument("--fixtures", action="store_true", help="write photos for the live upload tests to debug_out/")
     ap.add_argument("--me", help="your own SketchConnect username: seed sketchers follow you and like and comment on your sketches")
     args = ap.parse_args()
     if args.reset:
-        reset()
+        reset(dry_run=args.dry_run, yes=args.yes)
     elif args.fixtures:
         fixtures()
     else:
