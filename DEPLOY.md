@@ -44,9 +44,9 @@ printf '%s' '[VALUE]' | gcloud secrets versions add NAME --data-file=-
 ```
 
 A wrong value: run the `printf` line again with the right one (`:latest`
-takes the newest). Check the names with `gcloud secrets list`. Afterwards,
-clear the values from the terminal history with `history -p` and close the
-window.
+takes the newest). Check the names with `gcloud secrets list`. The values
+stay in your terminal history (`~/.zsh_history`, on your Mac only): delete
+those `printf` lines there if you like.
 
 | NAME | Value |
 |---|---|
