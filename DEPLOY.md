@@ -34,28 +34,62 @@ Secrets are typed into your own terminal. They never go in a file in the repo.
 
 ## 1. Secrets (once)
 
-Four values go in Secret Manager. For each NAME below, run these two lines.
-Replace `[VALUE]` with the value after `=` in backend/.env, inside the
-single quotes:
-
-```
-gcloud secrets create NAME --replication-policy=automatic
-printf '%s' '[VALUE]' | gcloud secrets versions add NAME --data-file=-
-```
-
-A wrong value: run the `printf` line again with the right one (`:latest`
-takes the newest). Check the names with `gcloud secrets list`. The values
-stay in your terminal history (`~/.zsh_history`, on your Mac only): delete
-those `printf` lines there if you like.
+Four values go in Secret Manager: the table below lists them. Each takes two
+commands. Run them **one at a time**: paste one line, press Enter, wait for
+its answer, then the next. Two lines pasted together run as one broken
+command ("unrecognized arguments"), and the second then fails with
+"NOT_FOUND".
 
 | NAME | Value |
 |---|---|
 | `GEMINI_API_KEY` | from backend/.env |
-| `DATABASE_URL` | from backend/.env. Must be Supabase's **pooler** string (Session pooler): Cloud Run can't reach the direct connection. |
+| `DATABASE_URL` | from backend/.env. Must be Supabase's **Session pooler** string (it contains `pooler.supabase.com`): Cloud Run can't reach the direct connection. |
 | `SUPABASE_SERVICE_ROLE_KEY` | from backend/.env |
 | `MEDIA_SIGNING_KEY` | from backend/.env. None yet: make one with `openssl rand -hex 32` and add it to backend/.env too |
 
-Let Cloud Run read them:
+**First command: create the empty secret.** Replace NAME:
+
+```
+gcloud secrets create NAME --replication-policy=automatic
+```
+
+Answer: `Created secret [NAME].`
+
+**Second command: store its value.** Replace NAME, and replace `[VALUE]` with
+the value after `=` in backend/.env. Keep the single quotes around it:
+
+```
+printf '%s' '[VALUE]' | gcloud secrets versions add NAME --data-file=-
+```
+
+Answer: `Created version [1] of the secret [NAME].`
+
+For example, if backend/.env has `GEMINI_API_KEY=abc123`, the two commands are:
+
+```
+gcloud secrets create GEMINI_API_KEY --replication-policy=automatic
+```
+
+```
+printf '%s' 'abc123' | gcloud secrets versions add GEMINI_API_KEY --data-file=-
+```
+
+What the second command does: `printf '%s' '[VALUE]'` writes the value
+exactly as it is, without the line break that pressing Enter would add (a
+line break at the end can break `DATABASE_URL`). The `|` passes it to gcloud,
+and `--data-file=-` tells gcloud to read the value from there.
+
+- A wrong value: run the second command again with the right one. The deploy
+  uses the newest version (`:latest`).
+- "already exists" on the first command: the secret is there; just run the
+  second.
+- Check the four names with `gcloud secrets list` (it never shows values).
+- The values stay in your terminal history (`~/.zsh_history`, on your Mac
+  only). Delete those `printf` lines there if you like.
+
+**Then let Cloud Run read them.** PROJECT_NUMBER is the number column in
+`gcloud projects list` (it also shows in gcloud's messages, as
+`projects/<number>/…`):
 
 ```
 gcloud projects add-iam-policy-binding PROJECT_ID \
