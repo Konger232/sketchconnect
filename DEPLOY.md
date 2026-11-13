@@ -161,7 +161,7 @@ npm run build
 ```
 
 ```
-npx firebase-tools deploy --only hosting --project PROJECT_ID
+npx firebase-tools deploy --only hosting --project sketchconnect-app-2026
 ```
 
 It ends with `Hosting URL: https://PROJECT_ID.web.app`: the public site.
@@ -171,9 +171,11 @@ It ends with `Hosting URL: https://PROJECT_ID.web.app`: the public site.
 Let the site talk to the backend:
 
 ```
-gcloud run services update sketchconnect-api --region asia-northeast1 \
-  --update-env-vars FRONTEND_ORIGINS=https://PROJECT_ID.web.app,https://PROJECT_ID.firebaseapp.com
+gcloud run services update sketchconnect-api --region asia-northeast1 --update-env-vars "^@^FRONTEND_ORIGINS=https://PROJECT_ID.web.app,https://PROJECT_ID.firebaseapp.com"
 ```
+
+The `^@^` at the start is needed: gcloud otherwise reads the comma as the start
+of another variable ("Bad syntax for dict arg").
 
 In Supabase, Authentication > URL Configuration:
 
