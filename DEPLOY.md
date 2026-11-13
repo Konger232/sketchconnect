@@ -125,29 +125,46 @@ Why these settings:
 
 ## 3. The frontend
 
-Add Firebase to the same Google project (once):
+**Once: sign in to Firebase and add it to the project.**
 
 ```
 npx firebase-tools login
-npx firebase-tools projects:addfirebase PROJECT_ID
 ```
 
-From the `frontend` folder, create `.env.production` with the backend's
-address (not a secret):
+Then add Firebase on the website (the `projects:addfirebase` command fails the
+first time, before Firebase's terms are accepted):
+
+1. Open console.firebase.google.com, signed in with the account that owns the
+   project.
+2. Click "Get started by setting up a Firebase project".
+3. Choose the existing Google Cloud project from the list. The list shows
+   display names, not IDs: `gcloud projects list` gives the NAME that goes with
+   PROJECT_ID. Don't create a new project.
+4. Confirm the pay-as-you-go (Blaze) plan: the project's billing is already
+   linked, and hosting stays within the free allowance. Turn Google Analytics
+   off. Finish.
+
+**Once: the backend's address.** `frontend/.env.production` holds it (not a
+secret, and committed):
 
 ```
-VITE_API_URL=https://sketchconnect-api-….asia-northeast1.run.app
+VITE_API_URL=https://sketchconnect-api-799683070133.asia-northeast1.run.app
 ```
 
 `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` come from `frontend/.env` as
-they are. Then build and publish:
+they are.
+
+**Build and publish**, from the `frontend` folder, one command at a time:
 
 ```
 npm run build
+```
+
+```
 npx firebase-tools deploy --only hosting --project PROJECT_ID
 ```
 
-The site is at `https://PROJECT_ID.web.app`.
+It ends with `Hosting URL: https://PROJECT_ID.web.app`: the public site.
 
 ## 4. Connect the two (once)
 
