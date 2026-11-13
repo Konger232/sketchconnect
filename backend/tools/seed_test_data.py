@@ -36,7 +36,7 @@ import os
 import random
 import sys
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[1]
@@ -51,7 +51,7 @@ from app.core.paths import UPLOAD_DIR  # noqa: E402
 SEED_DOMAIN = "seed.sketchconnect.test"
 SEED_PREFIX = "seed_"
 FIXTURE_DIR = BACKEND / "debug_out"
-NOW = datetime.utcnow().replace(microsecond=0)
+NOW = datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)  # naive UTC, like the app
 
 
 # ---------------------------------------------------------------------------
@@ -1070,7 +1070,7 @@ def reset(dry_run: bool = False, yes: bool = False):
     print(f"Seed logins: {len(logins)}")
     for table, n in counts.items():
         if n:
-            print(f"  {table}: {n} rows")
+            print(f"  {table}: {n} {'row' if n == 1 else 'rows'}")
     print(f"Seed images: {len(files)}")
     if dry_run or not (logins or files):
         db.close()
