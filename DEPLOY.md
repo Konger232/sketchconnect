@@ -164,14 +164,17 @@ npm run build
 npx firebase-tools deploy --only hosting --project sketchconnect-app-2026
 ```
 
-It ends with `Hosting URL: https://PROJECT_ID.web.app`: the public site.
+It ends with `Hosting URL: https://sketchconnect.web.app`: the public site.
+`firebase.json` sends it to the `sketchconnect` site, made once with
+`npx firebase-tools hosting:sites:create sketchconnect --project PROJECT_ID`
+(the project's own `PROJECT_ID.web.app` site stays, unused).
 
 ## 4. Connect the two (once)
 
 Let the site talk to the backend:
 
 ```
-gcloud run services update sketchconnect-api --region asia-northeast1 --update-env-vars "^@^FRONTEND_ORIGINS=https://PROJECT_ID.web.app,https://PROJECT_ID.firebaseapp.com"
+gcloud run services update sketchconnect-api --region asia-northeast1 --update-env-vars "^@^FRONTEND_ORIGINS=https://sketchconnect.web.app,https://sketchconnect.firebaseapp.com,https://PROJECT_ID.web.app"
 ```
 
 The `^@^` at the start is needed: gcloud otherwise reads the comma as the start
@@ -179,8 +182,8 @@ of another variable ("Bad syntax for dict arg").
 
 In Supabase, Authentication > URL Configuration:
 
-- Site URL: `https://PROJECT_ID.web.app`
-- Redirect URLs: add `https://PROJECT_ID.web.app/**` (keep the localhost one)
+- Site URL: `https://sketchconnect.web.app`
+- Redirect URLs: add `https://sketchconnect.web.app/**` (keep the localhost one)
 
 Google sign-in goes through Supabase's own callback, so the Google client
 needs no change.
