@@ -36,7 +36,7 @@ from app.core.composite import (
     was_reframed,
 )
 from app.core.gemini_service import call_gemini_json
-from app.core.paths import UPLOAD_DIR
+from app.core import storage
 from app.features.scene_analysis import question_bank
 from config import STYLES
 
@@ -300,7 +300,7 @@ def run_critique(db: Session, sketch: Sketch) -> None:
 
     final_image = None
     if sketch.final_sketch_url:
-        final_image = Image.open(UPLOAD_DIR / Path(sketch.final_sketch_url).name).convert("RGB")
+        final_image = storage.open_image(sketch.final_sketch_url).convert("RGB")
 
     original = load_original(sketch)                # untouched upload
     composite = render_composite(sketch)            # None if no planning at all
@@ -326,7 +326,7 @@ def run_critique(db: Session, sketch: Sketch) -> None:
     picked = [(i, u) for i, u in enumerate(progress) if i in {0, len(progress) - 1}]
     for i, u in picked:
         try:
-            images.append(Image.open(UPLOAD_DIR / Path(u.url).name).convert("RGB"))
+            images.append(storage.open_image(u.url).convert("RGB"))
         except Exception:
             continue
         image_notes.append(render_prompt(PROMPTS / "progress_sketch.md", n=len(images), k=i + 1, total=len(progress)))

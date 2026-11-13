@@ -98,8 +98,8 @@ def frame_aspect(sketch, framed_image: Image.Image | None = None) -> float:
         if framed_image is not None:
             w, h = framed_image.size
         else:
-            from app.core.paths import UPLOAD_DIR
-            with Image.open(UPLOAD_DIR / Path(sketch.reference_image_url).name) as im:
+            from app.core import storage
+            with storage.open_image(sketch.reference_image_url) as im:
                 w, h = im.size
         return w / h if h else 1.0
     except Exception:

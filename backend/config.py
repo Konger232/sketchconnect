@@ -3,6 +3,8 @@ SketchConnect backend configuration.
 Tunable values live here so they're easy to find and adjust without
 digging through endpoint logic in main.py.
 """
+import os
+
 from dotenv import load_dotenv
 
 # Loads backend/.env into the process environment. Without this, every
@@ -48,9 +50,11 @@ MAX_CLEAN_LINES = 8                  # cap on how many lines get returned to the
 GEMINI_MODEL = "gemini-3.6-flash"
 
 # --- CORS ---
-# Add your real deployed frontend domain here once you have one
-# (e.g. "https://your-project.framer.website" or a Vercel/Netlify URL)
-ALLOWED_ORIGINS = ["http://localhost:5173"]
+# The public site's address goes in FRONTEND_ORIGINS (comma separated,
+# e.g. "https://sketchconnect.web.app"), set where the backend runs.
+ALLOWED_ORIGINS = ["http://localhost:5173"] + [
+    o.strip().rstrip("/") for o in os.environ.get("FRONTEND_ORIGINS", "").split(",") if o.strip()
+]
 # Also allow the Vite dev server when it's opened from another device on
 # the same Wi-Fi (e.g. testing on a phone) -- Vite prints that "Network:"
 # URL when frontend/main.jsx is started with `npm run dev`. Private-network

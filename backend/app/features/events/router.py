@@ -48,7 +48,7 @@ from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
 from app.core.database import get_db
 from app.core.models import (Event, EventComment, EventHiddenSketch, EventInstructor, EventInterest, EventReport,
                              Follow, KitItem, Profile, Sketch, SketchLike, SketchTag)
-from app.core.paths import UPLOAD_DIR
+from app.core import storage
 from app.core.visibility import visible_filter
 from app.features.events.schemas import CommentRequest, EventRequest, ReportRequest
 from app.features.events.tags import HASHTAG
@@ -465,9 +465,7 @@ async def set_cover(event_id: str, image: UploadFile = File(...), db: Session = 
     except Exception:
         raise HTTPException(400, "Could not read that image")
     pil.thumbnail((2000, 2000))
-    name = f"event_{uuid.uuid4()}.jpg"
-    pil.save(UPLOAD_DIR / name, format="JPEG", quality=86)
-    e.cover_image_url = f"/uploads/{name}"
+    e.cover_image_url = await storage.save_image_async(pil, f"event_{uuid.uuid4()}.jpg", quality=86)
     db.commit()
     return {"cover_image_url": e.cover_image_url}
 

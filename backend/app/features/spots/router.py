@@ -26,7 +26,7 @@ from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
 from app.core.database import get_db
 from app.core.exif_utils import extract_location_and_time
 from app.core.models import Follow, Profile, Spot, SpotPhoto
-from app.core.paths import UPLOAD_DIR
+from app.core import storage
 from app.features.geocode.service import reverse_geocode
 from app.features.spots.schemas import SpotRequest
 
@@ -131,9 +131,8 @@ async def add_photo(spot_id: str, image: UploadFile = File(...), db: Session = D
     except Exception:
         raise HTTPException(400, "Could not read that photo")
     pil.thumbnail((2000, 2000))
-    name = f"spot_{uuid.uuid4()}.jpg"
-    pil.save(UPLOAD_DIR / name, format="JPEG", quality=86)
-    db.add(SpotPhoto(spot_id=s.id, image_url=f"/uploads/{name}", taken_at=when, position=count))
+    url = await storage.save_image_async(pil, f"spot_{uuid.uuid4()}.jpg", quality=86)
+    db.add(SpotPhoto(spot_id=s.id, image_url=url, taken_at=when, position=count))
     # The first photo with GPS places a spot that has no place yet.
     if s.location is None and where:
         s.location = WKTElement(f"POINT({where['lon']} {where['lat']})", srid=4326)

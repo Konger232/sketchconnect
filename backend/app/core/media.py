@@ -39,7 +39,7 @@ from PIL import Image, ImageOps
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
-from app.core.paths import UPLOAD_DIR
+from app.core import storage
 
 DISPLAY_MAX = 1600       # px, the long side of the display copy
 TEASER_SIDE = 480        # px, the teaser's square
@@ -151,12 +151,14 @@ def _rights(name: str) -> str:
             "No copying, sharing, or use for AI training without the sketcher's permission.")
 
 
-def _save_copy(src_name: str, out_name: str, make) -> None:
-    out = UPLOAD_DIR / out_name
-    if out.exists():
-        return
-    src = UPLOAD_DIR / src_name
-    if not src.exists():
+def _save_copy(src_name: str, out_name: str, make):
+    """The display or teaser copy of an original, made once and stored
+    beside it. Returns its path on this server's disk."""
+    out = storage.fetch(out_name)
+    if out is not None:
+        return out
+    src = storage.fetch(src_name)
+    if src is None:
         raise HTTPException(404, "Not found")
     if src.suffix.lower() in (".heic", ".heif"):
         import pillow_heif
@@ -175,9 +177,9 @@ def _save_copy(src_name: str, out_name: str, make) -> None:
     exif[0x013B] = (_owner_name(src_name) or "")   # Artist
     exif[0x8298] = note                            # Copyright
     exif[0x010E] = note                            # ImageDescription
-    tmp = out.with_suffix(".tmp")
-    img.save(tmp, "JPEG", quality=82 if out_name.endswith(".display.jpg") else 70, exif=exif.tobytes(), optimize=True)
-    tmp.replace(out)
+    storage.save_image(img, out_name, quality=82 if out_name.endswith(".display.jpg") else 70,
+                       exif=exif.tobytes(), optimize=True)
+    return storage.fetch(out_name)
 
 
 def _trim_edges(img, limit: float = 0.02):
@@ -243,9 +245,8 @@ def media(name: str, e: int = 0, s: str = ""):
     """A signed-in sketcher's display copy, while the link is valid."""
     if not _valid(name) or e < time.time() or not hmac.compare_digest(s, _sig(name, e)):
         raise HTTPException(403, "This link has expired. Reload the page.")
-    out = f"{_stem(name)}.display.jpg"
-    _save_copy(name, out, _display_bag if name.startswith("kit_") else _display)
-    return _image_response(UPLOAD_DIR / out, max_age=int(e - time.time()), private=True)
+    out = _save_copy(name, f"{_stem(name)}.display.jpg", _display_bag if name.startswith("kit_") else _display)
+    return _image_response(out, max_age=int(e - time.time()), private=True)
 
 
 @router.get("/teaser/{name}")
@@ -264,6 +265,5 @@ def teaser(name: str):
         db.close()
     if not shared:
         raise HTTPException(404, "Not found")
-    out = f"{_stem(name)}.teaser.jpg"
-    _save_copy(name, out, _teaser)
-    return _image_response(UPLOAD_DIR / out, max_age=86400, private=False)
+    out = _save_copy(name, f"{_stem(name)}.teaser.jpg", _teaser)
+    return _image_response(out, max_age=86400, private=False)

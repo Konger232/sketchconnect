@@ -27,6 +27,7 @@ Without those files, the script draws a simple scene instead.
 """
 import argparse
 import hashlib
+import io
 import json
 import re
 import math
@@ -43,6 +44,7 @@ sys.path.insert(0, str(BACKEND))
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps  # noqa: E402
 
 import config  # noqa: E402,F401  loads backend/.env
+from app.core import storage  # noqa: E402
 from app.core.paths import UPLOAD_DIR  # noqa: E402
 
 SEED_DOMAIN = "seed.sketchconnect.test"
@@ -601,14 +603,19 @@ def render_kit_photo(key: str) -> Image.Image:
     return img.filter(ImageFilter.GaussianBlur(0.8))
 
 
+DRY_RUN = False  # set by build(): a dry run writes to backend/uploads only
+
+
 def _save(img: Image.Image, name: str) -> str:
-    UPLOAD_DIR.mkdir(exist_ok=True)
-    path = UPLOAD_DIR / name
-    if name.endswith(".png"):
-        img.save(path, format="PNG")
-    else:
-        img.save(path, format="JPEG", quality=86)
-    return f"/uploads/{name}"
+    """Store a seed image where the app keeps images (core/storage.py)."""
+    buf = io.BytesIO()
+    png = name.endswith(".png")
+    img.save(buf, format="PNG") if png else img.save(buf, format="JPEG", quality=86)
+    if DRY_RUN:
+        UPLOAD_DIR.mkdir(exist_ok=True)
+        (UPLOAD_DIR / name).write_bytes(buf.getvalue())
+        return f"/uploads/{name}"
+    return storage.save_bytes(name, buf.getvalue(), "image/png" if png else "image/jpeg")
 
 
 REF_CREDITS = FIXTURE_DIR / "reference_photos.json"
@@ -772,6 +779,8 @@ def create_login(client, email: str, name: str, password: str) -> str:
 # ---------------------------------------------------------------------------
 
 def build(dry_run: bool, me: str | None):
+    global DRY_RUN
+    DRY_RUN = dry_run
     from geoalchemy2.elements import WKTElement
 
     if dry_run:
@@ -1052,9 +1061,9 @@ def reset():
     db.close()
     for email, uid in logins.items():
         client.delete(f"/users/{uid}").raise_for_status()
-    files = list(UPLOAD_DIR.glob(f"{SEED_PREFIX}*"))
+    files = storage.list_names(SEED_PREFIX)
     for f in files:
-        f.unlink()
+        storage.delete(f)
     print(f"Removed {len(logins)} seed logins, their rows and {len(files)} seed images.")
 
 

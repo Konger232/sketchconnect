@@ -32,7 +32,7 @@ from app.core.auth import get_current_sketcher_id
 from app.core.database import get_db
 from app.core.gemini_service import GeminiQuotaExceededError
 from app.core.models import Sketch
-from app.core.paths import UPLOAD_DIR
+from app.core import storage
 from app.features.marks_analysis import service
 from app.features.marks_analysis.schemas import MarksAnalysisResponse
 from app.features.scene_analysis import service as scene_service
@@ -89,7 +89,7 @@ async def marks_analysis(
     if not sketch.reference_image_url:
         raise HTTPException(400, "This sketch has no reference photo on file")
     try:
-        photo = Image.open(UPLOAD_DIR / Path(sketch.reference_image_url).name).convert("RGB")
+        photo = storage.open_image(sketch.reference_image_url).convert("RGB")
     except Exception:
         raise HTTPException(400, "Could not load this sketch's photo")
     photo = scene_service.resize_if_needed(photo)
@@ -118,7 +118,7 @@ async def marks_analysis(
             original = None
             try:
                 src = sketch.original_image_url or sketch.reference_image_url
-                original = Image.open(UPLOAD_DIR / Path(src).name).convert("RGB")
+                original = storage.open_image(src).convert("RGB")
                 original.thumbnail((1200, 1200))
             except Exception:
                 original = None  # missing file: the report says "(none)"

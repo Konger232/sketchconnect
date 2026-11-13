@@ -7,6 +7,7 @@ Images are written to backend/uploads/ for local dev. Swap this for
 Supabase Storage before deploying (design doc doesn't specify a storage
 layer, so this is a placeholder, not a documented decision).
 """
+import asyncio
 import io
 import json
 import re
@@ -42,7 +43,7 @@ from app.core.exif_utils import extract_location_and_time
 from app.features.sketches.focal_pairing import pair_focal_points, region_anchor
 from app.features.scene_analysis import question_bank
 from app.core.value_study import compute_value_study
-from app.core.paths import UPLOAD_DIR
+from app.core import storage
 from config import DEBUG, MAX_MARKS, MAX_POINTS_PER_MARK
 from app.features.critique_agent.router import start_critique
 from app.features.geocode.service import place_boxes, reverse_geocode
@@ -58,7 +59,6 @@ pillow_heif.register_heif_opener()
 
 router = APIRouter(prefix="/api", tags=["sketches"])
 
-UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
@@ -314,9 +314,7 @@ async def create_sketch(
     except Exception:
         raise HTTPException(400, "Could not decode image")
 
-    original_filename = f"{uuid.uuid4()}.jpg"
-    pil_image.save(UPLOAD_DIR / original_filename, format="JPEG", quality=90)
-    original_image_url = f"/uploads/{original_filename}"
+    original_image_url = await storage.save_image_async(pil_image, f"{uuid.uuid4()}.jpg")
 
     # The common case: nothing was cropped, so reference_image_url just
     # reuses the same file as original_image_url -- no duplicate storage
@@ -329,9 +327,7 @@ async def create_sketch(
             framed_pil = Image.open(io.BytesIO(framed_contents)).convert("RGB")
         except Exception:
             raise HTTPException(400, "Could not decode framed image")
-        framed_filename = f"{uuid.uuid4()}.jpg"
-        framed_pil.save(UPLOAD_DIR / framed_filename, format="JPEG", quality=90)
-        reference_image_url = f"/uploads/{framed_filename}"
+        reference_image_url = await storage.save_image_async(framed_pil, f"{uuid.uuid4()}.jpg")
 
     sketch = Sketch(
         sketcher_id=sketcher_id,
@@ -518,9 +514,7 @@ async def save_focal_frame(
             framed_pil = Image.open(io.BytesIO(framed_contents)).convert("RGB")
         except Exception:
             raise HTTPException(400, "Could not decode framed image")
-        framed_filename = f"{uuid.uuid4()}.jpg"
-        framed_pil.save(UPLOAD_DIR / framed_filename, format="JPEG", quality=90)
-        new_reference_url = f"/uploads/{framed_filename}"
+        new_reference_url = await storage.save_image_async(framed_pil, f"{uuid.uuid4()}.jpg")
 
         old_reference_url = sketch.reference_image_url
         if old_reference_url and old_reference_url != sketch.original_image_url:
@@ -889,9 +883,10 @@ async def sketch_value_study(
     if sketch is None or not can_see(db, sketch, sketcher_id):
         raise HTTPException(404, "Sketch not found")
 
-    image_path = UPLOAD_DIR / Path(sketch.reference_image_url).name
     try:
-        pil_image = Image.open(image_path)
+        pil_image = storage.open_image(sketch.reference_image_url)
+        if pil_image is None:
+            raise FileNotFoundError(sketch.reference_image_url)
     except Exception:
         raise HTTPException(400, "Could not load this sketch's photo")
 
@@ -907,19 +902,10 @@ def _delete_sketch_files(sketch: Sketch) -> None:
 
 
 def _delete_upload_file(url: str | None) -> None:
-    """
-    Best-effort delete of one uploaded file, given its stored URL
-    (e.g. "/uploads/<uuid>.jpg"). Path(url).name strips any directory
-    component down to the bare filename before joining it back onto
-    UPLOAD_DIR, so this can't be tricked into deleting anything outside
-    that folder. missing_ok=True since a sketch's original and reference
-    image can point at the same file (the common, uncropped case -- see
-    create_sketch) -- delete_sketch below calls this once per distinct
-    URL, but a file already gone is not an error either way.
-    """
-    if not url:
-        return
-    (UPLOAD_DIR / Path(url).name).unlink(missing_ok=True)
+    """Best-effort delete of one stored image (core/storage.py), given its
+    "/uploads/<file>" URL. A sketch's original and reference image can be
+    the same file (the uncropped case), so a file already gone is fine."""
+    storage.delete(url)
 
 
 @router.delete("/sketches/{sketch_id}")
@@ -1825,11 +1811,10 @@ async def add_upload(
         pil_image = ImageOps.exif_transpose(Image.open(io.BytesIO(contents))).convert("RGB")
     except Exception:
         raise HTTPException(400, "Could not read that image")
-    filename = f"{uuid.uuid4()}.jpg"
-    pil_image.save(UPLOAD_DIR / filename, format="JPEG", quality=90)
+    url = await storage.save_image_async(pil_image, f"{uuid.uuid4()}.jpg")
 
     upload = SketchUpload(
-        sketch_id=sketch.id, sketcher_id=sketcher_id, url=f"/uploads/{filename}",
+        sketch_id=sketch.id, sketcher_id=sketcher_id, url=url,
         position=(max((u.position for u in rows), default=-1) + 1),
     )
     db.add(upload)
@@ -1876,11 +1861,11 @@ async def add_uploads(
             raise HTTPException(400, f"Could not read photo {n}. Try a JPEG or PNG.")
 
     start = max((u.position for u in rows), default=-1) + 1
+    # Stored side by side: a set of photos takes about as long as one.
+    urls = await asyncio.gather(*(storage.save_image_async(im, f"{uuid.uuid4()}.jpg") for im in decoded))
     added = []
-    for n, pil_image in enumerate(decoded):
-        filename = f"{uuid.uuid4()}.jpg"
-        pil_image.save(UPLOAD_DIR / filename, format="JPEG", quality=90)
-        upload = SketchUpload(sketch_id=sketch.id, sketcher_id=sketcher_id, url=f"/uploads/{filename}", position=start + n)
+    for n, url in enumerate(urls):
+        upload = SketchUpload(sketch_id=sketch.id, sketcher_id=sketcher_id, url=url, position=start + n)
         db.add(upload)
         added.append(upload)
     db.commit()

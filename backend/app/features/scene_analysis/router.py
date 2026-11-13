@@ -28,7 +28,7 @@ from app.core.database import get_db
 from app.core.exif_utils import extract_location_and_time
 from app.core.gemini_service import GeminiQuotaExceededError
 from app.core.models import Sketch
-from app.core.paths import UPLOAD_DIR
+from app.core import storage
 from app.features.geocode.service import reverse_geocode
 from app.features.scene_analysis import service
 from app.features.scene_analysis.schemas import SceneAnalysisResponse
@@ -65,7 +65,7 @@ async def scene_analysis(
         raise HTTPException(400, "This sketch has no reference photo on file")
     fingerprint = service.photo_fingerprint(sketch)
     try:
-        pil_image = Image.open(UPLOAD_DIR / Path(sketch.reference_image_url).name).convert("RGB")
+        pil_image = storage.open_image(sketch.reference_image_url).convert("RGB")
     except Exception:
         raise HTTPException(400, "Could not load this sketch's photo")
 

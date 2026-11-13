@@ -23,7 +23,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from config import COACHING_MAX_DIMENSION, MAX_IMAGE_DIMENSION, MAX_MARKS_FOR_AI
-from app.core.paths import UPLOAD_DIR
+from app.core import storage
 from app.core.mark_geometry import visible_marks
 
 
@@ -55,10 +55,10 @@ def _load_upload(url: str | None, max_dim: int = MAX_IMAGE_DIMENSION) -> Image.I
     """Open an /uploads/... image, downsized so its longest side is at most max_dim."""
     if not url:
         return None
-    path = UPLOAD_DIR / Path(url).name
-    if not path.exists():
+    img = storage.open_image(url)
+    if img is None:
         return None
-    img = Image.open(path).convert("RGB")
+    img = img.convert("RGB")
     w, h = img.size
     if max(w, h) > max_dim:
         scale = max_dim / max(w, h)

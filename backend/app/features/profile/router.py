@@ -23,7 +23,9 @@ from app.core import usernames
 from app.core.database import get_db
 from app.core.auth import get_current_claims, get_current_sketcher_id
 from app.core.models import Profile, Sketch
-from app.core.paths import UPLOAD_DIR
+from starlette.concurrency import run_in_threadpool
+
+from app.core import storage
 from app.features.profile.schemas import ProfileUpdateRequest
 from app.core.media import stored_url
 from app.core.models import KitItem, KitWish
@@ -174,9 +176,8 @@ async def add_kit_photo(
     except Exception:
         raise HTTPException(400, "Could not read that photo")
     pil.thumbnail((2000, 2000))
-    filename = f"kit_{uuid.uuid4()}.jpg"
-    pil.save(UPLOAD_DIR / filename, format="JPEG", quality=88)
-    profile.kit_photos = photos + [f"/uploads/{filename}"]
+    url = await storage.save_image_async(pil, f"kit_{uuid.uuid4()}.jpg", quality=88)
+    profile.kit_photos = photos + [url]
     profile.kit_photo_url = profile.kit_photos[0]
     db.commit()
     return {"kit_photos": profile.kit_photos, "index": len(profile.kit_photos) - 1}
@@ -209,5 +210,5 @@ async def remove_kit_photo(
         db.query(KitWish).filter(KitWish.kit_item_id.in_(gone_ids)).delete(synchronize_session=False)
         db.query(KitItem).filter(KitItem.id.in_(gone_ids)).delete(synchronize_session=False)
     db.commit()
-    (UPLOAD_DIR / gone.rsplit("/", 1)[-1]).unlink(missing_ok=True)
+    await run_in_threadpool(storage.delete, gone)
     return {"kit_photos": photos}

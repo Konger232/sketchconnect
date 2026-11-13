@@ -70,8 +70,11 @@ npm run dev
   to the same palette and layout. Treat this as a working first pass, not
   a pixel-perfect match — refine spacing/assets against the Figma file
   directly as you go.
-- Image storage: uploaded photos are written to `backend/uploads/` for
-  local dev. Swap for Supabase Storage before deploying anywhere shared.
+- Image storage (`backend/app/core/storage.py`): without `STORAGE_BUCKET`,
+  images are written to `backend/uploads/`. With `STORAGE_BUCKET`,
+  `SUPABASE_URL` and `SUPABASE_SECRET_KEY` set, they go to that private
+  Supabase Storage bucket. Copy the existing images across once with
+  `python tools/upload_to_supabase.py`.
 - A previous Cloud Run deployment of the *old* OpenCV backend exists
   (see `frontend/.env`'s comment) — unrelated to this setup, still running
   the Phase-0 prototype until redeployed.

@@ -156,13 +156,13 @@ def read_kit_photo(body: KitReadRequest, db: Session = Depends(get_db), sketcher
     before are replaced; tools the sketcher added stay. Returns the bag.
     """
     from PIL import Image, ImageOps
-    from app.core.paths import UPLOAD_DIR
+    from app.core import storage
     from app.features.kit.service import read_kit
     photos = kit_photos(db.get(Profile, sketcher_id))
     if body.photo >= len(photos):
         raise HTTPException(404, "No bag photo there")
     try:
-        img = ImageOps.exif_transpose(Image.open(UPLOAD_DIR / photos[body.photo].rsplit("/", 1)[-1])).convert("RGB")
+        img = ImageOps.exif_transpose(storage.open_image(photos[body.photo])).convert("RGB")
     except Exception:
         raise HTTPException(400, "Could not read that photo")
     img.thumbnail((1600, 1600))
