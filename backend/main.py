@@ -48,6 +48,8 @@ def warm_up() -> None:
     database region, about 0.6 s from Bangkok)."""
     import threading
     from sqlalchemy import text
+    from app.core import storage
+    threading.Thread(target=lambda: print(storage.describe()), daemon=True).start()
     from app.core.auth import warm_jwks
     from app.core.database import engine, read_engine
 

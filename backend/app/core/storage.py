@@ -179,3 +179,17 @@ def list_names(prefix: str) -> list[str]:
         if len(r.json()) < 1000:
             return names
         offset += 1000
+
+
+def describe() -> str:
+    """One line for the startup log: where images live, and whether the
+    bucket answers."""
+    if not REMOTE:
+        return f"images: local folder {UPLOAD_DIR}"
+    try:
+        r = _http().post(f"/object/list/{BUCKET}", json={"prefix": "", "limit": 1, "offset": 0})
+        if r.status_code == 200:
+            return f"images: Supabase bucket '{BUCKET}' (connected)"
+        return f"images: Supabase bucket '{BUCKET}' NOT reachable (HTTP {r.status_code}): check the bucket name and the key"
+    except Exception as exc:
+        return f"images: Supabase bucket '{BUCKET}' NOT reachable ({exc.__class__.__name__})"
