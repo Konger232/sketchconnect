@@ -37,8 +37,14 @@ IDLE_PING_SECONDS = 60
 # and VPNs see traffic and keep it open.
 _KEEPALIVE = ({"keepalives": 1, "keepalives_idle": 30, "keepalives_interval": 10, "keepalives_count": 3}
               if DATABASE_URL.startswith("postgres") else {}) if DATABASE_URL else {}
-engine = create_engine(DATABASE_URL, pool_recycle=1800, connect_args=_KEEPALIVE) if DATABASE_URL else None
-read_engine = (create_engine(DATABASE_URL, pool_recycle=1800, isolation_level="AUTOCOMMIT", connect_args=_KEEPALIVE)
+# Supabase's Session pooler takes a limited number of clients at once, shared
+# by every copy of the backend (your Mac and Cloud Run). SQLAlchemy's default
+# (5 + 10 overflow per engine, 30 per process) can reach that cap, and new
+# connections are then refused. Here: at most 7 reads and 5 writes per process.
+engine = (create_engine(DATABASE_URL, pool_recycle=1800, pool_size=2, max_overflow=3, pool_timeout=20,
+                        connect_args=_KEEPALIVE) if DATABASE_URL else None)
+read_engine = (create_engine(DATABASE_URL, pool_recycle=1800, pool_size=4, max_overflow=3, pool_timeout=20,
+                             isolation_level="AUTOCOMMIT", connect_args=_KEEPALIVE)
                if DATABASE_URL else None)
 KEEP_WARM_SECONDS = 45
 
@@ -83,8 +89,10 @@ def keep_warm() -> None:
     so none sits idle long enough to be dropped, and a dropped one is
     replaced here rather than in someone's request. Runs in a thread."""
     from sqlalchemy import text
+    last = None  # the last problem printed, so a long outage is one line, not hundreds
     while True:
         time.sleep(KEEP_WARM_SECONDS)
+        problem = None
         for eng in (read_engine, engine):
             if eng is None:
                 continue
@@ -95,10 +103,25 @@ def keep_warm() -> None:
                     c.execute(text("select 1"))
                     held.append(c)
             except Exception as exc:  # noqa: BLE001 - never stop the loop
-                print(f"keep-warm: {exc.__class__.__name__}")
+                problem = describe_db_error(exc)
             finally:
                 for c in held:
                     c.close()
+        if problem and problem != last:
+            print(f"keep-warm: database not reached: {problem}")
+        elif last and not problem:
+            print("keep-warm: database reached again")
+        last = problem
+
+
+def describe_db_error(exc: Exception) -> str:
+    """The reason a database call failed, in one line: the driver's own
+    message (e.g. "Max client connections reached", "could not translate host
+    name"). It names the host and user, never the password."""
+    inner = getattr(exc, "orig", None) or exc
+    lines = [ln.strip() for ln in str(inner).splitlines() if ln.strip()]
+    text = next((ln for ln in lines if "FATAL" in ln or "error" in ln.lower()), lines[0] if lines else "")
+    return f"{inner.__class__.__name__}: {text[:300]}"
 
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

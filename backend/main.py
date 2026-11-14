@@ -65,7 +65,8 @@ def warm_up() -> None:
             c.execute(text("select 1"))
             held.append(c)
         except Exception as exc:  # noqa: BLE001
-            print(f"warm-up: database not reached ({exc.__class__.__name__})")
+            from app.core.database import describe_db_error
+            print(f"warm-up: database not reached ({describe_db_error(exc)})")
         finally:
             done.release()
 
