@@ -38,7 +38,7 @@ export function ValueSection({ sketch }) {
       <h2 className="ed-kicker m-0">The value study</h2>
       <div className="grid gap-8 md:grid-cols-2 md:gap-14">
         {study ? (
-          <div className="relative">
+          <div className="ed-bleed relative">
             <img src={study.valueStudyImage} alt={`The reference photo in ${levels} values`} className="block w-full" />
             <RuleOfThirdsGrid />
           </div>
@@ -94,13 +94,13 @@ export function ColorSection({ sketch, reference }) {
         <div className="grid gap-8 md:grid-cols-2 md:gap-14">
           <div className="flex flex-col gap-3">
             <h3 className="m-0 font-sans text-lg font-normal">Gamut mask</h3>
-            <div className="bg-black p-4">
+            <div className="ed-bleed bg-black p-4">
               <GamutWheel shapes={shapes} onChange={noop} active={0} onActive={noop} paints={[]} readOnly />
             </div>
           </div>
           <div className="flex flex-col gap-3">
             <h3 className="m-0 font-sans text-lg font-normal">Colour values</h3>
-            <div className="bg-black p-4">
+            <div className="ed-bleed bg-black p-4">
               {paints
                 ? <MaskValues shapes={shapes} paints={paints} marked={swatches} readOnly />
                 : <p className="m-0 animate-pulse text-sm text-sc-text3">Working…</p>}
@@ -110,7 +110,7 @@ export function ColorSection({ sketch, reference }) {
       )}
       {reference && (
         <div className="grid gap-8 md:grid-cols-2 md:gap-14">
-          <div className="relative">
+          <div className="ed-bleed relative">
             <img src={url || reference} alt={url ? "The reference photo in the mask's colours" : 'The reference photo'} className="block w-full" />
             <RuleOfThirdsGrid />
             {swatches.map((s) => (

@@ -302,6 +302,11 @@ const ICONS = {
 
   // Community pages (Sketcher, Sketch Detail, PaintEditor). Simple 24px
   // outline shapes, drawn for SketchConnect.
+  comment: {
+    viewBox: '0 0 24 24',
+    draw: STROKE,
+    content: <path d="M20 11.5a8 8 0 0 1-11.6 7.1L4 20l1.4-4.2A8 8 0 1 1 20 11.5z" />,
+  },
   heart: {
     viewBox: '0 0 24 24',
     draw: STROKE,

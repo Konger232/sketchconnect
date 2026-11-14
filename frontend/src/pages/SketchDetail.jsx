@@ -67,6 +67,16 @@ export default function SketchDetail() {
   const { user, profile } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  // "/sketches/<id>#comments" (the comment button on a card) lands on the comments.
+  useEffect(() => {
+    if (location.hash !== '#comments') return undefined
+    let tries = 0 // the comments appear once the sketch has loaded
+    const t = setInterval(() => {
+      const el = document.getElementById('comments')
+      if (el || ++tries > 30) { clearInterval(t); el?.scrollIntoView({ behavior: 'smooth' }) }
+    }, 200)
+    return () => clearInterval(t)
+  }, [location.hash, location.pathname])
   const sketchesVersion = useSketchesVersion()
 
   const [s, setS] = useState(null)

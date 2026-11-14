@@ -54,7 +54,7 @@ export default function Comments({
   }
 
   return (
-    <section className="ed-section">
+    <section id="comments" className="ed-section scroll-mt-20">
       <h2 className="ed-kicker m-0">{title} · {list?.length ?? 0}</h2>
       {list?.length === 0 && <p className="m-0 text-sm text-ink/50">{empty}</p>}
       <ul className="flex flex-col gap-4">

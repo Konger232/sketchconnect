@@ -30,7 +30,7 @@ from geoalchemy2.functions import ST_Distance, ST_DWithin
 
 from app.core.database import get_db
 from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
-from app.core.models import Sketch, CritiqueResponse, Persona, Profile, SketchLike, SketchUpload
+from app.core.models import Sketch, CritiqueResponse, Persona, Profile, SketchComment, SketchLike, SketchUpload
 from app.core.debug import DEBUG_DIR
 from app.features.sketches.schemas import (
     AdoptMarkRequest, MarkSelectionRequest, SketchUpdateRequest, SketcherFocalPointInput,
@@ -1025,8 +1025,11 @@ def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:
     info = {}
     if rows:
         mine = func.bool_or(SketchLike.sketcher_id == viewer_id) if viewer_id else false()
-        info = {sid: (p, n, bool(liked)) for sid, p, n, liked in (
-            db.query(Sketch.id, Profile, func.count(SketchLike.sketcher_id), mine)
+        # Comments as a subquery: a join would multiply the like count.
+        comments = (select(func.count()).select_from(SketchComment)
+                    .where(SketchComment.sketch_id == Sketch.id).correlate(Sketch).scalar_subquery())
+        info = {sid: (p, n, bool(liked), c) for sid, p, n, liked, c in (
+            db.query(Sketch.id, Profile, func.count(SketchLike.sketcher_id), mine, comments)
             .select_from(Sketch)
             .outerjoin(Profile, Profile.id == Sketch.sketcher_id)
             .outerjoin(SketchLike, SketchLike.sketch_id == Sketch.id)
@@ -1037,10 +1040,10 @@ def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:
     for s in rows:
         d = _sketch_card(s)
         d["upload_count"] = drafts.get(s.id, 0)
-        p, n, liked = info.get(s.id, (None, 0, False))
+        p, n, liked, c = info.get(s.id, (None, 0, False, 0))
         d["owner"] = {"display_name": p.display_name if p else None, "username": p.username if p else None,
                       "avatar_url": p.avatar_url if p else None}  # Explore's avatar pins
-        d["like_count"], d["liked"] = n, liked
+        d["like_count"], d["liked"], d["comment_count"] = n, liked, c or 0
         d["is_owner"] = bool(viewer_id) and s.sketcher_id == viewer_id
         dicts.append(d)
     return dicts
