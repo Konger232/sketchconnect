@@ -36,3 +36,7 @@ backend/debug_out/
 
 # Plan read trial output (tools/plan_read_eval.py)
 backend/plan_read_out/
+
+# Local only: the image backup and Firebase's deploy cache
+backend/uploads_backup/
+frontend/.firebase/
