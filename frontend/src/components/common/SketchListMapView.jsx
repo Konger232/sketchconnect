@@ -4,7 +4,7 @@ import { Circle, MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
 import Icon from './Icon'
 import SketchCard, { RATIOS } from './SketchCard'
 import SketchPins from './SketchPins'
-import { FitToMarkers, FlyTo, pinIcon } from './LocationMap'
+import { BackToSketch, FitToMarkers, FlyTo, pinIcon } from './LocationMap'
 import LocationSearchField from './LocationSearchField'
 import { sketchDate } from '../../lib/sketchDate'
 
@@ -155,6 +155,7 @@ export default function SketchListMapView({
                 url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
               />
               <FitToMarkers markers={located} zoom={14} />
+              <BackToSketch markers={located} zoom={14} label={located.length > 1 ? 'Back to the sketches' : 'Back to the sketch'} />
               {focus && <FlyTo focus={focus} />}
               {center && (
                 <>

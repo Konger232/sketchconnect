@@ -1,5 +1,6 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import L from 'leaflet'
+import Icon from './Icon'
 import { Circle, MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
@@ -121,6 +122,33 @@ export function FitToMarkers({ markers, zoom }) {
   return null
 }
 
+// A button under the zoom buttons that brings the sketch (or every pin) back
+// into view, after a scroll or a drag carried the map away (November 14,
+// 2026). Same view as on load: one pin at `zoom`, several fitted together.
+export function BackToSketch({ markers, zoom = 13, label = 'Back to the sketch' }) {
+  const map = useMap()
+  const ref = useRef(null)
+  // A tap on the button must not reach the map (a click there closes cards).
+  useEffect(() => {
+    if (ref.current) { L.DomEvent.disableClickPropagation(ref.current); L.DomEvent.disableScrollPropagation(ref.current) }
+  }, [])
+  if (!markers?.length) return null
+  const back = () => {
+    if (markers.length === 1) map.flyTo([markers[0].lat, markers[0].lon], zoom, { duration: 0.6 })
+    else map.flyToBounds(markers.map((p) => [p.lat, p.lon]), { padding: [30, 30], maxZoom: 15, duration: 0.6 })
+  }
+  return (
+    <div ref={ref} className="leaflet-top leaflet-left" style={{ top: 74 }}>
+      <div className="leaflet-control leaflet-bar">
+        <button type="button" onClick={back} title={label} aria-label={label}
+          className="flex h-[30px] w-[30px] items-center justify-center bg-white text-ink hover:bg-[#f4f4f4]">
+          <Icon name="location" size={15} className="text-[var(--pin-active)]" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // hint: the line under an editable map. Off where the page explains it.
 //
 // Custom pins (SketchListMapView): `pins` [{ id, lat, lon, variant
@@ -163,6 +191,7 @@ export default function LocationMap({
           />
         {editable && <ClickToSetLocation onLocationChange={onLocationChange} />}
         {!editable && <FitToMarkers markers={markers} zoom={zoom} />}
+        {!editable && <BackToSketch markers={markers} zoom={zoom} label={markers.length > 1 ? 'Back to the sketches' : 'Back to the sketch'} />}
         {onMapClick && <MapClicks onMapClick={onMapClick} />}
         {focus && <FlyTo focus={focus} />}
         {ring && (
