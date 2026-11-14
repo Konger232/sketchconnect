@@ -8,7 +8,7 @@ import SketchCard from '../components/common/SketchCard'
 import SketchPins from '../components/common/SketchPins'
 import EventCard from '../components/common/EventCard'
 import { eventDay } from '../lib/events'
-import { pinIcon } from '../components/common/LocationMap'
+import { BackToSketch, pinIcon } from '../components/common/LocationMap'
 import { useSheetDrag } from '../lib/useSheetDrag'
 import { api } from '../lib/api'
 
@@ -27,7 +27,7 @@ function StartAtMe({ onReady }) {
   useEffect(() => {
     if (!navigator.geolocation) return onReady()
     navigator.geolocation.getCurrentPosition(
-      (pos) => { map.setView([pos.coords.latitude, pos.coords.longitude], NEAR_ZOOM); onReady() },
+      (pos) => { map.setView([pos.coords.latitude, pos.coords.longitude], NEAR_ZOOM); onReady({ lat: pos.coords.latitude, lon: pos.coords.longitude }) },
       () => onReady(),
       { timeout: 8000, maximumAge: 600000 },
     )
@@ -35,14 +35,16 @@ function StartAtMe({ onReady }) {
   return null
 }
 
+// Only the part of the map beside the panel counts as "in view".
+const visibleBounds = (map) => {
+  const size = map.getSize()
+  const x = Math.min(panelInset(), size.x - 1)
+  return L.latLngBounds(map.containerPointToLatLng([x, 0]), map.containerPointToLatLng([size.x, size.y]))
+}
+
 // The map's view, whenever it stops moving.
 function ViewWatcher({ onView }) {
-  // Only the part of the map beside the panel counts as "in view".
-  const visible = () => {
-    const size = map.getSize()
-    const x = Math.min(panelInset(), size.x - 1)
-    return L.latLngBounds(map.containerPointToLatLng([x, 0]), map.containerPointToLatLng([size.x, size.y]))
-  }
+  const visible = () => visibleBounds(map)
   const map = useMapEvents({ moveend: () => onView(visible()), resize: () => onView(visible()) })
   useEffect(() => { onView(visible()) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   return null
@@ -57,20 +59,36 @@ const fitOptions = (extra = {}) => ({ paddingTopLeft: [panelInset() + 24, 24], p
 
 // A searched place: the whole of it in view (a city, a district), else
 // close around its point.
+function flyToPlace(map, place, zoom = NEAR_ZOOM) {
+  if (place.bbox) {
+    const [s, n, w, e] = place.bbox
+    map.flyToBounds([[s, w], [n, e]], fitOptions({ maxZoom: 15, duration: 0.8 }))
+  } else {
+    // The point in the middle of the part of the map that shows.
+    const pt = map.project([place.lat, place.lon], zoom).subtract([panelInset() / 2, 0])
+    map.flyTo(map.unproject(pt, zoom), zoom, { duration: 0.8 })
+  }
+}
 function FlyTo({ place }) {
   const map = useMap()
   useEffect(() => {
-    if (!place) return
-    if (place.bbox) {
-      const [s, n, w, e] = place.bbox
-      map.flyToBounds([[s, w], [n, e]], fitOptions({ maxZoom: 15, duration: 0.8 }))
-    } else {
-      // The point in the middle of the part of the map that shows.
-      const pt = map.project([place.lat, place.lon], NEAR_ZOOM).subtract([panelInset() / 2, 0])
-      map.flyTo(map.unproject(pt, NEAR_ZOOM), NEAR_ZOOM, { duration: 0.8 })
-    }
+    if (place) flyToPlace(map, place)
   }, [place?.lat, place?.lon]) // eslint-disable-line react-hooks/exhaustive-deps
   return null
+}
+
+// Back to what the map was showing, once it has left the view (November 14,
+// 2026): the sketch picked in the list, else the searched place, else where
+// the map started (the sketcher's location).
+function ExploreBack({ anchor }) {
+  const map = useMap()
+  if (!anchor) return null
+  return (
+    <BackToSketch markers={[anchor]} label={anchor.label}
+      inView={() => visibleBounds(map)}
+      corner={panelInset() ? 'bottomright' : 'topright'}
+      onBack={() => flyToPlace(map, anchor, Math.max(map.getZoom(), NEAR_ZOOM))} />
+  )
 }
 
 // Events in view (design doc, item 49): a date tile each, never grouped,
@@ -109,6 +127,8 @@ export default function Explore() {
   const [loading, setLoading] = useState(false)
   const [map, setMap] = useState(null)
   const [picked, setPicked] = useState(null) // the sketch picked in the list
+  const [pickedAt, setPickedAt] = useState(null) // where it is, kept when it scrolls out of the list
+  const [home, setHome] = useState(null) // where the map started: the sketcher's location
   const timer = useRef(null)
   // On a phone the panel is the bottom sheet of Create and Edit Sketch:
   // drag its handle up for more results, down to just the search.
@@ -118,6 +138,7 @@ export default function Explore() {
   // A card in the list: its pin to the centre of the map, at the same zoom.
   function centreOn(s) {
     setPicked(s.id)
+    setPickedAt(s.location ? { lat: s.location.lat, lon: s.location.lon, label: 'Back to the picked sketch' } : null)
     if (!map || !s.location) return
     const pt = map.project([s.location.lat, s.location.lon]).subtract([panelInset() / 2, 0])
     map.panTo(map.unproject(pt), { animate: true })
@@ -167,6 +188,7 @@ export default function Explore() {
     const next = !mine
     setMine(next)
     setPicked(null)
+    setPickedAt(null)
     if (next) setPlace(null)
     if (!next || !map) return
     try {
@@ -218,9 +240,10 @@ export default function Explore() {
           />
           {/* Top right on a phone, clear of the bottom sheet. */}
           <ZoomControl position={panelInset() ? 'bottomright' : 'topright'} />
-          <StartAtMe onReady={() => setLocated(true)} />
+          <StartAtMe onReady={(at) => { setLocated(true); if (at) setHome({ ...at, label: 'Back to where you are' }) }} />
           <ViewWatcher onView={setBounds} />
           <FlyTo place={place} />
+          <ExploreBack anchor={(picked && pickedAt) || (place && { ...place, label: `Back to ${place.label || 'the place'}` }) || home} />
           <SketchPins sketches={pins} picked={picked} fit={fitOptions} />
           <EventPins events={shownEvents} picked={picked} />
         </MapContainer>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import L from 'leaflet'
 import Icon from './Icon'
 import { Circle, MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet'
@@ -122,23 +122,41 @@ export function FitToMarkers({ markers, zoom }) {
   return null
 }
 
-// A button under the zoom buttons that brings the sketch (or every pin) back
-// into view, after a scroll or a drag carried the map away (November 14,
-// 2026). Same view as on load: one pin at `zoom`, several fitted together.
-export function BackToSketch({ markers, zoom = 13, label = 'Back to the sketch' }) {
+// A button that brings the sketch (or the pins) back into view after a scroll
+// or a drag carried the map away (November 14, 2026). It shows only while
+// none of `markers` is in view, and hides again once one is.
+//
+//   markers   [{ lat, lon }] the anchors
+//   zoom      one anchor comes back at this zoom; several are fitted together
+//   onBack    instead of the default fly (Explore's own fit around its panel)
+//   inView()  the part of the map that counts as in view (default: all of it)
+//   corner    'topleft' (under the zoom buttons) | 'topright' | 'bottomright'
+export function BackToSketch({ markers, zoom = 13, label = 'Back to the sketch', onBack, inView, corner = 'topleft' }) {
   const map = useMap()
-  const ref = useRef(null)
+  const [away, setAway] = useState(false)
+  const key = (markers || []).map((p) => `${p.lat},${p.lon}`).join('|')
+  const check = () => {
+    if (!markers?.length) { setAway(false); return }
+    const view = inView ? inView() : map.getBounds()
+    setAway(!markers.some((p) => view.contains([p.lat, p.lon])))
+  }
+  useMapEvents({ moveend: check, zoomend: check, resize: check })
+  useEffect(() => { check() }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
   // A tap on the button must not reach the map (a click there closes cards).
-  useEffect(() => {
-    if (ref.current) { L.DomEvent.disableClickPropagation(ref.current); L.DomEvent.disableScrollPropagation(ref.current) }
-  }, [])
-  if (!markers?.length) return null
+  const hold = (el) => { if (el) { L.DomEvent.disableClickPropagation(el); L.DomEvent.disableScrollPropagation(el) } }
+  if (!markers?.length || !away) return null
   const back = () => {
+    if (onBack) return onBack()
     if (markers.length === 1) map.flyTo([markers[0].lat, markers[0].lon], zoom, { duration: 0.6 })
     else map.flyToBounds(markers.map((p) => [p.lat, p.lon]), { padding: [30, 30], maxZoom: 15, duration: 0.6 })
   }
+  const place = {
+    topleft: ['leaflet-top leaflet-left', { top: 74 }],
+    topright: ['leaflet-top leaflet-right', { top: 74 }],
+    bottomright: ['leaflet-bottom leaflet-right', { bottom: 92 }],
+  }[corner]
   return (
-    <div ref={ref} className="leaflet-top leaflet-left" style={{ top: 74 }}>
+    <div ref={hold} className={place[0]} style={place[1]}>
       <div className="leaflet-control leaflet-bar">
         <button type="button" onClick={back} title={label} aria-label={label}
           className="flex h-[30px] w-[30px] items-center justify-center bg-white text-ink hover:bg-[#f4f4f4]">
