@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import Avatar from './Avatar'
 import Icon from './Icon'
+import NameHandle from './NameHandle'
 import SketchListMapView from './SketchListMapView'
 import { api } from '../../lib/api'
 import { dateLabel, imageUrl } from '../../lib/media'
@@ -25,6 +27,11 @@ export const toListItem = (s) => ({
  * Newest first, in SketchListMapView. Used by the Search page and the
  * registered sketcher's Home.
  *
+ * The results say what the text matched (November 14, 2026): sketchers
+ * whose name or username has it are listed first, as links to their pages;
+ * a place shows as "Sketches in <place>", and opens on the map unless
+ * sketchers matched too.
+ *
  *   initial    [sketches] shown before anything is typed (Home: near you)
  *   initialLabel  a line above them
  *   autoFocus
@@ -46,7 +53,7 @@ export default function SketchSearch({ initial = null, initialLabel, autoFocus =
       setLoading(true)
       setError(null)
       api.get('/api/sketches/search', { params: { q } })
-        .then(({ data }) => setResults(data))
+        .then(({ data }) => setResults(Array.isArray(data) ? { sketches: data, sketchers: [], place: null } : data))
         .catch(() => setError('Search is not available right now.'))
         .finally(() => setLoading(false))
     }, 400)
@@ -54,7 +61,11 @@ export default function SketchSearch({ initial = null, initialLabel, autoFocus =
   }, [query]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const searching = results !== null
-  const shown = searching ? results : initial
+  const shown = searching ? results.sketches : initial
+  const people = searching ? results.sketchers : []
+  const place = searching ? results.place : null
+  // A place search opens on the map; a sketcher (or title) search on the grid.
+  const mode = place && people.length === 0 ? 'map' : 'grid'
 
   return (
     <div className="flex flex-col gap-6">
@@ -75,8 +86,31 @@ export default function SketchSearch({ initial = null, initialLabel, autoFocus =
         <p className="m-0 text-sm text-ink/60">Try a sketcher's name, a title, or a place such as Kyoto or Thailand.</p>
       )}
       {!loading && !searching && initialLabel && initial !== null && <span className="ed-kicker -mb-2">{initialLabel}</span>}
+      {!loading && people.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <span className="ed-kicker">Sketchers</span>
+          <div className="flex flex-col gap-1">
+            {people.map((p) => (
+              <Link key={p.id} to={`/sketchers/${p.username}`}
+                className="flex items-center gap-3 rounded-lg px-1 py-1.5 text-ink no-underline hover:bg-ink/5">
+                <Avatar url={p.avatar_url} className="h-9 w-9" />
+                <NameHandle person={p} className="min-w-0 truncate" />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+      {!loading && place && (
+        <span className="ed-kicker -mb-2 flex items-center gap-1.5">
+          <Icon name="location" size={13} className="text-[var(--pin-active)]" /> Sketches in {place.name}
+        </span>
+      )}
+      {!loading && searching && people.length > 0 && !place && shown.length > 0 && (
+        <span className="ed-kicker -mb-2">Sketches</span>
+      )}
       {!loading && shown !== null && (
-        <SketchListMapView items={shown.map(toListItem)}
+        <SketchListMapView key={searching ? `${query.trim()}:${mode}` : 'initial'} view={mode}
+          items={shown.map(toListItem)}
           emptyText={searching ? `No sketches match "${query.trim()}".` : 'No sketches yet.'} />
       )}
     </div>

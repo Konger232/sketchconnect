@@ -37,7 +37,7 @@ const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : '')
 // 0-1000 overlay as the Plan photo in Edit Sketch).
 function PlanImage({ src, marks }) {
   return (
-    <div className="relative">
+    <div className="ed-bleed relative">
       <img src={src} alt="The plan: strokes on the reference photo" className="block w-full" />
       <RuleOfThirdsGrid />
       <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
@@ -334,8 +334,9 @@ export default function SketchDetail() {
       {/* ---- Hero gallery ---- */}
       <section className="flex flex-col gap-2">
         <div className="grid gap-2 md:grid-cols-[2fr_1fr]">
-          <div className={`${heroImage ? 'bg-black' : 'photo-placeholder'} relative flex aspect-[4/5] items-center justify-center overflow-hidden md:aspect-auto md:h-[520px]`}>
-            {heroImage && <img src={heroImage} alt={s.title || 'Sketch'} className="max-h-full max-w-full object-contain" />}
+          {/* Phone: the whole width and the photo's own shape, no black bars. */}
+          <div className={`${heroImage ? 'md:bg-black' : 'photo-placeholder aspect-[4/5]'} ed-bleed relative flex items-center justify-center overflow-hidden md:aspect-auto md:h-[520px]`}>
+            {heroImage && <img src={heroImage} alt={s.title || 'Sketch'} className="block w-full md:max-h-full md:w-auto md:max-w-full md:object-contain" />}
             {imageCount > 1 && (
               <button type="button" onClick={() => sketchGroupRef.current?.scrollIntoView({ behavior: 'smooth' })}
                 className="absolute bottom-4 left-4 inline-flex h-10 items-center gap-2 rounded-full bg-ink/70 px-4 text-sm font-bold text-white">
@@ -365,7 +366,7 @@ export default function SketchDetail() {
         <section className="ed-section">
           <h2 className="ed-kicker m-0">The scene</h2>
           <div className="grid gap-8 md:grid-cols-2 md:gap-14">
-            <div className="relative">
+            <div className="ed-bleed relative">
               <img src={reference} alt="Reference photo" className="block w-full" />
               <RuleOfThirdsGrid />
             </div>
@@ -461,7 +462,7 @@ export default function SketchDetail() {
           ) : (
             <div className="grid gap-8 md:grid-cols-2 md:gap-14">
               <div className="flex flex-col gap-3">
-                <span className="photo-placeholder flex items-center justify-center">
+                <span className="ed-bleed photo-placeholder flex items-center justify-center">
                   <img src={imageUrl(shownUpload.url)} alt={`${s.title || 'Sketch'}: ${uploadLabel(shownUpload)}`} className="block w-full" />
                 </span>
                 <div className="flex flex-wrap items-end justify-between gap-2">
@@ -570,7 +571,7 @@ export default function SketchDetail() {
           </div>
           <div className="flex flex-wrap gap-8">
             {s.location && (
-              <div className="min-w-0 flex-[1_1_480px]">
+              <div className="ed-bleed min-w-0 flex-[1_1_480px]">
                 <LocationMap lat={s.location.lat} lon={s.location.lon} height="h-[300px]" rounded={false} />
               </div>
             )}

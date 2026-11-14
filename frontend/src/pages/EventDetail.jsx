@@ -102,7 +102,7 @@ export default function EventDetail() {
       {/* ---- the announcement ---- */}
       <section className="grid items-start gap-8 md:grid-cols-[3fr_2fr] md:gap-12">
         <div className="flex flex-col gap-4">
-          <span className="relative block aspect-[16/9] overflow-hidden rounded-md bg-[var(--ed-field-bg)]">
+          <span className="ed-bleed relative block aspect-[16/9] overflow-hidden bg-[var(--ed-field-bg)] md:rounded-md">
             {e.is_organizer && (
               <label className="absolute bottom-3 right-3 z-10 cursor-pointer rounded bg-white px-3 py-1.5 text-sm font-semibold text-ink shadow hover:bg-ink/5">
                 {uploading ? 'Uploading…' : e.cover_image_url ? 'Change cover' : 'Add a cover photo'}

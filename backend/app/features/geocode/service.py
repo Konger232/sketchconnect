@@ -63,11 +63,17 @@ AREA_TYPES = {
 
 
 async def place_boxes(q: str, limit: int = 3) -> list[tuple[float, float, float, float]]:
+    """Bounding boxes (south, north, west, east) of the areas a search text
+    names (place_areas)."""
+    return [a["box"] for a in await place_areas(q, limit)]
+
+
+async def place_areas(q: str, limit: int = 3) -> list[dict]:
     """
-    Bounding boxes (south, north, west, east) of the areas a search text
-    names, e.g. "Kyoto" or "Thailand", for the generic search (design doc,
-    Search). Empty when the text names no area or Nominatim is unreachable:
-    the search then matches by text only.
+    The areas a search text names, e.g. "Kyoto" or "Thailand", for the
+    generic search (design doc, Search): {"name", "label", "box"} each, the
+    box as (south, north, west, east). Empty when the text names no area or
+    Nominatim is unreachable: the search then matches by text only.
     """
     async with httpx.AsyncClient(timeout=8) as client:
         try:
@@ -80,13 +86,14 @@ async def place_boxes(q: str, limit: int = 3) -> list[tuple[float, float, float,
             return []
     if resp.status_code != 200:
         return []
-    boxes = []
+    areas = []
     for r in resp.json():
         if (r.get("addresstype") or r.get("type")) not in AREA_TYPES or not r.get("boundingbox"):
             continue
         s, n, w, e = (float(v) for v in r["boundingbox"])
-        boxes.append((s, n, w, e))
-    return boxes
+        label = r.get("display_name") or r.get("name") or ""
+        areas.append({"name": r.get("name") or label.split(",")[0], "label": label, "box": (s, n, w, e)})
+    return areas
 
 
 # ---- forward search: Photon, with Nominatim as the fallback ----

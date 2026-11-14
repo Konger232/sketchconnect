@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Circle, MapContainer, Marker, TileLayer } from 'react-leaflet'
+import { Circle, MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
 import Icon from './Icon'
 import SketchCard, { RATIOS } from './SketchCard'
 import SketchPins from './SketchPins'
@@ -36,6 +36,34 @@ import { sketchDate } from '../../lib/sketchDate'
  * (SketchPins).
  */
 const COLS = { 2: 'md:grid-cols-2', 3: 'md:grid-cols-3', 4: 'md:grid-cols-4' }
+const PHONE_MAP_MIN = 360 // px, the phone map's smallest height
+
+// On a phone the map fills the screen below where it starts (November 14,
+// 2026). From 768px it keeps its fixed height (h-[520px]).
+function usePhoneMapHeight(ref, active) {
+  const [h, setH] = useState(null)
+  useLayoutEffect(() => {
+    if (!active) return undefined
+    const measure = () => {
+      const el = ref.current
+      if (!el || window.innerWidth >= 768) { setH(null); return }
+      const top = el.getBoundingClientRect().top + window.scrollY
+      const viewport = window.visualViewport?.height || window.innerHeight
+      setH(Math.max(PHONE_MAP_MIN, Math.round(viewport - top - 12)))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [active, ref])
+  return h
+}
+
+// Leaflet keeps its first size; tell it when the box changes.
+function ResizeMap({ height }) {
+  const map = useMap()
+  useEffect(() => { map.invalidateSize() }, [height, map])
+  return null
+}
 const CARD_H = 340 // image 4:5 at 220 px, plus the caption
 
 const stamp = (it) => {
@@ -60,6 +88,8 @@ export default function SketchListMapView({
   const items = useMemo(() => [...given].sort((a, b) => stamp(b) - stamp(a)), [given])
   const [view, setView] = useState(initialView)
   const [focus, setFocus] = useState(null) // a place picked in the search over the map
+  const mapBox = useRef(null)
+  const phoneHeight = usePhoneMapHeight(mapBox, view === 'map')
 
 
   const located = items.filter((it) => it.lat != null && it.lon != null)
@@ -113,12 +143,13 @@ export default function SketchListMapView({
       )}
 
       {items.length > 0 && view === 'map' && (
-        <div className="relative">
+        <div className="ed-bleed relative" ref={mapBox}>
           {located.length === 0 ? (
             <p className="text-sm text-ink/50">None of these sketches has a location.</p>
           ) : (
             <MapContainer center={[located[0].lat, located[0].lon]} zoom={13} scrollWheelZoom
-              className="h-[420px] w-full md:h-[520px]">
+              className="h-[420px] w-full md:h-[520px]" style={phoneHeight ? { height: phoneHeight } : undefined}>
+              <ResizeMap height={phoneHeight} />
               <TileLayer
                 attribution='Tiles &copy; Esri &mdash; Sources: Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
                 url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"

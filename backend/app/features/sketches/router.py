@@ -46,7 +46,7 @@ from app.core.value_study import compute_value_study
 from app.core import storage
 from config import DEBUG, MAX_MARKS, MAX_POINTS_PER_MARK
 from app.features.critique_agent.router import start_critique
-from app.features.geocode.service import place_boxes, reverse_geocode
+from app.features.geocode.service import place_areas, reverse_geocode
 from app.core.visibility import can_see, visible_filter
 from app.core.ttlcache import TTLCache
 from app.features.events.tags import sync_tags
@@ -1066,27 +1066,42 @@ async def search_sketches(
     inside any town, city or country the text names (Nominatim's bounding
     box), so "Japan" finds a sketch labelled "Gion, Kyoto". Newest first.
     Registered above /sketches/{sketch_id}, like /sketches/recent.
+
+    Returns what the text matched, so the page can tell a place search from
+    a sketcher search (November 14, 2026):
+      sketches   the cards, each with "match": ["sketcher", "title", "place"]
+      sketchers  sketchers whose name or username contains the text
+      place      the area the text names ({"name", "label", "bbox"}), or None
     """
     q = q.strip()
     if len(q) < 2:
-        return []
+        return {"sketches": [], "sketchers": [], "place": None}
     like = f"%{q}%"
+    people = (
+        db.query(Profile.id, Profile.username, Profile.display_name, Profile.avatar_url)
+        .filter(Profile.username.isnot(None))
+        .filter(or_(Profile.display_name.ilike(like), Profile.username.ilike(like)))
+        .order_by(Profile.username)
+        .limit(20)
+        .all()
+    )
+    people_ids = {p.id for p in people}
     text = (
         card_query(db)
-        .outerjoin(Profile, Profile.id == Sketch.sketcher_id)
         .filter(_visible_to(viewer_id))
         .filter(or_(
             Sketch.title.ilike(like),
             Sketch.location_label.ilike(like),
-            Profile.display_name.ilike(like),
-            Profile.username.ilike(like),
+            Sketch.sketcher_id.in_(people_ids) if people_ids else false(),
         ))
     )
     found = {s.id: s for s in text.all()}
-    boxes = await place_boxes(q)
-    if boxes:
+    areas = await place_areas(q)
+    in_area = set()
+    if areas:
         geom = cast(Sketch.location, Geometry(srid=4326))
-        inside = or_(*[func.ST_Intersects(geom, func.ST_MakeEnvelope(w, s, e, n, 4326)) for s, n, w, e in boxes])
+        inside = or_(*[func.ST_Intersects(geom, func.ST_MakeEnvelope(a["box"][2], a["box"][0], a["box"][3], a["box"][1], 4326))
+                       for a in areas])
         for s in (
             card_query(db)
             .filter(_visible_to(viewer_id), Sketch.location.isnot(None))
@@ -1094,8 +1109,26 @@ async def search_sketches(
             .all()
         ):
             found[s.id] = s
+            in_area.add(s.id)
     rows = sorted(found.values(), key=shown_at, reverse=True)[: max(1, min(limit, 200))]
-    return _with_owners(db, rows, viewer_id)
+    needle = q.lower()
+    cards = _with_owners(db, rows, viewer_id)
+    for card, s in zip(cards, rows):
+        card["match"] = [m for m, hit in (
+            ("sketcher", s.sketcher_id in people_ids),
+            ("title", needle in (s.title or "").lower()),
+            ("place", s.id in in_area or needle in (s.location_label or "").lower()),
+        ) if hit]
+    place = None
+    if areas:
+        a = areas[0]
+        place = {"name": a["name"], "label": a["label"], "bbox": list(a["box"])}
+    return {
+        "sketches": cards,
+        "sketchers": [{"id": p.id, "username": p.username, "display_name": p.display_name, "avatar_url": p.avatar_url}
+                      for p in people[:8]],
+        "place": place,
+    }
 
 
 @router.get("/sketches/explore")
