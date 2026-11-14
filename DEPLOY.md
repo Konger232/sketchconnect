@@ -99,7 +99,7 @@ gcloud projects add-iam-policy-binding PROJECT_ID \
 
 ## 2. The backend
 
-From the `backend` folder:
+**First deploy only.** From the `backend` folder:
 
 ```
 gcloud run deploy sketchconnect-api --source . --region asia-northeast1 \
@@ -122,6 +122,26 @@ Why these settings:
   quiet spell waits about 10 seconds. For the committee's review week, set it
   to 1 (step 6).
 - `.dockerignore` keeps `.env` and `uploads/` out of the image.
+
+**Every deploy after that**, from the `backend` folder:
+
+```
+gcloud run deploy sketchconnect-api --source . --region asia-northeast1
+```
+
+It builds the new code and keeps every setting the service already has,
+`FRONTEND_ORIGINS` included. Don't run the first-deploy command again:
+`--set-env-vars` replaces **all** the plain settings with the ones it lists,
+which erases `FRONTEND_ORIGINS` (step 4), and the site then shows no sketches
+because the browser blocks every request to the backend. To change one
+setting, use `gcloud run services update … --update-env-vars …`, which keeps
+the rest.
+
+Check the settings at any time (secrets show by name only):
+
+```
+gcloud run services describe sketchconnect-api --region asia-northeast1 --format="yaml(spec.template.spec.containers[0].env)"
+```
 
 ## 3. The frontend
 
@@ -204,7 +224,7 @@ Cloud Run > sketchconnect-api > Logs.
 
 ## 6. Day to day
 
-- Backend changes: run the step 2 command again from `backend`.
+- Backend changes, from `backend`: `gcloud run deploy sketchconnect-api --source . --region asia-northeast1` (the short command in step 2, never the first-deploy one).
 - Frontend changes, from `frontend`: `npm run build` then
   `npx firebase-tools deploy --only hosting --project PROJECT_ID`.
 - Review week, no waiting on first visit (costs while on):
