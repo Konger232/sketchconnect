@@ -25,6 +25,7 @@ import { dateLabel, imageUrl, timeLabel } from '../lib/media'
 import { notifySketchesChanged, useSketchesVersion } from '../lib/sketchEvents'
 import Avatar from '../components/common/Avatar'
 import RightsNote from '../components/common/RightsNote'
+import HeroCarousel from '../components/common/HeroCarousel'
 import StyleCheck from '../components/common/StyleCheck'
 import NameHandle from '../components/common/NameHandle'
 import { handle } from '../lib/people'
@@ -156,7 +157,6 @@ export default function SketchDetail() {
   const finalUpload = uploads.find((u) => u.is_final)
   const lastUpload = uploads[uploads.length - 1]
   const shownUpload = uploads.find((u) => u.id === picked) || finalUpload || lastUpload
-  const heroImage = final || imageUrl(lastUpload?.url) || reference
   const critiquePending = s.critique_status === 'pending'
   const when = sketchDate(s)
   const scenePaints = (s.palettes?.scene || []).map(paintById).filter(Boolean)
@@ -179,7 +179,16 @@ export default function SketchDetail() {
   }
   const media = (s.media || [])
   const mediaRows = MEDIA.map((g) => ({ group: g.group, items: g.items.filter(([k]) => media.includes(k)).map(([, label]) => label) })).filter((g) => g.items.length)
-  const imageCount = uploads.length + (reference ? 1 : 0) + (s.marks?.length ? 1 : 0)
+  const uploadLabel = (u) => (u.is_final ? 'Final' : `Sketch ${uploads.filter((x) => !x.is_final).indexOf(u) + 1}`)
+  // The top slideshow (HeroCarousel): the final, then the progress sketches in
+  // order; a phone adds the reference photo at the end (the right column
+  // shows it on a computer). The plan has its own section below.
+  const sketchSlides = [
+    ...(finalUpload || final ? [{ src: final || imageUrl(finalUpload.url), label: 'Final' }] : []),
+    ...uploads.filter((u) => !u.is_final).map((u) => ({ src: imageUrl(u.url), label: uploadLabel(u) })),
+  ]
+  const deskSlides = sketchSlides.length ? sketchSlides : (reference ? [{ src: reference, label: 'Reference' }] : [])
+  const phoneSlides = [...sketchSlides, ...(reference ? [{ src: reference, label: 'Reference' }] : [])]
   const pageUrl = `${window.location.origin}/sketches/${s.id}`
 
   async function toggleLike() {
@@ -192,7 +201,6 @@ export default function SketchDetail() {
   // Edit opens the existing Edit Sketch over this page, on Details. Save
   // closes it and comes back here.
   // ---- uploads (owner) ----
-  const uploadLabel = (u) => (u.is_final ? 'Final' : `Sketch ${uploads.filter((x) => !x.is_final).indexOf(u) + 1}`)
   async function moveUpload(u, dir) {
     const ids = uploads.map((x) => x.id)
     const i = ids.indexOf(u.id)
@@ -342,16 +350,15 @@ export default function SketchDetail() {
       {/* ---- Hero gallery ---- */}
       <section className="flex flex-col gap-2">
         <div className="grid gap-2 md:grid-cols-[2fr_1fr]">
-          {/* Phone: the whole width and the photo's own shape, no black bars. */}
-          <div className={`${heroImage ? 'md:bg-black' : 'photo-placeholder aspect-[4/5]'} ed-bleed relative flex items-center justify-center overflow-hidden md:aspect-auto md:h-[520px]`}>
-            {heroImage && <img src={heroImage} alt={s.title || 'Sketch'} className="block w-full md:max-h-full md:w-auto md:max-w-full md:object-contain" />}
-            {imageCount > 1 && (
-              <button type="button" onClick={() => sketchGroupRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                className="absolute bottom-4 left-4 inline-flex h-10 items-center gap-2 rounded-full bg-ink/70 px-4 text-sm font-bold text-white">
-                <Icon name="images" size={15} /> {imageCount} images
-              </button>
-            )}
-          </div>
+          {/* Phone: every picture in one slideshow, the whole width, in the
+              first picture's shape. Computer: the sketches, with the
+              reference and the map beside them. */}
+          {phoneSlides.length > 0
+            ? <HeroCarousel slides={phoneSlides} alt={s.title || 'Sketch'} className="ed-bleed md:hidden" />
+            : <div className="photo-placeholder aspect-[4/5] md:hidden" />}
+          {deskSlides.length > 0
+            ? <HeroCarousel slides={deskSlides} alt={s.title || 'Sketch'} dark className="hidden h-[520px] md:block" />
+            : <div className="photo-placeholder hidden h-[520px] md:block" />}
           <div className="hidden grid-rows-2 gap-2 md:grid">
             <div className="photo-placeholder relative overflow-hidden">
               {reference && <img src={reference} alt="Reference photo" className="absolute inset-0 h-full w-full object-cover" />}
