@@ -317,8 +317,6 @@ export default function SketchDetail() {
               </span>
             )}
           </div>
-          {/* The copying statement (design doc: protecting sketchers' work). */}
-          <RightsNote name={s.owner?.display_name || s.owner?.username} />
           {(s.glazed || (viewer === 'owner' && shared && s.visibility !== 'members')) && (
             <p className="m-0 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink/70">
               {s.glazed && <span>Glazed by the sketcher</span>}
@@ -364,6 +362,9 @@ export default function SketchDetail() {
             </div>
           </div>
         </div>
+        {/* The copying statement (design doc: protecting sketchers' work), under
+            the picture it protects (November 14, 2026). */}
+        <RightsNote name={s.owner?.display_name || s.owner?.username} />
         {viewer === 'owner' && (
           <p className="m-0 text-xs text-ink/70">
             {shared ? 'Only you see this: feedback and bookmarks stay private.' : 'Only you see this sketch. Upload your final sketch to share it and get feedback.'}
