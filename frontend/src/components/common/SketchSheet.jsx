@@ -58,7 +58,7 @@ export default function SketchSheet({ sketch, onClose }) {
   return createPortal(
     <div ref={sheet.ref} style={sheet.style} role="dialog" aria-label={sketch.title || 'Sketch'}
       className={`sc-sheet ${sheet.className} flex flex-col overflow-hidden text-ink max-md:!z-[1200] md:hidden ${
-        open ? `bg-black ${sheet.style ? '' : 'max-md:h-[72dvh] max-md:!max-h-[85dvh]'}` : 'bg-white'}`}>
+        open ? `bg-black max-md:border-t-0 ${sheet.style ? '' : 'max-md:h-[72dvh] max-md:!max-h-[85dvh]'}` : 'bg-white'}`}>
       {/* Folded: the handle and the compact row. */}
       {!open && (
         <>
@@ -90,7 +90,7 @@ export default function SketchSheet({ sketch, onClose }) {
             </button>
             <div className="flex items-start gap-3 px-4 pt-1">
               <Link to={owner.username ? `/sketchers/${owner.username}` : href} className="shrink-0">
-                <Avatar url={owner.avatar_url} className="h-10 w-10 ring-2 ring-white/80" />
+                <Avatar url={owner.avatar_url} className="h-10 w-10" />
               </Link>
               <div className="flex min-w-0 flex-1 flex-col text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6)]">
                 <Link to={owner.username ? `/sketchers/${owner.username}` : href} className="truncate text-base text-white no-underline">
