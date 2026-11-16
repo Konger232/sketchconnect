@@ -10,6 +10,7 @@ import Explore from './pages/Explore'
 import YourWork from './pages/YourWork'
 import SketcherProfile from './pages/SketcherProfile'
 import SketchDetail from './pages/SketchDetail'
+import PublicSketch from './pages/PublicSketch'
 import Events from './pages/Events'
 import EventDetail from './pages/EventDetail'
 
@@ -29,6 +30,14 @@ function MembersOnly({ children }) {
   if (loading) return <div className="p-8 text-center text-ink/50">Loading…</div>
   if (!user) return <Navigate to="/login?mode=register" replace state={{ from: location.pathname }} />
   return children
+}
+
+// A sketch page: the full page for members; for anyone else, the public
+// view of a shared sketch (a link shared on Facebook or WhatsApp lands here).
+function SketchPage() {
+  const { user, loading } = useAuth()
+  if (loading) return <div className="p-8 text-center text-ink/50">Loading…</div>
+  return user ? <SketchDetail /> : <PublicSketch />
 }
 
 // The old Edit Profile address: your own page, with the panel open.
@@ -67,7 +76,7 @@ function Router() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/capture" element={<RequireAuth><CreateSketch /></RequireAuth>} />
         <Route path="/sketchers/:username" element={<MembersOnly><SketcherProfile /></MembersOnly>} /> {/* owner and member views */}
-        <Route path="/sketches/:sketchId" element={<MembersOnly><SketchDetail /></MembersOnly>} /> {/* owner and member views */}
+        <Route path="/sketches/:sketchId" element={<SketchPage />} /> {/* members: the full page; visitors: the public view */}
         <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketch /></RequireAuth>} />
         <Route path="/search" element={<MembersOnly><SearchPage /></MembersOnly>} /> {/* search sketches by sketcher, title or place */}
         <Route path="/explore" element={<MembersOnly><Explore /></MembersOnly>} /> {/* the map of sketches */}

@@ -189,7 +189,9 @@ export default function SketchDetail() {
   ]
   const deskSlides = sketchSlides.length ? sketchSlides : (reference ? [{ src: reference, label: 'Reference' }] : [])
   const phoneSlides = [...sketchSlides, ...(reference ? [{ src: reference, label: 'Reference' }] : [])]
-  const pageUrl = `${window.location.origin}/sketches/${s.id}`
+  // The address to share: /s/<id> gives Facebook and WhatsApp a preview card
+  // (backend share/router.py), then opens this page.
+  const pageUrl = `${window.location.origin}/s/${s.id}`
 
   async function toggleLike() {
     if (viewer === 'visitor') return navigate('/login', { state: { from: location.pathname } })

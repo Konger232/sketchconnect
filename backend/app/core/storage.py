@@ -152,7 +152,7 @@ def delete(url: str | None) -> None:
         return
     name = name_of(url)
     stem = name.rsplit(".", 1)[0]
-    names = [name, f"{stem}.display.jpg", f"{stem}.teaser.jpg"]
+    names = [name, f"{stem}.display.jpg", f"{stem}.teaser.jpg", f"{stem}.card.jpg", f"{stem}.public.jpg"]
     for n in names:
         try:
             _local(n).unlink(missing_ok=True)

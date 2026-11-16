@@ -237,3 +237,14 @@ Cloud Run > sketchconnect-api > Logs.
 - Set a budget alert in Billing > Budgets & alerts, for example US$20 a month.
 - The older Cloud Run service from the first prototype can be deleted once
   this one works.
+
+## 7. Link previews (Facebook, WhatsApp, LINE)
+
+Shared links are `https://sketchconnect.web.app/s/<sketch id>`. `firebase.json`
+sends `/s/**` to the backend (`app/features/share/router.py`), which answers with
+the preview tags, then forwards people to the sketch page. Deploy the backend
+before the frontend when this part changes.
+
+Facebook keeps a preview for a while. To see a new one, paste the link into
+Facebook's Sharing Debugger (developers.facebook.com/tools/debug) and press
+"Scrape Again".
