@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import BasePage, { PageMessage } from '../components/common/BasePage'
 import Button from '../components/common/Button'
@@ -13,7 +13,8 @@ import RuleOfThirdsGrid from '../components/analysis/RuleOfThirdsGrid'
 import Comments from '../components/common/Comments'
 import FeedbackBlock from '../components/common/FeedbackBlock'
 import PaletteBars from '../components/common/PaletteBars'
-import SharePanel from '../components/common/SharePanel'
+import ShareButtons from '../components/common/ShareButtons'
+import { sketchCaptions, sketchCarousel } from '../lib/shareSketch'
 import UploadSketchModal from '../components/common/UploadSketchModal'
 import { ColorSection, ValueSection } from '../components/common/StudiesSection'
 import { getSketchStatus } from '../lib/sketchStatus'
@@ -83,7 +84,15 @@ export default function SketchDetail() {
   const [s, setS] = useState(null)
   const [error, setError] = useState(null)
   const [nearby, setNearby] = useState([])
-  const [sharing, setSharing] = useState(false)
+  // The Instagram images (ShareButtons), made once per sketch and its uploads.
+  const shareKey = s ? `${s.id}|${s.final_sketch_url}|${(s.uploads || []).map((u) => u.id).join(',')}` : ''
+  const makeShareFiles = useCallback(() => (s?.final_sketch_url
+    ? sketchCarousel(s, {
+      final: imageUrl(s.final_sketch_url),
+      reference: imageUrl(s.reference_image_url),
+      progress: (s.uploads || []).filter((u) => !u.is_final).map((u) => imageUrl(u.url)),
+    }, (s.palettes?.sketch || []).map(paintById).filter(Boolean))
+    : Promise.resolve([])), [shareKey]) // eslint-disable-line react-hooks/exhaustive-deps
   const [paintEdit, setPaintEdit] = useState(null) // { mode, paintId?, top }
   const [favs, setFavs] = useState([])
   const [uploading, setUploading] = useState(null) // { upload? } while the Upload sketch modal is open
@@ -296,9 +305,6 @@ export default function SketchDetail() {
         onConfirm={deleteUpload}
         onCancel={() => setDeleting(null)}
       />
-      {sharing && (
-        <SharePanel sketch={s} images={{ final, reference, progress: uploads.filter((u) => !u.is_final).map((u) => imageUrl(u.url)) }} palette={sketchPaints} pageUrl={pageUrl} onClose={() => setSharing(false)} />
-      )}
     </>
   )
 
@@ -344,7 +350,7 @@ export default function SketchDetail() {
             </Button>
           )}
           {viewer === 'owner' && final && (
-            <Button variant="editorialSolid" onClick={() => setSharing(true)}><Icon name="share" size={15} /> Share</Button>
+            <ShareButtons link={pageUrl} captions={sketchCaptions(s, pageUrl)} makeFiles={makeShareFiles} title={s.title} />
           )}
         </div>
       </section>

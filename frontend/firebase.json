@@ -16,6 +16,13 @@
         }
       },
       {
+        "source": "/e/**",
+        "run": {
+          "serviceId": "sketchconnect-api",
+          "region": "asia-northeast1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

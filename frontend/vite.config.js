@@ -8,6 +8,6 @@ export default defineConfig({
     port: 5173,
     // Shared links (/s/<id>) are the backend's page, as on the public site
     // (firebase.json sends them to Cloud Run).
-    proxy: { '/s/': { target: 'http://localhost:8000', xfwd: true } },
+    proxy: { '/s/': { target: 'http://localhost:8000', xfwd: true }, '/e/': { target: 'http://localhost:8000', xfwd: true } },
   },
 })

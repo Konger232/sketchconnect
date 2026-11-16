@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import BasePage, { PageMessage } from '../components/common/BasePage'
 import Avatar from '../components/common/Avatar'
@@ -14,6 +14,8 @@ import { api } from '../lib/api'
 import { imageUrl } from '../lib/media'
 import { FORMATS, eventWhen } from '../lib/events'
 import NameHandle from '../components/common/NameHandle'
+import ShareButtons from '../components/common/ShareButtons'
+import { photoSlide } from '../lib/shareCarousel'
 import { handle } from '../lib/people'
 
 /**
@@ -39,12 +41,24 @@ export default function EventDetail() {
     .catch((err) => setError(err.response?.status === 404 ? 'This event is not here any more.' : 'Could not load the event.'))
   useEffect(() => { load() }, [eventId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Instagram: the cover photo with the SketchConnect mark (none without a cover).
+  const makeShareFiles = useCallback(() => (e?.cover_image_url
+    ? photoSlide(imageUrl(e.cover_image_url), { watermark: true })
+      .then((b) => [new File([b], `${e.hashtag || 'event'}.jpg`, { type: 'image/jpeg' })])
+    : Promise.resolve([])), [e?.id, e?.cover_image_url]) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (error) return <PageMessage>{error}</PageMessage>
   if (!e) return <PageMessage muted>Loading…</PageMessage>
 
   const past = new Date(e.ends_at) < new Date()
-  const pageUrl = `${window.location.origin}/events/${e.id}`
-  const shareText = `${e.title} · ${eventWhen(e)} · ${e.place_name}\n#${e.hashtag} #urbansketchers #sketchconnect`
+  // The address to share: /e/<id> gives Facebook a card with the cover
+  // (backend share/router.py), then opens this page.
+  const shareLink = `${window.location.origin}/e/${e.id}`
+  const about = `${e.title}\n${eventWhen(e)}\n📍 ${e.place_name}`
+  const captions = {
+    facebook: `${about}\n\n#${e.hashtag} #urbansketchers`,
+    instagram: `${about}\n\n#${e.hashtag} #urbansketchers #usk #sketchconnect`,
+  }
   const me = e.instructors.find((i) => i.is_me)
 
   async function toggleInterest() {
@@ -84,9 +98,6 @@ export default function EventDetail() {
   }
   async function copy(what, text) {
     try { await navigator.clipboard.writeText(text); setCopied(what); setTimeout(() => setCopied(null), 2000) } catch { /* nothing */ }
-  }
-  async function shareNative() {
-    try { await navigator.share({ title: e.title, text: shareText, url: pageUrl }) } catch { /* cancelled */ }
   }
 
   const link = (href, label) => href && (
@@ -191,13 +202,8 @@ export default function EventDetail() {
             <span className="text-xs text-ink/55">Add it to your sketch's title or notes and it shows here.</span>
           </div>
 
-          {/* Share: the phone's share sheet (Instagram, WhatsApp…), Facebook, or the link. */}
-          <div className="flex flex-wrap gap-2">
-            {typeof navigator !== 'undefined' && navigator.share && <Button variant="editorial" size="sm" onClick={shareNative}><Icon name="share" size={14} /> Share</Button>}
-            <Button variant="editorial" size="sm" onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(pageUrl)}`, '_blank', 'noopener')}>Facebook</Button>
-            <Button variant="editorial" size="sm" onClick={() => copy('post', `${shareText}\n${pageUrl}`)}>{copied === 'post' ? 'Copied' : 'Copy for Instagram'}</Button>
-            <Button variant="editorial" size="sm" onClick={() => copy('link', pageUrl)}>{copied === 'link' ? 'Copied' : 'Copy link'}</Button>
-          </div>
+          {/* Share: Facebook (a card with the cover) or Instagram (the cover). */}
+          <ShareButtons link={shareLink} captions={captions} makeFiles={makeShareFiles} title={e.title} />
 
           {e.is_organizer ? (
             <div className="flex flex-wrap gap-2 border-t border-[var(--ed-row-rule)] pt-4">
