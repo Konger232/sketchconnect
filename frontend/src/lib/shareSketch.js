@@ -1,8 +1,9 @@
 // One-tap sharing (November 16, 2026): what the Facebook and Instagram
 // buttons (ShareButtons.jsx) post. Nothing is posted for the sketcher.
 //
-//   Facebook   copies the caption, then opens Facebook's share window with
-//              the link; the link's card shows the picture (backend
+//   Facebook   copies the caption, then opens Facebook's share page in a
+//              new tab (full size, and Facebook stays there after Post);
+//              the link's card shows the picture (backend
 //              share/router.py), so no image is needed.
 //   Instagram  copies the caption, then the images: a phone's share sheet,
 //              or on a computer they're saved and instagram.com opens.
@@ -58,16 +59,16 @@ export async function sketchCarousel(sketch, images, palette = []) {
 
 const copy = (text) => navigator.clipboard?.writeText(text).then(() => true, () => false) ?? Promise.resolve(false)
 
-// Facebook: the caption copied, then the share window (opened inside the
-// click, so the browser allows it).
+// Facebook: the caption copied, then the share page in a new tab (opened
+// inside the click, so the browser allows it).
 export function shareToFacebook(link, caption) {
   const copied = copy(caption)
-  window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`, 'facebook-share',
-    'noopener,width=640,height=640')
+  window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`, '_blank', 'noopener')
   return copied
 }
 
-const phone = () => window.matchMedia?.('(pointer: coarse)').matches && canShareFiles([new File([''], 'x.jpg', { type: 'image/jpeg' })])
+// A phone or tablet with a share sheet for images.
+export const phone = () => window.matchMedia?.('(pointer: coarse)').matches && canShareFiles([new File([''], 'x.jpg', { type: 'image/jpeg' })])
 
 // Instagram: the caption copied, then the images. Returns what happened,
 // for the one-line note under the buttons.
@@ -84,5 +85,5 @@ export async function shareToInstagram(files, caption, title) {
   files.forEach((f) => download(f, f.name))
   window.open('https://www.instagram.com/', '_blank', 'noopener')
   const n = `${files.length} ${files.length === 1 ? 'image' : 'images'}`
-  return `${n} saved to Downloads. ${(await copied) ? 'Caption copied: paste it in your post.' : ''}`.trim()
+  return `${n} saved to your Downloads folder. ${(await copied) ? 'Caption copied: paste it in your post.' : ''}`.trim()
 }
