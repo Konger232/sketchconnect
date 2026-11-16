@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import Button from './Button'
 import Icon from './Icon'
 import { shareToFacebook, shareToInstagram } from '../../lib/shareSketch'
 
@@ -41,18 +42,19 @@ export default function ShareButtons({ link, captions, makeFiles, title }) {
     if (said) say(said)
   }
 
-  const btn = 'flex h-10 w-10 items-center justify-center rounded-md border border-ink/20 bg-white text-ink hover:border-ink disabled:cursor-wait disabled:opacity-50'
+  // The same outlined button as Edit and Upload sketch, square.
+  const btn = 'w-11 !px-0 disabled:cursor-wait disabled:opacity-50'
   return (
     <div className="flex flex-col items-start gap-1.5">
       <div className="flex items-center gap-2">
-        <button type="button" className={btn} onClick={facebook} aria-label="Share on Facebook" title="Share on Facebook">
+        <Button variant="editorial" className={btn} onClick={facebook} aria-label="Share on Facebook" title="Share on Facebook">
           <Icon name="facebook" size={18} />
-        </button>
-        <button type="button" className={btn} onClick={instagram} disabled={!files?.length}
+        </Button>
+        <Button variant="editorial" className={btn} onClick={instagram} disabled={!files?.length}
           aria-label={!files ? 'Preparing the images for Instagram' : files.length ? 'Share on Instagram' : 'No picture to share on Instagram'}
           title={files && !files.length ? 'Add a picture to share on Instagram' : 'Share on Instagram'}>
           <Icon name="instagram" size={18} />
-        </button>
+        </Button>
       </div>
       {note && <p className="m-0 text-xs text-ink/70" role="status">{note}</p>}
     </div>
