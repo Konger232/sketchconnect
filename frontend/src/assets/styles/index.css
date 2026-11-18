@@ -159,6 +159,15 @@
                     gap: var(--space-panel-gap); padding: var(--space-panel-y) var(--space-panel-x); }
   .sc-footer      { @apply flex shrink-0 items-center justify-end gap-2.5 border-t border-sc-divider;
                     padding: var(--space-footer-y) var(--space-footer-x); }
+  /* Phone, New Sketch: the footer (Take photo, Use photo, Next, Read my
+     plan) is pinned to the bottom of the screen, so the yellow button is
+     always in view however tall the photo is. The panel keeps room for it
+     at the end of the scroll. */
+  @media (max-width: 767.98px) {
+    .sc-footer-pinned { @apply fixed inset-x-0 bottom-0 z-30 bg-sc-panel;
+                        padding-bottom: max(var(--space-footer-y), env(safe-area-inset-bottom)); }
+    .sc-panel-pinned  { padding-bottom: calc(var(--footer-pinned-h) + env(safe-area-inset-bottom)); }
+  }
   /* The step header in New Sketch: progress bar, step name, "2 of 3". */
   .sc-step-head   { @apply flex shrink-0 flex-col gap-2 border-b border-sc-divider;
                     padding: var(--space-head-top) var(--space-panel-x) var(--space-head-bottom); }
@@ -450,6 +459,7 @@
   --space-panel-gap: 1rem;               /* between blocks in the panel */
   --space-footer-x: 1rem;                /* footer row (Back, Next, Start Sketching) */
   --space-footer-y: 0.625rem;
+  --footer-pinned-h: 3.75rem;            /* room kept for the pinned footer on a phone */
   --space-head-top: 1rem;                /* New Sketch step header */
   --space-head-bottom: 0.75rem;
   --space-tabs-gap: 2rem;                /* between Details, Sparks, Feedback */

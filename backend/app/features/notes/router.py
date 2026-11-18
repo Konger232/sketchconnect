@@ -41,7 +41,11 @@ router = APIRouter(prefix="/api", tags=["notes"])
 
 PROMPTS = __import__("pathlib").Path(__file__).parent / "prompts"
 MAX_BYTES = {"voice": 15 * 1024 * 1024, "clip": 28 * 1024 * 1024}  # under Cloud Run's 32 MB a request
-MAX_SECONDS = {"voice": 5 * 60, "clip": 30}
+MAX_SECONDS = {"voice": 3 * 60, "clip": 30}
+# Clips are set aside (November 18, 2026) while it is decided whether a clip
+# belongs with the reference photo instead. Clips already stored still play
+# and can be deleted; set True to accept new ones.
+CLIPS = False
 EXT = {"audio/mp4": "m4a", "audio/webm": "webm", "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/wav": "wav",
        "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov"}
 
@@ -99,6 +103,8 @@ async def add_note(
 ):
     if kind not in ("voice", "clip"):
         raise HTTPException(400, "A note is a voice note or a clip.")
+    if kind == "clip" and not CLIPS:
+        raise HTTPException(400, "Clips are not open yet. Record a voice note instead.")
     _my_sketch(db, sketch_id, me)
     content_type = (file.content_type or "").split(";")[0].strip().lower()
     want = "audio/" if kind == "voice" else "video/"

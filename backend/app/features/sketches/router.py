@@ -1956,8 +1956,10 @@ async def delete_upload(
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
-    """Delete an upload. Deleting the final unshares the sketch and unlocks
-    the plan; its feedback stays in the history."""
+    """Delete an upload. Deleting the final unshares the sketch, unlocks
+    the plan and clears the sketch's feedback (decided November 18, 2026):
+    the feedback was about a sketch that is gone. The next final runs the
+    critique fresh."""
     sketch = _owned_sketch(db, sketch_id, sketcher_id)
     upload = db.query(SketchUpload).filter(SketchUpload.id == upload_id, SketchUpload.sketch_id == sketch_id).first() if _is_uuid(upload_id) else None
     if upload is None:
@@ -1969,6 +1971,11 @@ async def delete_upload(
         sketch.final_at = None
         sketch.final_sketch_provided = False
         sketch.critique_status = None
+        db.query(CritiqueResponse).filter(CritiqueResponse.sketch_id == sketch_id).delete(synchronize_session=False)
+        # The coach's style came from that sketch; one the sketcher picked stays.
+        sketch.style_detected = None
+        if sketch.style_confirmed is None:
+            sketch.style = None
     _delete_upload_file(upload.url)
     db.delete(upload)
     db.commit()

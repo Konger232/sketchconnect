@@ -4,7 +4,7 @@ import FloatPanel from './FloatPanel'
 
 /**
  * Records a voice note or a short clip in the page (November 18, 2026), so
- * the length and the file size stay in hand: a voice note up to 5 minutes,
+ * the length and the file size stay in hand: a voice note up to 3 minutes,
  * a clip up to 30 seconds at a modest quality (about 10 MB). The browser
  * asks for the microphone (and the camera, for a clip) the first time.
  *
@@ -12,7 +12,7 @@ import FloatPanel from './FloatPanel'
  *   onDone({ blob, type, seconds })   after Stop (or the time limit)
  *   onClose
  */
-const LIMIT = { voice: 300, clip: 30 }
+const LIMIT = { voice: 180, clip: 30 }
 const TYPES = {
   voice: ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'],
   clip: ['video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm'],

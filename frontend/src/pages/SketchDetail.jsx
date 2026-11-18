@@ -299,7 +299,7 @@ export default function SketchDetail() {
         open={Boolean(deleting)}
         title={deleting?.is_final ? 'Delete the final sketch?' : 'Delete this upload?'}
         message={deleting?.is_final
-          ? 'This unshares the sketch and unlocks your plan. Its feedback stays in the history. Upload a new final sketch to share it again.'
+          ? 'This unshares the sketch, unlocks your plan and deletes its feedback. Upload a new final sketch to share it again and get new feedback.'
           : "This removes the photo, and can't be undone."}
         confirmLabel="Delete"
         cancelLabel="Keep it"

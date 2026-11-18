@@ -14,6 +14,11 @@ import { dateLabel, timeLabel } from '../../lib/media'
  * coach read the voice notes' text as part of the journey (off by default);
  * the recordings and clips stay private either way.
  */
+// Clips are set aside (November 18, 2026) while it is decided whether a
+// clip belongs with the reference photo instead. Clips already recorded
+// still play and can be deleted; turn this on to record new ones.
+const CLIPS = false
+
 const clock = (s) => (s == null ? '' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`)
 const EXT = { 'audio/mp4': 'm4a', 'audio/webm': 'webm', 'video/mp4': 'mp4', 'video/webm': 'webm' }
 
@@ -146,10 +151,10 @@ export default function SketchNotes({ sketchId }) {
         <h2 className="ed-kicker m-0">Your notes</h2>
         <span className="flex items-center gap-1.5 text-xs text-ink/60"><Icon name="lock" size={12} /> Only you</span>
       </div>
-      <p className="m-0 text-sm text-ink/70">Talk about the place, the light and what is happening, or record a short clip of the scene.</p>
+      <p className="m-0 text-sm text-ink/70">{CLIPS ? 'Talk about the place, the light and what is happening, or record a short clip of the scene.' : 'Talk about the place, the light and what is happening.'}</p>
       <div className="flex flex-wrap gap-2">
         <Button variant="editorial" onClick={() => setRecording('voice')} disabled={saving}><Icon name="mic" size={16} /> Voice note</Button>
-        <Button variant="editorial" onClick={() => setRecording('clip')} disabled={saving}><Icon name="video" size={16} /> Clip</Button>
+        {CLIPS && <Button variant="editorial" onClick={() => setRecording('clip')} disabled={saving}><Icon name="video" size={16} /> Clip</Button>}
       </div>
       {saving && <p className="m-0 animate-pulse text-sm text-ink/60">Saving the recording…</p>}
       {error && <p className="m-0 text-sm text-accent">{error}</p>}
@@ -166,7 +171,7 @@ export default function SketchNotes({ sketchId }) {
           <input type="checkbox" className="mt-0.5" checked={forCoach} onChange={(e) => toggleCoach(e.target.checked)} />
           <span>
             Let the coach read my voice notes
-            <span className="block text-xs text-ink/60">Only their text, as part of this sketch's journey, for your next feedback. The recordings and clips stay private.</span>
+            <span className="block text-xs text-ink/60">Only their text, as part of this sketch's journey, for your next feedback. {CLIPS ? 'The recordings and clips stay private.' : 'The recordings stay private.'}</span>
           </span>
         </label>
       )}

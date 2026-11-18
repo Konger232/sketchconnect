@@ -86,6 +86,9 @@ export default function CreateSketch() {
   // browser camera hands over photos without their GPS (November 18, 2026).
   const devicePosRef = useRef(null) // a promise of { lat, lon, accuracy } or null
   const fromCameraRef = useRef(false)
+  // Where the photo on screen came from, so the panel offers the same
+  // way again: Retake for the camera, Choose another for the library.
+  const [photoSource, setPhotoSource] = useState(null) // 'camera' | 'library'
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [replaceWith, setReplaceWith] = useState(null) // 'camera' | 'library', waiting on ConfirmDialog
@@ -290,7 +293,8 @@ export default function CreateSketch() {
       setReplaceWith(source)
       return
     }
-    ;(source === 'camera' ? cameraInputRef : libraryInputRef).current?.click()
+    if (source === 'camera') takePhoto()
+    else libraryInputRef.current?.click()
   }
 
   async function discardSketch() {
@@ -331,8 +335,8 @@ export default function CreateSketch() {
 
   // HEIC photos need converting before they can be previewed (previewUrl).
   // pickRef drops a slow conversion if another photo was picked meanwhile.
-  function handleCamera(e) { fromCameraRef.current = true; return handleFile(e) }
-  function handleLibrary(e) { fromCameraRef.current = false; devicePosRef.current = null; return handleFile(e) }
+  function handleCamera(e) { fromCameraRef.current = true; setPhotoSource('camera'); return handleFile(e) }
+  function handleLibrary(e) { fromCameraRef.current = false; setPhotoSource('library'); devicePosRef.current = null; return handleFile(e) }
   async function handleFile(e) {
     const f = e.target.files?.[0]
     e.target.value = '' // the same file can be picked again
@@ -348,13 +352,6 @@ export default function CreateSketch() {
     } catch {
       if (pick === pickRef.current) setError('Could not open this photo. Try a JPEG or PNG.')
     }
-  }
-
-  function clearPhoto() {
-    pickRef.current++
-    if (preview) URL.revokeObjectURL(preview)
-    setFile(null)
-    setPreview(null)
   }
 
   async function handleUsePhoto() {
@@ -703,7 +700,8 @@ export default function CreateSketch() {
           const source = replaceWith
           setReplaceWith(null)
           await discardSketch()
-          ;(source === 'camera' ? cameraInputRef : libraryInputRef).current?.click()
+          if (source === 'camera') takePhoto()
+          else libraryInputRef.current?.click()
         }}
         onCancel={() => setReplaceWith(null)}
       />
@@ -725,7 +723,7 @@ export default function CreateSketch() {
           <PhotoDropzone
             title="Photograph the scene you'll draw"
             text="Stand where you'll sketch from. Location and a title come from this photo."
-            onClick={() => cameraInputRef.current?.click()}
+            onClick={takePhoto}
           />
         )}
 
@@ -789,7 +787,7 @@ export default function CreateSketch() {
       </div>
 
       {/* ===== RIGHT: STEP PANEL ===== */}
-      <div className="sc-panel">
+      <div className="sc-panel sc-panel-pinned">
         <div className="sc-step-head">
           <div className="sc-progress" aria-hidden="true">
             {STEPS.map((s, i) => (
@@ -806,23 +804,9 @@ export default function CreateSketch() {
           </div>
         </div>
 
-        <div className="sc-panel-body">
-          {step === 'photo' && !preview && (
-            <p className="sc-body">Take the photo from where you'll sit or stand, or pick one you took there.</p>
-          )}
-          {step === 'photo' && preview && (
-            <>
-              <p className="text-base text-sc-text2">Is the subject in focus and fully in frame?</p>
-              <div className="flex gap-2">
-                <Button variant="choice" className="flex-1 text-center" onClick={() => pickPhoto('camera')} disabled={saving}>
-                  Retake
-                </Button>
-                <Button variant="choice" className="flex-1 text-center" onClick={() => pickPhoto('library')} disabled={saving}>
-                  Choose another
-                </Button>
-              </div>
-            </>
-          )}
+        {/* The photo step has nothing here: its words are on the stage and
+            its buttons in the footer. */}
+        {(step !== 'photo' || error) && <div className="sc-panel-body">
 
           {step === 'crop' && (
             <div className="flex gap-1" role="group" aria-label="Frame shape">
@@ -898,11 +882,11 @@ export default function CreateSketch() {
           )}
 
           {error && <p className="text-base text-accent">{error}</p>}
-        </div>
+        </div>}
 
         {/* ===== FOOTER: Back · Skip · Next ===== */}
         {step !== 'analyzing' && (
-          <div className="sc-footer">
+          <div className="sc-footer sc-footer-pinned">
             {step === 'photo' && !preview && (
               <>
                 <Button variant="secondaryOnDark" onClick={() => libraryInputRef.current?.click()}>From library</Button>
@@ -911,7 +895,9 @@ export default function CreateSketch() {
             )}
             {step === 'photo' && preview && (
               <>
-                <Button variant="secondaryOnDark" className="mr-auto" onClick={clearPhoto} disabled={saving || !!sketchId}>Back</Button>
+                {photoSource === 'library'
+                  ? <Button variant="secondaryOnDark" onClick={() => pickPhoto('library')} disabled={saving}>Choose another</Button>
+                  : <Button variant="secondaryOnDark" onClick={() => pickPhoto('camera')} disabled={saving}>Retake</Button>}
                 <Button variant="action" onClick={handleUsePhoto} disabled={saving}>{saving ? 'Saving…' : 'Use photo'}</Button>
               </>
             )}
