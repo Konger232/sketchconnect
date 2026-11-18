@@ -7,7 +7,8 @@ Only the sketcher sees them. They are never shared, never on the public
 page, and not part of the critique. Files live in storage (core/storage.py)
 like the photos, and are sent only to their owner, through this router.
 
-  GET    /api/sketches/<id>/notes        the notes, oldest first
+  GET    /api/sketches/<id>/notes        { notes (oldest first), for_coach }
+  PUT    /api/sketches/<id>/notes/for-coach   { on }: the coach may read the voice notes' text
   POST   /api/sketches/<id>/notes        upload one (multipart: kind, file, duration_s)
   GET    /api/notes/<note id>/file       the recording itself
   PATCH  /api/notes/<note id>            fix the text version
@@ -15,6 +16,11 @@ like the photos, and are sent only to their owner, through this router.
 
 A voice note gets a text version: the voice note transcription call sends
 the recording to Gemini in the background (prompts/transcribe.md).
+
+One switch per sketch (sketches.notes_for_coach, off by default): when on,
+the critique reads the voice notes' text as part of the journey
+(critique_agent/service.voice_notes_text). The recordings and the clips
+never leave this router.
 """
 import logging
 import uuid
@@ -64,9 +70,21 @@ def _my_note(db: Session, note_id: str, me: str) -> SketchNote:
 
 @router.get("/sketches/{sketch_id}/notes")
 def list_notes(sketch_id: str, db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
-    _my_sketch(db, sketch_id, me)
+    s = _my_sketch(db, sketch_id, me)
     rows = db.query(SketchNote).filter(SketchNote.sketch_id == sketch_id).order_by(SketchNote.created_at.asc()).all()
-    return [_out(n) for n in rows]
+    return {"notes": [_out(n) for n in rows], "for_coach": bool(s.notes_for_coach)}
+
+
+class ForCoach(BaseModel):
+    on: bool
+
+
+@router.put("/sketches/{sketch_id}/notes/for-coach")
+def set_for_coach(sketch_id: str, body: ForCoach, db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
+    s = _my_sketch(db, sketch_id, me)
+    s.notes_for_coach = body.on
+    db.commit()
+    return {"for_coach": bool(s.notes_for_coach)}
 
 
 @router.post("/sketches/{sketch_id}/notes")

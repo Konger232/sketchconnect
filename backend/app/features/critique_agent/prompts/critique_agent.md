@@ -20,6 +20,8 @@ Variables:
                          option_index, mark_ids, answered_at when saved;
                          one per question, the latest)
   $help_quest_log        JSON list of Help Quest questions and answers
+  $voice_notes           the sketcher's voice notes, as text, when they chose
+                         to share them with the coach; else "none shared"
   $prior_review_summary  latest earlier critique, or a "none" note
   $color_plan            the gamut mask and value plan (design doc, item 37),
                          from service.color_plan_text, or a "none" note
@@ -84,4 +86,5 @@ $plan_read
 Guided-question answers (one per question, the sketcher's latest choice; `mark_ids` are the lines that answer refers to): $session_choices
 Colour plan: $color_plan
 Help Quest history: $help_quest_log
+Voice notes the sketcher recorded on location (their own words, transcribed; context about the place, the conditions and what they meant to capture, never something to grade or quote back at length): $voice_notes
 Prior review summary: $prior_review_summary

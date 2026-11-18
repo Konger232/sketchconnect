@@ -10,7 +10,9 @@ import { dateLabel, timeLabel } from '../../lib/media'
  * The sketcher's own notes on a sketch (November 18, 2026): voice notes,
  * with a text version the AI writes, and short clips of the scene. For what
  * the sketch and the photo can't hold on a busy street. Only the sketcher
- * sees them (backend notes/router.py): not shared, not in the critique.
+ * sees them (backend notes/router.py): never shared. One switch lets the
+ * coach read the voice notes' text as part of the journey (off by default);
+ * the recordings and clips stay private either way.
  */
 const clock = (s) => (s == null ? '' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`)
 const EXT = { 'audio/mp4': 'm4a', 'audio/webm': 'webm', 'video/mp4': 'mp4', 'video/webm': 'webm' }
@@ -90,9 +92,20 @@ export default function SketchNotes({ sketchId }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [removing, setRemoving] = useState(null)
+  const [forCoach, setForCoach] = useState(false)
   const poll = useRef(null)
 
-  const load = useCallback(() => api.get(`/api/sketches/${sketchId}/notes`).then(({ data }) => setNotes(data)).catch(() => setNotes([])), [sketchId])
+  const load = useCallback(() => api.get(`/api/sketches/${sketchId}/notes`)
+    .then(({ data }) => { setNotes(data.notes || []); setForCoach(Boolean(data.for_coach)) })
+    .catch(() => setNotes([])), [sketchId])
+
+  async function toggleCoach(on) {
+    setForCoach(on)
+    try {
+      const { data } = await api.put(`/api/sketches/${sketchId}/notes/for-coach`, { on })
+      setForCoach(Boolean(data.for_coach))
+    } catch { setForCoach(!on) }
+  }
   useEffect(() => { load() }, [load])
 
   // While a voice note is being written down, look again every few seconds.
@@ -147,6 +160,15 @@ export default function SketchNotes({ sketchId }) {
               onChange={(d) => setNotes((list) => list.map((x) => (x.id === d.id ? d : x)))} />
           ))}
         </ul>
+      )}
+      {notes?.some((n) => n.kind === 'voice') && (
+        <label className="flex items-start gap-2.5 text-sm text-ink">
+          <input type="checkbox" className="mt-0.5" checked={forCoach} onChange={(e) => toggleCoach(e.target.checked)} />
+          <span>
+            Let the coach read my voice notes
+            <span className="block text-xs text-ink/60">Only their text, as part of this sketch's journey, for your next feedback. The recordings and clips stay private.</span>
+          </span>
+        </label>
       )}
       {recording && <NoteRecorder kind={recording} onDone={upload} onClose={() => setRecording(null)} />}
       <ConfirmDialog open={Boolean(removing)} title="Delete this note?"

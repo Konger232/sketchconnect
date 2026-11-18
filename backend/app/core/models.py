@@ -115,6 +115,9 @@ class Sketch(Base):
     # (app/core/visibility.py). And whether the sketcher Glazed the final.
     visibility = Column(String, nullable=False, default="members", server_default="members")
     glazed = Column(Boolean, nullable=False, default=False, server_default="false")
+    # The sketcher lets the critique read the text of their voice notes
+    # (November 18, 2026). Off unless they turn it on.
+    notes_for_coach = Column(Boolean, nullable=False, default=False, server_default="false")
     # The style the coach saw in the final sketch, and the sketcher's answer:
     # None not answered, True agreed, False changed it (then `style` holds
     # their pick). Design doc, item 39.

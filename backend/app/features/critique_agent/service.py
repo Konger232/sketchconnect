@@ -25,7 +25,7 @@ from PIL import Image
 from sqlalchemy.orm import Session
 
 from app.core import debug
-from app.core.models import Sketch, Persona, CritiqueResponse, HelpQuestLog, SketchUpload
+from app.core.models import Sketch, Persona, CritiqueResponse, HelpQuestLog, SketchNote, SketchUpload
 from app.core.prompt_loader import render_prompt
 from app.core.composite import (
     describe_focal_points,
@@ -271,6 +271,26 @@ def color_plan_text(sketch: Sketch) -> str:
     return "\n".join(lines) if lines else "none — the sketcher did not plan colour or value"
 
 
+def voice_notes_text(db: Session, sketch: Sketch) -> str:
+    """The text of the sketcher's voice notes, when they let the coach read
+    them (sketches.notes_for_coach, November 18, 2026); else a "none" note.
+    Text only: the recordings and the clips are never sent."""
+    if not sketch.notes_for_coach:
+        return "none shared"
+    rows = (db.query(SketchNote.created_at, SketchNote.transcript)
+            .filter(SketchNote.sketch_id == sketch.id, SketchNote.kind == "voice",
+                    SketchNote.transcript.isnot(None), SketchNote.transcript != "")
+            .order_by(SketchNote.created_at.asc()).all())
+    lines, total = [], 0
+    for when, text in rows:
+        line = f"- {when.strftime('%H:%M') if when else ''} {text.strip()}"
+        if total + len(line) > 4000:  # keep the prompt in bounds
+            break
+        lines.append(line)
+        total += len(line)
+    return "\n".join(lines) if lines else "none shared"
+
+
 def run_critique(db: Session, sketch: Sketch) -> None:
     """Build the journey from the database, call Gemini, store the result."""
     persona = COACH
@@ -352,6 +372,7 @@ def run_critique(db: Session, sketch: Sketch) -> None:
         plan_read=plan_read_text(sketch),
         color_plan=color_plan_text(sketch),
         help_quest_log=help_quest_log,
+        voice_notes=voice_notes_text(db, sketch),
         prior_review_summary=prior_review_summary or "none — first critique this session",
         principles=", ".join(principles()),
     )

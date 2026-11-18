@@ -685,3 +685,7 @@ create index if not exists sketch_notes_sketch_idx on sketch_notes (sketch_id, c
 alter table sketch_notes enable row level security;
 drop policy if exists "own notes" on sketch_notes;
 create policy "own notes" on sketch_notes for all using (auth.uid() = sketcher_id);
+
+-- The sketcher's switch: let the critique read the text of their voice notes
+-- on this sketch (November 18, 2026). Off by default. Safe to run again.
+alter table sketches add column if not exists notes_for_coach boolean not null default false;
