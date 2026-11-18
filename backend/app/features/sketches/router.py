@@ -286,6 +286,9 @@ async def create_sketch(
     crop_transform: str | None = Form(None),
     image: UploadFile = File(...),
     framed_image: UploadFile | None = File(None),
+    camera: bool = Form(False),
+    device_lat: float | None = Form(None),
+    device_lon: float | None = Form(None),
     db: Session = Depends(get_db),
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
@@ -313,6 +316,15 @@ async def create_sketch(
         pil_image = pil_image.convert("RGB")
     except Exception:
         raise HTTPException(400, "Could not decode image")
+    # A photo taken in the browser's camera (Take photo): iPhone removes its
+    # GPS and often its time. Then the phone's position at that moment, and
+    # now, stand in (November 18, 2026). The photo's own always win.
+    if camera:
+        if location is None and device_lat is not None and device_lon is not None \
+                and -90 <= device_lat <= 90 and -180 <= device_lon <= 180:
+            location = {"lat": device_lat, "lon": device_lon}
+        if captured_at is None:
+            captured_at = datetime.utcnow()
 
     original_image_url = await storage.save_image_async(pil_image, f"{uuid.uuid4()}.jpg")
 

@@ -82,6 +82,10 @@ export default function CreateSketch() {
   const libraryInputRef = useRef(null)
   const cameraInputRef = useRef(null)
   const pickRef = useRef(0) // latest photo pick, see handleFile
+  // Take photo: the phone's position, asked for in the same tap. iPhone's
+  // browser camera hands over photos without their GPS (November 18, 2026).
+  const devicePosRef = useRef(null) // a promise of { lat, lon, accuracy } or null
+  const fromCameraRef = useRef(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [replaceWith, setReplaceWith] = useState(null) // 'camera' | 'library', waiting on ConfirmDialog
@@ -308,8 +312,27 @@ export default function CreateSketch() {
     sceneRef.current = null
   }
 
+  // The phone's position for a photo taken now. null when it can't be had
+  // (no permission, no signal) within 10 seconds.
+  function devicePosition() {
+    if (!navigator.geolocation) return Promise.resolve(null)
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy }),
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+      )
+    })
+  }
+  function takePhoto() {
+    devicePosRef.current = devicePosition() // asked now, inside the tap, so the browser allows it
+    cameraInputRef.current?.click()
+  }
+
   // HEIC photos need converting before they can be previewed (previewUrl).
   // pickRef drops a slow conversion if another photo was picked meanwhile.
+  function handleCamera(e) { fromCameraRef.current = true; return handleFile(e) }
+  function handleLibrary(e) { fromCameraRef.current = false; devicePosRef.current = null; return handleFile(e) }
   async function handleFile(e) {
     const f = e.target.files?.[0]
     e.target.value = '' // the same file can be picked again
@@ -344,6 +367,16 @@ export default function CreateSketch() {
     try {
       const form = new FormData()
       form.append('image', file)
+      // A photo just taken: where the phone is now, for when the photo
+      // itself carries no location. The backend prefers the photo's own.
+      if (fromCameraRef.current) {
+        form.append('camera', 'true')
+        const pos = await Promise.race([devicePosRef.current || Promise.resolve(null), new Promise((r) => setTimeout(() => r(null), 4000))])
+        if (pos) {
+          form.append('device_lat', String(pos.lat))
+          form.append('device_lon', String(pos.lon))
+        }
+      }
       const { data } = await api.post('/api/sketches', form)
       setSketchId(data.id)
       setUploadedFile(file)
@@ -674,8 +707,8 @@ export default function CreateSketch() {
         }}
         onCancel={() => setReplaceWith(null)}
       />
-      <input ref={libraryInputRef} type="file" accept="image/*,.heic" onChange={handleFile} className="hidden" />
-      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} className="hidden" />
+      <input ref={libraryInputRef} type="file" accept="image/*,.heic" onChange={handleLibrary} className="hidden" />
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleCamera} className="hidden" />
 
       {/* ===== LEFT: PHOTO STAGE ===== */}
       {/* The photo is shown the same way as in Edit Sketch, on every step:
@@ -873,7 +906,7 @@ export default function CreateSketch() {
             {step === 'photo' && !preview && (
               <>
                 <Button variant="secondaryOnDark" onClick={() => libraryInputRef.current?.click()}>From library</Button>
-                <Button variant="action" onClick={() => cameraInputRef.current?.click()}>Take photo</Button>
+                <Button variant="action" onClick={takePhoto}>Take photo</Button>
               </>
             )}
             {step === 'photo' && preview && (
