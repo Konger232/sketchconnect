@@ -663,3 +663,25 @@ update sketches s set final_at = u.created_at
   where u.sketch_id = s.id and u.url = s.final_sketch_url and s.final_at is null;
 update sketches set final_at = created_at
   where final_sketch_url is not null and final_at is null;
+
+-- ---------------------------------------------------------------------------
+-- The sketcher's own notes on a sketch (November 18, 2026): voice notes
+-- (with an AI-written text version) and short clips of the scene, recorded
+-- on location. Only the sketcher sees them. Safe to run again.
+create table if not exists sketch_notes (
+  id uuid primary key default gen_random_uuid(),
+  sketch_id uuid not null references sketches (id) on delete cascade,
+  sketcher_id uuid not null references auth.users (id) on delete cascade,
+  kind text not null check (kind in ('voice', 'clip')),
+  file_name text not null,
+  content_type text not null,
+  duration_s integer,
+  size_bytes integer,
+  transcript text,
+  transcript_status text check (transcript_status in ('pending', 'done', 'failed')),
+  created_at timestamp not null default now()
+);
+create index if not exists sketch_notes_sketch_idx on sketch_notes (sketch_id, created_at);
+alter table sketch_notes enable row level security;
+drop policy if exists "own notes" on sketch_notes;
+create policy "own notes" on sketch_notes for all using (auth.uid() = sketcher_id);

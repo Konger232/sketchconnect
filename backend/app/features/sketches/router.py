@@ -946,6 +946,8 @@ async def delete_sketch(
         raise HTTPException(404, "Sketch not found")
 
     _delete_sketch_files(sketch)
+    from app.features.notes.router import delete_sketch_notes
+    delete_sketch_notes(db, sketch.id)
     for u in db.query(SketchUpload).filter(SketchUpload.sketch_id == sketch.id).all():
         _delete_upload_file(u.url)
     db.delete(sketch)

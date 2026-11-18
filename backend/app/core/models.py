@@ -346,6 +346,26 @@ class SketchUpload(Base):
 
 
 
+
+class SketchNote(Base):
+    """The sketcher's own notes on a sketch, recorded on location (November
+    18, 2026): a voice note (kind 'voice', with a text version the AI
+    writes) or a short clip of the scene (kind 'clip', up to 30 seconds).
+    Only the sketcher sees them: never shared, never part of the critique."""
+    __tablename__ = "sketch_notes"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    sketch_id = Column(UUID(as_uuid=False), ForeignKey("sketches.id", ondelete="CASCADE"), nullable=False, index=True)
+    sketcher_id = Column(UUID(as_uuid=False), nullable=False)
+    kind = Column(String, nullable=False)               # voice | clip
+    file_name = Column(String, nullable=False)          # in storage (core/storage.py)
+    content_type = Column(String, nullable=False)
+    duration_s = Column(Integer, nullable=True)
+    size_bytes = Column(Integer, nullable=True)
+    transcript = Column(Text, nullable=True)
+    transcript_status = Column(String, nullable=True)   # pending | done | failed (voice only)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 # ---- events and scouted spots (design doc, items 49 and 50) ----
 
 class Event(Base):

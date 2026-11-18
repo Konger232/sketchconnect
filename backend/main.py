@@ -24,6 +24,7 @@ from app.core import media
 # prompts); shared code in app/core/.
 from app.features.scene_analysis import router as scene_analysis
 from app.features.share import router as share
+from app.features.notes import router as notes
 from app.features.marks_analysis import router as marks_analysis
 from app.features.persona import router as persona
 from app.features.critique_agent import router as critique
@@ -121,6 +122,7 @@ UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 app.include_router(media.router)
 app.include_router(share.router)
+app.include_router(notes.router)
 
 app.include_router(scene_analysis.router)
 app.include_router(marks_analysis.router)

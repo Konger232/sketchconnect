@@ -14,6 +14,7 @@ import Comments from '../components/common/Comments'
 import FeedbackBlock from '../components/common/FeedbackBlock'
 import PaletteBars from '../components/common/PaletteBars'
 import ShareButtons from '../components/common/ShareButtons'
+import SketchNotes from '../components/common/SketchNotes'
 import { sketchCaptions, sketchCarousel } from '../lib/shareSketch'
 import UploadSketchModal from '../components/common/UploadSketchModal'
 import { ColorSection, ValueSection } from '../components/common/StudiesSection'
@@ -386,6 +387,9 @@ export default function SketchDetail() {
           </p>
         )}
       </section>
+
+      {/* ---- The sketcher's own notes: voice notes and clips (only them) ---- */}
+      {viewer === 'owner' && <SketchNotes sketchId={s.id} />}
 
       {/* ---- Group 1: The scene ---- */}
       {reference && (
