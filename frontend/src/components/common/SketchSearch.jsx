@@ -46,7 +46,11 @@ export default function SketchSearch({ initial = null, initialLabel, autoFocus =
 
   useEffect(() => {
     const q = query.trim()
-    setParams(q ? { q } : {}, { replace: true })
+    // Only when the text changed. Home renders under New Sketch (its
+    // backgroundLocation, App.jsx), and setting the same params there
+    // navigated to "/" and closed New Sketch when Home finished loading
+    // (fixed November 19, 2026).
+    if (q !== (params.get('q') || '')) setParams(q ? { q } : {}, { replace: true })
     clearTimeout(timer.current)
     if (q.length < 2) { setResults(null); setError(null); setLoading(false); return }
     timer.current = setTimeout(() => {
