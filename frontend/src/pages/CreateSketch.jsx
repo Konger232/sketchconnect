@@ -13,6 +13,7 @@ import PhotoDropzone from '../components/common/PhotoDropzone'
 import { api } from '../lib/api'
 import { runGuideAnalysis, startSceneAnalysis } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
+import { shrinkPhoto } from '../lib/shrinkPhoto'
 import { previewUrl } from '../lib/previewUrl'
 import { useStagedProgress } from '../lib/useStagedProgress'
 import { ASPECT_RATIO_ORDER, bakeCrop, computeImageBox, reframeToRect, resolveAspectRatio } from '../lib/cropMath'
@@ -338,12 +339,20 @@ export default function CreateSketch() {
   function handleCamera(e) { fromCameraRef.current = true; setPhotoSource('camera'); return handleFile(e) }
   function handleLibrary(e) { fromCameraRef.current = false; setPhotoSource('library'); devicePosRef.current = null; return handleFile(e) }
   async function handleFile(e) {
-    const f = e.target.files?.[0]
+    const picked = e.target.files?.[0]
     e.target.value = '' // the same file can be picked again
-    if (!f) return
+    if (!picked) return
     const pick = ++pickRef.current
     setError(null)
     try {
+      // A photo just taken goes up at 2400 px on the long side (November 19,
+      // 2026): a full-size phone photo held in memory and uploaded over a
+      // mobile network was slow, and the phone's browser could reload the
+      // page while it worked. Nothing is lost: the browser camera's photo has
+      // no GPS, and the server dates it. Library photos go as they are, since
+      // their location is read from the file.
+      const f = fromCameraRef.current ? await shrinkPhoto(picked) : picked
+      if (pick !== pickRef.current) return
       const url = await previewUrl(f)
       if (pick !== pickRef.current) return URL.revokeObjectURL(url)
       if (preview) URL.revokeObjectURL(preview)
