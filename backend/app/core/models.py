@@ -118,6 +118,9 @@ class Sketch(Base):
     # The sketcher lets the critique read the text of their voice notes
     # (November 18, 2026). Off unless they turn it on.
     notes_for_coach = Column(Boolean, nullable=False, default=False, server_default="false")
+    # Others see the field notes (typed, and the voice notes' text, never the
+    # recordings) only when this is on. Off by default (November 20, 2026).
+    notes_shared = Column(Boolean, nullable=False, default=False, server_default="false")
     # The style the coach saw in the final sketch, and the sketcher's answer:
     # None not answered, True agreed, False changed it (then `style` holds
     # their pick). Design doc, item 39.
@@ -367,6 +370,8 @@ class SketchNote(Base):
     size_bytes = Column(Integer, nullable=True)
     transcript = Column(Text, nullable=True)
     transcript_status = Column(String, nullable=True)   # pending | done | failed (voice only)
+    # The sketcher changed the AI's text (shown as "edited").
+    transcript_edited = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime, default=datetime.utcnow)
 
 # ---- events and scouted spots (design doc, items 49 and 50) ----

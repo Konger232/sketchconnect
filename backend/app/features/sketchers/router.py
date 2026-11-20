@@ -82,7 +82,7 @@ def get_sketcher(
             **counts,
         },
         "is_following": following,
-        "featured": [_sketch_card(s) for s in featured],
+        "featured": [_sketch_card(s, viewer_id) for s in featured],
         "kit_photo_url": profile.kit_photo_url,
         "kit_photos": kit_photos(profile),
         "kit": [{**kit_item_to_dict(i), "wished": i.id in wished} for i in kit_rows],
@@ -119,7 +119,7 @@ def list_sketcher_sketches(
     from app.features.sketches.router import place_names, upload_counts
     uploads = upload_counts(db, [s.id for s, _, _ in rows]) if is_owner else {}
     # The place circles: grouped like Explore's pills (Pak Kret -> Bangkok).
-    cards = [(s, _sketch_card(s)) for s, _, _ in rows]
+    cards = [(s, _sketch_card(s, viewer_id)) for s, _, _ in rows]
     places = place_names(db, viewer_id, [(s.id, s.location_label, (d["location"] or {}).get("lat"), (d["location"] or {}).get("lon"))
                                          for s, d in cards])
     out = []

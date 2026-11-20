@@ -54,8 +54,23 @@ def _out(n: SketchNote) -> dict:
     return {
         "id": n.id, "kind": n.kind, "content_type": n.content_type, "duration_s": n.duration_s,
         "size_bytes": n.size_bytes, "transcript": n.transcript, "transcript_status": n.transcript_status,
+        "edited": bool(n.transcript_edited),
         "created_at": n.created_at.isoformat() + "Z" if n.created_at else None,
     }
+
+
+def shared_voice_notes(db: Session, sketch: Sketch) -> list[dict]:
+    """The voice notes' text, for others, when the sketcher shares their
+    notes (sketches.notes_shared, November 20, 2026). Text only: the
+    recordings never leave their owner."""
+    if not sketch.notes_shared:
+        return []
+    rows = (db.query(SketchNote)
+            .filter(SketchNote.sketch_id == sketch.id, SketchNote.kind == "voice",
+                    SketchNote.transcript_status == "done", SketchNote.transcript.isnot(None), SketchNote.transcript != "")
+            .order_by(SketchNote.created_at.asc()).all())
+    return [{"id": n.id, "transcript": n.transcript, "edited": bool(n.transcript_edited), "duration_s": n.duration_s,
+             "created_at": n.created_at.isoformat() + "Z" if n.created_at else None} for n in rows]
 
 
 def _my_sketch(db: Session, sketch_id: str, me: str) -> Sketch:
@@ -147,7 +162,10 @@ class NoteUpdate(BaseModel):
 @router.patch("/notes/{note_id}")
 def update_note(note_id: str, body: NoteUpdate, db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
     n = _my_note(db, note_id, me)
-    n.transcript = body.transcript.strip()[:20000]
+    text = body.transcript.strip()[:20000]
+    if text != (n.transcript or ""):
+        n.transcript_edited = True
+    n.transcript = text
     n.transcript_status = "done"
     db.commit()
     return _out(n)

@@ -689,3 +689,19 @@ create policy "own notes" on sketch_notes for all using (auth.uid() = sketcher_i
 -- The sketcher's switch: let the critique read the text of their voice notes
 -- on this sketch (November 18, 2026). Off by default. Safe to run again.
 alter table sketches add column if not exists notes_for_coach boolean not null default false;
+
+-- Field notes, typed or recorded, are private unless the sketcher shares
+-- them (November 20, 2026). Others then see the typed notes and the voice
+-- notes' text, never the recordings. Sketches that already had typed notes
+-- were public, so they start shared. "edited": the sketcher changed the
+-- AI's text. Safe to run again: the update only touches sketches whose
+-- column was just added (the default false), and only those with notes.
+alter table sketch_notes add column if not exists transcript_edited boolean not null default false;
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+                 where table_name = 'sketches' and column_name = 'notes_shared') then
+    alter table sketches add column notes_shared boolean not null default false;
+    update sketches set notes_shared = true where coalesce(btrim(field_notes), '') <> '';
+  end if;
+end $$;

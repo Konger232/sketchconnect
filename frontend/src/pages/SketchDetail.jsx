@@ -388,8 +388,8 @@ export default function SketchDetail() {
         )}
       </section>
 
-      {/* ---- The sketcher's own notes: voice notes and clips (only them) ---- */}
-      {viewer === 'owner' && <SketchNotes sketchId={s.id} />}
+      {/* ---- Field notes: typed and recorded, private unless shared ---- */}
+      <SketchNotes sketch={s} owner={viewer === 'owner'} />
 
       {/* ---- Group 1: The scene ---- */}
       {reference && (
@@ -590,7 +590,7 @@ export default function SketchDetail() {
       )}
 
       {/* ---- Where it was drawn ---- */}
-      {(s.location || s.field_notes) && (
+      {s.location && (
         <section className="ed-section">
           <div className="ed-section-head">
             <h2 className="ed-kicker m-0">Where it was drawn</h2>
@@ -603,13 +603,6 @@ export default function SketchDetail() {
             {s.location && (
               <div className="ed-bleed min-w-0 flex-[1_1_480px]">
                 <LocationMap lat={s.location.lat} lon={s.location.lon} height="h-[300px]" rounded={false} />
-              </div>
-            )}
-            {s.field_notes && (
-              <div className="flex min-w-[260px] flex-[1_1_320px] flex-col gap-3">
-                <span className="ed-caption">Field notes</span>
-                <p className="m-0 whitespace-pre-line text-base leading-relaxed">{s.field_notes}</p>
-                <span className="text-xs text-ink/60">{dateLabel(when)} · {timeLabel(when)}</span>
               </div>
             )}
           </div>

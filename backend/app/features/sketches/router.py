@@ -61,7 +61,15 @@ router = APIRouter(prefix="/api", tags=["sketches"])
 
 
 
-def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
+def _notes_text(s: Sketch, viewer_id: str | None) -> str | None:
+    """The typed field notes, for their sketcher, or for others when the
+    sketcher shares their notes (sketches.notes_shared, November 20, 2026)."""
+    return s.field_notes if (s.notes_shared or (viewer_id and viewer_id == s.sketcher_id)) else None
+
+
+def _sketch_to_dict(s: Sketch, latest_critique: str | None = None, viewer_id: str | None = None) -> dict:
+    """viewer_id: who is asking; None is the sketcher themselves (the owner
+    routes)."""
     location = None
     if s.location is not None:
         point = to_shape(s.location)
@@ -69,7 +77,8 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None) -> dict:
     return {
         "id": s.id,
         "title": s.title,
-        "field_notes": s.field_notes,
+        "field_notes": _notes_text(s, s.sketcher_id if viewer_id is None else viewer_id),
+        "notes_shared": bool(s.notes_shared),
         "style": s.style,
         "scene_type": s.scene_type,
         "reference_image_url": s.reference_image_url,
@@ -115,6 +124,7 @@ CARD_COLUMNS = (
     Sketch.id, Sketch.sketcher_id, Sketch.title, Sketch.field_notes, Sketch.style, Sketch.scene_type,
     Sketch.reference_image_url, Sketch.final_sketch_url, Sketch.location, Sketch.location_label,
     Sketch.captured_at, Sketch.created_at, Sketch.visibility, Sketch.glazed, Sketch.final_at,
+    Sketch.notes_shared,
 )
 
 # A sketch's date (October 30, 2026): once completed, when its final was
@@ -136,8 +146,9 @@ def card_query(db: Session, *extra):
     return db.query(Sketch, *extra).options(load_only(*CARD_COLUMNS))
 
 
-def _sketch_card(s: Sketch) -> dict:
-    """A sketch for a card: no plan, strokes or analysis."""
+def _sketch_card(s: Sketch, viewer_id: str | None = None) -> dict:
+    """A sketch for a card: no plan, strokes or analysis. The field notes
+    show to their sketcher (viewer_id), or to all when shared."""
     location = None
     if s.location is not None:
         point = to_shape(s.location)
@@ -145,7 +156,7 @@ def _sketch_card(s: Sketch) -> dict:
     return {
         "id": s.id,
         "title": s.title,
-        "field_notes": s.field_notes,
+        "field_notes": _notes_text(s, viewer_id),
         "style": s.style,
         "scene_type": s.scene_type,
         "reference_image_url": s.reference_image_url,
@@ -394,6 +405,8 @@ async def update_sketch(
         sketch.title = body.title
     if body.field_notes is not None:
         sketch.field_notes = body.field_notes
+    if body.notes_shared is not None:
+        sketch.notes_shared = body.notes_shared
     if "location" in body.model_fields_set:
         if body.location is None:
             sketch.location = None
@@ -1052,7 +1065,7 @@ def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:
     drafts = upload_counts(db, [s.id for s in rows if not s.final_sketch_url])
     dicts = []
     for s in rows:
-        d = _sketch_card(s)
+        d = _sketch_card(s, viewer_id)
         d["upload_count"] = drafts.get(s.id, 0)
         p, n, liked, c = info.get(s.id, (None, 0, False, 0))
         d["owner"] = {"display_name": p.display_name if p else None, "username": p.username if p else None,
@@ -1635,7 +1648,10 @@ async def get_sketch(
     cleaned = ((sketch.cached_scene_analysis or {}).get("marks_analysis") or {}).get("cleaned") or {}
 
     if not is_owner:
-        data = _sketch_to_dict(sketch)
+        data = _sketch_to_dict(sketch, viewer_id=sketcher_id or "")
+        # Shared notes: the voice notes' text too, never the recordings.
+        from app.features.notes.router import shared_voice_notes
+        data["shared_notes"] = shared_voice_notes(db, sketch)
         data.update(social)
         data["owner"] = owner
         data["is_owner"] = False
@@ -1734,7 +1750,7 @@ def nearby_sketches(
     )
     out = []
     for s, d, p in rows:
-        item = _sketch_card(s)
+        item = _sketch_card(s, sketcher_id)
         item["distance_m"] = round(d or 0)
         item["owner"] = {"display_name": p.display_name if p else None, "username": p.username if p else None,
                          "avatar_url": p.avatar_url if p else None}  # the avatar pins on the map

@@ -272,18 +272,21 @@ def color_plan_text(sketch: Sketch) -> str:
 
 
 def voice_notes_text(db: Session, sketch: Sketch) -> str:
-    """The text of the sketcher's voice notes, when they let the coach read
-    them (sketches.notes_for_coach, November 18, 2026); else a "none" note.
-    Text only: the recordings and the clips are never sent."""
+    """The sketcher's field notes, typed and the voice notes' text, when they
+    let the coach read them (sketches.notes_for_coach, November 18, 2026;
+    typed notes added November 20); else a "none" note. Text only: the
+    recordings are never sent."""
     if not sketch.notes_for_coach:
         return "none shared"
+    typed = (sketch.field_notes or "").strip()
     rows = (db.query(SketchNote.created_at, SketchNote.transcript)
             .filter(SketchNote.sketch_id == sketch.id, SketchNote.kind == "voice",
                     SketchNote.transcript.isnot(None), SketchNote.transcript != "")
             .order_by(SketchNote.created_at.asc()).all())
-    lines, total = [], 0
+    lines, total = ([f"- typed: {typed[:1500]}"] if typed else []), 0
+    total = len(lines[0]) if lines else 0
     for when, text in rows:
-        line = f"- {when.strftime('%H:%M') if when else ''} {text.strip()}"
+        line = f"- recorded {when.strftime('%H:%M') if when else ''}: {text.strip()}"
         if total + len(line) > 4000:  # keep the prompt in bounds
             break
         lines.append(line)

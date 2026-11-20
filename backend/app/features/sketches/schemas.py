@@ -36,6 +36,9 @@ class SketchUpdateRequest(BaseModel):
     # final was Glazed by the sketcher.
     visibility: Optional[Literal["members", "followers", "private"]] = None
     glazed: Optional[bool] = None
+    # Share the field notes (typed, and the voice notes' text) with whoever
+    # can see the sketch. Off by default (November 20, 2026).
+    notes_shared: Optional[bool] = None
     # The sketcher's answer to the coach's style (item 39): True agreed,
     # False picked another (sent with `style`).
     style_confirmed: Optional[bool] = None

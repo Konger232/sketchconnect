@@ -25,6 +25,7 @@ import { notifySketchesChanged } from '../lib/sketchEvents'
 import { STYLES, sceneTypeLabel } from '../data/styles'
 import { useSheetDrag } from '../lib/useSheetDrag'
 import { handle } from '../lib/people'
+import { DetailsVoiceNotes } from '../components/common/SketchNotes'
 
 const NOTE_LIMIT = 500
 
@@ -684,6 +685,9 @@ export default function EditSketch() {
             className="sc-field min-h-[7rem] resize-y leading-normal"
           />
         </label>
+        {/* A field note can also be recorded; the AI writes it down. The
+            share switch covers both (November 20, 2026). */}
+        <DetailsVoiceNotes sketchId={sketch.id} notesShared={sketch.notes_shared} />
 
         {/* Who sees the sketch once it's shared, and Glaze (design doc:
             protecting sketchers' work). */}
