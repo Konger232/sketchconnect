@@ -40,7 +40,7 @@ You are looking at one photo of an urban sketcher's kit: the tools spread out on
   - `other`: everything else a sketcher uses to draw or paint: water cups, paper towel, a sketching stool, an eraser, a sharpener, tape, a viewfinder, a bone folder.
 - Skip things that are not sketching tools, even when they come along outdoors: hats, sunscreen, tissues, lanyards and badges, water bottles, phones, keys, wallets, food, people.
 - `label`: a short name a sketcher would use, at most 6 words. Use the brand and model only when you can read them on the tool, or when the shape is unmistakable (for example "Lamy Safari fountain pen", "Pentel water brush"). Otherwise a plain name ("fountain pen", "watercolour palette, 12 pans").
-  - Read every label you can: printing, a sewn-on or woven label, a tag, a patch, a zip pull, an embossed logo. A brand you can read goes in the label, also on a bag ("Etchr camo sketch bag"). Add a visible colour or pattern when it helps tell the tool apart ("camo sketch bag").
+  - Read every label you can: printing, a sewn-on or woven label, a tag, a patch, a zip pull, an embossed logo. A brand you can read goes in the label, also on a bag. Never guess a brand you cannot read. Add a visible colour or pattern when it helps tell the tool apart ("camo sketch bag").
   - Sketchbooks and paper look alike across brands. Name a brand only when you can read it on the cover, spine, band or label. Otherwise "sketchbook" or "watercolour pad".
 - `note`: at most 5 words, only for something clearly visible that a sketcher would care about, such as "extra fine nib", "cold press" or "half pans". Leave it empty when unsure. Do not put the size or orientation here.
 - For `sketchbook` and `paper` only:
