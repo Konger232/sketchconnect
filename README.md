@@ -38,6 +38,8 @@ uvicorn main:app --reload
 
 - API docs: http://localhost:8000/docs
 - Health check: http://localhost:8000/health
+- Production health check: https://sketchconnect-api-799683070133.asia-northeast1.run.app/health (`"schema": "ok"` when the database matches the code)
+- Production logs (Google sign-in): https://console.cloud.google.com/run/detail/asia-northeast1/sketchconnect-api/logs?project=sketchconnect-app-2026
 
 To open the app from another device on the same Wi-Fi (e.g. a phone,
 for a quick mobile check), add `--host 0.0.0.0` to the uvicorn command

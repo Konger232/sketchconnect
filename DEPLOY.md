@@ -230,6 +230,17 @@ needs no change.
 
 ## 5. Check it
 
+Two links to keep at hand:
+
+- **Health** (anyone can open it; it shows no data):
+  https://sketchconnect-api-799683070133.asia-northeast1.run.app/health
+  `"schema": "ok"` means the database has every table and column the code
+  needs. `"missing"` names what to add.
+- **Logs** (Google sign-in required, your account only):
+  https://console.cloud.google.com/run/detail/asia-northeast1/sketchconnect-api/logs?project=sketchconnect-app-2026
+  Errors show as `Traceback`, `storage refused` or `SCHEMA CHECK`. The same
+  from the terminal: `gcloud run services logs read sketchconnect-api --region asia-northeast1 --limit 60`.
+
 On your phone, on mobile data (not your Wi-Fi):
 
 1. Open the site as a visitor: Explore, the map and the teasers load.
