@@ -88,6 +88,10 @@ def warm_up() -> None:
 
     threading.Thread(target=keys, daemon=True).start()
     threading.Thread(target=connections, daemon=True).start()
+    # Every column the code needs is in the database? Named in the log, and
+    # on /health (app/core/schema_check.py).
+    from app.core import schema_check
+    threading.Thread(target=schema_check.report, args=(engine,), daemon=True).start()
     # Then keep them alive (app/core/database.py).
     from app.core.database import keep_warm
     threading.Thread(target=keep_warm, daemon=True).start()
@@ -142,4 +146,13 @@ app.include_router(community.router)
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    """Up, and whether the database has every table and column the code
+    needs (schema: ok, missing with the names, or unchecked)."""
+    from app.core import schema_check
+    m = schema_check.MISSING
+    if m is None:
+        return {"status": "ok", "schema": "unchecked"}
+    if m:
+        return {"status": "ok", "schema": "missing", "missing": m,
+                "fix": "Run the new SQL at the end of backend/db/schema.sql in Supabase."}
+    return {"status": "ok", "schema": "ok"}

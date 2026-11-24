@@ -123,7 +123,14 @@ Why these settings:
   to 1 (step 6).
 - `.dockerignore` keeps `.env` and `uploads/` out of the image.
 
-**Every deploy after that**, from the `backend` folder:
+**Every deploy after that:**
+
+1. **Database first.** If the change added SQL at the end of
+   `backend/db/schema.sql`, run that new SQL in Supabase (SQL Editor)
+   **before** deploying. New code that reads a column the database doesn't
+   have yet makes every list fail, and the site shows no sketches. This has
+   happened three times.
+2. Then deploy from the `backend` folder:
 
 ```
 gcloud run deploy sketchconnect-api --source . --region asia-northeast1
@@ -136,6 +143,19 @@ which erases `FRONTEND_ORIGINS` (step 4), and the site then shows no sketches
 because the browser blocks every request to the backend. To change one
 setting, use `gcloud run services update … --update-env-vars …`, which keeps
 the rest.
+
+3. Check the database matches the code. Open the backend's `/health`:
+
+   ```
+   curl https://sketchconnect-api-799683070133.asia-northeast1.run.app/health
+   ```
+
+   `"schema": "ok"` means every table and column the code needs is there.
+   `"schema": "missing"` lists what isn't: run the new SQL, then reload the
+   site (no redeploy). `"unchecked"` means the check hasn't finished yet a few
+   seconds after a restart: try again. The same result is printed in the
+   Cloud Run log at startup as `schema check: ok` or `SCHEMA CHECK: the
+   database is missing …`.
 
 Check the settings at any time (secrets show by name only):
 
@@ -224,7 +244,8 @@ Cloud Run > sketchconnect-api > Logs.
 
 ## 6. Day to day
 
-- Backend changes, from `backend`: `gcloud run deploy sketchconnect-api --source . --region asia-northeast1` (the short command in step 2, never the first-deploy one).
+- Database changes first: run any new SQL at the end of `backend/db/schema.sql` in Supabase before deploying the backend.
+- Backend changes, from `backend`: `gcloud run deploy sketchconnect-api --source . --region asia-northeast1` (the short command in step 2, never the first-deploy one). Then open `/health` and look for `"schema": "ok"`.
 - Frontend changes, from `frontend`: `npm run build` then
   `npx firebase-tools deploy --only hosting --project PROJECT_ID`.
 - Review week, no waiting on first visit (costs while on):
