@@ -109,6 +109,7 @@ def read_kit(image: Image.Image) -> tuple[list[dict], int]:
     tools, dropped = [], 0
     for t in listed[:MAX_TOOLS]:
         label = " ".join(str(t.get("label") or "").split())[:80]
+        label = label[:1].upper() + label[1:]  # "Camo sketch bag"; the rest as the AI wrote it
         # Forgiving: an odd category becomes "other", and a box with extra
         # numbers keeps its first four. Only an entry with no name, or no
         # place to pin it, is left out.
