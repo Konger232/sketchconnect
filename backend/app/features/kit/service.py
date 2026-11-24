@@ -26,7 +26,7 @@ You are looking at one photo of an urban sketcher's kit: the tools spread out on
 # What to list
 - Look over the whole photo, corner to corner, before you answer: the middle, the edges and the corners. A flat lay or an open bag usually holds 10 to 20 tools. List each one you can see, the small ones too: pens, fountain pens, gel pens, fineliners, pencils, markers, brushes, ink bottles, paint tubes, an eraser, a sharpener, clips. Do not stop at the biggest few.
 - List up to 20 entries, the most clearly visible first.
-- A cup, case, tin or roll holding several similar tools is one entry, pinned on the group: "coloured pencils", "brushes, 5", "acrylic markers, 6". Several similar tools lying loose side by side are one entry too ("gel pens, 8"). A tool lying on its own is its own entry. Similar tools apart from each other are separate entries, each with its own box: two clips at opposite ends of a sketchbook are two entries, not one box around the sketchbook.
+- A cup, case, tin or roll holding several similar tools is one entry, pinned on the group: "coloured pencils", "brushes, 5", "acrylic markers, 6". Several similar tools lying loose side by side are one entry too ("gel pens, 8"). A tool lying on its own is its own entry. The same kind of tool in several places (two clips on a sketchbook) is one entry too ("binder clips, 2").
 - `category`, exactly one of:
   - `pen`: pens, fountain pens, fineliners, brush pens, dip pens, pencils, coloured pencils, markers, crayons, pastels.
   - `ink`: bottles or cartridges of ink.
@@ -45,7 +45,7 @@ You are looking at one photo of an urban sketcher's kit: the tools spread out on
 - For `sketchbook` and `paper` only:
   - `size`: the nearest of "A3", "A4", "A5", "A6", or "square" when the sides look equal. Judge it against the other tools in the photo (a pen is about 14 cm long, a water brush about 15 cm). Leave it empty when you cannot judge.
   - `orientation`: "landscape" when the binding runs along a short side (it opens wide), "portrait" when it runs along a long side. For loose paper or a closed book with no binding visible, use the longer side as it lies. Leave it empty for square, or when unsure.
-- `box_2d`: the tool's box as [ymin, xmin, ymax, xmax], each from 0 to 1000, on this photo.
+- `box_2d`: the tool's box as [ymin, xmin, ymax, xmax], each from 0 to 1000, on this photo. For an entry of several loose tools, give the box of the first one you see, never a box around all of them: the pin goes on that one tool. For tools in a cup, case, tin or roll, give the box of the container.
 
 Return an empty list when you see no sketching tools.
 
