@@ -65,8 +65,11 @@ SCHEMA = {
                     "category": {"type": "string", "enum": CATEGORIES},
                     "label": {"type": "string"},
                     "note": {"type": "string"},
-                    "size": {"type": "string"},  # checked in _note
-                    "orientation": {"type": "string"},
+                    # Enums: without them the AI wrote its working-out into
+                    # `size` ("A5 Landcape / Portrait check: ..."). Still
+                    # checked in _note.
+                    "size": {"type": "string", "enum": ["A3", "A4", "A5", "A6", "square"]},
+                    "orientation": {"type": "string", "enum": ["landscape", "portrait"]},
                     "box_2d": {"type": "array", "items": {"type": "integer"}},
                 },
                 "required": ["category", "label", "box_2d"],

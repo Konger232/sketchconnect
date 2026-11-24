@@ -171,17 +171,22 @@ def read_kit_photo(body: KitReadRequest, db: Session = Depends(get_db), sketcher
     try:
         tools, turn = read_kit(img)
         # The writing on the tools says the photo is upside down or sideways:
-        # read a turned copy too, and keep whichever finds more tools. The
-        # AI's sense of "upright" can be wrong (it turned an upright flat lay
-        # over, November 24, 2026), so the count decides, not the guess. Only
-        # a turned copy that wins replaces the stored photo.
+        # read a turned copy too. The turn is kept only when that second read
+        # agrees the turned copy is upright (its own turn is 0): two reads
+        # agreeing guards against one wrong guess. The upright read is also
+        # the better one: it read the bag's woven label, which the upside-down
+        # read missed (November 24, 2026). It may group more tools into one
+        # entry, so the count is not compared.
         if turn:
             turned_full = full.rotate(-turn, expand=True)  # PIL turns counterclockwise
             turned = turned_full.copy()
             turned.thumbnail((1600, 1600))
-            turned_tools, _ = read_kit(turned)
-            print(f"[kit] as taken: {len(tools)} tools; turned {turn} degrees: {len(turned_tools)}")
-            if len(turned_tools) > len(tools):
+            turned_tools, turned_again = read_kit(turned)
+            agree = turned_again == 0 and len(turned_tools) > 0
+            print(f"[kit] as taken: {len(tools)} tools; turned {turn} degrees: {len(turned_tools)} tools, "
+                  f"which reads {'upright' if turned_again == 0 else f'turned {turned_again} more'}"
+                  f" -> {'keep the turned photo' if agree else 'keep the photo as taken'}")
+            if agree:
                 old = photos[body.photo]
                 photos[body.photo] = storage.save_image(turned_full, f"kit_{uuid.uuid4()}.jpg", quality=88)
                 profile = db.get(Profile, sketcher_id)
