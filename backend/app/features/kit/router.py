@@ -170,20 +170,27 @@ def read_kit_photo(body: KitReadRequest, db: Session = Depends(get_db), sketcher
     img.thumbnail((1600, 1600))
     try:
         tools, turn = read_kit(img)
-        # Upside down or sideways (the writing on the tools says so): turn
-        # the stored photo upright, then read it once more. The pins are
-        # placed on the upright photo, which is also what others see.
+        # The writing on the tools says the photo is upside down or sideways:
+        # read a turned copy too, and keep whichever finds more tools. The
+        # AI's sense of "upright" can be wrong (it turned an upright flat lay
+        # over, November 24, 2026), so the count decides, not the guess. Only
+        # a turned copy that wins replaces the stored photo.
         if turn:
-            full = full.rotate(-turn, expand=True)  # PIL turns counterclockwise
-            old = photos[body.photo]
-            photos[body.photo] = storage.save_image(full, f"kit_{uuid.uuid4()}.jpg", quality=88)
-            profile = db.get(Profile, sketcher_id)
-            profile.kit_photos = photos
-            profile.kit_photo_url = photos[0]
-            storage.delete(old)
-            img = full.copy()
-            img.thumbnail((1600, 1600))
-            tools, _ = read_kit(img)
+            turned_full = full.rotate(-turn, expand=True)  # PIL turns counterclockwise
+            turned = turned_full.copy()
+            turned.thumbnail((1600, 1600))
+            turned_tools, _ = read_kit(turned)
+            print(f"[kit] as taken: {len(tools)} tools; turned {turn} degrees: {len(turned_tools)}")
+            if len(turned_tools) > len(tools):
+                old = photos[body.photo]
+                photos[body.photo] = storage.save_image(turned_full, f"kit_{uuid.uuid4()}.jpg", quality=88)
+                profile = db.get(Profile, sketcher_id)
+                profile.kit_photos = photos
+                profile.kit_photo_url = photos[0]
+                storage.delete(old)
+                tools = turned_tools
+            else:
+                turn = 0
     except Exception as exc:
         print(f"[kit] reading failed: {exc}")
         raise HTTPException(502, "Could not read the tools right now. Try again, or add them by hand.")
@@ -193,7 +200,10 @@ def read_kit_photo(body: KitReadRequest, db: Session = Depends(get_db), sketcher
             db.query(KitWish).filter(KitWish.kit_item_id == item.id).delete()
             db.delete(item)
     db.flush()
-    for t in tools[: max(0, _room(db, sketcher_id))]:
+    room = max(0, _room(db, sketcher_id))
+    if room < len(tools):
+        print(f"[kit] the bag has room for {room} more of the {len(tools)} tools found (MAX_KIT_ITEMS)")
+    for t in tools[:room]:
         db.add(KitItem(
             sketcher_id=sketcher_id, source="ai", category=t["category"], label=t["label"],
             note=t["note"] or None, spot={"photo": body.photo, "x": t["x"], "y": t["y"]},
