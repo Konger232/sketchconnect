@@ -26,7 +26,7 @@ You are looking at one photo of an urban sketcher's kit: the tools spread out on
 # What to list
 - Look over the whole photo, corner to corner, before you answer: the middle, the edges and the corners. A flat lay or an open bag usually holds 10 to 20 tools. List each one you can see, the small ones too: pens, fountain pens, gel pens, fineliners, pencils, markers, brushes, ink bottles, paint tubes, an eraser, a sharpener, clips. Do not stop at the biggest few.
 - List up to 20 entries, the most clearly visible first.
-- A cup, case, tin or roll holding several similar tools is one entry, pinned on the group: "coloured pencils", "brushes, 5", "acrylic markers, 6". Several similar tools lying loose side by side are one entry too ("gel pens, 8"). A tool lying on its own is its own entry.
+- A cup, case, tin or roll holding several similar tools is one entry, pinned on the group: "coloured pencils", "brushes, 5", "acrylic markers, 6". Several similar tools lying loose side by side are one entry too ("gel pens, 8"). A tool lying on its own is its own entry. Similar tools apart from each other are separate entries, each with its own box: two clips at opposite ends of a sketchbook are two entries, not one box around the sketchbook.
 - `category`, exactly one of:
   - `pen`: pens, fountain pens, fineliners, brush pens, dip pens, pencils, coloured pencils, markers, crayons, pastels.
   - `ink`: bottles or cartridges of ink.
@@ -38,7 +38,6 @@ You are looking at one photo of an urban sketcher's kit: the tools spread out on
   - `easel`: easels, tripods and boards on a stand, folded or set up.
   - `bag`: the sketch bag, pouch or case itself whenever it is in the photo, open, behind the tools or beside them. Sketchers choose their bag with care, so always list it.
   - `other`: everything else a sketcher uses to draw or paint: water cups, paper towel, a sketching stool, an eraser, a sharpener, tape, a viewfinder, a bone folder.
-- Skip things that are not sketching tools, even when they come along outdoors: hats, sunscreen, tissues, lanyards and badges, water bottles, phones, keys, wallets, food, people.
 - `label`: a short name a sketcher would use, at most 6 words. Use the brand and model only when you can read them on the tool, or when the shape is unmistakable (for example "Lamy Safari fountain pen", "Pentel water brush"). Otherwise a plain name ("fountain pen", "watercolour palette, 12 pans").
   - Read every label you can: printing, a sewn-on or woven label, a tag, a patch, a zip pull, an embossed logo. Whatever the label says goes in the name, as written, also on a bag ("Cordura Fabric camo sketch bag"). Never guess words you cannot read. Add a visible colour or pattern when it helps tell the tool apart ("camo sketch bag").
   - Sketchbooks and paper look alike across brands. Name a brand only when you can read it on the cover, spine, band or label. Otherwise "sketchbook" or "watercolour pad".
