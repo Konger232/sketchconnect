@@ -42,6 +42,18 @@ from app.features.community import router as community
 app = FastAPI(title="SketchConnect middle server")
 
 
+# The bucket refused a file (app/core/storage.py): answer with the reason,
+# through the CORS headers, so the app shows it instead of a generic error.
+from fastapi.responses import JSONResponse  # noqa: E402
+from app.core.storage import StorageError  # noqa: E402
+
+
+@app.exception_handler(StorageError)
+async def storage_refused(request, exc: StorageError):
+    return JSONResponse(status_code=502, content={
+        "detail": "The photo could not be stored. The storage bucket refused it; the server log says why."})
+
+
 @app.on_event("startup")
 def warm_up() -> None:
     """Best effort, in the background: fetch Supabase's signing keys and open

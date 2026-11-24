@@ -90,13 +90,25 @@ def _trim_cache() -> None:
             break
 
 
+class StorageError(Exception):
+    """The bucket refused a file. The message carries Supabase's own reason
+    (for example a file type the bucket doesn't allow, or a size limit), so
+    the log and the app say why instead of "400 Bad Request"."""
+
+
 def save_bytes(name: str, data: bytes, content_type: str = "image/jpeg") -> str:
     """Store one file; returns the "/uploads/<file>" the database keeps."""
     name = name_of(name)
     if REMOTE:
         r = _http().post(f"/object/{BUCKET}/{name}", content=data,
                          headers={"Content-Type": content_type, "x-upsert": "true"})
-        r.raise_for_status()
+        if r.is_error:
+            # Supabase's reply names the reason; it never holds a key.
+            reason = r.text.strip().replace("\n", " ")[:300]
+            msg = (f"storage refused {content_type} ({len(data) // 1024} KB) for bucket "
+                   f"{BUCKET}: HTTP {r.status_code} {reason}")
+            print(msg)
+            raise StorageError(msg)
     _write_local(name, data)
     return f"/uploads/{name}"
 
