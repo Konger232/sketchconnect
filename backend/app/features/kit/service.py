@@ -21,7 +21,7 @@ NEAR = {"pencil": "pen", "pencils": "pen", "pens": "pen", "brushes": "brush", "i
         "pad": "paper", "clip": "clips", "tripod": "easel", "pouch": "bag", "case": "bag"}
 
 PROMPT = """# Role & Task
-You are looking at one photo of an urban sketcher's kit: the tools spread out on a table, or an open bag. List the sketching tools you can see, and where each one is. You only identify tools. You never judge the kit or suggest buying anything.
+You are looking at one photo of an urban sketcher's kit: the tools spread out on a table, or an open bag. List everything the sketcher brings that you can see, and where each one is: the sketching tools, and what they carry for sketching outdoors. You only identify tools. You never judge the kit or suggest buying anything.
 
 # What to list
 - Look over the whole photo, corner to corner, before you answer: the middle, the edges and the corners. A flat lay or an open bag usually holds 10 to 20 tools. List each one you can see, the small ones too: pens, fountain pens, gel pens, fineliners, pencils, markers, brushes, ink bottles, paint tubes, an eraser, a sharpener, clips. Do not stop at the biggest few.
@@ -37,7 +37,7 @@ You are looking at one photo of an urban sketcher's kit: the tools spread out on
   - `clips`: clips and bulldog clips.
   - `easel`: easels, tripods and boards on a stand, folded or set up.
   - `bag`: the sketch bag, pouch or case itself whenever it is in the photo, open, behind the tools or beside them. Sketchers choose their bag with care, so always list it.
-  - `other`: everything else a sketcher uses to draw or paint: water cups, paper towel, a sketching stool, an eraser, a sharpener, tape, a viewfinder, a bone folder.
+  - `other`: everything else in the photo: water cups, paper towel, a sketching stool, an eraser, a sharpener, tape, a viewfinder, and what they carry for sketching outdoors, such as insect spray, an umbrella, a fan, sunscreen or a hat.
 - `label`: a short name a sketcher would use, at most 6 words. Use the brand and model only when you can read them on the tool, or when the shape is unmistakable (for example "Lamy Safari fountain pen", "Pentel water brush"). Otherwise a plain name ("fountain pen", "watercolour palette, 12 pans").
   - Read every label you can: printing, a sewn-on or woven label, a tag, a patch, a zip pull, an embossed logo. Whatever the label says goes in the name, as written, also on a bag ("Cordura Fabric camo sketch bag"). Never guess words you cannot read. Add a visible colour or pattern when it helps tell the tool apart ("camo sketch bag").
   - Sketchbooks and paper look alike across brands. Name a brand only when you can read it on the cover, spine, band or label. Otherwise "sketchbook" or "watercolour pad".
@@ -47,7 +47,7 @@ You are looking at one photo of an urban sketcher's kit: the tools spread out on
   - `orientation`: "landscape" when the binding runs along a short side (it opens wide), "portrait" when it runs along a long side. For loose paper or a closed book with no binding visible, use the longer side as it lies. Leave it empty for square, or when unsure.
 - `box_2d`: the tool's box as [ymin, xmin, ymax, xmax], each from 0 to 1000, on this photo. For an entry of several loose tools, give the box of the first one you see, never a box around all of them: the pin goes on that one tool. For tools in a cup, case, tin or roll, give the box of the container.
 
-Return an empty list when you see no sketching tools.
+Return an empty list when the photo shows none of these.
 
 # Which way up
 - `upright_turn`: how many degrees the photo must turn clockwise so the writing on the tools (labels, brand names, printing on cans, tubes and covers) reads the right way up: 0, 90, 180 or 270. Most of the writing decides. Use 0 when no writing is readable, or when it already reads the right way up.
