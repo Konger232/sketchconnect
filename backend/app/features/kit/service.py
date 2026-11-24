@@ -48,6 +48,9 @@ You are looking at one photo of an urban sketcher's kit: the tools spread out on
 - `box_2d`: the tool's box as [ymin, xmin, ymax, xmax], each from 0 to 1000, on this photo.
 
 Return an empty list when you see no sketching tools.
+
+# Which way up
+- `upright_turn`: how many degrees the photo must turn clockwise so the writing on the tools (labels, brand names, printing on cans, tubes and covers) reads the right way up: 0, 90, 180 or 270. Most of the writing decides. Use 0 when no writing is readable, or when it already reads the right way up.
 """
 
 SCHEMA = {
@@ -68,6 +71,7 @@ SCHEMA = {
                 "required": ["category", "label", "box_2d"],
             },
         },
+        "upright_turn": {"type": "integer"},
     },
     "required": ["tools"],
 }
@@ -85,10 +89,19 @@ def _note(t: dict) -> str:
     return ", ".join(x for x in (shape, note) if x)
 
 
-def read_kit(image: Image.Image) -> list[dict]:
+def read_kit(image: Image.Image) -> tuple[list[dict], int]:
     """The tools in the photo: [{category, label, note, x, y}], x and y the
-    tool's centre from 0 to 1, from the top left."""
+    tool's centre from 0 to 1, from the top left; and the clockwise turn
+    (0, 90, 180 or 270) that would set the photo upright, read from the
+    writing on the tools. A flat lay shot from the other side of the table
+    is upside down, and the AI then misses most of the tools (found November
+    24, 2026), so the caller turns the photo and reads it again."""
     result = call_gemini_json(PROMPT, SCHEMA, image, mock_name="kit_reading")
+    try:
+        turn = int(result.get("upright_turn") or 0) % 360
+    except (TypeError, ValueError):
+        turn = 0
+    turn = turn if turn in (90, 180, 270) else 0
     listed = result.get("tools") or []
     tools, dropped = [], 0
     for t in listed[:MAX_TOOLS]:
@@ -120,5 +133,6 @@ def read_kit(image: Image.Image) -> list[dict]:
             "y": round((ymin + ymax) / 2000, 3),
         })
     print(f"[kit] the AI listed {len(listed)} things; kept {len(tools)}"
-          + (f", left out {dropped} with no name or box" if dropped else ""))
-    return tools
+          + (f", left out {dropped} with no name or box" if dropped else "")
+          + (f"; the photo reads upright turned {turn} degrees" if turn else ""))
+    return tools, turn

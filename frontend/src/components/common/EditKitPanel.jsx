@@ -86,6 +86,8 @@ export default function EditKitPanel({ items: startItems, photos: startPhotos, o
     try {
       const { data } = await api.post('/api/kit/read', { photo: index })
       setItems(data.kit)
+      // The photo was upside down or sideways: the server turned it upright.
+      if (data.turned && data.kit_photos) setPhotos(data.kit_photos)
       setNote(data.found ? 'found' : 'No gear found on this photo. Tap the photo to add it yourself.')
     } catch (err) {
       fail(err, 'Could not read the gear right now. Try again, or tap the photo to add it yourself.')

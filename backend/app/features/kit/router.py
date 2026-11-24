@@ -15,6 +15,7 @@ POST   /api/wishlist/{item_id}/got   it's in my bag now: copy it, unstar it
 
 Paints are not tools here: they are My palette (palette_items, features/paints).
 """
+import uuid
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -162,12 +163,27 @@ def read_kit_photo(body: KitReadRequest, db: Session = Depends(get_db), sketcher
     if body.photo >= len(photos):
         raise HTTPException(404, "No bag photo there")
     try:
-        img = ImageOps.exif_transpose(storage.open_image(photos[body.photo])).convert("RGB")
+        full = ImageOps.exif_transpose(storage.open_image(photos[body.photo])).convert("RGB")
     except Exception:
         raise HTTPException(400, "Could not read that photo")
+    img = full.copy()
     img.thumbnail((1600, 1600))
     try:
-        tools = read_kit(img)
+        tools, turn = read_kit(img)
+        # Upside down or sideways (the writing on the tools says so): turn
+        # the stored photo upright, then read it once more. The pins are
+        # placed on the upright photo, which is also what others see.
+        if turn:
+            full = full.rotate(-turn, expand=True)  # PIL turns counterclockwise
+            old = photos[body.photo]
+            photos[body.photo] = storage.save_image(full, f"kit_{uuid.uuid4()}.jpg", quality=88)
+            profile = db.get(Profile, sketcher_id)
+            profile.kit_photos = photos
+            profile.kit_photo_url = photos[0]
+            storage.delete(old)
+            img = full.copy()
+            img.thumbnail((1600, 1600))
+            tools, _ = read_kit(img)
     except Exception as exc:
         print(f"[kit] reading failed: {exc}")
         raise HTTPException(502, "Could not read the tools right now. Try again, or add them by hand.")
@@ -184,7 +200,7 @@ def read_kit_photo(body: KitReadRequest, db: Session = Depends(get_db), sketcher
         ))
     db.commit()
     rows = sort_kit(db.query(KitItem).filter(KitItem.sketcher_id == sketcher_id).all())
-    return {"found": len(tools), "kit": [_to_dict(i) for i in rows]}
+    return {"found": len(tools), "kit": [_to_dict(i) for i in rows], "kit_photos": photos, "turned": turn}
 
 
 # ---- the wish list ----
