@@ -52,6 +52,9 @@ GEMINI_MODEL = "gemini-3.6-flash"
 # "medium", "high"). Its default is "high", which made the plan reading take
 # about 24 seconds. None goes back to the default.
 MARKS_THINKING = "low"
+# The same for the scene analysis (photo only: scene type, title, focal
+# areas). It runs while the sketcher draws; "high" took about 15 seconds.
+SCENE_THINKING = "low"
 
 # --- CORS ---
 # The public site's address goes in FRONTEND_ORIGINS (comma separated,

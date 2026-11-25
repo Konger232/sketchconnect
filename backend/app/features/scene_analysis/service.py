@@ -23,7 +23,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from config import DEBUG, MAX_IMAGE_DIMENSION, MAX_FOCAL_REGIONS, MAX_FOCAL_SUGGESTIONS
+from config import DEBUG, MAX_IMAGE_DIMENSION, MAX_FOCAL_REGIONS, MAX_FOCAL_SUGGESTIONS, SCENE_THINKING
 from app.core.prompt_loader import render_prompt
 from app.core.gemini_service import call_gemini_json_with_raw
 from app.core.schemas import FocalRegion
@@ -211,6 +211,7 @@ def analyze(pil_image: Image.Image, crop_transform: dict | None = None) -> tuple
     """
     raw, raw_text = call_gemini_json_with_raw(
         build_prompt(crop_transform), response_schema(), [pil_image], mock_name="scene_analysis",
+        thinking=SCENE_THINKING,
     )
     scene_type = raw.get("scene_type") if raw.get("scene_type") in SCENE_TYPES else "mixed"
     result = {
