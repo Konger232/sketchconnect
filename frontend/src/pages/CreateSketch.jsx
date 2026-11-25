@@ -854,7 +854,6 @@ export default function CreateSketch() {
 
           {step === 'media' && (
             <div className="flex flex-col gap-4">
-              <p className="sc-body">What will you draw with? Pick all that apply. Your tips will use them.</p>
               {MEDIA.map(({ group, items }) => (
                 <div key={group} className="flex flex-col gap-2" role="group" aria-label={group}>
                   <p className="text-base font-semibold text-sc-text3">{group}</p>
@@ -877,7 +876,6 @@ export default function CreateSketch() {
                   </div>
                 </div>
               ))}
-              <p className="text-sm text-sc-text3">None picked: the tips stay tool-free.</p>
             </div>
           )}
 
