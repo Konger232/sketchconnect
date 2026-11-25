@@ -51,6 +51,9 @@ const STAGE_HINTS = {
 }
 
 const RATIO_LABELS = { original: 'Original' }
+// The frame-shape buttons (Original, 3:4, 1:1, 4:3) are set aside for now:
+// no one used them in testing. Corner drags still reframe the photo.
+const RATIOS = false
 
 function resolveUrl(url) {
   if (!url) return url
@@ -819,10 +822,10 @@ export default function CreateSketch() {
         </div>
 
         {/* The photo step has nothing here: its words are on the stage and
-            its buttons in the footer. */}
-        {(step !== 'photo' || error) && <div className="sc-panel-body">
+            its buttons in the footer. The crop step too, while RATIOS is off. */}
+        {((step !== 'photo' && (step !== 'crop' || RATIOS)) || error) && <div className="sc-panel-body">
 
-          {step === 'crop' && (
+          {step === 'crop' && RATIOS && (
             <div className="flex gap-1" role="group" aria-label="Frame shape">
               {ASPECT_RATIO_ORDER.map((key) => (
                 <button
