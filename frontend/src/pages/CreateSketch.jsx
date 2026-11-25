@@ -72,7 +72,9 @@ export default function CreateSketch() {
   const captureEvent = routerLocation.state?.event || null
 
   // 'photo' | 'crop' | 'marks' | 'media' | 'analyzing'
-  const [step, setStep] = useState('photo')
+  // Back from the plan card ("Change your strokes"): open on the strokes
+  // step at once, not on the photo step first.
+  const [step, setStep] = useState(() => (routerLocation.state?.resumeSketchId ? 'marks' : 'photo'))
   // The media card's picks. Pre-filled from the sketcher's last sketch.
   const [media, setMedia] = useState([])
   const mediaLoadedRef = useRef(false)
@@ -168,7 +170,10 @@ export default function CreateSketch() {
         mediaLoadedRef.current = true
       }
       setStep('marks')
-    }).catch(() => setError('Could not reopen this sketch.'))
+    }).catch(() => {
+      setError('Could not reopen this sketch.')
+      setStep('photo')
+    })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeId])
@@ -664,7 +669,10 @@ export default function CreateSketch() {
     naturalSize && boxSize.width && boxSize.height
       ? computeImageBox(boxSize.width, boxSize.height, naturalSize.width, naturalSize.height, zoom, offset.x, offset.y)
       : null
-  const onPhotoSteps = step === 'crop' || step === 'marks' || step === 'media'
+  // Reopening a sketch: the strokes step is shown, dark, until its photo
+  // and strokes have loaded.
+  const reopening = !!resumeId && !originalImageUrl
+  const onPhotoSteps = !reopening && (step === 'crop' || step === 'marks' || step === 'media')
   const stageHandlers =
     step === 'crop'
       ? { onPointerDown: handlePointerDown, onPointerMove: handlePointerMove, onPointerUp: handlePointerUp, onPointerCancel: handlePointerUp, onWheel: handleWheel }
@@ -796,7 +804,7 @@ export default function CreateSketch() {
           </div>
         )}
 
-        {STAGE_HINTS[step] && (
+        {STAGE_HINTS[step] && !reopening && (
           <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-[10px] border-[1.5px] border-sc-rail-border bg-sc-rail px-3 py-2 text-base font-medium">
             {STAGE_HINTS[step]}
           </p>
@@ -902,7 +910,7 @@ export default function CreateSketch() {
         {/* ===== FOOTER: Back · Skip · Next ===== */}
         {/* md:mt-auto keeps the footer at the bottom of the panel on the
             steps with no panel body (photo, crop). */}
-        {step !== 'analyzing' && (
+        {step !== 'analyzing' && !reopening && (
           <div className="sc-footer sc-footer-pinned md:mt-auto">
             {step === 'photo' && !preview && (
               <>
