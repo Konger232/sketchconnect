@@ -237,6 +237,12 @@ def _image_response(path, max_age: int, private: bool):
         "Cache-Control": f"{'private' if private else 'public'}, max-age={max_age}",
         "X-Robots-Tag": NO_AI,
         "Content-Disposition": "inline",
+        # The same photo is shown as a plain <img> and as a CORS <img>
+        # (crossOrigin, so New Sketch can bake the crop on a canvas). The
+        # plain one carries no CORS header. Without Vary, Chrome reuses that
+        # cached copy for the CORS one, the check fails, and the photo never
+        # loads ("Change your strokes" opened on a black stage).
+        "Vary": "Origin",
     })
 
 
