@@ -900,8 +900,10 @@ export default function CreateSketch() {
         </div>}
 
         {/* ===== FOOTER: Back · Skip · Next ===== */}
+        {/* md:mt-auto keeps the footer at the bottom of the panel on the
+            steps with no panel body (photo, crop). */}
         {step !== 'analyzing' && (
-          <div className="sc-footer sc-footer-pinned">
+          <div className="sc-footer sc-footer-pinned md:mt-auto">
             {step === 'photo' && !preview && (
               <>
                 <Button variant="secondaryOnDark" onClick={() => libraryInputRef.current?.click()}>From library</Button>
