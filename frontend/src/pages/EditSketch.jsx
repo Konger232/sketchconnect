@@ -603,12 +603,6 @@ export default function EditSketch() {
           // Bookmarks and added areas can change until the final sketch is uploaded.
           bookmarksLocked={Boolean(sketch.final_sketch_url)}
           focalSuggestions={(mode === 'create' ? analysis?.focal_suggestions : sketch.focal_suggestions) || []}
-          // New Sketch: Back on the plan card reopens the strokes step with
-          // this sketch, so the sketcher can change the plan and read it again.
-          onBackToStrokes={mode === 'create' ? () => navigate('/capture', {
-            replace: true,
-            state: { backgroundLocation: routerLocation.state?.backgroundLocation, resumeSketchId: sketchId },
-          }) : undefined}
           onHighlight={(ids) => {
             setHighlightIds(ids)
             if (ids.length) stripRef.current?.show('plan') // the marks are drawn on the Plan

@@ -72,9 +72,7 @@ export default function CreateSketch() {
   const captureEvent = routerLocation.state?.event || null
 
   // 'photo' | 'crop' | 'marks' | 'media' | 'analyzing'
-  // Back from the plan card ("Change your strokes"): open on the strokes
-  // step at once, not on the photo step first.
-  const [step, setStep] = useState(() => (routerLocation.state?.resumeSketchId ? 'marks' : 'photo'))
+  const [step, setStep] = useState('photo')
   // The media card's picks. Pre-filled from the sketcher's last sketch.
   const [media, setMedia] = useState([])
   const mediaLoadedRef = useRef(false)
@@ -138,45 +136,6 @@ export default function CreateSketch() {
   // One colour for every mark: picking another redraws them all.
   const [markColor, setMarkColor] = useState(DEFAULT_MARK_COLOR)
   const drawing = useMarkDrawing(svgRef, { enabled: step === 'marks', tool: markTool, size: markSize, color: markColor })
-
-  // Back from the plan card (EditSketch, New Sketch): reopen this sketch at
-  // the strokes step, with its photo, crop and strokes, so the sketcher can
-  // change the plan and have it read again (design doc, item 25).
-  const resumeId = routerLocation.state?.resumeSketchId
-  useEffect(() => {
-    if (!resumeId) return
-    let cancelled = false
-    api.get(`/api/sketches/${resumeId}`).then(({ data }) => {
-      if (cancelled) return
-      setSketchId(data.id)
-      setOriginalImageUrl(resolveUrl(data.original_image_url || data.reference_image_url))
-      setReferenceImageUrl(resolveUrl(data.reference_image_url))
-      setUploadedLocation(data.location || null)
-      const t = data.crop_transform || {}
-      const frame = {
-        aspect_ratio: t.aspect_ratio || 'original',
-        ratio: t.aspect_ratio === 'custom' ? t.ratio ?? null : null,
-        zoom: t.zoom ?? 1,
-        offset_x: t.offset_x ?? 0,
-        offset_y: t.offset_y ?? 0,
-      }
-      setAspectRatioKey(frame.aspect_ratio)
-      setCustomRatio(frame.ratio)
-      resetTransform({ zoom: frame.zoom, offset: { x: frame.offset_x, y: frame.offset_y } })
-      savedFrameRef.current = frame
-      drawing.setMarks(data.marks || [])
-      if (data.media?.length) {
-        setMedia(data.media)
-        mediaLoadedRef.current = true
-      }
-      setStep('marks')
-    }).catch(() => {
-      setError('Could not reopen this sketch.')
-      setStep('photo')
-    })
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumeId])
 
   // Fetch the framed photo early, while the sketcher draws. The server makes
   // its screen copy on the first request (about 2 seconds), and the scene
@@ -678,10 +637,7 @@ export default function CreateSketch() {
     naturalSize && boxSize.width && boxSize.height
       ? computeImageBox(boxSize.width, boxSize.height, naturalSize.width, naturalSize.height, zoom, offset.x, offset.y)
       : null
-  // Reopening a sketch: the strokes step is shown, dark, until its photo
-  // and strokes have loaded.
-  const reopening = !!resumeId && !originalImageUrl
-  const onPhotoSteps = !reopening && (step === 'crop' || step === 'marks' || step === 'media')
+  const onPhotoSteps = step === 'crop' || step === 'marks' || step === 'media'
   const stageHandlers =
     step === 'crop'
       ? { onPointerDown: handlePointerDown, onPointerMove: handlePointerMove, onPointerUp: handlePointerUp, onPointerCancel: handlePointerUp, onWheel: handleWheel }
@@ -813,7 +769,7 @@ export default function CreateSketch() {
           </div>
         )}
 
-        {STAGE_HINTS[step] && !reopening && (
+        {STAGE_HINTS[step] && (
           <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-[10px] border-[1.5px] border-sc-rail-border bg-sc-rail px-3 py-2 text-base font-medium">
             {STAGE_HINTS[step]}
           </p>
@@ -919,7 +875,7 @@ export default function CreateSketch() {
         {/* ===== FOOTER: Back · Skip · Next ===== */}
         {/* md:mt-auto keeps the footer at the bottom of the panel on the
             steps with no panel body (photo, crop). */}
-        {step !== 'analyzing' && !reopening && (
+        {step !== 'analyzing' && (
           <div className="sc-footer sc-footer-pinned md:mt-auto">
             {step === 'photo' && !preview && (
               <>

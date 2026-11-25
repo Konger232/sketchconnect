@@ -233,7 +233,6 @@ export default function AIGuidance({
   // Shown first, before any question; New Sketch and Edit Sketch.
   planRead = null,
   // New Sketch only: Back on the plan card returns to the strokes.
-  onBackToStrokes,
   // The final sketch is uploaded: bookmarks on the plan card are locked.
   bookmarksLocked = false,
   // The focal areas to consider ([{ region_ref, label, reason, adopted }]).
@@ -817,14 +816,6 @@ export default function AIGuidance({
         <>
           {showPlan && !helpQuestOpen && (
             <div className="sc-guide animate-fade-in-up">
-              {/* New Sketch: change the strokes and read the plan again. */}
-              {!review && onBackToStrokes && (
-                <button type="button" onClick={onBackToStrokes}
-                  className="flex items-center gap-1 self-start text-sm font-semibold text-sc-text3 hover:text-white">
-                  <Icon name="chevron-left" size={14} />
-                  Change your strokes
-                </button>
-              )}
               <PlanReadCard planRead={planRead} onHighlight={onHighlight} vote={vote} onVote={handleVote}
                 bookmarks={bookmarks} onBookmark={bookmarksLocked ? undefined : handleBookmark}
                 suggestions={areas} onShowSuggestion={showArea}
