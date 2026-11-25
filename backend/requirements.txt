@@ -4,6 +4,8 @@ python-multipart==0.0.9
 pillow==10.4.0
 pillow-heif==0.18.0
 google-generativeai==0.8.3
+# The thinking level (gemini_service._generate_with_thinking) is only in this one.
+google-genai==2.33.0
 
 # Legacy OpenCV analysis (backend/legacy/) — safe to remove once that
 # module is retired for good.

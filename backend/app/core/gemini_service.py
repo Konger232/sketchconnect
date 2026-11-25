@@ -37,8 +37,13 @@ def call_gemini_json_with_raw(
     response_schema: dict,
     image: Image.Image | list[Image.Image | None] | None = None,
     mock_name: str = "scene_analysis",
+    thinking: str | None = None,
 ) -> tuple[dict, str]:
     """Return the raw Gemini response to the GUI.
+    `thinking` ("minimal", "low", "medium", "high") caps how long Gemini 3
+    thinks before answering. Unset, it thinks at "high", its default. The
+    setting is only in the newer google-genai library, so a call that sets
+    it goes through that library (_generate_with_thinking).
     `image` is one image or a list of them (e.g. the critique's coaching
     composite + final sketch), sent after the prompt in list order; None
     entries are skipped. The prompt should say which image is which.
@@ -70,7 +75,8 @@ def call_gemini_json_with_raw(
         _print_request(mock_name, prompt, response_schema, len(images))
 
     try:
-        response = model.generate_content(contents)
+        response = (_generate_with_thinking(contents, response_schema, thinking) if thinking
+                    else model.generate_content(contents))
     except ResourceExhausted as exc:
         raise GeminiQuotaExceededError(
             "Gemini API quota exceeded. Try again later."
@@ -91,6 +97,29 @@ def call_gemini_json_with_raw(
             text = text[4:]
         text = text.strip()
     return json.loads(text), raw_text
+
+
+def _generate_with_thinking(contents, response_schema: dict, level: str):
+    """One call through google-genai, with a thinking level. Same key
+    (GEMINI_API_KEY), model and schema as the old path. Its 429 is raised
+    as ResourceExhausted, so the caller handles both paths the same way."""
+    from google import genai as genai_new
+    from google.genai import errors, types
+    client = genai_new.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+    try:
+        return client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=response_schema,
+                thinking_config=types.ThinkingConfig(thinking_level=level),
+            ),
+        )
+    except errors.ClientError as exc:
+        if exc.code == 429:
+            raise ResourceExhausted(str(exc)) from exc
+        raise
 
 
 def _print_request(name: str, prompt: str, response_schema: dict, image_count: int, mock: bool = False) -> None:
@@ -125,6 +154,7 @@ def _print_token_usage(response, name: str = "call") -> None:
         f"prompt={field('prompt_token_count')} "
         f"(cached={field('cached_content_token_count')}), "
         f"response={field('candidates_token_count')}, "
+        f"thinking={field('thoughts_token_count')}, "
         f"total={field('total_token_count')}"
     )
 

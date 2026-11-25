@@ -48,6 +48,10 @@ MAX_CLEAN_LINES = 8                  # cap on how many lines get returned to the
 
 # --- Gemini (/gemini-proxy) ---
 GEMINI_MODEL = "gemini-3.6-flash"
+# How long Gemini thinks before the plan reading answers ("minimal", "low",
+# "medium", "high"). Its default is "high", which made the plan reading take
+# about 24 seconds. None goes back to the default.
+MARKS_THINKING = "low"
 
 # --- CORS ---
 # The public site's address goes in FRONTEND_ORIGINS (comma separated,

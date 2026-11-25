@@ -28,7 +28,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from config import DEBUG, MAX_FOCAL_SUGGESTIONS, MAX_MARK_MEANING_QUESTIONS
+from config import DEBUG, MARKS_THINKING, MAX_FOCAL_SUGGESTIONS, MAX_MARK_MEANING_QUESTIONS
 from app.core import composite, debug, mark_geometry
 from app.core import design_fundamentals as df
 from app.core.gemini_service import call_gemini_json_with_raw
@@ -382,7 +382,7 @@ def analyze(pil_image: Image.Image, sketch, cached_scene: dict | None,
         return clean({}, plan, media), None
     raw, raw_text = call_gemini_json_with_raw(
         build_prompt(plan, cached_scene, sketch, media), response_schema(),
-        [pil_image, plan.image], mock_name="marks_analysis",
+        [pil_image, plan.image], mock_name="marks_analysis", thinking=MARKS_THINKING,
     )
     cleaned = clean(raw, plan, media)
     if DEBUG:
