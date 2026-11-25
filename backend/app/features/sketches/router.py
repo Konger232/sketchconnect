@@ -25,6 +25,7 @@ from sqlalchemy import and_, case, cast, false, func, or_, select
 from sqlalchemy.orm import Session, load_only
 from geoalchemy2 import Geometry
 from geoalchemy2.shape import to_shape
+from app.core.home_area import hidden_for, shown as home_shown, refresh as refresh_home
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.functions import ST_Distance, ST_DWithin
 
@@ -74,11 +75,16 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None, viewer_id: st
     if s.location is not None:
         point = to_shape(s.location)
         location = {"lat": point.y, "lon": point.x, "label": s.location_label}
+    if location and viewer_id is not None and hidden_for(s, viewer_id):
+        location = None  # inside the sketcher's home area
     return {
         "id": s.id,
         "title": s.title,
         "field_notes": _notes_text(s, s.sketcher_id if viewer_id is None else viewer_id),
         "notes_shared": bool(s.notes_shared),
+        # Inside the sketcher's home area: others see no location (share
+        # captions leave the place out too).
+        "location_hidden": bool(s.location_hidden),
         "style": s.style,
         "scene_type": s.scene_type,
         "reference_image_url": s.reference_image_url,
@@ -125,7 +131,7 @@ CARD_COLUMNS = (
     Sketch.id, Sketch.sketcher_id, Sketch.title, Sketch.field_notes, Sketch.style, Sketch.scene_type,
     Sketch.reference_image_url, Sketch.final_sketch_url, Sketch.location, Sketch.location_label,
     Sketch.captured_at, Sketch.created_at, Sketch.visibility, Sketch.glazed, Sketch.final_at,
-    Sketch.notes_shared, Sketch.event_id,
+    Sketch.notes_shared, Sketch.event_id, Sketch.location_hidden,
 )
 
 # A sketch's date (October 30, 2026): once completed, when its final was
@@ -154,6 +160,8 @@ def _sketch_card(s: Sketch, viewer_id: str | None = None) -> dict:
     if s.location is not None:
         point = to_shape(s.location)
         location = {"lat": point.y, "lon": point.x, "label": s.location_label}
+    if location and hidden_for(s, viewer_id):
+        location = None  # inside the sketcher's home area
     return {
         "id": s.id,
         "title": s.title,
@@ -381,6 +389,9 @@ async def create_sketch(
         except (TypeError, ValueError):
             pass  # malformed client payload -- don't fail the upload over metadata
     db.add(sketch)
+    db.flush()
+    if sketch.location is not None:
+        refresh_home(db, sketcher_id, sketch.id)  # inside the home area?
     db.commit()
     db.refresh(sketch)
     return attach_events(db, [_sketch_to_dict(sketch)])[0]
@@ -448,6 +459,9 @@ async def update_sketch(
         unlink(db, sketch.id, sketch.event_id)
         sketch.event_id = body.event_id
 
+    if "location" in body.model_fields_set:
+        db.flush()
+        refresh_home(db, sketcher_id, sketch.id)  # inside the home area?
     db.commit()
     db.refresh(sketch)
     return attach_events(db, [_sketch_to_dict(sketch)])[0]
@@ -1044,7 +1058,7 @@ def list_recent_sketches(
         nearby = (
             card_query(db)
             .filter(visible_filter(viewer_id))
-            .filter(Sketch.location.isnot(None))
+            .filter(Sketch.location.isnot(None), home_shown(viewer_id))
             .filter(ST_DWithin(Sketch.location, point, radius_km * 1000))
             .order_by(ST_Distance(Sketch.location, point))
             .limit(limit)
@@ -1139,7 +1153,7 @@ async def search_sketches(
         .filter(_visible_to(viewer_id))
         .filter(or_(
             Sketch.title.ilike(like),
-            Sketch.location_label.ilike(like),
+            and_(Sketch.location_label.ilike(like), home_shown(viewer_id)),
             Sketch.sketcher_id.in_(people_ids) if people_ids else false(),
         ))
     )
@@ -1152,7 +1166,7 @@ async def search_sketches(
                        for a in areas])
         for s in (
             card_query(db)
-            .filter(_visible_to(viewer_id), Sketch.location.isnot(None))
+            .filter(_visible_to(viewer_id), Sketch.location.isnot(None), home_shown(viewer_id))
             .filter(inside)
             .all()
         ):
@@ -1165,7 +1179,7 @@ async def search_sketches(
         card["match"] = [m for m, hit in (
             ("sketcher", s.sketcher_id in people_ids),
             ("title", needle in (s.title or "").lower()),
-            ("place", s.id in in_area or needle in (s.location_label or "").lower()),
+            ("place", s.id in in_area or (not hidden_for(s, viewer_id) and needle in (s.location_label or "").lower())),
         ) if hit]
     place = None
     if areas:
@@ -1200,7 +1214,7 @@ def explore_sketches(
     seen = (and_(Sketch.sketcher_id == viewer_id) if mine and viewer_id else _visible_to(viewer_id))
     query = (
         card_query(db)
-        .filter(seen, Sketch.location.isnot(None))
+        .filter(seen, Sketch.location.isnot(None), home_shown(viewer_id))
         .filter(func.ST_Intersects(geom, func.ST_MakeEnvelope(west, south, east, north, 4326)))
     )
     if since_days:
@@ -1424,7 +1438,9 @@ def city_of(label: str | None) -> str:
 
 def _place_of(db: Session, sketch: Sketch, viewer_id: str | None) -> str | None:
     """One sketch's place, as its sketcher's page and the share caption name it
-    ("Bangkok" for Pak Kret)."""
+    ("Bangkok" for Pak Kret). None inside the sketcher's home area."""
+    if hidden_for(sketch, viewer_id):
+        return None
     lat = lon = None
     if sketch.location is not None:
         pt = to_shape(sketch.location)
@@ -1513,7 +1529,7 @@ def explore_places(
     whose = (Sketch.sketcher_id == viewer_id) if mine else _visible_to(viewer_id)
     rows = (
         db.query(Sketch.location_label, func.ST_Y(geom), func.ST_X(geom))
-        .filter(whose, Sketch.location.isnot(None), Sketch.location_label.isnot(None))
+        .filter(whose, Sketch.location.isnot(None), Sketch.location_label.isnot(None), home_shown(viewer_id))
         .all()
     )
     # Upcoming events count too: those the viewer would see on the map there
@@ -1753,14 +1769,14 @@ def nearby_sketches(
     sketch = db.query(Sketch).filter(Sketch.id == sketch_id).first()
     if sketch is None or not can_see(db, sketch, sketcher_id):
         raise HTTPException(404, "Sketch not found")
-    if sketch.location is None:
-        return []
+    if sketch.location is None or hidden_for(sketch, sketcher_id):
+        return []  # no location, or inside its sketcher's home area
     radius_m = max(50, min(radius_m, 5000))
     dist = ST_Distance(Sketch.location, sketch.location)
     rows = (
         card_query(db, dist.label("distance_m"), Profile)
         .outerjoin(Profile, Profile.id == Sketch.sketcher_id)
-        .filter(Sketch.id != sketch.id, visible_filter(sketcher_id), Sketch.location.isnot(None))
+        .filter(Sketch.id != sketch.id, visible_filter(sketcher_id), Sketch.location.isnot(None), home_shown(sketcher_id))
         .filter(ST_DWithin(Sketch.location, sketch.location, radius_m))
         .order_by(dist)
         .limit(max(1, min(limit, 60)))

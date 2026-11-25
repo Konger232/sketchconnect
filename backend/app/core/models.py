@@ -121,6 +121,9 @@ class Sketch(Base):
     # Others see the field notes (typed, and the voice notes' text, never the
     # recordings) only when this is on. Off by default (November 20, 2026).
     notes_shared = Column(Boolean, nullable=False, default=False, server_default="false")
+    # Inside the sketcher's home area: the location is hidden from everyone
+    # else (app/core/home_area.py, November 25, 2026).
+    location_hidden = Column(Boolean, nullable=False, default=False, server_default="false")
     # The event this sketch was made at (design doc, item 49): set by Capture on
     # the event page or by Link to an event in Update, never by a hashtag.
     # Null when it belongs to no event.
@@ -227,6 +230,10 @@ class Profile(Base):
     favorite_paints = Column(JSON, nullable=True)
     # My palette's pans, laid out like the tin (profile/router.py, clean_palette_layout).
     palette_layout = Column(JSON, nullable=True)
+    # The home area (app/core/home_area.py): private, seen only by the
+    # sketcher. Sketches inside it show no location to anyone else.
+    home_location = Column(Geography(geometry_type="POINT", srid=4326), nullable=True)
+    home_radius_m = Column(Integer, nullable=True)
     # Events the sketcher marked Interested show on their page to others
     # only when this is on (design doc, item 49).
     show_attending_events = Column(Boolean, nullable=False, default=False)

@@ -6,6 +6,7 @@ import { api } from '../../lib/api'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from './AuthContext'
 import Avatar from './Avatar'
+import HomeAreaField from './HomeAreaField'
 
 const LINKS = [
   { key: 'instagram', label: 'Instagram', placeholder: 'instagram.com/yourname' },
@@ -138,6 +139,9 @@ export default function EditProfilePanel({ profile, shared, userId, onClose, onS
           <span>Home cities</span>
           <input className="field-input mt-1.5" value={form.location} maxLength={120} placeholder="Princeton & Osaka" onChange={(e) => set('location', e.target.value)} />
         </label>
+
+        {/* Private: sketches inside it show no location to others. Saves on its own. */}
+        <HomeAreaField />
 
         <fieldset className="flex flex-col gap-2">
           <legend className="text-sm font-medium text-ink/70">Links</legend>

@@ -78,7 +78,7 @@ def get_sketcher(
         "is_owner": is_owner,
         "stats": {
             "sketches": len(shared),
-            "cities": len({c for c in (_city(s.location_label) for s in shared) if c}),
+            "cities": len({c for c in (_city(s.location_label) for s in shared if is_owner or not s.location_hidden) if c}),
             **counts,
         },
         "is_following": following,
@@ -120,13 +120,15 @@ def list_sketcher_sketches(
     uploads = upload_counts(db, [s.id for s, _, _ in rows]) if is_owner else {}
     # The place circles: grouped like Explore's pills (Pak Kret -> Bangkok).
     cards = [(s, _sketch_card(s, viewer_id)) for s, _, _ in rows]
+    # A sketch inside its sketcher's home area has no place for others.
+    from app.core.home_area import hidden_for
     places = place_names(db, viewer_id, [(s.id, s.location_label, (d["location"] or {}).get("lat"), (d["location"] or {}).get("lon"))
-                                         for s, d in cards])
+                                         for s, d in cards if not hidden_for(s, viewer_id)])
     out = []
     for (s, likes, comments), (_, d) in zip(rows, cards):
         d["shared"] = s.final_sketch_url is not None
         d["upload_count"] = uploads.get(s.id, 0)
-        d["place"] = places.get(s.id) or _city(s.location_label)
+        d["place"] = None if hidden_for(s, viewer_id) else (places.get(s.id) or _city(s.location_label))
         d["like_count"] = likes or 0
         d["comment_count"] = comments or 0
         out.append(d)

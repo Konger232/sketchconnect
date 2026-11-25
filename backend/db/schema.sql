@@ -730,3 +730,9 @@ from (
 ) m
 where s.id = m.sketch_id and s.event_id is null;
 
+-- The home area (November 25, 2026): a private place on the profile. A
+-- sketch inside it shows no location to anyone but its sketcher
+-- (app/core/home_area.py). Safe to run again.
+alter table profiles add column if not exists home_location geography(Point, 4326);
+alter table profiles add column if not exists home_radius_m integer;
+alter table sketches add column if not exists location_hidden boolean not null default false;

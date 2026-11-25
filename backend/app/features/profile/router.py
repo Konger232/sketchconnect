@@ -210,3 +210,58 @@ async def remove_kit_photo(
     await run_in_threadpool(storage.delete, gone)
     return {"kit_photos": photos}
 
+
+# ---- The home area (app/core/home_area.py, November 25, 2026) ----
+
+from pydantic import BaseModel, Field  # noqa: E402
+from geoalchemy2.elements import WKTElement  # noqa: E402
+from geoalchemy2.shape import to_shape  # noqa: E402
+from app.core.home_area import RADII, refresh as refresh_home  # noqa: E402
+
+
+class HomeAreaRequest(BaseModel):
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    radius_m: int
+
+
+def _home_out(db: Session, profile: Profile) -> dict:
+    """The home area, and how many of the sketcher's sketches it hides."""
+    if profile.home_location is None:
+        return {"home": None, "hidden": 0}
+    pt = to_shape(profile.home_location)
+    hidden = db.query(Sketch).filter(Sketch.sketcher_id == profile.id, Sketch.location_hidden.is_(True)).count()
+    return {"home": {"lat": pt.y, "lon": pt.x, "radius_m": profile.home_radius_m}, "hidden": hidden}
+
+
+@router.get("/profile/home-area")
+def get_home_area(db: Session = Depends(get_db), sketcher_id: str = Depends(get_current_sketcher_id)):
+    """The sketcher's own home area. Only they ever get it."""
+    return _home_out(db, _get_or_create_profile(db, sketcher_id))
+
+
+@router.put("/profile/home-area")
+def set_home_area(body: HomeAreaRequest, db: Session = Depends(get_db), sketcher_id: str = Depends(get_current_sketcher_id)):
+    """Set or move the home area. Every sketch inside it, old ones too, then
+    shows no location to anyone else."""
+    if body.radius_m not in RADII:
+        raise HTTPException(422, f"The size is one of {', '.join(str(r) for r in RADII)} metres.")
+    profile = _get_or_create_profile(db, sketcher_id)
+    profile.home_location = WKTElement(f"POINT({body.lon} {body.lat})", srid=4326)
+    profile.home_radius_m = body.radius_m
+    db.flush()
+    refresh_home(db, sketcher_id)
+    db.commit()
+    return _home_out(db, profile)
+
+
+@router.delete("/profile/home-area")
+def clear_home_area(db: Session = Depends(get_db), sketcher_id: str = Depends(get_current_sketcher_id)):
+    """Remove the home area: the sketches it hid show their location again."""
+    profile = _get_or_create_profile(db, sketcher_id)
+    profile.home_location = None
+    profile.home_radius_m = None
+    db.flush()
+    refresh_home(db, sketcher_id)
+    db.commit()
+    return _home_out(db, profile)

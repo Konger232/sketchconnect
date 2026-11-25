@@ -139,7 +139,7 @@ def public_sketch(sketch_id: str, db: Session = Depends(get_db)):
     return {
         "id": s.id,
         "title": s.title,
-        "place": s.location_label,
+        "place": None if s.location_hidden else s.location_label,  # home area
         "date": when.isoformat() if when else None,
         "owner": {"display_name": p.display_name if p else None, "username": p.username if p else None, "avatar_url": avatar},
         "image": f"/s/{s.id}/image.jpg",
@@ -188,7 +188,8 @@ def share_page(sketch_id: str, request: Request, db: Session = Depends(get_db)):
         p = _owner(db, s)
         who = (p.display_name or (f"@{p.username}" if p.username else None)) if p else None
         title = s.title or "A sketch on SketchConnect"
-        desc = " · ".join(x for x in (f"Sketched by {who}" if who else None, s.location_label) if x) or "A sketch on SketchConnect"
+        place = None if s.location_hidden else s.location_label  # home area: no place in the preview
+        desc = " · ".join(x for x in (f"Sketched by {who}" if who else None, place) if x) or "A sketch on SketchConnect"
         image = f"{site}/s/{s.id}/card.jpg"
     return _tags_page(site, f"{site}/s/{sketch_id}", f"{site}/sketches/{sketch_id}", title, desc, image)
 
