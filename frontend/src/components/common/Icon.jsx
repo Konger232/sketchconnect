@@ -99,6 +99,19 @@ const ICONS = {
     content: <path d="M5 12.5 10 7.5l5 5" />,
   },
 
+  // An "i" in a circle: more information on hover or tap (InfoTip.jsx).
+  info: {
+    viewBox: '0 0 24 24',
+    draw: STROKE,
+    content: (
+      <>
+        <circle cx="12" cy="12" r="9.5" />
+        <path d="M12 11v6" />
+        <circle cx="12" cy="7.6" r="0.9" fill="currentColor" stroke="none" />
+      </>
+    ),
+  },
+
   // Camera, for "Take photo" (line icon, design handoff).
   mic: {
     viewBox: '0 0 24 24',

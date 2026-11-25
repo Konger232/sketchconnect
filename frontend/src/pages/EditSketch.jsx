@@ -26,6 +26,7 @@ import { STYLES, sceneTypeLabel } from '../data/styles'
 import { useSheetDrag } from '../lib/useSheetDrag'
 import { handle } from '../lib/people'
 import { DetailsVoiceNotes } from '../components/common/SketchNotes'
+import InfoTip from '../components/common/InfoTip'
 
 const NOTE_LIMIT = 500
 
@@ -151,6 +152,7 @@ export default function EditSketch() {
   // ===== STATE: DETAILS =====
   const [title, setTitle] = useState('')
   const [fieldNotes, setFieldNotes] = useState('')
+  const [recordRequest, setRecordRequest] = useState(0) // the mic on the Field note label: start a recording
   const [visibility, setVisibility] = useState('members') // who sees it once shared
   const [glazed, setGlazed] = useState(false)
   const [sketchLocation, setSketchLocation] = useState(null)
@@ -642,13 +644,12 @@ export default function EditSketch() {
         {chips}
 
         <label className="flex flex-col gap-2">
-          <span className="sc-field-label">Scene title</span>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Untitled sketch" className="sc-field" />
-          {mode === 'create' && <span className="text-sm text-sc-text3">Suggested from your photo. Edit if needed.</span>}
+          <span className="sc-field-label">Scene title <span aria-hidden="true">*</span></span>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Untitled sketch" className="sc-field" required />
         </label>
 
         <div className="flex flex-col gap-2">
-          <span className="sc-field-label">Location</span>
+          <span className="sc-field-label">Location <span aria-hidden="true">*</span></span>
           {sketchLocation && !editingLocation ? (
             <button
               type="button"
@@ -724,12 +725,18 @@ export default function EditSketch() {
           </div>
         )}
 
-        <label className="flex flex-col gap-2">
-          <span className="flex items-center justify-between">
-            <span className="sc-field-label">Field note (optional)</span>
-            {fieldNotes && <span className="text-sm font-semibold text-sc-text3">{fieldNotes.length} / {NOTE_LIMIT}</span>}
+        <div className="flex flex-col gap-2">
+          <span className="flex items-center gap-2">
+            <label htmlFor="field-note" className="sc-field-label">Field note</label>
+            {/* Record a note: the AI writes it down (DetailsVoiceNotes). */}
+            <button type="button" onClick={() => setRecordRequest((n) => n + 1)} aria-label="Record a note" title="Record a note"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-sc-text3 hover:bg-white/10 hover:text-white">
+              <Icon name="mic" size={18} />
+            </button>
+            {fieldNotes && <span className="ml-auto text-sm font-semibold text-sc-text3">{fieldNotes.length} / {NOTE_LIMIT}</span>}
           </span>
           <textarea
+            id="field-note"
             value={fieldNotes}
             maxLength={NOTE_LIMIT}
             onChange={(e) => setFieldNotes(e.target.value)}
@@ -737,15 +744,20 @@ export default function EditSketch() {
             rows={4}
             className="sc-field min-h-[7rem] resize-y leading-normal"
           />
-        </label>
-        {/* A field note can also be recorded; the AI writes it down. The
-            share switch covers both (November 20, 2026). */}
-        <DetailsVoiceNotes sketchId={sketch.id} notesShared={sketch.notes_shared} />
+          {/* Keep it private, then the recorded notes. It covers both. */}
+          <DetailsVoiceNotes sketchId={sketch.id} notesShared={sketch.notes_shared} recordRequest={recordRequest} />
+        </div>
 
         {/* Who sees the sketch once it's shared, and Glaze (design doc:
             protecting sketchers' work). */}
         <div className="flex flex-col gap-2">
-          <span className="sc-field-label">Who can see it</span>
+          <span className="flex items-center gap-1.5">
+            <span className="sc-field-label">Who can see it</span>
+            <InfoTip label="About Who can see it" above>
+              {VISIBILITY.map((v) => <span key={v.key} className="mb-1 block"><b>{v.label}:</b> {v.note}</span>)}
+              <span className="block">Your plan and progress pages are only yours until you share the final sketch.</span>
+            </InfoTip>
+          </span>
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Who can see this sketch">
             {VISIBILITY.map((v) => (
               <button key={v.key} type="button" role="radio" aria-checked={visibility === v.key} onClick={() => setVisibility(v.key)}
@@ -756,7 +768,6 @@ export default function EditSketch() {
               </button>
             ))}
           </div>
-          <p className="m-0 text-sm text-sc-text3">{VISIBILITY.find((v) => v.key === visibility)?.note} Your plan and progress pages are only yours until you share the final sketch.</p>
         </div>
         {/* Glaze: on hold while Chan researches Glaze and Nightshade.
         <label className="flex items-start gap-2.5 text-sm text-white">
