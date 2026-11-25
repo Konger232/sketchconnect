@@ -178,6 +178,15 @@ export default function CreateSketch() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeId])
 
+  // Fetch the framed photo early, while the sketcher draws. The server makes
+  // its screen copy on the first request (about 2 seconds), and the scene
+  // analysis screen shows it under the plan.
+  useEffect(() => {
+    if (!referenceImageUrl || referenceImageUrl === originalImageUrl) return
+    const img = new Image()
+    img.src = referenceImageUrl
+  }, [referenceImageUrl, originalImageUrl])
+
   // The media card opens with the last sketch's picks.
   useEffect(() => {
     if (step !== 'media' || mediaLoadedRef.current) return
