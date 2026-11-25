@@ -17,6 +17,10 @@ and is cleared with it when the photo or framing changes.
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException
+from starlette.concurrency import run_in_threadpool
+# The AI call and the photo load run in a worker thread (run_in_threadpool).
+# Run on the event loop, they stopped the server for the whole call: the
+# photo New Sketch shows while the AI reads it never arrived.
 from PIL import Image
 import pillow_heif
 from sqlalchemy.orm import Session
@@ -65,7 +69,7 @@ async def scene_analysis(
         raise HTTPException(400, "This sketch has no reference photo on file")
     fingerprint = service.photo_fingerprint(sketch)
     try:
-        pil_image = storage.open_image(sketch.reference_image_url).convert("RGB")
+        pil_image = (await run_in_threadpool(storage.open_image, sketch.reference_image_url)).convert("RGB")
     except Exception:
         raise HTTPException(400, "Could not load this sketch's photo")
 
@@ -73,7 +77,7 @@ async def scene_analysis(
     pil_image = service.resize_if_needed(pil_image)
 
     try:
-        result, raw_gemini_text = service.analyze(pil_image, sketch.crop_transform)
+        result, raw_gemini_text = await run_in_threadpool(service.analyze, pil_image, sketch.crop_transform)
     except GeminiQuotaExceededError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     result["photo_fingerprint"] = fingerprint

@@ -10,6 +10,10 @@ uploaded `image` is only a fallback for a sketch with no photo on disk.
 import io
 
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from starlette.concurrency import run_in_threadpool
+# The AI call and the photo load run in a worker thread (run_in_threadpool).
+# Run on the event loop, they stopped the server for the whole call: the
+# photo New Sketch shows while the AI reads it never arrived.
 from PIL import Image
 from sqlalchemy.orm import Session
 
@@ -40,7 +44,7 @@ async def help_quest(
 
     # The planning image when there is one; otherwise the plain photo
     # (Help Quest always needs something to look at).
-    pil_image, has_plan = help_quest_service.pick_image(sketch)
+    pil_image, has_plan = await run_in_threadpool(help_quest_service.pick_image, sketch)
     if pil_image is None and image is not None:
         contents = await image.read()
         try:
@@ -50,8 +54,8 @@ async def help_quest(
     if pil_image is None:
         raise HTTPException(400, "This sketch has no reference photo yet")
 
-    result = help_quest_service.ask(
-        sketch, pil_image, has_plan,
+    result = await run_in_threadpool(
+        help_quest_service.ask, sketch, pil_image, has_plan,
         question=question, style=style, scene_type=scene_type, step_id=step_id,
     )
 

@@ -21,6 +21,10 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, HTTPException
+from starlette.concurrency import run_in_threadpool
+# The AI call and the photo load run in a worker thread (run_in_threadpool).
+# Run on the event loop, they stopped the server for the whole call: the
+# photo New Sketch shows while the AI reads it never arrived.
 from fastapi.responses import HTMLResponse
 from PIL import Image
 import pillow_heif
@@ -89,16 +93,16 @@ async def marks_analysis(
     if not sketch.reference_image_url:
         raise HTTPException(400, "This sketch has no reference photo on file")
     try:
-        photo = storage.open_image(sketch.reference_image_url).convert("RGB")
+        photo = (await run_in_threadpool(storage.open_image, sketch.reference_image_url)).convert("RGB")
     except Exception:
         raise HTTPException(400, "Could not load this sketch's photo")
     photo = scene_service.resize_if_needed(photo)
     # The plan image is drawn on the photo already loaded, at coaching size
     # (as render_composite does), not loaded from disk a second time.
-    plan = service.build_plan(sketch, scene_service.resize_if_needed(photo, COACHING_MAX_DIMENSION))
+    plan = await run_in_threadpool(service.build_plan, sketch, scene_service.resize_if_needed(photo, COACHING_MAX_DIMENSION))
 
     try:
-        cleaned, raw_text = service.analyze(photo, sketch, scene, plan)
+        cleaned, raw_text = await run_in_threadpool(service.analyze, photo, sketch, scene, plan)
     except GeminiQuotaExceededError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
 
