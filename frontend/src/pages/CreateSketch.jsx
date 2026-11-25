@@ -65,6 +65,8 @@ export default function CreateSketch() {
   const navigate = useNavigate()
   const routerLocation = useLocation()
   const backgroundLocation = routerLocation.state?.backgroundLocation
+  // Capture from an event page (item 49): { id, title }. Sent with the photo, so the sketch is linked from the start.
+  const captureEvent = routerLocation.state?.event || null
 
   // 'photo' | 'crop' | 'marks' | 'media' | 'analyzing'
   const [step, setStep] = useState('photo')
@@ -373,6 +375,7 @@ export default function CreateSketch() {
     try {
       const form = new FormData()
       form.append('image', file)
+      if (captureEvent?.id) form.append('event_id', captureEvent.id)
       // A photo just taken: where the phone is now, for when the photo
       // itself carries no location. The backend prefers the photo's own.
       if (fromCameraRef.current) {
@@ -731,7 +734,9 @@ export default function CreateSketch() {
         {step === 'photo' && !preview && (
           <PhotoDropzone
             title="Photograph the scene you'll draw"
-            text="Stand where you'll sketch from. Location and a title come from this photo."
+            text={captureEvent
+              ? `Sketching at ${captureEvent.title}. Stand where you'll sketch from. Location and a title come from this photo.`
+              : "Stand where you'll sketch from. Location and a title come from this photo."}
             onClick={takePhoto}
           />
         )}

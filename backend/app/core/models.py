@@ -121,6 +121,10 @@ class Sketch(Base):
     # Others see the field notes (typed, and the voice notes' text, never the
     # recordings) only when this is on. Off by default (November 20, 2026).
     notes_shared = Column(Boolean, nullable=False, default=False, server_default="false")
+    # The event this sketch was made at (design doc, item 49): set by Capture on
+    # the event page or by Link to an event in Update, never by a hashtag.
+    # Null when it belongs to no event.
+    event_id = Column(UUID(as_uuid=False), nullable=True, index=True)
     # The style the coach saw in the final sketch, and the sketcher's answer:
     # None not answered, True agreed, False changed it (then `style` holds
     # their pick). Design doc, item 39.

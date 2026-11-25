@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import BasePage, { PageMessage } from '../components/common/BasePage'
 import Avatar from '../components/common/Avatar'
 import Button from '../components/common/Button'
@@ -7,12 +7,13 @@ import Comments from '../components/common/Comments'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import EventSetupPanel from '../components/common/EventSetupPanel'
 import Icon from '../components/common/Icon'
+import AttendeesPanel from '../components/common/AttendeesPanel'
 import LocationMap from '../components/common/LocationMap'
 import SketchListMapView from '../components/common/SketchListMapView'
 import { useAuth } from '../components/common/AuthContext'
 import { api } from '../lib/api'
 import { imageUrl } from '../lib/media'
-import { FORMATS, eventWhen } from '../lib/events'
+import { FORMATS, captureOpensLabel, eventWhen } from '../lib/events'
 import NameHandle from '../components/common/NameHandle'
 import ShareButtons from '../components/common/ShareButtons'
 import { photoSlide } from '../lib/shareCarousel'
@@ -21,19 +22,21 @@ import { handle } from '../lib/people'
 /**
  * An event (design doc, item 49), as an announcement: cover, title, when
  * (in its own time zone), where, the theme, the description, the
- * organisation and its links, the featured instructors, Interested and who
+ * organisation and its links, Interested and who
  * you follow is interested, the hashtag, questions, sharing, the
- * participants' work (sketches with the hashtag) and Report this event.
+ * participants' work (sketches linked to the event) and Report this event.
  */
 export default function EventDetail() {
   const { eventId } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [e, setE] = useState(null)
   const [error, setError] = useState(null)
   const [editing, setEditing] = useState(false)
   const [removing, setRemoving] = useState(false)
   const [reporting, setReporting] = useState(false)
+  const [showAttendees, setShowAttendees] = useState(false)
   const [copied, setCopied] = useState(null)
   const [uploading, setUploading] = useState(false)
 
@@ -59,16 +62,18 @@ export default function EventDetail() {
     facebook: `${about}\n\n#${e.hashtag} #urbansketchers`,
     instagram: `${about}\n\n#${e.hashtag} #urbansketchers #usk #sketchconnect`,
   }
-  const me = e.instructors.find((i) => i.is_me)
+
+  // The Capture button: for an Interested sketcher (or the organiser), once the event is on.
+  const capture = e.capture && ['opens_later', 'open', 'closed'].includes(e.capture.state) ? e.capture : null
+  function startCapture() {
+    navigate('/capture', { state: { backgroundLocation: location, event: { id: e.id, title: e.title } } })
+  }
 
   async function toggleInterest() {
     if (!user) return navigate('/login')
     const { data } = e.is_interested ? await api.delete(`/api/events/${e.id}/interest`) : await api.post(`/api/events/${e.id}/interest`)
     setE((x) => ({ ...x, ...data }))
-  }
-  async function answer(yes) {
-    await api.post(`/api/events/${e.id}/instructors/${yes ? 'accept' : 'decline'}`)
-    load()
+    load() // the avatars and the Capture button follow
   }
   async function report() {
     setReporting(false)
@@ -105,8 +110,6 @@ export default function EventDetail() {
       <Icon name="link" size={13} /> {label}
     </a>
   )
-  const confirmed = e.instructors.filter((i) => i.status === 'confirmed')
-  const pending = e.instructors.filter((i) => i.status !== 'confirmed')
 
   return (
     <BasePage>
@@ -139,18 +142,39 @@ export default function EventDetail() {
 
         <aside className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
-            <Button variant={e.is_interested ? 'editorial' : 'editorialSolid'} onClick={toggleInterest} disabled={e.is_organizer}>
-              <Icon name={e.is_interested ? 'checkbox-checked' : 'checkbox'} size={15} /> {e.is_interested ? 'Interested' : "I'm interested"}
-            </Button>
-            <span className="text-sm text-ink/70">{e.interested_count} {e.interested_count === 1 ? 'sketcher' : 'sketchers'} interested</span>
-            {e.friends_interested.length > 0 && (
-              <span className="flex items-center gap-2 text-sm text-ink/70">
-                <span className="flex -space-x-2">{e.friends_interested.slice(0, 4).map((p) => <Avatar key={p.username} url={p.avatar_url} className="h-7 w-7 border-2 border-white" />)}</span>
-                {e.friends_interested.slice(0, 2).map((p) => handle(p)).join(', ')}
-                {e.friends_interested.length > 2 ? ` and ${e.friends_interested.length - 2} more you follow` : ' (you follow)'}
-              </span>
-            )}
+            <div className="flex gap-3">
+              <Button variant={e.is_interested ? 'editorial' : 'editorialSolid'} onClick={toggleInterest} disabled={e.is_organizer} className="flex-1">
+                <Icon name={e.is_interested ? 'checkbox-checked' : 'checkbox'} size={15} /> {e.is_interested ? 'Interested' : "I'm interested"}
+              </Button>
+              {/* Capture: start a sketch here with the event attached. Needs Interested;
+                  inactive before the start, open until 3 days after the end. */}
+              {capture && (
+                <Button variant="editorialSolid" onClick={startCapture} disabled={capture.state !== 'open'} className="flex-1"
+                  title={capture.state === 'closed' ? 'Capture has closed. You can still link a sketch in its Details.' : undefined}>
+                  <Icon name="camera" size={15} /> Capture
+                </Button>
+              )}
+            </div>
+            {capture?.state === 'opens_later' && <span className="text-xs text-ink/60">Capture opens {captureOpensLabel(e)}</span>}
           </div>
+
+          {e.interested_count > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="ed-caption">Sketchers who are interested</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(e.attendees || []).map((p) => (
+                  <Link key={p.username} to={`/sketchers/${p.username}`} title={p.display_name || p.username}>
+                    <Avatar url={p.avatar_url} className="h-8 w-8" />
+                  </Link>
+                ))}
+                {e.interested_count > e.attendees.length && (
+                  <button type="button" onClick={() => setShowAttendees(true)} className="cursor-pointer border-0 bg-transparent p-0 text-sm font-semibold text-ink underline">
+                    + {e.interested_count - e.attendees.length} more ...
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col gap-2">
             <span className="ed-caption">Organised by</span>
@@ -160,46 +184,13 @@ export default function EventDetail() {
             </Link>
           </div>
 
-          {(confirmed.length > 0 || (e.is_organizer && pending.length > 0)) && (
-            <div className="flex flex-col gap-2">
-              <span className="ed-caption">Featured instructors</span>
-              <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                {confirmed.map((i) => (
-                  <li key={i.id}>
-                    {i.sketcher ? (
-                      <Link to={`/sketchers/${i.sketcher.username}`} className="flex items-center gap-2.5 text-ink no-underline">
-                        <Avatar url={i.sketcher.avatar_url} className="h-9 w-9" />
-                        <NameHandle person={i.sketcher} />
-                      </Link>
-                    ) : <span className="flex items-center gap-2.5"><Avatar className="h-9 w-9" /> <span className="font-semibold">{i.name}</span></span>}
-                  </li>
-                ))}
-                {e.is_organizer && pending.map((i) => (
-                  <li key={i.id} className="flex items-center gap-2.5 text-ink/55">
-                    <Avatar url={i.sketcher?.avatar_url} className="h-9 w-9 opacity-60" />
-                    <span>@{i.sketcher?.username} · {i.status === 'declined' ? 'declined' : 'invited, not answered yet'}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {me && me.status === 'invited' && (
-            <div className="flex flex-col gap-2 rounded-md bg-[var(--ed-field-bg)] p-3">
-              <span className="text-sm font-semibold">You're invited as a featured instructor.</span>
-              <span className="flex gap-2">
-                <Button variant="editorialSolid" size="sm" onClick={() => answer(true)}>Accept</Button>
-                <Button variant="editorial" size="sm" onClick={() => answer(false)}>Decline</Button>
-              </span>
-            </div>
-          )}
-
           <div className="flex flex-col gap-2">
             <span className="ed-caption">Hashtag</span>
             <span className="flex items-center gap-2">
               <span className="font-heading text-lg font-semibold">#{e.hashtag}</span>
               <button type="button" className="text-xs font-semibold underline" onClick={() => copy('tag', `#${e.hashtag}`)}>{copied === 'tag' ? 'Copied' : 'Copy'}</button>
             </span>
-            <span className="text-xs text-ink/55">Add it to your sketch's title or notes and it shows here.</span>
+            <span className="text-xs text-ink/55">Added to the caption when you share a sketch from this event.</span>
           </div>
 
           {/* Share: Facebook (a card with the cover) or Instagram (the cover). */}
@@ -226,7 +217,13 @@ export default function EventDetail() {
       {/* ---- the participants' work ---- */}
       <section className="ed-section">
         <h2 className="ed-kicker m-0">{past ? 'Sketches from the event' : "Participants' work"} · {e.sketches.length}</h2>
-        {e.sketches.length === 0 && <p className="m-0 text-sm text-ink/60">No sketches yet. Add #{e.hashtag} to a sketch's title or notes to show it here.</p>}
+        {e.sketches.length === 0 && (
+          <p className="m-0 text-sm text-ink/60">
+            No sketches yet. {capture?.state === 'not_interested' ? "Mark Interested, then Capture to start one here."
+              : capture?.state === 'sign_in' ? 'Log in and mark Interested to sketch here.'
+              : 'Tap Capture to start one here, or link a sketch in its Details.'}
+          </p>
+        )}
         {/* Grid and Map: where everyone sketched, around the meeting point
             and inside the area that counts as at the event (5 or 25 km). */}
         {e.sketches.length > 0 && (
@@ -249,7 +246,8 @@ export default function EventDetail() {
         title="Questions" placeholder="Ask the organiser a question" empty="No questions yet." loginText="Log in to ask a question" />
 
       {editing && <EventSetupPanel event={e} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); load() }} />}
-      <ConfirmDialog open={removing} title="Remove this event?" message="It goes for everyone. Sketches with its hashtag stay on their sketchers' pages."
+      {showAttendees && <AttendeesPanel eventId={e.id} onClose={() => setShowAttendees(false)} />}
+      <ConfirmDialog open={removing} title="Remove this event?" message="It goes for everyone. Sketches linked to it stay on their sketchers' pages."
         confirmLabel="Remove" cancelLabel="Keep it" onConfirm={removeEvent} onCancel={() => setRemoving(false)} />
       <ConfirmDialog open={reporting} title="Report this event?" message="If it looks made up, spam or harmful. Three reports hide it until it is reviewed."
         confirmLabel="Report" cancelLabel="Cancel" onConfirm={report} onCancel={() => setReporting(false)} />

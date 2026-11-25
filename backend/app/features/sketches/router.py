@@ -49,7 +49,7 @@ from app.features.critique_agent.router import start_critique
 from app.features.geocode.service import place_areas, reverse_geocode
 from app.core.visibility import can_see, visible_filter
 from app.core.ttlcache import TTLCache
-from app.features.events.tags import sync_tags
+from app.features.events.links import CAPTURE_AFTER, LINK_AFTER, attach_events, event_for_link, unlink
 
 # Registered again here (also done in scene_analysis.py) so this module
 # decodes HEIC/HEIF correctly even if imported before that one — the
@@ -100,6 +100,7 @@ def _sketch_to_dict(s: Sketch, latest_critique: str | None = None, viewer_id: st
         "created_at": s.created_at,
         "final_at": s.final_at,
         "shown_at": shown_at(s),
+        "event_id": s.event_id,
         "palettes": s.palettes or {},
         "value_levels": s.value_levels,
         "gamut_mask": s.gamut_mask,
@@ -124,7 +125,7 @@ CARD_COLUMNS = (
     Sketch.id, Sketch.sketcher_id, Sketch.title, Sketch.field_notes, Sketch.style, Sketch.scene_type,
     Sketch.reference_image_url, Sketch.final_sketch_url, Sketch.location, Sketch.location_label,
     Sketch.captured_at, Sketch.created_at, Sketch.visibility, Sketch.glazed, Sketch.final_at,
-    Sketch.notes_shared,
+    Sketch.notes_shared, Sketch.event_id,
 )
 
 # A sketch's date (October 30, 2026): once completed, when its final was
@@ -166,6 +167,7 @@ def _sketch_card(s: Sketch, viewer_id: str | None = None) -> dict:
         "created_at": s.created_at,
         "final_at": s.final_at,
         "shown_at": shown_at(s),
+        "event_id": s.event_id,
         "visibility": s.visibility or "members",
         "glazed": bool(s.glazed),
     }
@@ -298,6 +300,7 @@ async def create_sketch(
     image: UploadFile = File(...),
     framed_image: UploadFile | None = File(None),
     camera: bool = Form(False),
+    event_id: str | None = Form(None),
     device_lat: float | None = Form(None),
     device_lon: float | None = Form(None),
     db: Session = Depends(get_db),
@@ -316,6 +319,12 @@ async def create_sketch(
     pixels, which a naive re-encode would otherwise flatten into a
     sideways image.
     """
+    # Capture from an event page (item 49): Interested, and the event is on
+    # or at most 3 days past its end. Checked first, before any image work.
+    if event_id:
+        if not _is_uuid(event_id):
+            raise HTTPException(404, "Event not found")
+        event_for_link(db, event_id, sketcher_id, CAPTURE_AFTER, "start a sketch at")
     contents = await image.read()
     try:
         pil_image = Image.open(io.BytesIO(contents))
@@ -359,6 +368,7 @@ async def create_sketch(
         reference_image_url=reference_image_url,
         original_image_url=original_image_url,
         captured_at=captured_at,
+        event_id=event_id or None,
     )
     if location:
         sketch.location = WKTElement(f"POINT({location['lon']} {location['lat']})", srid=4326)
@@ -373,7 +383,7 @@ async def create_sketch(
     db.add(sketch)
     db.commit()
     db.refresh(sketch)
-    return _sketch_to_dict(sketch)
+    return attach_events(db, [_sketch_to_dict(sketch)])[0]
 
 
 @router.put("/sketches/{sketch_id}")
@@ -428,12 +438,19 @@ async def update_sketch(
             sketch.style = sketch.style_detected
     if body.captured_at is not None:
         sketch.captured_at = body.captured_at
-    if body.title is not None or body.field_notes is not None:
-        sync_tags(db, sketch)  # hashtags join a sketch to an event (item 49)
+    # The sketch's event (item 49): a new one needs Interested and an open
+    # link window; null unlinks, always allowed. The same event again is a no-op.
+    if "event_id" in body.model_fields_set and body.event_id != sketch.event_id:
+        if body.event_id is not None:
+            if not _is_uuid(body.event_id):
+                raise HTTPException(404, "Event not found")
+            event_for_link(db, body.event_id, sketcher_id, LINK_AFTER, "link a sketch to")
+        unlink(db, sketch.id, sketch.event_id)
+        sketch.event_id = body.event_id
 
     db.commit()
     db.refresh(sketch)
-    return _sketch_to_dict(sketch)
+    return attach_events(db, [_sketch_to_dict(sketch)])[0]
 
 
 @router.post("/sketches/{sketch_id}/focal-frame")
@@ -976,7 +993,7 @@ def _with_likes(db: Session, rows: list, viewer_id: str | None, dicts: list[dict
     for s, d in zip(rows, dicts):
         d["like_count"], d["liked"] = likes.get(s.id, (0, False))
         d["is_owner"] = bool(viewer_id) and s.sketcher_id == viewer_id
-    return dicts
+    return attach_events(db, dicts)
 
 
 @router.get("/sketches")
@@ -996,6 +1013,7 @@ async def list_sketches(
     latest = _latest_critiques_by_sketch(db, [s.id for s in rows])
     counts = upload_counts(db, [s.id for s in rows])
     dicts = [_sketch_to_dict(s, latest.get(s.id)) | {"upload_count": counts.get(s.id, 0)} for s in rows]
+    attach_events(db, dicts)
     return _with_likes(db, rows, sketcher_id, dicts)
 
 
@@ -1073,7 +1091,7 @@ def _with_owners(db: Session, rows: list, viewer_id: str | None) -> list[dict]:
         d["like_count"], d["liked"], d["comment_count"] = n, liked, c or 0
         d["is_owner"] = bool(viewer_id) and s.sketcher_id == viewer_id
         dicts.append(d)
-    return dicts
+    return attach_events(db, dicts)
 
 
 def _visible_to(viewer_id: str | None):
@@ -1662,7 +1680,7 @@ async def get_sketch(
         data["media"] = cleaned.get("media") or []
         data["uploads"] = uploads_to_list(sketch, _uploads(db, sketch.id))
         data["place"] = _place_of(db, sketch, sketcher_id)
-        return data
+        return attach_events(db, [data])[0]
 
     critiques = (
         db.query(CritiqueResponse)
@@ -1715,7 +1733,7 @@ async def get_sketch(
         data["voice_default"] = last[0] if last else None
     data["is_owner"] = True
     data["place"] = _place_of(db, sketch, sketcher_id)
-    return data
+    return attach_events(db, [data])[0]
 
 
 NEARBY_RADIUS_M = 300

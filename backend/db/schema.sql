@@ -705,3 +705,28 @@ begin
     update sketches set notes_shared = true where coalesce(btrim(field_notes), '') <> '';
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- A sketch's event (design doc, item 49, amended November 25, 2026). A sketch
+-- joins an event by this link, not by a hashtag. Set by Capture on the event
+-- page, or by Link to an event in Update. Cleared when the event is deleted.
+alter table sketches add column if not exists event_id uuid references events (id) on delete set null;
+create index if not exists sketches_event on sketches (event_id) where event_id is not null;
+
+-- Once: sketches that joined an event by its hashtag (the old rule: tagged,
+-- made within a day of the event, and within 5 km of a meet-up or 25 km of an
+-- organised event) get the link. A sketch with two event tags takes the earlier event.
+update sketches s
+set event_id = m.event_id
+from (
+  select distinct on (st.sketch_id) st.sketch_id, e.id as event_id
+  from sketch_tags st
+  join events e on lower(e.hashtag) = st.tag
+  join sketches s2 on s2.id = st.sketch_id
+  where coalesce(s2.captured_at, s2.created_at) between e.starts_at - interval '1 day' and e.ends_at + interval '1 day'
+    and (s2.location is null
+         or st_dwithin(s2.location, e.location, case when e.type = 'meetup' then 5000 else 25000 end))
+  order by st.sketch_id, e.starts_at
+) m
+where s.id = m.sketch_id and s.event_id is null;
+

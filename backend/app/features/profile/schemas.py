@@ -23,5 +23,4 @@ class ProfileUpdateRequest(BaseModel):
     # Cells with no pan entry are empty half pans (profile/router.py).
     palette_layout: Optional[dict] = None
     # Events I marked Interested show on my page to others (item 49).
-    show_attending_events: Optional[bool] = None
     featured_sketch_ids: Optional[list[str]] = None

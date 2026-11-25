@@ -8,14 +8,16 @@ Rules (decided October 26, 2026):
 - Meet-ups stay local: shown within 50 km and in the next 3 months, except to
   the organiser's followers. Organised events show to everyone.
 - 3 reports hide an event until it is reviewed.
-- An ended event with no tagged sketches drops off the map.
+- An ended event with no linked sketches drops off the map.
 - Featured instructors on SketchConnect appear only once they confirm.
-- A sketch joins an event by its hashtag (events/tags.py).
+- A sketch joins an event by its event_id (events/links.py), set by Capture
+  or Link to an event. The hashtag only goes in the Share caption (tags.py).
 
 GET    /api/events                     on the map: in a box (south, north, west, east)
 GET    /api/events/home                for Home: near me, and my people teaching
 GET    /api/events/search?q=           by title, theme, place or hashtag
-GET    /api/events/suggest             for the share form: events here and now
+GET    /api/events/suggest             events here and now
+GET    /api/events/linkable            events I can link a sketch to now (nearby ones first)
 GET    /api/events/can-host            the earn-it checklist and the caps
 GET    /api/events/invites             instructor requests waiting for me
 POST   /api/events                     set one up
@@ -29,7 +31,7 @@ POST   /api/events/{id}/instructors/accept | decline   an invited instructor ans
 GET    /api/events/{id}/comments       questions (POST: ask one)
 DELETE /api/event-comments/{id}        the author or the organiser
 POST   /api/events/{id}/hidden/{sketch_id}   the organiser hides a sketch (DELETE: shows it)
-GET    /api/sketchers/{username}/events      teaching and hosting; attending if shown
+GET    /api/sketchers/{username}/events      teaching and hosting; attending for the sketcher only
 """
 import io
 import uuid
@@ -40,17 +42,18 @@ from geoalchemy2 import Geometry
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.shape import to_shape
 from PIL import Image, ImageOps
-from sqlalchemy import and_, case, cast, exists, false, func, literal_column, or_, select, text
+from sqlalchemy import and_, cast, exists, false, func, literal_column, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_sketcher_id, get_optional_sketcher_id
 from app.core.database import get_db
 from app.core.models import (Event, EventComment, EventHiddenSketch, EventInstructor, EventInterest, EventReport,
-                             Follow, KitItem, Profile, Sketch, SketchLike, SketchTag)
+                             Follow, KitItem, Profile, Sketch, SketchLike)
 from app.core import storage
 from app.core.visibility import visible_filter
 from app.features.events.schemas import CommentRequest, EventRequest, ReportRequest
+from app.features.events.links import LINK_AFTER, capture_state
 from app.features.events.tags import HASHTAG
 from app.features.kit.router import kit_photos
 from app.features.paints.router import palette_ids
@@ -90,38 +93,12 @@ def _follows(db: Session, viewer: str | None) -> set[str]:
     return {f for (f,) in db.query(Follow.followed_id).filter(Follow.follower_id == viewer).all()}
 
 
-# A tagged sketch joins an event only if it was made there and then
-# (October 28, 2026): the photo's time (or, without one, when the sketch was
-# made) from a day before the start to a day after the end, a day either
-# side for time zones (EXIF times carry none) and sketches finished at home;
-# and, when the sketch has a place, within 5 km of a meet-up or 25 km of an
-# organised event (a festival spreads across a city). The hashtag index
-# finds the few candidates first; these checks run on those only.
-TAG_SLACK = timedelta(days=1)
-TAG_KM = {"meetup": 5, "organised": 25}
-
-
-def made_at_event(event_starts, event_ends, event_location, radius_m):
-    """SQL conditions on Sketch for one event, or (with column arguments)
-    for a join against events."""
-    when = func.coalesce(Sketch.captured_at, Sketch.created_at)
-    return and_(
-        when >= event_starts - TAG_SLACK,
-        when <= event_ends + TAG_SLACK,
-        or_(Sketch.location.is_(None), func.ST_DWithin(Sketch.location, event_location, radius_m)),
-    )
-
-
 def _has_sketches(db: Session, event_ids: list[str]) -> set[str]:
-    """Events with at least one shared sketch made there with their hashtag."""
+    """Events with at least one shared sketch linked to them."""
     if not event_ids:
         return set()
-    radius = case((Event.type == "meetup", TAG_KM["meetup"] * 1000), else_=TAG_KM["organised"] * 1000)
-    rows = (db.query(Event.id)
-            .join(SketchTag, SketchTag.tag == func.lower(Event.hashtag))
-            .join(Sketch, Sketch.id == SketchTag.sketch_id)
-            .filter(Event.id.in_(event_ids), Sketch.final_sketch_url.isnot(None),
-                    made_at_event(Event.starts_at, Event.ends_at, Event.location, radius))
+    rows = (db.query(Sketch.event_id)
+            .filter(Sketch.event_id.in_(event_ids), Sketch.final_sketch_url.isnot(None))
             .distinct().all())
     return {i for (i,) in rows}
 
@@ -173,7 +150,7 @@ def _reach(db: Session, viewer: str | None, near: tuple[float, float] | None, fo
 
 
 def _drop_empty_past(db: Session, events: list[Event]) -> list[Event]:
-    """An event that has ended stays only if sketches carry its hashtag."""
+    """An event that has ended stays only if sketches are linked to it."""
     now = _now()
     past = [e.id for e in events if _aware(e.ends_at) < now]
     keep = _has_sketches(db, past)
@@ -284,8 +261,7 @@ def search_events(q: str, db: Session = Depends(get_db), viewer: str | None = De
 @router.get("/events/suggest")
 def suggest_for_sketch(lat: float, lon: float, at: datetime | None = None,
                        db: Session = Depends(get_db), viewer: str | None = Depends(get_optional_sketcher_id)):
-    """The share form: events under way here and now (a day either side),
-    so the sketcher can add the hashtag without remembering it."""
+    """Events under way here and now (a day either side)."""
     when = _aware(at) if at else _now()
     rows = (db.query(Event)
             .filter(Event.hidden.is_(False),
@@ -293,6 +269,31 @@ def suggest_for_sketch(lat: float, lon: float, at: datetime | None = None,
                     func.ST_DWithin(Event.location, _point(lat, lon), SUGGEST_KM * 1000))
             .order_by(Event.starts_at).limit(5).all())
     return _cards(db, rows, viewer)
+
+
+@router.get("/events/linkable")
+def linkable_events(lat: float | None = None, lon: float | None = None,
+                    db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
+    """Update's Link to an event: events I can attach a sketch to now, which
+    are the ones I marked Interested in (or organise) that have started and
+    ended no more than LINK_AFTER ago. Ones near (lat, lon) come first and
+    carry nearby: true, for the 'Was this at ...?' prompt."""
+    now = _now()
+    interested = select(EventInterest.event_id).where(EventInterest.sketcher_id == me)
+    rows = (db.query(Event)
+            .filter(Event.hidden.is_(False), Event.starts_at <= now, Event.ends_at >= now - LINK_AFTER,
+                    or_(Event.id.in_(interested), Event.organizer_id == me))
+            .order_by(Event.starts_at.desc()).limit(20).all())
+    cards = _cards(db, rows, me)
+    near: set[str] = set()
+    if lat is not None and lon is not None and rows:
+        near = {i for (i,) in db.query(Event.id).filter(
+            Event.id.in_([e.id for e in rows]),
+            func.ST_DWithin(Event.location, _point(lat, lon), SUGGEST_KM * 1000)).all()}
+    for c in cards:
+        c["nearby"] = c["id"] in near
+    cards.sort(key=lambda c: not c["nearby"])  # stable: newest first within each group
+    return cards
 
 
 # ---- setting one up ----
@@ -450,6 +451,7 @@ def delete_event(event_id: str, db: Session = Depends(get_db), me: str = Depends
     e = _mine(db, event_id, me)
     for model in (EventInstructor, EventInterest, EventReport, EventComment, EventHiddenSketch):
         db.query(model).filter(model.event_id == e.id).delete()
+    db.query(Sketch).filter(Sketch.event_id == e.id).update({Sketch.event_id: None})
     db.delete(e)
     db.commit()
     _places_changed()
@@ -499,35 +501,43 @@ def event_page(event_id: str, db: Session = Depends(get_db), viewer: str | None 
                             "sketcher": person(p) if r.sketcher_id else None,
                             "is_me": bool(viewer and r.sketcher_id == viewer)})
 
-    # Sketchers I follow who are interested, named only if they show it.
-    friends = []
-    if viewer:
-        followed = select(Follow.followed_id).where(Follow.follower_id == viewer)
-        friends = [person(p) for p in db.query(Profile).join(EventInterest, EventInterest.sketcher_id == Profile.id)
-                   .filter(EventInterest.event_id == e.id, Profile.id.in_(followed),
-                           Profile.show_attending_events.is_(True)).limit(12).all()]
+    attendees = _attendees(db, e.id, 5)
 
     return {
-        **card, "description": e.description,
+        **card, "description": e.description, "attendees": attendees,
         "org_url": e.org_url, "website_url": e.website_url, "ticket_url": e.ticket_url, "spot_id": e.spot_id,
-        "instructors": instructors, "friends_interested": friends,
+        "instructors": instructors,
         "is_organizer": is_org, "reported": bool(reported), "hidden": e.hidden,
+        "capture": capture_state(e, bool(viewer) and (is_org or card["is_interested"]), bool(viewer)),
         "sketches": event_sketches(db, e, viewer),
     }
 
 
+def _attendees(db: Session, event_id: str, limit: int) -> list[dict]:
+    """The sketchers who are interested, earliest first."""
+    return [person(p) for p in (db.query(Profile)
+            .join(EventInterest, EventInterest.sketcher_id == Profile.id)
+            .filter(EventInterest.event_id == event_id)
+            .order_by(EventInterest.created_at).limit(limit).all())]
+
+
+@router.get("/events/{event_id}/attendees")
+def event_attendees(event_id: str, db: Session = Depends(get_db), viewer: str | None = Depends(get_optional_sketcher_id)):
+    """Everyone who is interested, for the \"+ more\" panel."""
+    total = db.query(func.count()).select_from(EventInterest).filter(EventInterest.event_id == event_id).scalar() or 0
+    people = _attendees(db, event_id, 500)
+    return {"people": people, "total": total}
+
+
 def event_sketches(db: Session, e: Event, viewer: str | None) -> list[dict]:
-    """The participants' work: shared sketches carrying the hashtag and made
-    at the event (made_at_event), newest first; the organiser's hidden ones
-    only to the organiser, marked."""
-    from app.features.sketches.router import SHOWN_AT, _with_owners, card_query  # the sketches router imports events/tags
+    """The participants' work: shared sketches linked to the event
+    (sketches.event_id), newest first; the organiser's hidden ones only to
+    the organiser, marked."""
+    from app.features.sketches.router import SHOWN_AT, _with_owners, card_query
     # Whether the organiser hid each one, in the same query.
     hidden_q = exists().where(EventHiddenSketch.event_id == e.id, EventHiddenSketch.sketch_id == Sketch.id)
-    here = to_shape(e.location)
-    rows = (card_query(db, hidden_q).join(SketchTag, SketchTag.sketch_id == Sketch.id)
-            .filter(SketchTag.tag == e.hashtag.lower(), visible_filter(viewer), Sketch.final_sketch_url.isnot(None),
-                    made_at_event(_aware(e.starts_at), _aware(e.ends_at), _point(here.y, here.x),
-                                  TAG_KM.get(e.type, 25) * 1000))
+    rows = (card_query(db, hidden_q)
+            .filter(Sketch.event_id == e.id, visible_filter(viewer), Sketch.final_sketch_url.isnot(None))
             .order_by(SHOWN_AT.desc()).limit(200).all())
     is_org = viewer == e.organizer_id
     rows = [(s, h) for s, h in rows if is_org or not h]
@@ -623,6 +633,8 @@ def decline(event_id: str, db: Session = Depends(get_db), me: str = Depends(get_
 @router.post("/events/{event_id}/hidden/{sketch_id}")
 def hide_sketch(event_id: str, sketch_id: str, db: Session = Depends(get_db), me: str = Depends(get_current_sketcher_id)):
     _mine(db, event_id, me)
+    if db.query(Sketch.id).filter(Sketch.id == sketch_id, Sketch.event_id == event_id).first() is None:
+        raise HTTPException(404, "That sketch isn't linked to this event")
     if not db.get(EventHiddenSketch, (event_id, sketch_id)):
         db.add(EventHiddenSketch(event_id=event_id, sketch_id=sketch_id))
         db.commit()
@@ -683,7 +695,7 @@ def delete_comment(comment_id: str, db: Session = Depends(get_db), me: str = Dep
 def sketcher_events(username: str, db: Session = Depends(get_db), viewer: str | None = Depends(get_optional_sketcher_id)):
     """Teaching & hosting (always shown): events they organise or are a
     confirmed instructor at. Attending: events they marked Interested,
-    shown to others only when they choose to."""
+    shown only to them."""
     p = db.query(Profile).filter(func.lower(Profile.username) == username.lower()).first()
     if p is None:
         raise HTTPException(404, "Sketcher not found")
@@ -697,9 +709,9 @@ def sketcher_events(username: str, db: Session = Depends(get_db), viewer: str | 
     for c, e in zip(cards, hosting):
         c["role"] = "organizer" if e.organizer_id == p.id else "instructor"
     attending = []
-    if viewer == p.id or p.show_attending_events:
+    if viewer == p.id:  # only the sketcher sees what they are interested in
         rows = (db.query(Event).join(EventInterest, EventInterest.event_id == Event.id)
                 .filter(EventInterest.sketcher_id == p.id, Event.hidden.is_(False), Event.ends_at >= _now())
                 .order_by(Event.starts_at).limit(20).all())
         attending = _cards(db, rows, viewer)
-    return {"hosting": cards, "attending": attending, "show_attending_events": bool(p.show_attending_events)}
+    return {"hosting": cards, "attending": attending}

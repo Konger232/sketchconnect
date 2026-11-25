@@ -155,6 +155,11 @@ export default function EditSketch() {
   const [glazed, setGlazed] = useState(false)
   const [sketchLocation, setSketchLocation] = useState(null)
   const [editingLocation, setEditingLocation] = useState(false)
+  // The sketch's event (item 49): the events it can be linked to now (the
+  // ones I'm Interested in, not ended more than 14 days ago), and any error
+  // from linking. The link saves at once, not with the autosave.
+  const [linkable, setLinkable] = useState([])
+  const [eventError, setEventError] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
   const [savedJustNow, setSavedJustNow] = useState(false)
@@ -194,6 +199,25 @@ export default function EditSketch() {
     if (sketch) seedFields(sketch)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sketch?.id])
+
+  useEffect(() => {
+    if (!sketch?.id) return
+    const loc = sketch.location
+    api.get('/api/events/linkable', { params: loc ? { lat: loc.lat, lon: loc.lon } : {} })
+      .then(({ data }) => setLinkable(data)).catch(() => setLinkable([]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sketch?.id])
+
+  async function changeEvent(eventId) {
+    setEventError(null)
+    try {
+      const { data } = await api.put(`/api/sketches/${sketchId}`, { event_id: eventId })
+      setSketch((prev) => ({ ...prev, event_id: data.event_id, event: data.event }))
+      notifySketchesChanged()
+    } catch (err) {
+      setEventError(err.response?.data?.detail || 'Could not change the event.')
+    }
+  }
 
   // The Guide tab needs the scene and marks analyses. The backend reuses
   // both cached results while the photo, framing and marks are unchanged,
@@ -670,6 +694,35 @@ export default function EditSketch() {
             </div>
           )}
         </div>
+
+        {/* The event this sketch was made at. Linked: the title and Remove.
+            Not linked: a nearby event to confirm, or a pick from the events
+            I'm Interested in. Shown only when there is something to show. */}
+        {(sketch.event || linkable.length > 0) && (
+          <div className="flex flex-col gap-2">
+            <span className="sc-field-label">Event</span>
+            {sketch.event ? (
+              <div className="flex items-center gap-3 rounded-xl border-[1.5px] border-sc-strong bg-sc-raised py-2 pl-3.5 pr-3">
+                <span className="min-w-0 flex-1 truncate text-md font-semibold">Sketched at {sketch.event.title}</span>
+                <button type="button" onClick={() => changeEvent(null)} className="whitespace-nowrap text-base font-bold text-sc-guide">Remove link</button>
+              </div>
+            ) : (
+              <>
+                {linkable.find((ev) => ev.nearby) && (
+                  <div className="flex items-center gap-3 rounded-xl border-[1.5px] border-sc-strong bg-sc-raised py-2 pl-3.5 pr-3">
+                    <span className="min-w-0 flex-1 text-md">Was this at {linkable.find((ev) => ev.nearby).title}?</span>
+                    <button type="button" onClick={() => changeEvent(linkable.find((ev) => ev.nearby).id)} className="whitespace-nowrap text-base font-bold text-sc-guide">Yes, link it</button>
+                  </div>
+                )}
+                <select value="" onChange={(ev) => ev.target.value && changeEvent(ev.target.value)} className="sc-field" aria-label="Link to an event">
+                  <option value="">Link to an event…</option>
+                  {linkable.map((ev) => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+                </select>
+              </>
+            )}
+            {eventError && <span className="text-sm text-accent">{eventError}</span>}
+          </div>
+        )}
 
         <label className="flex flex-col gap-2">
           <span className="flex items-center justify-between">

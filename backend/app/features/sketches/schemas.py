@@ -42,6 +42,9 @@ class SketchUpdateRequest(BaseModel):
     # The sketcher's answer to the coach's style (item 39): True agreed,
     # False picked another (sent with `style`).
     style_confirmed: Optional[bool] = None
+    # Link the sketch to an event (item 49), or null to unlink it. Only a
+    # field present in the request changes it (model_fields_set).
+    event_id: Optional[str] = None
 
 
 # --- Focal-point marking (prototype-stage — not yet wired to an endpoint;

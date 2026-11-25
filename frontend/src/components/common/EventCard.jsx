@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import { api } from '../../lib/api'
 import Icon from './Icon'
+import InterestedCount from './InterestedCount'
 import { imageUrl } from '../../lib/media'
 import { FORMATS, eventDay, eventWhen } from '../../lib/events'
 
@@ -35,10 +36,8 @@ export default function EventCard({ event: e, note, compact = false, selected = 
         <span>{eventWhen(e)}</span>
         <span className="truncate">{e.place_name}</span>
         {by && <span className="truncate">By {by}</span>}
-        {e.interested_count > 0 && (
-          <span className="flex items-center gap-1 text-xs text-ink/55"><Icon name="checkbox" size={12} /> {e.interested_count} interested</span>
-        )}
       </span>
+      <InterestedCount count={e.interested_count} />
     </Link>
   )
 }
@@ -91,9 +90,9 @@ function EventRow({ e, by, past, selected, onSelect }) {
             aria-label={isOrganizer ? `${interest.n} interested` : interest.on ? 'Not interested' : "I'm interested"}
             className={`flex h-7 shrink-0 items-center gap-1 rounded-full px-1.5 text-xs font-semibold text-ink hover:bg-ink/5 ${isOrganizer ? 'cursor-default' : ''}`}>
             <Icon name={interest.on ? 'checkbox-checked' : 'checkbox'} size={15} className={interest.on ? 'text-[var(--tab-active)]' : ''} />
-            {interest.n > 0 && <span>{interest.n}</span>}
           </button>
         )}
+        <InterestedCount count={interest.n} className="shrink-0" />
       </Link>
     )
 }

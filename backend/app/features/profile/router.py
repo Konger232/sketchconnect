@@ -54,7 +54,6 @@ def _profile_to_dict(p: Profile, db: Session) -> dict:
         "favorite_paints": palette_ids(db, p.id),
         "palette_paints": palette_paints(db, p.id),
         "palette_layout": p.palette_layout,
-        "show_attending_events": bool(p.show_attending_events),
         "featured_sketch_ids": p.featured_sketch_ids or [],
         "kit_photo_url": p.kit_photo_url,
         "kit_photos": kit_photos(p),
@@ -132,8 +131,6 @@ async def update_profile(
             body.palette_layout if body.palette_layout is not None else profile.palette_layout, ids)
     elif body.palette_layout is not None:
         profile.palette_layout = clean_palette_layout(body.palette_layout, palette_ids(db, sketcher_id))
-    if body.show_attending_events is not None:
-        profile.show_attending_events = body.show_attending_events
     if body.featured_sketch_ids is not None:
         # Only the sketcher's own shared sketches, in the order given.
         wanted = list(dict.fromkeys(body.featured_sketch_ids))[:MAX_FEATURED]
@@ -212,3 +209,4 @@ async def remove_kit_photo(
     db.commit()
     await run_in_threadpool(storage.delete, gone)
     return {"kit_photos": photos}
+

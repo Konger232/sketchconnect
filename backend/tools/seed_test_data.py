@@ -938,16 +938,18 @@ def build(dry_run: bool, me: str | None):
         add(e)
         return e
 
-    def tag_sketch(key, tag):
-        sk = sketch_rows[key]
-        sk.field_notes = f"{sk.field_notes}\n\n#{tag}" if sk.field_notes else f"#{tag}"
-        add(SketchTag(sketch_id=sk.id, tag=tag.lower()))
+    # A sketch joins an event by its event_id (item 49, November 25, 2026).
+    # The events insert after the sketches, so the links are set once both exist.
+    event_links = []
+
+    def link_sketch(key, ev):
+        event_links.append((sketch_rows[key].id, ev.id))
 
     alfama = event("alfama", "lena.ortiz", "meetup", "Alfama rooftops crawl", "AlfamaCrawl", -21, 3,
                    (38.7114, -9.1300), "Miradouro de Santa Luzia, Lisbon", tz="Europe/Lisbon",
                    theme="Roofs stepping down the hill",
                    description="Meet at the viewpoint at 9. We sketch the rooftops, then walk down to the river.")
-    tag_sketch("lena_alfama", "AlfamaCrawl")
+    link_sketch("lena_alfama", alfama)
     tram = event("tram", "lena.ortiz", "meetup", "Saturday tram line crawl", "Tram28Crawl", 4, 3,
                  (38.7107, -9.1366), "Rua da Conceição, Baixa, Lisbon", tz="Europe/Lisbon",
                  theme="Trams and the people waiting for them",
@@ -964,7 +966,6 @@ def build(dry_run: bool, me: str | None):
     for h, e in [("priya.nair", festival), ("dana.johnson", festival), ("david.whitfield", festival),
                  ("dana.johnson", tram), ("marcus.tan", tram), ("priya.nair", alfama)]:
         add(EventInterest(event_id=e.id, sketcher_id=ids[h], created_at=NOW - timedelta(days=2)))
-    profiles["dana.johnson"].show_attending_events = True  # her Interested events show on her page
     add(EventComment(event_id=festival.id, author_id=ids["priya.nair"], body="Is there a meeting point on the first morning?",
                      created_at=NOW - timedelta(days=3)))
     add(EventComment(event_id=festival.id, author_id=ids["marcus.tan"], body="Yes: the temple steps on South Bridge Road at 8:30.",
@@ -1007,6 +1008,8 @@ def build(dry_run: bool, me: str | None):
         for name in order:
             db.add_all([r for r in rows if type(r).__name__ == name])
             db.flush()
+        for sketch_id, event_id in event_links:
+            db.query(Sketch).filter(Sketch.id == sketch_id).update({Sketch.event_id: event_id})
         db.commit()
         db.close()
         print(f"Done. Sign in as any <username>@{SEED_DOMAIN} with SEED_PASSWORD.")

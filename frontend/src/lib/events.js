@@ -38,3 +38,13 @@ export function eventDay(e) {
   const f = (o) => new Intl.DateTimeFormat(undefined, { timeZone: e.time_zone || 'UTC', ...o }).format(d)
   return { day: f({ day: 'numeric' }), month: f({ month: 'short' }) }
 }
+
+// When Capture opens, in the event's own time zone: "Sat 1 Nov, 9:00 (Lisbon)".
+export function captureOpensLabel(e) {
+  const at = e?.capture?.opens_at
+  if (!at) return ''
+  const tz = e.time_zone || 'UTC'
+  const f = (o) => new Intl.DateTimeFormat(undefined, { timeZone: tz, ...o }).format(new Date(at))
+  const city = tz.includes('/') ? tz.split('/').pop().replace(/_/g, ' ') : tz
+  return `${f({ weekday: 'short', day: 'numeric', month: 'short' })}, ${f({ hour: 'numeric', minute: '2-digit' })} (${city})`
+}

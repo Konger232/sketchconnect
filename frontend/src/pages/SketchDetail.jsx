@@ -203,6 +203,15 @@ export default function SketchDetail() {
   // (backend share/router.py), then opens this page.
   const pageUrl = `${window.location.origin}/s/${s.id}`
 
+  // Remove the sketch's event link (item 49). Always allowed for the owner.
+  async function unlinkEvent() {
+    try {
+      await api.put(`/api/sketches/${sketchId}`, { event_id: null })
+      setS((x) => ({ ...x, event_id: null, event: null }))
+      notifySketchesChanged()
+    } catch { /* the chip stays; try again */ }
+  }
+
   async function toggleLike() {
     if (viewer === 'visitor') return navigate('/login', { state: { from: location.pathname } })
     if (viewer === 'owner') return
@@ -316,6 +325,16 @@ export default function SketchDetail() {
         <div className="flex min-w-0 flex-col gap-2.5">
           <span className="ed-kicker">{kicker}</span>
           <h1 className="ed-title">{s.title || 'Untitled sketch'}</h1>
+          {/* The event it was made at (item 49). The owner can remove the link. */}
+          {s.event && (
+            <span className="flex items-center gap-2 text-base">
+              <Link to={`/events/${s.event.id}`} className="font-semibold text-ink underline">Sketched at {s.event.title}</Link>
+              {viewer === 'owner' && (
+                <button type="button" aria-label="Remove the event link" title="Remove the event link" onClick={unlinkEvent}
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-ink/60 hover:bg-ink/10">×</button>
+              )}
+            </span>
+          )}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-base">
             <Link to={s.owner?.username ? `/sketchers/${s.owner.username}` : '#'} className="flex items-center gap-2 font-semibold text-ink no-underline hover:underline">
               <Avatar url={s.owner?.avatar_url} className="h-8 w-8" />

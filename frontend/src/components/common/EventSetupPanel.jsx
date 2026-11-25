@@ -237,7 +237,7 @@ export default function EventSetupPanel({ event, onSaved, onClose }) {
           <span className="text-lg font-semibold text-ink/60">#</span>
           <input className="field-input" maxLength={40} value={f.hashtag} onChange={(e) => set({ hashtag: e.target.value.replace(/[^A-Za-z0-9_]/g, ''), tagTouched: true })} />
         </span>
-      ), 'Sketchers add it to a sketch\'s title or notes, and the sketch shows on the event page.')}
+      ), 'Added to the caption when a sketcher shares a sketch from this event, so posts can be found.')}
 
       {type === 'organised' && (
         <>

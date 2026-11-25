@@ -130,6 +130,8 @@ export default function SketchCard({ sketch, meta, href, linkState, image, multi
       </span>
       {caption && <span className="ed-caption">{caption}</span>}
       <span className="-mt-1 font-heading text-lg font-medium leading-snug group-hover:text-ink/70">{sketch.title || 'Untitled sketch'}</span>
+      {/* The event it was made at (item 49). Plain text: the card is already a link. */}
+      {sketch.event && <span className="-mt-1.5 truncate text-xs font-semibold text-ink/70">Sketched at {sketch.event.title}</span>}
       {/* The sketch's date: "2 days ago" within a week, else the date. */}
       {!details && sketchDate(sketch) && <span className="-mt-1.5 text-xs text-ink/60">{relativeTime(sketchDate(sketch))}</span>}
       {details && (
