@@ -128,12 +128,16 @@ export function useCropFrame({ active, layoutKey }) {
     savedFrameRef.current = UNTOUCHED_FRAME
   }
 
-  // Pan with one finger or the mouse, pinch with two, wheel to zoom.
+  // Pan with one finger or the mouse, pinch with two, wheel to zoom. A held
+  // frame (cropped by a corner) moves instead, over the photo, which stays
+  // still: like sliding a viewfinder, up to the photo's edges.
   const stageHandlers = {
     onPointerDown(e) {
       e.currentTarget.setPointerCapture(e.pointerId)
       pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-      if (pointersRef.current.size === 1) {
+      if (pointersRef.current.size === 1 && holding && box) {
+        gestureRef.current = { mode: 'move', startX: e.clientX, startY: e.clientY, startHeld: held, startBox: box }
+      } else if (pointersRef.current.size === 1) {
         gestureRef.current = { mode: 'pan', startX: e.clientX, startY: e.clientY, startOffset: offsetRef.current }
       } else if (pointersRef.current.size === 2) {
         const pts = Array.from(pointersRef.current.values())
@@ -145,7 +149,20 @@ export function useCropFrame({ active, layoutKey }) {
       pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
       const g = gestureRef.current
       if (!g || !boxSize.width || !boxSize.height) return
-      if (g.mode === 'pan') {
+      if (g.mode === 'move') {
+        // The frame moves by d on screen; the photo, relative to the frame,
+        // by -d, so it stays still. d stops where a frame edge meets the
+        // photo's edge.
+        const { width: W, height: H } = boxSize
+        const b = g.startBox
+        const dx = Math.min(b.left + b.width - W, Math.max(b.left, e.clientX - g.startX))
+        const dy = Math.min(b.top + b.height - H, Math.max(b.top, e.clientY - g.startY))
+        setHeld({ ...g.startHeld, dx: g.startHeld.dx + dx, dy: g.startHeld.dy + dy })
+        setOffsetTracked({
+          x: (b.left + b.width / 2 - W / 2 - dx) / W,
+          y: (b.top + b.height / 2 - H / 2 - dy) / H,
+        })
+      } else if (g.mode === 'pan') {
         setOffsetTracked({
           x: g.startOffset.x + (e.clientX - g.startX) / boxSize.width,
           y: g.startOffset.y + (e.clientY - g.startY) / boxSize.height,
