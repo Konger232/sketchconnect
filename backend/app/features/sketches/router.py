@@ -304,6 +304,7 @@ def _latest_critiques_by_sketch(db: Session, sketch_ids: list[str]) -> dict[str,
 
 @router.post("/sketches")
 async def create_sketch(
+    background_tasks: BackgroundTasks,
     title: str | None = Form(None),
     field_notes: str | None = Form(None),
     crop_transform: str | None = Form(None),
@@ -354,9 +355,12 @@ async def create_sketch(
         if captured_at is None:
             captured_at = datetime.utcnow()
 
-    # The place name is looked up while the photo goes to storage, not after.
-    geocode = asyncio.create_task(reverse_geocode(location["lat"], location["lon"])) if location else None
-    original_image_url = await storage.save_image_async(pil_image, f"{uuid.uuid4()}.jpg")
+    # The photo is kept on this server now and sent to the bucket after the
+    # answer, with the place name (November 26, 2026): from Bangkok the
+    # bucket took about 3 s and the place name about 4 s.
+    original_image_url, original_bytes = await run_in_threadpool(
+        storage.save_image_local_first, pil_image, f"{uuid.uuid4()}.jpg")
+    background_tasks.add_task(storage.push, original_image_url, original_bytes)
     t_save = time.perf_counter()
 
     # The common case: nothing was cropped, so reference_image_url just
@@ -383,9 +387,6 @@ async def create_sketch(
     )
     if location:
         sketch.location = WKTElement(f"POINT({location['lon']} {location['lat']})", srid=4326)
-        label = await geocode
-        if label:
-            sketch.location_label = label[:200]
     if crop_transform:
         try:
             sketch.crop_transform = json.loads(crop_transform)
@@ -395,17 +396,35 @@ async def create_sketch(
     db.flush()
     if sketch.location is not None:
         refresh_home(db, sketcher_id, sketch.id)  # inside the home area?
-    t_place = time.perf_counter()
     db.commit()
     db.refresh(sketch)
+    if location:
+        background_tasks.add_task(_fill_place_name, sketch.id, location["lat"], location["lon"])
     result = attach_events(db, [_sketch_to_dict(sketch)])[0]
     t_end = time.perf_counter()
     # Where an upload's time goes (November 26, 2026), in ms.
     print(f"[upload] {len(contents) // 1024} KB, {pil_image.width}x{pil_image.height}: "
           f"read {(t_read - t0) * 1000:.0f}, open {(t_open - t_read) * 1000:.0f}, "
-          f"store {(t_save - t_open) * 1000:.0f}, place {(t_place - t_save) * 1000:.0f}, "
-          f"database {(t_end - t_place) * 1000:.0f}, total {(t_end - t0) * 1000:.0f}")
+          f"keep {(t_save - t_open) * 1000:.0f}, "
+          f"database {(t_end - t_save) * 1000:.0f}, total {(t_end - t0) * 1000:.0f}")
     return result
+
+
+async def _fill_place_name(sketch_id, lat: float, lon: float) -> None:
+    """After a new sketch is answered: its place name, unless one was set
+    meanwhile. Its own session, as the request's is closed."""
+    label = await reverse_geocode(lat, lon)
+    if not label:
+        return
+    from app.core.database import SessionLocal
+    db = SessionLocal()
+    try:
+        sketch = db.query(Sketch).filter(Sketch.id == sketch_id).first()
+        if sketch is not None and not sketch.location_label:
+            sketch.location_label = label[:200]
+            db.commit()
+    finally:
+        db.close()
 
 
 # Uploads are kept at most this long on their long side. The AI reads them

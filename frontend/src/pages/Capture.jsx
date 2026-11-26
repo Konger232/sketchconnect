@@ -188,6 +188,21 @@ export default function Capture() {
     }
   }
 
+  // The place name comes a few seconds after the upload: while Details is
+  // open, check for it every 2 seconds, five times at most.
+  const needsPlace = Boolean(tool === 'details' && sketch?.location && !sketch.location.label)
+  useEffect(() => {
+    if (!needsPlace) return
+    let tries = 0
+    const t = setInterval(() => {
+      if (++tries > 5) return clearInterval(t)
+      api.get(`/api/sketches/${sketchId}`).then(({ data }) => {
+        if (data.location?.label) setSketch((prev) => ({ ...prev, location: data.location }))
+      }).catch(() => {})
+    }, 2000)
+    return () => clearInterval(t)
+  }, [needsPlace, sketchId])
+
   // ===== DETAILS: WHAT YOU DRAW WITH =====
   // Pre-filled from the last sketch. Sent with Save; the plan read keeps them.
   const [media, setMedia] = useState([])

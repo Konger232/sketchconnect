@@ -593,7 +593,7 @@ export default function CreateSketch() {
               seconds={analysisProgress.seconds}
               steps={[
                 { label: 'Framing and plan' },
-                { label: 'Location', result: uploadedLocation?.label || 'Not in photo' },
+                { label: 'Location', result: uploadedLocation ? uploadedLocation.label || 'Found in photo' : 'Not in photo' },
                 { label: 'Scene title' },
                 { label: 'Reading your plan' },
               ]}

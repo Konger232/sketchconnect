@@ -41,6 +41,14 @@ export function useSketchDetails({ sketchId, sketch, setSketch, enabled }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sketch?.id])
 
+  // The place name is filled in after the upload (backend, November 26,
+  // 2026). When it arrives for the same spot, take it: it is not an edit.
+  useEffect(() => {
+    const got = sketch?.location
+    if (got?.label && location && !location.label && got.lat === location.lat && got.lon === location.lon) setLocation(got)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sketch?.location?.label])
+
   useEffect(() => {
     if (!sketch?.id) return
     const loc = sketch.location

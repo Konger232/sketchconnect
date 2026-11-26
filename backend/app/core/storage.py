@@ -96,21 +96,54 @@ class StorageError(Exception):
     the log and the app say why instead of "400 Bad Request"."""
 
 
+def _upload(name: str, data: bytes, content_type: str) -> None:
+    """Send one file to the bucket. Raises StorageError with Supabase's reason."""
+    r = _http().post(f"/object/{BUCKET}/{name}", content=data,
+                     headers={"Content-Type": content_type, "x-upsert": "true"})
+    if r.is_error:
+        # Supabase's reply names the reason; it never holds a key.
+        reason = r.text.strip().replace("\n", " ")[:300]
+        msg = (f"storage refused {content_type} ({len(data) // 1024} KB) for bucket "
+               f"{BUCKET}: HTTP {r.status_code} {reason}")
+        print(msg)
+        raise StorageError(msg)
+
+
 def save_bytes(name: str, data: bytes, content_type: str = "image/jpeg") -> str:
     """Store one file; returns the "/uploads/<file>" the database keeps."""
     name = name_of(name)
     if REMOTE:
-        r = _http().post(f"/object/{BUCKET}/{name}", content=data,
-                         headers={"Content-Type": content_type, "x-upsert": "true"})
-        if r.is_error:
-            # Supabase's reply names the reason; it never holds a key.
-            reason = r.text.strip().replace("\n", " ")[:300]
-            msg = (f"storage refused {content_type} ({len(data) // 1024} KB) for bucket "
-                   f"{BUCKET}: HTTP {r.status_code} {reason}")
-            print(msg)
-            raise StorageError(msg)
+        _upload(name, data, content_type)
     _write_local(name, data)
     return f"/uploads/{name}"
+
+
+def save_image_local_first(img: Image.Image, name: str, quality: int = 90) -> tuple[str, bytes]:
+    """Keep a JPEG on this server's disk now and return its "/uploads/<file>"
+    and bytes; send them to the bucket later with push(). For a new sketch's
+    photo, so the sketcher does not wait on the bucket (November 26, 2026).
+    Safe because one server runs (Cloud Run max-instances 1, DEPLOY.md) and
+    every read goes through fetch(), which finds the local copy first."""
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=quality)
+    name = name_of(name)
+    data = buf.getvalue()
+    _write_local(name, data)
+    return f"/uploads/{name}", data
+
+
+def push(url: str, data: bytes, content_type: str = "image/jpeg") -> None:
+    """Send a file kept by save_image_local_first to the bucket. One retry."""
+    if not REMOTE:
+        return
+    name = name_of(url)
+    try:
+        _upload(name, data, content_type)
+    except Exception:
+        try:
+            _upload(name, data, content_type)
+        except Exception as exc:
+            print(f"storage: could not send {name} to the bucket after a retry: {exc}")
 
 
 def save_image(img: Image.Image, name: str, quality: int = 90, **options) -> str:
