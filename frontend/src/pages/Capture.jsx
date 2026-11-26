@@ -5,6 +5,10 @@ import ConfirmDialog from '../components/common/ConfirmDialog'
 import SketchModal from '../components/common/SketchModal'
 import PhotoDropzone from '../components/common/PhotoDropzone'
 import ToolRow from '../components/analysis/ToolRow'
+import ImagePanel from '../components/analysis/ImagePanel'
+import Fade from '../components/analysis/Fade'
+import MarkPanel, { DEFAULT_MARK_COLOR, DEFAULT_MARK_SIZE, MarkRail, MarksLayer, SELECT_HINT, useMarkDrawing } from '../components/analysis/Marks'
+import { useCropFrame } from '../components/analysis/useCropFrame'
 import MediaPicker from '../components/analysis/MediaPicker'
 import PlanReadCard from '../components/analysis/PlanReadCard'
 import SketchDetailsForm from '../components/analysis/SketchDetailsForm'
@@ -20,8 +24,8 @@ import { previewUrl } from '../lib/previewUrl'
  * plan read in the background, so there is nothing to wait for.
  *
  * Built in slices beside New Sketch and Edit Sketch, which keep working
- * until the switch. Slice 1: Upload, Details (with "What you draw with"),
- * Tips, Save and Cancel. Crop, Outline, Color and Value come next.
+ * until the switch. Slice 1: Upload, Details, Tips, Save and Cancel.
+ * Slice 2: Crop and Outline. Color and Value come next.
  */
 
 // A photo created this recently counts as just taken with the camera: the
@@ -31,10 +35,16 @@ const JUST_TAKEN_MS = 2 * 60 * 1000
 // How often Tips checks whether the plan read is done.
 const POLL_MS = 3000
 
+// The hint over the photo while a tool is open.
+const STAGE_HINTS = {
+  crop: 'Drag corners to crop. Pinch to zoom.',
+  outline: 'Outline the shapes and edges you care about',
+}
+
 const TOOLS = [
   { key: 'upload', label: 'Upload', icon: 'camera' },
-  { key: 'crop', label: 'Crop', icon: 'expand', soon: true },
-  { key: 'outline', label: 'Outline', icon: 'pen', soon: true },
+  { key: 'crop', label: 'Crop', icon: 'expand' },
+  { key: 'outline', label: 'Outline', icon: 'pen' },
   { key: 'color', label: 'Color', icon: 'color', soon: true },
   { key: 'value', label: 'Value', icon: 'guide-value', soon: true },
   { key: 'tips', label: 'Tips', icon: 'star' },
@@ -65,13 +75,51 @@ export default function Capture() {
   const sketchId = sketch?.id || null
   const details = useSketchDetails({ sketchId, sketch, setSketch, enabled: Boolean(sketchId) })
 
+  // ===== CROP AND OUTLINE =====
+  // Both work on the photo already on the device (preview), so they can
+  // start while it uploads. Strokes are drawn on the cropped frame.
+  const [preview, setPreview] = useState(null)
+  const crop = useCropFrame({ active: tool === 'crop', layoutKey: preview })
+  const svgRef = useRef(null)
+  const [markTool, setMarkTool] = useState('pen')
+  const [markSize, setMarkSize] = useState(DEFAULT_MARK_SIZE)
+  // One colour for every stroke: picking another redraws them all.
+  const [markColor, setMarkColor] = useState(DEFAULT_MARK_COLOR)
+  const drawing = useMarkDrawing(svgRef, { enabled: tool === 'outline', tool: markTool, size: markSize, color: markColor })
+  const markTools = {
+    tool: markTool, onToolChange: setMarkTool,
+    size: markSize, onSizeChange: setMarkSize,
+    color: markColor, onColorChange: (key) => { setMarkColor(key); drawing.recolor(key) },
+    count: drawing.count, canUndo: drawing.canUndo, onUndo: drawing.undo,
+  }
+
+  // Changing the crop after strokes are drawn asks first (item 57): the
+  // strokes sit on the frame, so they are cleared. The first change asks;
+  // after Yes, the crop moves freely until a stroke is drawn again.
+  const [confirmingCrop, setConfirmingCrop] = useState(false)
+  function guarded(handler) {
+    return (...args) => {
+      if (drawing.count > 0) {
+        args[args.length - 1]?.stopPropagation?.()
+        setConfirmingCrop(true)
+        return
+      }
+      handler(...args)
+    }
+  }
+  const cropHandlers = {
+    ...crop.stageHandlers,
+    onPointerDown: guarded(crop.stageHandlers.onPointerDown),
+    onWheel: (e) => (drawing.count > 0 ? (e.preventDefault(), setConfirmingCrop(true)) : crop.stageHandlers.onWheel(e)),
+  }
+  const cornerHandlers = { ...crop.cornerHandlers, down: guarded(crop.cornerHandlers.down) }
+
   // ===== UPLOAD =====
   // One button: the phone offers Take Photo or Photo Library, a computer
   // opens its file picker. The photo uploads as soon as it is picked; no
   // Use photo, no Retake (tapping Upload again replaces it).
   const inputRef = useRef(null)
   const pickRef = useRef(0) // the latest pick; a slow earlier one is dropped
-  const [preview, setPreview] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState(null)
   const [confirmingReplace, setConfirmingReplace] = useState(false)
@@ -89,6 +137,8 @@ export default function Capture() {
     const old = sketchId
     setSketch(null)
     setSaved(false)
+    crop.reset()
+    drawing.clear()
     api.delete(`/api/sketches/${old}`).catch(() => { /* best effort */ })
   }
 
@@ -146,16 +196,43 @@ export default function Capture() {
   // ===== SAVE: READ THE PLAN IN THE BACKGROUND =====
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
+  // The strokes and media last saved: changing either, or the crop, after
+  // Save makes Save read the plan again.
+  const savedPlanRef = useRef(null)
+  const planKey = JSON.stringify([drawing.marks, media])
+  const changedSinceSave = saved && (crop.changed() || planKey !== savedPlanRef.current)
 
   async function handleSave() {
     setSaving(true)
     setError(null)
     try {
       if (!(await details.flush())) { setTool('details'); return }
+      // The crop first: the AI reads the framed photo.
+      if (crop.changed()) {
+        const f = crop.frame()
+        const framed = new FormData()
+        framed.append('old_points', '[]')
+        framed.append('new_points', '[]')
+        framed.append('framed_image', await crop.bake(), 'framed.jpg')
+        framed.append('crop_transform', JSON.stringify({
+          aspect_ratio: f.aspect_ratio,
+          ...(f.aspect_ratio === 'custom' && { ratio: f.ratio }),
+          zoom: f.zoom, offset_x: f.offset_x, offset_y: f.offset_y,
+        }))
+        await api.post(`/api/sketches/${sketchId}/focal-frame`, framed)
+        crop.markSaved(f)
+      }
+      // Then the strokes, on that frame.
+      const plan = new FormData()
+      plan.append('old_points', '[]')
+      plan.append('new_points', '[]')
+      plan.append('marks', JSON.stringify(drawing.marks))
+      await api.post(`/api/sketches/${sketchId}/focal-frame`, plan)
       const form = new FormData()
       form.append('media', media.join(','))
       const { data } = await api.post(`/api/sketches/${sketchId}/read-plan`, form)
       setSketch((prev) => ({ ...prev, plan_status: data.plan_status }))
+      savedPlanRef.current = planKey
       setSaved(true)
       setTool('tips')
       notifySketchesChanged()
@@ -210,6 +287,24 @@ export default function Capture() {
         <p className="sc-body">
           {uploading ? 'Saving your photo…' : sketchId ? 'Tap the camera to use another photo.' : 'Photograph the scene, or pick a photo.'}
         </p>
+      </div>
+    )
+  } else if (tool === 'crop') {
+    panel = (
+      <div className="sc-panel-body">
+        <p className="sc-body">Crop to what really interests you. Drag a corner, or pinch and drag to frame the scene.</p>
+      </div>
+    )
+  } else if (tool === 'outline') {
+    panel = (
+      <div className="sc-panel-body">
+        <div className="hidden md:block">
+          <MarkPanel {...markTools} disabled={saving} />
+        </div>
+        <div className="flex flex-col gap-1 md:hidden">
+          <p className="sc-body">Outline the shapes and edges you care about. Open Tools for the pen, color, eraser and line.</p>
+          <p className="text-sm text-sc-text3">{SELECT_HINT}</p>
+        </div>
       </div>
     )
   } else if (soon) {
@@ -270,17 +365,43 @@ export default function Capture() {
         onConfirm={replacePhoto}
         onCancel={() => setConfirmingReplace(false)}
       />
+      <ConfirmDialog
+        open={confirmingCrop}
+        title="Change the crop?"
+        message="Changing the crop clears your strokes. Do you want to continue?"
+        confirmLabel="Clear strokes"
+        cancelLabel="Keep my strokes"
+        onConfirm={() => { setConfirmingCrop(false); drawing.clear() }}
+        onCancel={() => setConfirmingCrop(false)}
+      />
       {/* No capture attribute: the phone offers the camera and the library. */}
       <input ref={inputRef} type="file" accept="image/*,.heic" onChange={handleFile} className="hidden" />
 
       {/* ===== LEFT: PHOTO STAGE ===== */}
-      <div className={`relative flex flex-col bg-sc-modal md:min-h-0 md:flex-1 ${preview ? 'flex-none' : 'min-h-[55vh] flex-1'}`}>
+      {/* --frame-ratio: the frame's width / height, for the phone's stage height. */}
+      <div className={`relative flex flex-col bg-sc-modal md:min-h-0 md:flex-1 ${preview ? 'flex-none' : 'min-h-[55vh] flex-1'}`}
+        style={{ '--frame-ratio': crop.ratio }}>
         {preview ? (
-          <div className="relative min-h-0 flex-1">
-            <div className="relative md:absolute md:inset-x-0 md:inset-y-[var(--stage-inset)]">
-              <img src={preview} alt="Reference photo" className={`block h-auto max-h-[75vh] w-full object-contain md:h-full md:max-h-none ${uploading ? 'opacity-60' : ''}`} />
-            </div>
-          </div>
+          <ImagePanel
+            containerRef={crop.containerRef}
+            imgRef={crop.imgRef}
+            svgRef={svgRef}
+            boxSize={crop.boxSize}
+            imageUrl={preview}
+            imageClassName={uploading ? 'opacity-80' : ''}
+            zoom={crop.zoom}
+            offset={crop.offset}
+            box={crop.box}
+            heightClass="max-md:aspect-[var(--frame-ratio)] max-md:max-h-[75vh] md:min-h-0 md:flex-1"
+            padClass="p-0 md:px-0 md:py-[var(--stage-inset)]"
+            cropFrame={tool === 'crop'}
+            cropRect={crop.cropRect}
+            cornerHandlers={tool === 'crop' ? cornerHandlers : undefined}
+            {...(tool === 'crop' ? cropHandlers : tool === 'outline' ? drawing.handlers : {})}
+            onImageLoad={crop.handleImageLoad}
+          >
+            <Fade show={tool !== 'crop'}><MarksLayer marks={drawing.marks} live={drawing.live} /></Fade>
+          </ImagePanel>
         ) : (
           <PhotoDropzone
             title="Photograph the scene you'll draw"
@@ -289,6 +410,19 @@ export default function Capture() {
               : "Stand where you'll sketch from. Location and a title come from this photo."}
             onClick={pickPhoto}
           />
+        )}
+
+        {/* Phone: the drawing tools float on the photo. */}
+        {tool === 'outline' && (
+          <div className="absolute bottom-4 right-4 md:hidden">
+            <MarkRail {...markTools} disabled={saving} />
+          </div>
+        )}
+
+        {preview && STAGE_HINTS[tool] && (
+          <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-[10px] border-[1.5px] border-sc-rail-border bg-sc-rail px-3 py-2 text-base font-medium">
+            {STAGE_HINTS[tool]}
+          </p>
         )}
       </div>
 
@@ -299,8 +433,8 @@ export default function Capture() {
         {error && <p className="px-[var(--space-panel-x)] pb-2 text-base text-accent">{error}</p>}
         <div className="sc-footer sc-footer-pinned md:mt-auto">
           <Button variant="secondaryOnDark" className="mr-auto" onClick={requestClose}>{saved ? 'Close' : 'Cancel'}</Button>
-          <Button variant="action" onClick={handleSave} disabled={!sketchId || uploading || saving || saved}>
-            {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
+          <Button variant="action" onClick={handleSave} disabled={!sketchId || uploading || saving || (saved && !changedSinceSave)}>
+            {saving ? 'Saving…' : saved && !changedSinceSave ? 'Saved' : 'Save'}
           </Button>
         </div>
       </div>
