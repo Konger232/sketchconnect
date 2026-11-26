@@ -20,11 +20,12 @@ import { previewUrl } from '../lib/previewUrl'
 
 /**
  * Capture (design doc, items 56 and 57): every tool at once, in a row,
- * instead of New Sketch's steps. Save stores the sketch and starts the
- * plan read in the background, so there is nothing to wait for.
+ * instead of New Sketch's steps. Everything saves as the sketcher works;
+ * Done starts the plan read in the background and opens the sketch, so
+ * there is nothing to wait for.
  *
  * Built in slices beside New Sketch and Edit Sketch, which keep working
- * until the switch. Slice 1: Upload, Details, Tips, Save and Cancel.
+ * until the switch. Slice 1: Upload, Details, Tips.
  * Slice 2: Crop and Outline. Color and Value come next.
  */
 
@@ -75,7 +76,7 @@ export default function Capture() {
 
   const [tool, setTool] = useState('upload')
   // Tools opened so far. The others show a dot, to invite exploring before
-  // Save (November 26, 2026).
+  // Done (November 26, 2026).
   const [opened, setOpened] = useState(() => new Set(['upload']))
   useEffect(() => { setOpened((s) => (s.has(tool) ? s : new Set([...s, tool]))) }, [tool])
   const [sketch, setSketch] = useState(null)
@@ -143,7 +144,8 @@ export default function Capture() {
     inputRef.current?.click()
     const old = sketchId
     setSketch(null)
-    setSaved(false)
+    savedMarksRef.current = '[]'
+    readKeyRef.current = null
     crop.reset()
     drawing.clear()
     api.delete(`/api/sketches/${old}`).catch(() => { /* best effort */ })
@@ -204,7 +206,7 @@ export default function Capture() {
   }, [needsPlace, sketchId])
 
   // ===== DETAILS: WHAT YOU DRAW WITH =====
-  // Pre-filled from the last sketch. Sent with Save; the plan read keeps them.
+  // Pre-filled from the last sketch. Sent with the plan read, which keeps them.
   const [media, setMedia] = useState([])
   useEffect(() => {
     api.get('/api/sketch-media/last').then(({ data }) => {
@@ -215,55 +217,94 @@ export default function Capture() {
     setMedia((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]))
   }
 
-  // ===== SAVE: READ THE PLAN IN THE BACKGROUND =====
-  const [saved, setSaved] = useState(false)
-  const [saving, setSaving] = useState(false)
-  // The strokes and media last saved: changing either, or the crop, after
-  // Save makes Save read the plan again.
-  const savedPlanRef = useRef(null)
-  const planKey = JSON.stringify([drawing.marks, media])
-  const changedSinceSave = saved && (crop.changed() || planKey !== savedPlanRef.current)
+  // ===== AUTOSAVE, AND DONE (November 26, 2026) =====
+  // Everything saves as the sketcher works: Details as they type, the crop
+  // when they leave Crop, the strokes a moment after they stop drawing. The
+  // AI read is the one costly step, so it runs once, on Done (or when Tips
+  // opens and nothing has been read for this plan yet).
 
-  async function handleSave() {
-    setSaving(true)
+  // The crop: baked and saved once the Crop tool closes (and the photo is
+  // uploaded). Strokes are drawn on that frame.
+  async function saveCrop() {
+    if (!sketchId || !crop.changed()) return
+    const f = crop.frame()
+    const framed = new FormData()
+    framed.append('old_points', '[]')
+    framed.append('new_points', '[]')
+    framed.append('framed_image', await crop.bake(), 'framed.jpg')
+    framed.append('crop_transform', JSON.stringify({
+      aspect_ratio: f.aspect_ratio,
+      ...(f.aspect_ratio === 'custom' && { ratio: f.ratio }),
+      zoom: f.zoom, offset_x: f.offset_x, offset_y: f.offset_y,
+    }))
+    await api.post(`/api/sketches/${sketchId}/focal-frame`, framed)
+    crop.markSaved(f)
+  }
+  useEffect(() => {
+    if (tool !== 'crop') saveCrop().catch(() => setError('Could not save your crop.'))
+  }, [tool, sketchId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The strokes: 1.5 seconds after the last change.
+  const marksKey = JSON.stringify(drawing.marks)
+  const savedMarksRef = useRef('[]')
+  async function saveMarks() {
+    if (!sketchId || marksKey === savedMarksRef.current) return
+    const plan = new FormData()
+    plan.append('old_points', '[]')
+    plan.append('new_points', '[]')
+    plan.append('marks', marksKey)
+    await api.post(`/api/sketches/${sketchId}/focal-frame`, plan)
+    savedMarksRef.current = marksKey
+  }
+  useEffect(() => {
+    if (!sketchId || marksKey === savedMarksRef.current) return
+    const t = setTimeout(() => saveMarks().catch(() => setError('Could not save your strokes.')), 1500)
+    return () => clearTimeout(t)
+  }, [marksKey, sketchId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Everything waiting is saved now.
+  async function flushAll() {
+    if (!(await details.flush())) return false
+    await saveCrop()
+    await saveMarks()
+    return true
+  }
+
+  // The AI read, for the plan as it is now. A plan read before costs no AI
+  // call: the server reuses its cache.
+  const [reading, setReading] = useState(false)
+  const readKeyRef = useRef(null)
+  const planKey = JSON.stringify([marksKey, crop.frame(), media])
+  async function readPlan() {
+    if (!(await flushAll())) { setTool('details'); return false }
+    const form = new FormData()
+    form.append('media', media.join(','))
+    const { data } = await api.post(`/api/sketches/${sketchId}/read-plan`, form)
+    readKeyRef.current = planKey
+    setSketch((prev) => ({ ...prev, plan_status: data.plan_status }))
+    return true
+  }
+
+  // Done: the read starts, and the sketch opens: go sketch.
+  async function handleDone() {
+    setReading(true)
     setError(null)
     try {
-      if (!(await details.flush())) { setTool('details'); return }
-      // The crop first: the AI reads the framed photo.
-      if (crop.changed()) {
-        const f = crop.frame()
-        const framed = new FormData()
-        framed.append('old_points', '[]')
-        framed.append('new_points', '[]')
-        framed.append('framed_image', await crop.bake(), 'framed.jpg')
-        framed.append('crop_transform', JSON.stringify({
-          aspect_ratio: f.aspect_ratio,
-          ...(f.aspect_ratio === 'custom' && { ratio: f.ratio }),
-          zoom: f.zoom, offset_x: f.offset_x, offset_y: f.offset_y,
-        }))
-        await api.post(`/api/sketches/${sketchId}/focal-frame`, framed)
-        crop.markSaved(f)
-      }
-      // Then the strokes, on that frame.
-      const plan = new FormData()
-      plan.append('old_points', '[]')
-      plan.append('new_points', '[]')
-      plan.append('marks', JSON.stringify(drawing.marks))
-      await api.post(`/api/sketches/${sketchId}/focal-frame`, plan)
-      const form = new FormData()
-      form.append('media', media.join(','))
-      const { data } = await api.post(`/api/sketches/${sketchId}/read-plan`, form)
-      setSketch((prev) => ({ ...prev, plan_status: data.plan_status }))
-      savedPlanRef.current = planKey
-      setSaved(true)
-      setTool('tips')
+      if (!(await readPlan())) return
       notifySketchesChanged()
+      navigate(`/sketches/${sketchId}`, { replace: true })
     } catch (err) {
       setError(err.response?.data?.detail || 'Could not save this sketch.')
     } finally {
-      setSaving(false)
+      setReading(false)
     }
   }
+
+  // Tips opens: read the plan if this plan has not been read yet.
+  useEffect(() => {
+    if (tool !== 'tips' || !sketchId || uploading || readKeyRef.current === planKey) return
+    readPlan().catch(() => setError('Could not start your tips.'))
+  }, [tool, sketchId, uploading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tips: check back while the plan is being read.
   const planStatus = sketch?.plan_status
@@ -277,21 +318,22 @@ export default function Capture() {
     return () => clearInterval(t)
   }, [sketchId, planStatus])
 
-  // ===== CANCEL =====
-  // A new sketch that was never saved is deleted, after asking. A saved
-  // one just closes.
-  const [confirmingClose, setConfirmingClose] = useState(false)
+  // ===== CLOSE AND DELETE =====
+  // Closing keeps the sketch, with everything saved; deleting it is a
+  // choice of its own, in More.
   function leave() {
     notifySketchesChanged()
     navigate(backgroundLocation || '/')
   }
-  function requestClose() {
-    if (sketchId && !saved) setConfirmingClose(true)
-    else if (saved) navigate(`/sketches/${sketchId}`, { replace: true })
-    else leave()
+  async function requestClose() {
+    if (!sketchId) return leave()
+    try { await flushAll() } catch { /* saved what it could */ }
+    notifySketchesChanged()
+    navigate(`/sketches/${sketchId}`, { replace: true })
   }
-  async function discardAndClose() {
-    setConfirmingClose(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  async function deleteSketch() {
+    setConfirmingDelete(false)
     try { await api.delete(`/api/sketches/${sketchId}`) } catch { /* best effort */ }
     leave()
   }
@@ -331,17 +373,15 @@ export default function Capture() {
   } else if (tool === 'tips') {
     panel = (
       <div className="sc-panel-body">
-        {!saved && planStatus !== 'done' ? (
-          <p className="sc-body">Save, and tips for this scene come while you sketch.</p>
-        ) : planStatus === 'pending' ? (
-          <p className="sc-body animate-pulse">Tips for this scene are coming. Go ahead and sketch.</p>
-        ) : planStatus === 'failed' ? (
+        {planStatus === 'failed' ? (
           <div className="flex flex-col items-start gap-3">
             <p className="sc-body">The tips could not be made this time.</p>
-            <Button variant="secondaryOnDark" onClick={handleSave} disabled={saving}>Try again</Button>
+            <Button variant="secondaryOnDark" onClick={() => readPlan().catch(() => {})}>Try again</Button>
           </div>
+        ) : planStatus === 'done' && sketch?.plan_read ? (
+          <PlanReadCard planRead={sketch.plan_read} />
         ) : (
-          <PlanReadCard planRead={sketch?.plan_read} />
+          <p className="sc-body animate-pulse">Tips for this scene are coming. Go ahead and sketch.</p>
         )}
       </div>
     )
@@ -350,13 +390,13 @@ export default function Capture() {
   return (
     <SketchModal title="Capture" onClose={requestClose}>
       <ConfirmDialog
-        open={confirmingClose}
-        title="Discard this sketch?"
-        message="Closing now deletes this sketch: the photo and everything you set up."
-        confirmLabel="Discard"
-        cancelLabel="Keep editing"
-        onConfirm={discardAndClose}
-        onCancel={() => setConfirmingClose(false)}
+        open={confirmingDelete}
+        title="Delete this sketch?"
+        message="This deletes the sketch: the photo and everything you set up."
+        confirmLabel="Delete"
+        cancelLabel="Keep it"
+        onConfirm={deleteSketch}
+        onCancel={() => setConfirmingDelete(false)}
       />
       <ConfirmDialog
         open={confirmingReplace}
@@ -418,7 +458,7 @@ export default function Capture() {
         {/* The drawing tools float on the photo, on every screen size. */}
         {tool === 'outline' && (
           <div className="absolute bottom-4 right-4">
-            <MarkRail {...markTools} disabled={saving} />
+            <MarkRail {...markTools} disabled={reading} />
           </div>
         )}
 
@@ -435,9 +475,14 @@ export default function Capture() {
         {panel}
         {error && <p className="px-[var(--space-panel-x)] pb-2 text-base text-accent">{error}</p>}
         <div className="sc-footer sc-footer-pinned md:mt-auto">
-          <Button variant="secondaryOnDark" className="mr-auto" onClick={requestClose}>{saved ? 'Close' : 'Cancel'}</Button>
-          <Button variant="action" onClick={handleSave} disabled={!sketchId || uploading || saving || (saved && !changedSinceSave)}>
-            {saving ? 'Saving…' : saved && !changedSinceSave ? 'Saved' : 'Save'}
+          {/* Everything saves as you go. Delete is a choice of its own, in More. */}
+          {tool === 'details' && sketchId && (
+            <button type="button" onClick={() => setConfirmingDelete(true)} className="mr-auto text-base font-semibold text-sc-text3 hover:text-white">
+              Delete sketch
+            </button>
+          )}
+          <Button variant="action" onClick={handleDone} disabled={!sketchId || uploading || reading}>
+            {reading ? 'Saving…' : 'Done'}
           </Button>
         </div>
       </div>
