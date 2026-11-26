@@ -516,6 +516,7 @@ export default function CreateSketch() {
             padClass="p-0 md:px-0 md:py-[var(--stage-inset)]"
             cropFrame={step === 'crop'}
             cropRect={crop.cropRect}
+            boxShift={crop.boxShift}
             cornerHandlers={step === 'crop' ? crop.cornerHandlers : undefined}
             onPointerDown={stageHandlers.onPointerDown}
             onPointerMove={stageHandlers.onPointerMove}

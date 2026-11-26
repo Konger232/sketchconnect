@@ -383,6 +383,7 @@ export default function Capture() {
             padClass="p-0 md:px-0 md:py-[var(--stage-inset)]"
             cropFrame={tool === 'crop'}
             cropRect={crop.cropRect}
+            boxShift={crop.boxShift}
             cornerHandlers={tool === 'crop' ? cornerHandlers : undefined}
             {...(tool === 'crop' ? cropHandlers : tool === 'outline' ? drawing.handlers : {})}
             onImageLoad={crop.handleImageLoad}

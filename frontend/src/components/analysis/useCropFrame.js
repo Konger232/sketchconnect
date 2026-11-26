@@ -10,6 +10,12 @@ import { bakeCrop, computeImageBox, reframeToRect, resolveAspectRatio } from '..
  *
  * active: the Crop tool is open (the frame lays out for it).
  * layoutKey: anything that changes the stage's size, such as the photo.
+ *
+ * After a corner crop, the frame stays where it was let go, at the size it
+ * was drawn (decided November 26, 2026): nothing grows or zooms, and the
+ * rest of the photo stays dimmed around it (boxShift). That holds while the
+ * Crop tool is open on a tablet or computer; other tools, a phone's small
+ * stage and a window resize fit the frame to the stage again.
  */
 
 const MIN_ZOOM = 0.2
@@ -51,11 +57,20 @@ export function useCropFrame({ active, layoutKey }) {
 
   const ratio = resolveAspectRatio(aspectRatioKey, naturalSize, customRatio)
 
+  // The frame as it was let go: its size and how far its centre sits from
+  // the stage's centre ({ w, h, dx, dy } px), or null to fit the stage.
+  const [held, setHeld] = useState(null)
+  const holding = Boolean(held && active)
+
   // Fit the frame into the stage at the chosen ratio.
   useLayoutEffect(() => {
     const container = containerRef.current
     if (!container) return
     function recompute() {
+      if (holding) {
+        setBoxSize({ width: held.w, height: held.h })
+        return
+      }
       const styles = getComputedStyle(container)
       const padX = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight)
       const padY = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom)
@@ -72,12 +87,14 @@ export function useCropFrame({ active, layoutKey }) {
     recompute()
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(recompute) : null
     ro?.observe(container)
-    window.addEventListener('resize', recompute)
+    // A new window size: the held frame no longer fits, so fit again.
+    const onResize = () => { setHeld(null); recompute() }
+    window.addEventListener('resize', onResize)
     return () => {
       ro?.disconnect()
-      window.removeEventListener('resize', recompute)
+      window.removeEventListener('resize', onResize)
     }
-  }, [ratio, active, layoutKey])
+  }, [ratio, active, layoutKey, holding]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const box =
     naturalSize && boxSize.width && boxSize.height
@@ -106,6 +123,7 @@ export function useCropFrame({ active, layoutKey }) {
     setCustomRatio(null)
     setCropRect(null)
     setNaturalSize(null)
+    setHeld(null)
     resetTransform()
     savedFrameRef.current = UNTOUCHED_FRAME
   }
@@ -218,6 +236,15 @@ export function useCropFrame({ active, layoutKey }) {
         setCustomRatio(rect.width / rect.height)
       }
       resetTransform(next)
+      // Keep the frame where it was let go (not on a phone's small stage).
+      if (window.matchMedia('(min-width: 768px)').matches) {
+        setHeld({
+          w: rect.width,
+          h: rect.height,
+          dx: (holding ? held.dx : 0) + rect.x + rect.width / 2 - boxSize.width / 2,
+          dy: (holding ? held.dy : 0) + rect.y + rect.height / 2 - boxSize.height / 2,
+        })
+      }
     },
   }
 
@@ -248,6 +275,7 @@ export function useCropFrame({ active, layoutKey }) {
   function markSaved(f = frame()) { savedFrameRef.current = f }
 
   return {
+    boxShift: holding ? { x: held.dx, y: held.dy } : null,
     containerRef, imgRef, naturalSize, boxSize, box, zoom, offset, ratio, cropRect,
     stageHandlers, cornerHandlers, handleImageLoad, frame, changed, bake, markSaved, reset,
   }

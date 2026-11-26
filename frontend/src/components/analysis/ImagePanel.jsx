@@ -43,6 +43,9 @@ export default function ImagePanel({
   // Crop step: corner drag handlers { down(corner, e), move(e), up(e) }.
   // corner is 'tl' | 'tr' | 'bl' | 'br'.
   cornerHandlers,
+  // Crop step: { x, y } px to move the frame off the stage's centre, so a
+  // frame cropped by a corner stays where it was let go (useCropFrame).
+  boxShift = null,
   // --- New props for self-contained uploading ---
   fileInputRef,
   onFileChange,
@@ -91,6 +94,7 @@ export default function ImagePanel({
         width: `${boxSize.width || 0}px`,
         height: `${boxSize.height || 0}px`,
         overflow: cropFrame ? 'visible' : 'hidden',
+        transform: boxShift ? `translate(${boxShift.x}px, ${boxShift.y}px)` : undefined,
         }}
         >
         <img
