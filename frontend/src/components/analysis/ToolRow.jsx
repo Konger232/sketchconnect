@@ -4,7 +4,8 @@ import Icon from '../common/Icon'
  * Capture's tools as a row of icon buttons (design doc, item 57): at the
  * top of the right panel, and at the top of the floating panel on a phone.
  * tools: [{ key, label, icon, disabled }]. A tool with no icon shows "…".
- * Its name shows under it on hover and keyboard focus.
+ * Its name shows under it on hover and keyboard focus. A tool with `dot`
+ * gets a small blue dot: not opened yet (Capture invites exploring).
  */
 export default function ToolRow({ tools, active, onPick }) {
   return (
@@ -18,11 +19,12 @@ export default function ToolRow({ tools, active, onPick }) {
           aria-label={t.label}
           aria-pressed={active === t.key}
           data-tip={t.label}
-          className={`has-tip has-tip-below ${i === tools.length - 1 ? 'has-tip-end' : ''} flex h-11 min-w-11 flex-1 items-center justify-center rounded-[10px] transition-colors disabled:opacity-30 ${
+          className={`relative has-tip has-tip-below ${i === tools.length - 1 ? 'has-tip-end' : ''} flex h-11 min-w-11 flex-1 items-center justify-center rounded-[10px] transition-colors disabled:opacity-30 ${
             active === t.key ? 'bg-sc-border text-white' : 'text-sc-text2 hover:text-white'
           }`}
         >
           {t.icon ? <Icon name={t.icon} size={22} /> : <span className="text-xl font-bold leading-none">…</span>}
+          {t.dot && <span aria-hidden="true" className="absolute right-2 top-2 h-2 w-2 rounded-full bg-sc-guide" />}
         </button>
       ))}
     </div>

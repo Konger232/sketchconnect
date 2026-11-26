@@ -74,6 +74,10 @@ export default function Capture() {
   const captureEvent = routerLocation.state?.event || null
 
   const [tool, setTool] = useState('upload')
+  // Tools opened so far. The others show a dot, to invite exploring before
+  // Save (November 26, 2026).
+  const [opened, setOpened] = useState(() => new Set(['upload']))
+  useEffect(() => { setOpened((s) => (s.has(tool) ? s : new Set([...s, tool]))) }, [tool])
   const [sketch, setSketch] = useState(null)
   const sketchId = sketch?.id || null
   const details = useSketchDetails({ sketchId, sketch, setSketch, enabled: Boolean(sketchId) })
@@ -280,7 +284,10 @@ export default function Capture() {
   // ===== RENDER =====
   // Before a photo, only Upload. Every tool lights up as soon as a photo
   // is picked, while it uploads.
-  const tools = TOOLS.map((t) => ({ ...t, disabled: t.key !== 'upload' && !preview }))
+  const tools = TOOLS.map((t) => {
+    const disabled = t.key !== 'upload' && !preview
+    return { ...t, disabled, dot: !disabled && !opened.has(t.key) }
+  })
   const soon = TOOLS.find((t) => t.key === tool)?.soon
   const hint = tool === 'upload' && uploading ? 'Saving your photo…' : STAGE_HINTS[tool]
 
