@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useLayoutEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import ImagePanel from '../components/analysis/ImagePanel'
 import MarkPanel, { DEFAULT_MARK_COLOR, DEFAULT_MARK_SIZE, MarkRail, MarksLayer, SELECT_HINT, useMarkDrawing } from '../components/analysis/Marks'
@@ -16,14 +16,9 @@ import { notifySketchesChanged } from '../lib/sketchEvents'
 import { shrinkPhoto } from '../lib/shrinkPhoto'
 import { previewUrl } from '../lib/previewUrl'
 import { useStagedProgress } from '../lib/useStagedProgress'
-import { ASPECT_RATIO_ORDER, bakeCrop, computeImageBox, reframeToRect, resolveAspectRatio } from '../lib/cropMath'
-
+import { useCropFrame } from '../components/analysis/useCropFrame'
 import MediaPicker from '../components/analysis/MediaPicker'
 
-const MIN_ZOOM = 0.2
-const MAX_ZOOM = 8
-// Smallest frame a corner drag can leave, as a share of each side.
-const MIN_CROP = 0.2
 
 // New Sketch setup, in order (design handoff). 'analyzing' follows the
 // steps, then the sketch opens in EditSketch's workspace with the plan read
@@ -36,32 +31,15 @@ const STEPS = [
 ]
 
 
-// The frame as the crop step leaves it, to tell whether it changed since
-// it was last saved.
-function sameFrame(a, b) {
-  return !!a && !!b && a.aspect_ratio === b.aspect_ratio && a.ratio === b.ratio &&
-    a.zoom === b.zoom && a.offset_x === b.offset_x && a.offset_y === b.offset_y
-}
-const UNTOUCHED_FRAME = { aspect_ratio: 'original', ratio: null, zoom: 1, offset_x: 0, offset_y: 0 }
-
 // The hint over the photo on the photo steps.
 const STAGE_HINTS = {
   crop: 'Drag corners to crop. Pinch to zoom.',
   marks: 'Select shapes or edges you care about',
 }
 
-const RATIO_LABELS = { original: 'Original' }
-// The frame-shape buttons (Original, 3:4, 1:1, 4:3) are set aside for now:
-// no one used them in testing. Corner drags still reframe the photo.
-const RATIOS = false
-
 function resolveUrl(url) {
   if (!url) return url
   return url.startsWith('http') ? url : `${api.defaults.baseURL}${url}`
-}
-
-function pointerDistance(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y)
 }
 
 export default function CreateSketch() {
@@ -105,30 +83,12 @@ export default function CreateSketch() {
   const [referenceImageUrl, setReferenceImageUrl] = useState(null)
   const [uploadedLocation, setUploadedLocation] = useState(null)
 
-  // ===== STATE: CROP (pan / pinch / wheel zoom inside the frame) =====
-  const [aspectRatioKey, setAspectRatioKey] = useState('original')
-  const [customRatio, setCustomRatio] = useState(null) // after a free corner crop
-  const [cropRect, setCropRect] = useState(null) // the frame while a corner is dragged
-  const cornerRef = useRef(null)
-  // The frame last saved on the server (sameFrame). The upload itself is
-  // the untouched frame, so Next with no change saves nothing.
-  const savedFrameRef = useRef(UNTOUCHED_FRAME)
+  // ===== STATE: CROP (shared with Capture: useCropFrame) =====
+  const crop = useCropFrame({ active: step === 'crop', layoutKey: `${step}:${preview}` })
   // The scene analysis started when the crop was confirmed (a promise of
   // its result, or null). The guide waits for it after the marks.
   const sceneRef = useRef(null)
-
-  const containerRef = useRef(null)
-  const imgRef = useRef(null)
   const svgRef = useRef(null)
-  const [naturalSize, setNaturalSize] = useState(null)
-  const [boxSize, setBoxSize] = useState({ width: 0, height: 0 })
-
-  const [zoom, setZoom] = useState(1)
-  const [offset, setOffset] = useState({ x: 0, y: 0 })
-  const zoomRef = useRef(zoom)
-  const offsetRef = useRef(offset)
-  const pointersRef = useRef(new Map())
-  const gestureRef = useRef(null)
 
   // ===== STATE: FOCAL POINTS AND MARKS =====
   const [markTool, setMarkTool] = useState('pen')
@@ -180,35 +140,7 @@ export default function CreateSketch() {
   // Framing and location are already done; the wait starts on the title.
   const analysisProgress = useStagedProgress({ count: 4, start: 2, stepMs: 7000, active: step === 'analyzing' })
 
-  const ratio = resolveAspectRatio(aspectRatioKey, naturalSize, customRatio)
-
-  // Fit the crop frame into the stage at the chosen ratio.
-  useLayoutEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-    function recompute() {
-      const styles = getComputedStyle(container)
-      const padX = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight)
-      const padY = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom)
-      const availableWidth = container.clientWidth - padX
-      const availableHeight = container.clientHeight - padY
-      if (availableWidth <= 0 || availableHeight <= 0) return
-      const heightAtFullWidth = availableWidth / ratio
-      if (heightAtFullWidth <= availableHeight) {
-        setBoxSize({ width: availableWidth, height: heightAtFullWidth })
-      } else {
-        setBoxSize({ width: availableHeight * ratio, height: availableHeight })
-      }
-    }
-    recompute()
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(recompute) : null
-    ro?.observe(container)
-    window.addEventListener('resize', recompute)
-    return () => {
-      ro?.disconnect()
-      window.removeEventListener('resize', recompute)
-    }
-  }, [ratio, step, preview])
+  const ratio = crop.ratio
 
   // ===== CLOSE =====
 
@@ -288,10 +220,7 @@ export default function CreateSketch() {
     setUploadedFile(null)
     setUploadedLocation(null)
     drawing.clear()
-    setAspectRatioKey('original')
-    setCustomRatio(null)
-    resetTransform()
-    savedFrameRef.current = UNTOUCHED_FRAME
+    crop.reset()
     sceneRef.current = null
   }
 
@@ -378,185 +307,33 @@ export default function CreateSketch() {
 
   // ===== STEP 2: CROP AND REFRAME =====
 
-  function setZoomTracked(z) {
-    const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z))
-    zoomRef.current = clamped
-    setZoom(clamped)
-  }
-
-  function setOffsetTracked(o) {
-    offsetRef.current = o
-    setOffset(o)
-  }
-
-  function resetTransform(next = { zoom: 1, offset: { x: 0, y: 0 } }) {
-    setZoomTracked(next.zoom)
-    setOffsetTracked(next.offset)
-  }
-
-  function handleRatio(key) {
-    setAspectRatioKey(key)
-    setCustomRatio(null)
-    resetTransform()
-  }
-
-  function handlePointerDown(e) {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-    if (pointersRef.current.size === 1) {
-      gestureRef.current = { mode: 'pan', startX: e.clientX, startY: e.clientY, startOffset: offsetRef.current }
-    } else if (pointersRef.current.size === 2) {
-      const pts = Array.from(pointersRef.current.values())
-      gestureRef.current = { mode: 'pinch', startDistance: pointerDistance(pts[0], pts[1]), startZoom: zoomRef.current }
-    }
-  }
-
-  function handlePointerMove(e) {
-    if (!pointersRef.current.has(e.pointerId)) return
-    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
-    const g = gestureRef.current
-    if (!g || !boxSize.width || !boxSize.height) return
-    if (g.mode === 'pan') {
-      setOffsetTracked({
-        x: g.startOffset.x + (e.clientX - g.startX) / boxSize.width,
-        y: g.startOffset.y + (e.clientY - g.startY) / boxSize.height,
-      })
-    } else if (g.mode === 'pinch') {
-      const pts = Array.from(pointersRef.current.values())
-      if (pts.length < 2) return
-      setZoomTracked(g.startZoom * (pointerDistance(pts[0], pts[1]) / g.startDistance))
-    }
-  }
-
-  function handlePointerUp(e) {
-    pointersRef.current.delete(e.pointerId)
-    if (pointersRef.current.size === 0) {
-      gestureRef.current = null
-    } else if (pointersRef.current.size === 1) {
-      const [[, pt]] = Array.from(pointersRef.current.entries())
-      gestureRef.current = { mode: 'pan', startX: pt.x, startY: pt.y, startOffset: offsetRef.current }
-    }
-  }
-
-  function handleWheel(e) {
-    e.preventDefault()
-    setZoomTracked(zoomRef.current * (1 - e.deltaY * 0.0015))
-  }
-
-  // Corner crop. A corner drag shrinks the frame from that corner while the
-  // opposite corner stays put. Original (and a custom crop) is free; 3:4,
-  // 1:1 and 4:3 keep their shape. On release the frame refits the stage
-  // and the photo zooms so the dragged area fills it (reframeToRect).
-  const cornerHandlers = {
-    down(corner, e) {
-      e.stopPropagation() // not a pan
-      if (!box) return
-      e.currentTarget.setPointerCapture(e.pointerId)
-      const { width: W, height: H } = boxSize
-      // Corners stay on the photo. Zoomed out, the frame's own corners sit
-      // in the black margin, so the crop starts from the photo's edges.
-      const bounds = {
-        x0: Math.max(0, box.left),
-        x1: Math.min(W, box.left + box.width),
-        y0: Math.max(0, box.top),
-        y1: Math.min(H, box.top + box.height),
-      }
-      const locked = aspectRatioKey !== 'original' && aspectRatioKey !== 'custom'
-      cornerRef.current = {
-        corner,
-        bounds,
-        startX: e.clientX,
-        startY: e.clientY,
-        // The corner that doesn't move.
-        anchorX: corner.includes('l') ? bounds.x1 : bounds.x0,
-        anchorY: corner.includes('t') ? bounds.y1 : bounds.y0,
-        lockRatio: locked ? W / H : null,
-      }
-    },
-    move(e) {
-      const c = cornerRef.current
-      if (!c) return
-      e.stopPropagation()
-      const { x0, x1, y0, y1 } = c.bounds
-      const { width: W, height: H } = boxSize
-      // Where the dragged corner is now, kept on the photo.
-      const cornerX = Math.min(x1, Math.max(x0, (c.corner.includes('l') ? 0 : W) + (e.clientX - c.startX)))
-      const cornerY = Math.min(y1, Math.max(y0, (c.corner.includes('t') ? 0 : H) + (e.clientY - c.startY)))
-      let w = Math.min(x1 - x0, Math.max(W * MIN_CROP, Math.abs(c.anchorX - cornerX)))
-      let h = Math.min(y1 - y0, Math.max(H * MIN_CROP, Math.abs(c.anchorY - cornerY)))
-      if (c.lockRatio) {
-        if (w / h > c.lockRatio) w = h * c.lockRatio
-        else h = w / c.lockRatio
-      }
-      setCropRect({
-        x: c.anchorX === x0 ? x0 : x1 - w,
-        y: c.anchorY === y0 ? y0 : y1 - h,
-        width: w,
-        height: h,
-      })
-    },
-    up(e) {
-      const c = cornerRef.current
-      cornerRef.current = null
-      if (!c) return
-      e.stopPropagation()
-      const rect = cropRect
-      setCropRect(null)
-      if (!rect || !box || (rect.width >= boxSize.width - 1 && rect.height >= boxSize.height - 1)) return
-      const next = reframeToRect(rect, box, naturalSize.width, naturalSize.height)
-      if (!c.lockRatio) {
-        setAspectRatioKey('custom')
-        setCustomRatio(rect.width / rect.height)
-      }
-      resetTransform(next)
-    },
-  }
-
-  function handleImageLoad(e) {
-    setNaturalSize({ width: e.target.naturalWidth, height: e.target.naturalHeight })
-  }
-
   // ===== CROP CONFIRMED: SAVE THE FRAME, START THE SCENE ANALYSIS =====
 
   // Next on the crop step. A changed frame is baked and saved first, since
   // the scene analysis reads the saved framed photo. The scene analysis
   // then runs in the background while the sketcher draws marks.
   async function handleConfirmCrop() {
-    const frame = {
-      aspect_ratio: aspectRatioKey,
-      ratio: aspectRatioKey === 'custom' ? customRatio : null,
-      zoom: zoomRef.current,
-      offset_x: offsetRef.current.x,
-      offset_y: offsetRef.current.y,
-    }
-    if (!sameFrame(frame, savedFrameRef.current)) {
+    if (crop.changed()) {
+      const frame = crop.frame()
       setSaving(true)
       setError(null)
       try {
-        const blob = await bakeCrop({
-          imageEl: imgRef.current,
-          naturalSize,
-          aspectRatioKey,
-          customRatio,
-          zoom: frame.zoom,
-          offset: { x: frame.offset_x, y: frame.offset_y },
-        })
         const form = new FormData()
         // Focal points are retired: marks are the one plan (design doc,
         // item 17). The endpoint still takes the two point lists, empty.
         form.append('old_points', '[]')
         form.append('new_points', '[]')
-        form.append('framed_image', blob, 'framed.jpg')
+        form.append('framed_image', await crop.bake(), 'framed.jpg')
         form.append('crop_transform', JSON.stringify({
-          aspect_ratio: aspectRatioKey,
-          ...(aspectRatioKey === 'custom' && { ratio: customRatio }),
+          aspect_ratio: frame.aspect_ratio,
+          ...(frame.aspect_ratio === 'custom' && { ratio: frame.ratio }),
           zoom: frame.zoom,
           offset_x: frame.offset_x,
           offset_y: frame.offset_y,
         }))
         const { data } = await api.post(`/api/sketches/${sketchId}/focal-frame`, form)
         if (data?.reference_image_url) setReferenceImageUrl(resolveUrl(data.reference_image_url))
-        savedFrameRef.current = frame
+        crop.markSaved(frame)
         sceneRef.current = null // that analysis read the old frame
       } catch (err) {
         setError(err.response?.data?.detail || 'Could not save your framing.')
@@ -633,14 +410,10 @@ export default function CreateSketch() {
   // ===== RENDER =====
 
   const stepIndex = step === 'analyzing' ? STEPS.length : STEPS.findIndex((s) => s.key === step)
-  const box =
-    naturalSize && boxSize.width && boxSize.height
-      ? computeImageBox(boxSize.width, boxSize.height, naturalSize.width, naturalSize.height, zoom, offset.x, offset.y)
-      : null
   const onPhotoSteps = step === 'crop' || step === 'marks' || step === 'media'
   const stageHandlers =
     step === 'crop'
-      ? { onPointerDown: handlePointerDown, onPointerMove: handlePointerMove, onPointerUp: handlePointerUp, onPointerCancel: handlePointerUp, onWheel: handleWheel }
+      ? crop.stageHandlers
       : step === 'marks'
         ? drawing.handlers
         : {}
@@ -727,29 +500,29 @@ export default function CreateSketch() {
 
         {onPhotoSteps && (
           <ImagePanel
-            containerRef={containerRef}
-            imgRef={imgRef}
+            containerRef={crop.containerRef}
+            imgRef={crop.imgRef}
             svgRef={svgRef}
-            boxSize={boxSize}
+            boxSize={crop.boxSize}
             // bakeCrop draws this <img> onto a canvas. Without CORS loading,
             // the backend photo taints the canvas and the export fails.
             crossOrigin="anonymous"
             // Crop and marks work on the original upload through the frame.
             imageUrl={originalImageUrl}
-            zoom={zoom}
-            offset={offset}
-            box={box}
+            zoom={crop.zoom}
+            offset={crop.offset}
+            box={crop.box}
             heightClass="max-md:aspect-[var(--frame-ratio)] max-md:max-h-[75vh] md:min-h-0 md:flex-1"
             padClass="p-0 md:px-0 md:py-[var(--stage-inset)]"
             cropFrame={step === 'crop'}
-            cropRect={cropRect}
-            cornerHandlers={step === 'crop' ? cornerHandlers : undefined}
+            cropRect={crop.cropRect}
+            cornerHandlers={step === 'crop' ? crop.cornerHandlers : undefined}
             onPointerDown={stageHandlers.onPointerDown}
             onPointerMove={stageHandlers.onPointerMove}
             onPointerUp={stageHandlers.onPointerUp}
             onPointerCancel={stageHandlers.onPointerCancel}
             onWheel={stageHandlers.onWheel}
-            onImageLoad={handleImageLoad}
+            onImageLoad={crop.handleImageLoad}
           >
             <Fade show={step !== 'crop'}>{planLayer()}</Fade>
           </ImagePanel>
@@ -794,27 +567,9 @@ export default function CreateSketch() {
           </div>
         </div>
 
-        {/* The photo step has nothing here: its words are on the stage and
-            its buttons in the footer. The crop step too, while RATIOS is off. */}
-        {((step !== 'photo' && (step !== 'crop' || RATIOS)) || error) && <div className="sc-panel-body">
-
-          {step === 'crop' && RATIOS && (
-            <div className="flex gap-1" role="group" aria-label="Frame shape">
-              {ASPECT_RATIO_ORDER.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  aria-pressed={aspectRatioKey === key}
-                  onClick={() => handleRatio(key)}
-                  className={`h-11 flex-1 whitespace-nowrap rounded-[10px] text-base font-semibold ${
-                    aspectRatioKey === key ? 'bg-sc-border text-white' : 'text-sc-text2 hover:text-white'
-                  } ${key === 'original' ? 'flex-[1.3]' : ''}`}
-                >
-                  {RATIO_LABELS[key] || key}
-                </button>
-              ))}
-            </div>
-          )}
+        {/* The photo and crop steps have nothing here: their words are on
+            the stage and their buttons in the footer. */}
+        {((step !== 'photo' && step !== 'crop') || error) && <div className="sc-panel-body">
 
           {step === 'marks' && (
             <>
@@ -869,7 +624,7 @@ export default function CreateSketch() {
             {step === 'crop' && (
               <>
                 <Button variant="secondaryOnDark" className="mr-auto" onClick={() => setStep('photo')}>Back</Button>
-                <Button variant="action" onClick={handleConfirmCrop} disabled={!box || saving}>{saving ? 'Saving…' : 'Next'}</Button>
+                <Button variant="action" onClick={handleConfirmCrop} disabled={!crop.box || saving}>{saving ? 'Saving…' : 'Next'}</Button>
               </>
             )}
             {step === 'marks' && (
