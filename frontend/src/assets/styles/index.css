@@ -180,6 +180,21 @@
   .sc-field       { @apply w-full rounded-xl border-[1.5px] border-sc-strong bg-sc-raised px-3.5 text-lg font-medium
                            text-white placeholder:text-sc-muted focus:border-sc-guide focus:outline-none;
                     padding-top: var(--space-field-y); padding-bottom: var(--space-field-y); }
+  /* A menu on a dark panel (the event link in Details): the browser's own
+     arrow sat against the border, so it is drawn here, like .field-select. */
+  .sc-select      { @apply cursor-pointer appearance-none bg-no-repeat pr-11;
+                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+                    background-position: right 0.9rem center; background-size: 16px; }
+  /* A round tool button with a picture and its name under it (the line
+     tools in "What you draw with"): grey, a small hop on hover, the guide
+     blue when picked. RoundToolButton.jsx. */
+  .sc-round-tool        { @apply flex w-[4.5rem] flex-col items-center gap-1.5 text-center text-sm font-semibold leading-tight text-white; }
+  .sc-round-tool-circle { @apply flex h-14 w-14 items-center justify-center rounded-full transition-colors;
+                          background: var(--round-tool-bg); }
+  .sc-round-tool:hover .sc-round-tool-circle { background: var(--round-tool-hover); animation: sc-hop 0.35s ease-out; }
+  .sc-round-tool[aria-pressed='true'] .sc-round-tool-circle { background: var(--accent-guide); }
+  .sc-round-tool:focus-visible { @apply outline-none; }
+  .sc-round-tool:focus-visible .sc-round-tool-circle { @apply ring-2 ring-white; }
   /* Guide answers (AIGuidance.jsx). The own-words row: a pencil, a text
      field and the ">" button, the same size and border as a choice
      (Button.jsx). Active while the sketcher types or after a tap on empty
@@ -409,6 +424,8 @@
      (Next, Save, Get feedback, Take photo). */
   --accent-guide: #60a5fa;
   --accent-guide-ink: #0b1220;           /* text on guide blue */
+  --round-tool-bg: #e5e7eb;              /* a round tool button (gray-200) */
+  --round-tool-hover: #d1d5db;           /* and on hover (gray-300) */
   --tab-active: rgb(255, 0, 0);
   --tab-underline: 3px;
   --progress-done: #ffffff;
@@ -790,4 +807,14 @@
   .ed-pin-count[data-active='true'] { background: var(--pin-active); }
   .ed-pin-center  { @apply block h-3.5 w-3.5 rounded-full border-2 border-white; background: var(--pin-center);
                     box-shadow: 0 0 0 2px var(--pin-center); }
+}
+
+/* The round tool button's hop on hover (.sc-round-tool). */
+@keyframes sc-hop {
+  0%   { transform: translateY(0); }
+  40%  { transform: translateY(-5px); }
+  100% { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sc-round-tool:hover .sc-round-tool-circle { animation: none; }
 }

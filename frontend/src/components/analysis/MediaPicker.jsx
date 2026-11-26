@@ -1,4 +1,13 @@
 import { MEDIA } from '../../data/media'
+import RoundToolButton from '../common/RoundToolButton'
+import pencil from '../../assets/images/ico_pencil.png'
+import fountainPen from '../../assets/images/ico_fountainpen.png'
+import fineliner from '../../assets/images/ico_liner.png'
+import dipPen from '../../assets/images/ico_dip_nib.png'
+import brushPen from '../../assets/images/ico_brushpen.png'
+
+// The line tools show as round picture buttons; the color media as chips.
+const LINE_ICONS = { pencil, fountain_pen: fountainPen, fineliner, dip_pen: dipPen, brush_pen: brushPen }
 
 /**
  * "What you draw with" (design doc, item 25): the media picks, any number.
@@ -11,6 +20,13 @@ export default function MediaPicker({ picks, onToggle }) {
       {MEDIA.map(({ group, items }) => (
         <div key={group} className="flex flex-col gap-2" role="group" aria-label={group}>
           <p className="text-base font-semibold text-sc-text3">{group}</p>
+          {group === 'Line' ? (
+            <div className="flex flex-wrap gap-x-2 gap-y-3">
+              {items.map(([key, name]) => (
+                <RoundToolButton key={key} image={LINE_ICONS[key]} label={name} selected={picks.includes(key)} onClick={() => onToggle(key)} />
+              ))}
+            </div>
+          ) : (
           <div className="flex flex-wrap gap-2">
             {items.map(([key, name]) => (
               <button
@@ -28,6 +44,7 @@ export default function MediaPicker({ picks, onToggle }) {
               </button>
             ))}
           </div>
+          )}
         </div>
       ))}
     </div>

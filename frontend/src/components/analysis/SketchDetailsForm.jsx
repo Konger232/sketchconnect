@@ -107,7 +107,7 @@ export default function SketchDetailsForm({ d, sketch, chips = null, extra = nul
                     <button type="button" onClick={() => d.changeEvent(d.linkable.find((ev) => ev.nearby).id)} className="whitespace-nowrap text-base font-bold text-sc-guide">Yes, link it</button>
                   </div>
                 )}
-                <select value="" onChange={(ev) => ev.target.value && d.changeEvent(ev.target.value)} className="sc-field" aria-label="Link to an event">
+                <select value="" onChange={(ev) => ev.target.value && d.changeEvent(ev.target.value)} className="sc-field sc-select" aria-label="Link to an event">
                   <option value="">Link to an event…</option>
                   {d.linkable.map((ev) => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
                 </select>

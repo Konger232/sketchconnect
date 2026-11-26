@@ -27,7 +27,10 @@ REPEAT_OVERLAP = 0.5
 
 # The media card (item 25). A tip may name only what the sketcher picked.
 MEDIA = {
-    "line": {"fineliner": "waterproof fineliner", "fountain_pen": "fountain pen", "pencil": "pencil"},
+    # In the card's order (November 26, 2026: dip pen and brush pen added).
+    # "fineliner" stays one word, as in TOOL_WORDS, so a tip naming it passes.
+    "line": {"pencil": "pencil", "fountain_pen": "fountain pen", "fineliner": "fineliner",
+             "dip_pen": "dip pen", "brush_pen": "brush pen"},
     "color": {"watercolor": "watercolor", "gouache": "gouache", "markers": "markers",
               "watercolor_pencils": "watercolor pencils", "pastels": "pastels"},
 }
