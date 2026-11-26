@@ -4,6 +4,7 @@ import { supabaseConfigured } from './lib/supabaseClient'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import CreateSketch from './pages/CreateSketch'
+import Capture from './pages/Capture'
 import EditSketch from './pages/EditSketch'
 import SearchPage from './pages/SearchPage'
 import Explore from './pages/Explore'
@@ -75,6 +76,8 @@ function Router() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/capture" element={<RequireAuth><CreateSketch /></RequireAuth>} />
+        {/* Capture as a set of tools (item 57), beside New Sketch until the switch. */}
+        <Route path="/capture-new" element={<RequireAuth><Capture /></RequireAuth>} />
         <Route path="/sketchers/:username" element={<MembersOnly><SketcherProfile /></MembersOnly>} /> {/* owner and member views */}
         <Route path="/sketches/:sketchId" element={<SketchPage />} /> {/* members: the full page; visitors: the public view */}
         <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketch /></RequireAuth>} />
@@ -100,6 +103,7 @@ function Router() {
       {backgroundLocation && (
         <Routes>
           <Route path="/capture" element={<RequireAuth><CreateSketch /></RequireAuth>} />
+          <Route path="/capture-new" element={<RequireAuth><Capture /></RequireAuth>} />
           <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketch /></RequireAuth>} />
         </Routes>
       )}

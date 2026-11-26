@@ -18,7 +18,7 @@ import { previewUrl } from '../lib/previewUrl'
 import { useStagedProgress } from '../lib/useStagedProgress'
 import { ASPECT_RATIO_ORDER, bakeCrop, computeImageBox, reframeToRect, resolveAspectRatio } from '../lib/cropMath'
 
-import { MEDIA } from '../data/media'
+import MediaPicker from '../components/analysis/MediaPicker'
 
 const MIN_ZOOM = 0.2
 const MAX_ZOOM = 8
@@ -828,32 +828,7 @@ export default function CreateSketch() {
             </>
           )}
 
-          {step === 'media' && (
-            <div className="flex flex-col gap-4">
-              {MEDIA.map(({ group, items }) => (
-                <div key={group} className="flex flex-col gap-2" role="group" aria-label={group}>
-                  <p className="text-base font-semibold text-sc-text3">{group}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {items.map(([key, name]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        aria-pressed={media.includes(key)}
-                        onClick={() => toggleMedia(key)}
-                        className={`rounded-full border-[1.5px] px-3.5 py-2 text-md font-semibold transition-colors ${
-                          media.includes(key)
-                            ? 'border-sc-guide bg-sc-guide text-sc-guide-ink'
-                            : 'border-sc-divider text-white hover:border-white/60'
-                        }`}
-                      >
-                        {name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {step === 'media' && <MediaPicker picks={media} onToggle={toggleMedia} />}
 
           {step === 'analyzing' && (
             <ProgressSteps

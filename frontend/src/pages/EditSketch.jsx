@@ -4,7 +4,6 @@ import Button from '../components/common/Button'
 import Icon from '../components/common/Icon'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import SketchModal from '../components/common/SketchModal'
-import LocationSearchField from '../components/common/LocationSearchField'
 import LocationMap from '../components/common/LocationMap'
 import GuideStage, { useGuides } from '../components/analysis/GuideStage'
 import StageStrip, { StripImage } from '../components/analysis/StageStrip'
@@ -25,10 +24,8 @@ import { notifySketchesChanged } from '../lib/sketchEvents'
 import { STYLES, sceneTypeLabel } from '../data/styles'
 import { useSheetDrag } from '../lib/useSheetDrag'
 import { handle } from '../lib/people'
-import { DetailsVoiceNotes } from '../components/common/SketchNotes'
-import InfoTip from '../components/common/InfoTip'
-
-const NOTE_LIMIT = 500
+import SketchDetailsForm, { locationText } from '../components/analysis/SketchDetailsForm'
+import { useSketchDetails } from '../components/analysis/useSketchDetails'
 
 const TABS = [
   { key: 'details', label: 'Details' },
@@ -41,19 +38,6 @@ function resolveUrl(url) {
   if (!url) return url
   return url.startsWith('http') ? url : `${api.defaults.baseURL}${url}`
 }
-
-function locationText(location) {
-  if (!location) return ''
-  return location.label || `${location.lat.toFixed(4)}, ${location.lon.toFixed(4)}`
-}
-
-// Who sees a shared sketch (backend app/core/visibility.py).
-const VISIBILITY = [
-  { key: 'members', label: 'All sketchers', note: 'Every signed-in sketcher can see it. Visitors see only a small part of the final.' },
-  { key: 'followers', label: 'My followers', note: 'Only sketchers who follow you can see it.' },
-  { key: 'private', label: 'Only me', note: 'No one else can see it.' },
-]
-const GLAZE_URL = 'https://glaze.cs.uchicago.edu/'
 
 /**
  * The sketch workspace (design handoff): the photo stage on the left, and
@@ -149,22 +133,8 @@ export default function EditSketch() {
   )
   const valueStudy = useValueStudy(sketchId, analysis)
 
-  // ===== STATE: DETAILS =====
-  const [title, setTitle] = useState('')
-  const [fieldNotes, setFieldNotes] = useState('')
-  const [recordRequest, setRecordRequest] = useState(0) // the mic on the Field note label: start a recording
-  const [visibility, setVisibility] = useState('members') // who sees it once shared
-  const [glazed, setGlazed] = useState(false)
-  const [sketchLocation, setSketchLocation] = useState(null)
-  const [editingLocation, setEditingLocation] = useState(false)
-  // The sketch's event (item 49): the events it can be linked to now (the
-  // ones I'm Interested in, not ended more than 14 days ago), and any error
-  // from linking. The link saves at once, not with the autosave.
-  const [linkable, setLinkable] = useState([])
-  const [eventError, setEventError] = useState(null)
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState(null)
-  const [savedJustNow, setSavedJustNow] = useState(false)
+  // ===== STATE: DETAILS (shared with Capture: useSketchDetails) =====
+  const details = useSketchDetails({ sketchId, sketch, setSketch, enabled: sketch?.is_owner === true })
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleteError, setDeleteError] = useState(null)
 
@@ -188,39 +158,6 @@ export default function EditSketch() {
     load()
   }, [sketchId])
 
-  function seedFields(from) {
-    setTitle(from.title || '')
-    setFieldNotes(from.field_notes || '')
-    setVisibility(from.visibility || 'members')
-    setGlazed(Boolean(from.glazed))
-    setSketchLocation(from.location || null)
-    setEditingLocation(!from.location)
-  }
-
-  useEffect(() => {
-    if (sketch) seedFields(sketch)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sketch?.id])
-
-  useEffect(() => {
-    if (!sketch?.id) return
-    const loc = sketch.location
-    api.get('/api/events/linkable', { params: loc ? { lat: loc.lat, lon: loc.lon } : {} })
-      .then(({ data }) => setLinkable(data)).catch(() => setLinkable([]))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sketch?.id])
-
-  async function changeEvent(eventId) {
-    setEventError(null)
-    try {
-      const { data } = await api.put(`/api/sketches/${sketchId}`, { event_id: eventId })
-      setSketch((prev) => ({ ...prev, event_id: data.event_id, event: data.event }))
-      notifySketchesChanged()
-    } catch (err) {
-      setEventError(err.response?.data?.detail || 'Could not change the event.')
-    }
-  }
-
   // The Guide tab needs the scene and marks analyses. The backend reuses
   // both cached results while the photo, framing and marks are unchanged,
   // so this is quick on a return visit. New Sketch passes them in already.
@@ -236,7 +173,7 @@ export default function EditSketch() {
         setAnalysis(data)
         // The backend fills a missing title from the AI's suggestion.
         const suggested = (data.suggested_title || '').trim().slice(0, 150)
-        if (suggested && !sketch.title) setTitle((cur) => cur || suggested)
+        if (suggested && !sketch.title) details.setTitle((cur) => cur || suggested)
         setSketch((prev) => ({
           ...prev,
           title: prev.title || suggested || prev.title,
@@ -253,25 +190,13 @@ export default function EditSketch() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sketch?.id, isOwner, mode])
 
-  // Unsaved Details (title, field notes, location).
-  function detailsDirty() {
-    return (
-      title !== (sketch.title || '') ||
-      fieldNotes !== (sketch.field_notes || '') ||
-      visibility !== (sketch.visibility || 'members') ||
-      glazed !== Boolean(sketch.glazed) ||
-      JSON.stringify(sketchLocation) !== JSON.stringify(sketch.location || null)
-    )
-  }
-
   // The close button: asks first when there is something to lose.
   function requestClose() {
     if (!sketch || !isOwner) return closeModal()
     if (mode === 'create') return setConfirmingClose('sketch')
     // Details autosave; a change still waiting is saved before closing.
-    if (detailsDirty()) {
-      clearTimeout(detailsTimer.current)
-      handleSave().then((ok) => (ok ? closeModal() : setTab('details')))
+    if (details.dirty()) {
+      details.flush().then((ok) => (ok ? closeModal() : setTab('details')))
       return
     }
     closeModal()
@@ -321,7 +246,7 @@ export default function EditSketch() {
   // the sketch's SketchDetail page, where its uploads go (design doc,
   // item 38).
   async function handleStartSketching() {
-    if (detailsDirty() && !(await handleSave())) {
+    if (!(await details.flush())) {
       setTab('details') // show the save error instead of closing
       return
     }
@@ -330,31 +255,6 @@ export default function EditSketch() {
   }
 
   // ===== DETAILS: SAVE AND DELETE =====
-
-  // Returns whether it saved, for Start Sketching.
-  async function handleSave() {
-    setSaving(true)
-    setSaveError(null)
-    try {
-      const { data } = await api.put(`/api/sketches/${sketchId}`, {
-        title,
-        field_notes: fieldNotes,
-        visibility,
-        glazed,
-        // Always sent, even as null, so clearing the location clears it.
-        location: sketchLocation,
-      })
-      setSketch((prev) => ({ ...prev, ...data }))
-      setSavedJustNow(true)
-      setTimeout(() => setSavedJustNow(false), 2000)
-      return true
-    } catch (err) {
-      setSaveError(err.response?.data?.detail || 'Could not save these changes.')
-      return false
-    } finally {
-      setSaving(false)
-    }
-  }
 
 
   async function handleDelete() {
@@ -379,16 +279,6 @@ export default function EditSketch() {
       .then(({ data }) => setValueStudies((m) => ({ ...m, [valueLevels]: data })))
       .catch(() => setValueError('Could not read the values right now.'))
   }, [tab, valueLevels, sketch?.is_owner]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Details autosave: a moment after typing stops, like the Value and
-  // Color tabs save as they change.
-  const detailsTimer = useRef(null)
-  useEffect(() => {
-    if (!sketch || !isOwner || !detailsDirty()) return
-    clearTimeout(detailsTimer.current)
-    detailsTimer.current = setTimeout(() => { handleSave() }, 1000)
-    return () => clearTimeout(detailsTimer.current)
-  }, [title, fieldNotes, sketchLocation, visibility, glazed]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function pickValueLevels(n) {
     setValueLevels(n)
@@ -470,7 +360,7 @@ export default function EditSketch() {
   // the location the upload found.
   const locationUnchanged =
     mode === 'create' &&
-    sketchLocation && sketch.location && sketchLocation.lat === sketch.location.lat && sketchLocation.lon === sketch.location.lon
+    details.location && sketch.location && details.location.lat === sketch.location.lat && details.location.lon === sketch.location.lon
   // While "Yes, add it" is being saved, the area's outline shows as the
   // stroke the server will add (same colour and width), so the red area
   // turns yellow at once. The saved stroke replaces it.
@@ -620,7 +510,7 @@ export default function EditSketch() {
   // feedback live on the SketchDetail page (design doc, item 38).
   const startSketchingFooter = mode === 'create' && analysis?.plan_read ? (
     <div className="sc-footer">
-      <Button variant="action" className="ml-auto" onClick={handleStartSketching} disabled={saving}>
+      <Button variant="action" className="ml-auto" onClick={handleStartSketching} disabled={details.saving}>
         Start Sketching
       </Button>
     </div>
@@ -633,157 +523,7 @@ export default function EditSketch() {
   )
 
   const detailsPanel = (
-    <>
-      <div className="sc-panel-body gap-[18px]">
-        {chips}
-
-        <label className="flex flex-col gap-2">
-          <span className="sc-field-label">Scene title <span aria-hidden="true">*</span></span>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Untitled sketch" className="sc-field" required />
-        </label>
-
-        <div className="flex flex-col gap-2">
-          <span className="sc-field-label">Location <span aria-hidden="true">*</span></span>
-          {sketchLocation && !editingLocation ? (
-            <button
-              type="button"
-              onClick={() => setEditingLocation(true)}
-              className="flex min-h-14 items-center gap-3 rounded-xl border-[1.5px] border-sc-strong bg-sc-raised py-2 pl-3.5 pr-3 text-left text-white"
-            >
-              <Icon name="location" size={20} className="text-sc-text3" />
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="truncate text-lg font-medium">{locationText(sketchLocation)}</span>
-                {locationUnchanged && <span className="text-sm text-sc-text3">Detected from photo</span>}
-              </span>
-              <span className="text-base font-bold text-sc-guide">Change</span>
-            </button>
-          ) : (
-            <div className="overflow-hidden rounded-xl border-[1.5px] border-sc-strong bg-sc-raised">
-              <p className="px-3.5 py-2.5 text-base text-sc-text2">
-                {sketch.location ? 'Search for a place, or tap the map to move the pin.' : 'No location found in the photo. Search for a place, or tap the map to set the pin.'}
-              </p>
-              <div className="px-2.5 pb-2.5">
-                <LocationSearchField location={sketchLocation} onLocationChange={setSketchLocation} dark />
-              </div>
-              <LocationMap
-                key={sketchLocation?.label || 'map'}
-                lat={sketchLocation?.lat}
-                lon={sketchLocation?.lon}
-                label={sketchLocation?.label}
-                editable
-                hint={false}
-                height="h-[170px]"
-                onLocationChange={setSketchLocation}
-              />
-              <div className="flex items-center gap-2.5 py-2 pl-3.5 pr-2">
-                <span className="min-w-0 flex-1 truncate text-md font-semibold">{locationText(sketchLocation) || 'No place set'}</span>
-                <button
-                  type="button"
-                  disabled={!sketchLocation}
-                  onClick={() => setEditingLocation(false)}
-                  className="h-11 whitespace-nowrap rounded-[10px] border-[1.5px] border-sc-guide px-3.5 text-base font-bold text-sc-guide disabled:opacity-40"
-                >
-                  Use this spot
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* The event this sketch was made at. Linked: the title and Remove.
-            Not linked: a nearby event to confirm, or a pick from the events
-            I'm Interested in. Shown only when there is something to show. */}
-        {(sketch.event || linkable.length > 0) && (
-          <div className="flex flex-col gap-2">
-            <span className="sc-field-label">Event</span>
-            {sketch.event ? (
-              <div className="flex items-center gap-3 rounded-xl border-[1.5px] border-sc-strong bg-sc-raised py-2 pl-3.5 pr-3">
-                <span className="min-w-0 flex-1 truncate text-md font-semibold">Sketched at {sketch.event.title}</span>
-                <button type="button" onClick={() => changeEvent(null)} className="whitespace-nowrap text-base font-bold text-sc-guide">Remove link</button>
-              </div>
-            ) : (
-              <>
-                {linkable.find((ev) => ev.nearby) && (
-                  <div className="flex items-center gap-3 rounded-xl border-[1.5px] border-sc-strong bg-sc-raised py-2 pl-3.5 pr-3">
-                    <span className="min-w-0 flex-1 text-md">Was this at {linkable.find((ev) => ev.nearby).title}?</span>
-                    <button type="button" onClick={() => changeEvent(linkable.find((ev) => ev.nearby).id)} className="whitespace-nowrap text-base font-bold text-sc-guide">Yes, link it</button>
-                  </div>
-                )}
-                <select value="" onChange={(ev) => ev.target.value && changeEvent(ev.target.value)} className="sc-field" aria-label="Link to an event">
-                  <option value="">Link to an event…</option>
-                  {linkable.map((ev) => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
-                </select>
-              </>
-            )}
-            {eventError && <span className="text-sm text-accent">{eventError}</span>}
-          </div>
-        )}
-
-        <div className="flex flex-col gap-2">
-          <span className="flex items-center gap-2">
-            <label htmlFor="field-note" className="sc-field-label">Field note</label>
-            {/* Record a note: the AI writes it down (DetailsVoiceNotes). */}
-            <button type="button" onClick={() => setRecordRequest((n) => n + 1)} aria-label="Record a note" title="Record a note"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-sc-text3 hover:bg-white/10 hover:text-white">
-              <Icon name="mic" size={18} />
-            </button>
-            {fieldNotes && <span className="ml-auto text-sm font-semibold text-sc-text3">{fieldNotes.length} / {NOTE_LIMIT}</span>}
-          </span>
-          <textarea
-            id="field-note"
-            value={fieldNotes}
-            maxLength={NOTE_LIMIT}
-            onChange={(e) => setFieldNotes(e.target.value)}
-            placeholder="Weather, sounds, who stopped to watch, how long you stayed…"
-            rows={4}
-            className="sc-field min-h-[7rem] resize-y leading-normal"
-          />
-          {/* Keep it private, then the recorded notes. It covers both. */}
-          <DetailsVoiceNotes sketchId={sketch.id} notesShared={sketch.notes_shared} recordRequest={recordRequest} />
-        </div>
-
-        {/* Who sees the sketch once it's shared, and Glaze (design doc:
-            protecting sketchers' work). */}
-        <div className="flex flex-col gap-2">
-          <span className="flex items-center gap-1.5">
-            <span className="sc-field-label">Who can see it</span>
-            <InfoTip label="About Who can see it" above>
-              {VISIBILITY.map((v) => <span key={v.key} className="mb-1 block"><b>{v.label}:</b> {v.note}</span>)}
-              <span className="block">Your plan and progress pages are only yours until you share the final sketch.</span>
-            </InfoTip>
-          </span>
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Who can see this sketch">
-            {VISIBILITY.map((v) => (
-              <button key={v.key} type="button" role="radio" aria-checked={visibility === v.key} onClick={() => setVisibility(v.key)}
-                className={`rounded-full border-[1.5px] px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-                  visibility === v.key ? 'border-sc-guide bg-sc-guide text-white' : 'border-sc-border text-white hover:border-sc-strong'
-                }`}>
-                {v.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {/* Glaze: on hold while Chan researches Glaze and Nightshade.
-        <label className="flex items-start gap-2.5 text-sm text-white">
-          <input type="checkbox" checked={glazed} onChange={(e) => setGlazed(e.target.checked)} className="mt-0.5 h-4 w-4 accent-sc-guide" />
-          <span>
-            My final sketch is Glazed. <a href={GLAZE_URL} target="_blank" rel="noreferrer" className="underline">What is Glaze?</a>
-            <span className="block text-sc-text3">Glaze, a free tool from the University of Chicago, changes your image so AI has a harder time copying your style. Glaze it before you upload.</span>
-          </span>
-        </label>
-        */}
-
-        {saveError && <p className="text-base text-accent">{saveError}</p>}
-        {deleteError && <p className="text-base text-accent">{deleteError}</p>}
-        
-      </div>
-      <div className="sc-footer">
-        {/* Details save as you type, like the other tabs. */}
-        <span className={`text-base text-sc-text3 ${saving ? 'animate-pulse' : ''}`}>
-          {saving ? 'Saving…' : savedJustNow ? 'Saved' : 'Changes save as you type.'}
-        </span>
-      </div>
-    </>
+    <SketchDetailsForm d={details} sketch={sketch} chips={chips} locationUnchanged={locationUnchanged} deleteError={deleteError} />
   )
 
   // Someone else's sketch: its details, read-only.
