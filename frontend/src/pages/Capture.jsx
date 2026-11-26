@@ -7,7 +7,7 @@ import PhotoDropzone from '../components/common/PhotoDropzone'
 import ToolRow from '../components/analysis/ToolRow'
 import ImagePanel from '../components/analysis/ImagePanel'
 import Fade from '../components/analysis/Fade'
-import MarkPanel, { DEFAULT_MARK_COLOR, DEFAULT_MARK_SIZE, MarkRail, MarksLayer, SELECT_HINT, useMarkDrawing } from '../components/analysis/Marks'
+import { DEFAULT_MARK_COLOR, DEFAULT_MARK_SIZE, MarkRail, MarksLayer, useMarkDrawing } from '../components/analysis/Marks'
 import { useCropFrame } from '../components/analysis/useCropFrame'
 import MediaPicker from '../components/analysis/MediaPicker'
 import PlanReadCard from '../components/analysis/PlanReadCard'
@@ -35,20 +35,23 @@ const JUST_TAKEN_MS = 2 * 60 * 1000
 // How often Tips checks whether the plan read is done.
 const POLL_MS = 3000
 
-// The hint over the photo while a tool is open.
+// A tool's instruction, always in the same place: over the photo, at the
+// top. The right panel holds only what a tool needs beyond that.
 const STAGE_HINTS = {
+  upload: 'Tap the camera to use another photo.',
   crop: 'Drag corners to crop. Pinch to zoom.',
   outline: 'Outline the shapes and edges you care about',
 }
 
 const TOOLS = [
-  { key: 'upload', label: 'Upload', icon: 'camera' },
+  { key: 'upload', label: 'Capture the scene', icon: 'camera' },
   { key: 'crop', label: 'Crop', icon: 'expand' },
   { key: 'outline', label: 'Outline', icon: 'pen' },
   { key: 'color', label: 'Color', icon: 'color', soon: true },
-  { key: 'value', label: 'Value', icon: 'guide-value', soon: true },
+  { key: 'value', label: 'Value Study', icon: 'guide-value', soon: true },
   { key: 'tips', label: 'Tips', icon: 'star' },
-  { key: 'details', label: 'Details' },
+  // Details and everything else: the title, location, notes, media, sharing.
+  { key: 'details', label: 'More' },
 ]
 
 // The phone's position now, or null when it can't be had within 10 seconds.
@@ -279,35 +282,12 @@ export default function Capture() {
   // is picked, while it uploads.
   const tools = TOOLS.map((t) => ({ ...t, disabled: t.key !== 'upload' && !preview }))
   const soon = TOOLS.find((t) => t.key === tool)?.soon
+  const hint = tool === 'upload' && uploading ? 'Saving your photo…' : STAGE_HINTS[tool]
 
   let panel = null
-  if (tool === 'upload') {
-    panel = (
-      <div className="sc-panel-body">
-        <p className="sc-body">
-          {uploading ? 'Saving your photo…' : sketchId ? 'Tap the camera to use another photo.' : 'Photograph the scene, or pick a photo.'}
-        </p>
-      </div>
-    )
-  } else if (tool === 'crop') {
-    panel = (
-      <div className="sc-panel-body">
-        <p className="sc-body">Crop to what really interests you. Drag a corner, or pinch and drag to frame the scene.</p>
-      </div>
-    )
-  } else if (tool === 'outline') {
-    panel = (
-      <div className="sc-panel-body">
-        <div className="hidden md:block">
-          <MarkPanel {...markTools} disabled={saving} />
-        </div>
-        <div className="flex flex-col gap-1 md:hidden">
-          <p className="sc-body">Outline the shapes and edges you care about. Open Tools for the pen, color, eraser and line.</p>
-          <p className="text-sm text-sc-text3">{SELECT_HINT}</p>
-        </div>
-      </div>
-    )
-  } else if (soon) {
+  // Upload, Crop and Outline: their instruction is over the photo, and
+  // Outline's tools float on it, so the right panel stays empty.
+  if (soon) {
     panel = (
       <div className="sc-panel-body">
         <p className="sc-body">This tool comes in the next build.</p>
@@ -412,16 +392,16 @@ export default function Capture() {
           />
         )}
 
-        {/* Phone: the drawing tools float on the photo. */}
+        {/* The drawing tools float on the photo, on every screen size. */}
         {tool === 'outline' && (
-          <div className="absolute bottom-4 right-4 md:hidden">
+          <div className="absolute bottom-4 right-4">
             <MarkRail {...markTools} disabled={saving} />
           </div>
         )}
 
-        {preview && STAGE_HINTS[tool] && (
+        {preview && hint && (
           <p className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-[10px] border-[1.5px] border-sc-rail-border bg-sc-rail px-3 py-2 text-base font-medium">
-            {STAGE_HINTS[tool]}
+            {hint}
           </p>
         )}
       </div>

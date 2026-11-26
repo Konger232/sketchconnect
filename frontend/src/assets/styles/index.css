@@ -69,6 +69,8 @@
   .has-tip-wrap::after { @apply w-60 whitespace-normal text-left; }
   /* Anchored at the right edge, for a tip near the right of a box. */
   .has-tip-end::after { @apply left-auto right-0 translate-x-0; }
+  /* Below the element, for a row at the top of a panel (Capture's tools). */
+  .has-tip-below::after { @apply bottom-auto top-full mb-0 mt-1.5; }
 
   /* Formerly base.css's .sc-photo-placeholder -- the diagonal-stripe
      swatch shown behind a sketch photo slot before a real image loads.
