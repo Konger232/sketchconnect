@@ -19,7 +19,7 @@ export default function MediaPicker({ picks, onToggle }) {
     <div className="flex flex-col gap-4">
       {MEDIA.map(({ group, items }) => (
         <div key={group} className="flex flex-col gap-2" role="group" aria-label={group}>
-          <p className="text-base font-semibold text-sc-text3">{group}</p>
+          <p className="sc-field-label">{group}</p>
           {group === 'Line' ? (
             <div className="flex flex-wrap gap-x-2 gap-y-3">
               {items.map(([key, name]) => (

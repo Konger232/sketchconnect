@@ -228,12 +228,7 @@ export default function Capture() {
     panel = (
       <SketchDetailsForm d={details} sketch={sketch} footer={false}
         locationUnchanged={Boolean(details.location && sketch.location && details.location.lat === sketch.location.lat && details.location.lon === sketch.location.lon)}
-        extra={(
-          <div className="flex flex-col gap-2">
-            <span className="sc-field-label">What you draw with</span>
-            <MediaPicker picks={media} onToggle={toggleMedia} />
-          </div>
-        )}
+        extra={<MediaPicker picks={media} onToggle={toggleMedia} />}
       />
     )
   } else if (tool === 'tips') {

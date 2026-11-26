@@ -188,7 +188,7 @@
   /* A round tool button with a picture and its name under it (the line
      tools in "What you draw with"): grey, a small hop on hover, the guide
      blue when picked. RoundToolButton.jsx. */
-  .sc-round-tool        { @apply flex w-[4.5rem] flex-col items-center gap-1.5 text-center text-sm font-semibold leading-tight text-white; }
+  .sc-round-tool        { @apply flex w-[4.5rem] flex-col items-center gap-1.5 text-center text-sm font-normal leading-tight text-white/80; }
   .sc-round-tool-circle { @apply flex h-14 w-14 items-center justify-center rounded-full transition-colors;
                           background: var(--round-tool-bg); }
   .sc-round-tool:hover .sc-round-tool-circle { background: var(--round-tool-hover); animation: sc-hop 0.35s ease-out; }
