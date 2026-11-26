@@ -8,6 +8,7 @@ Supabase Storage before deploying (design doc doesn't specify a storage
 layer, so this is a placeholder, not a documented decision).
 """
 import asyncio
+import time
 import io
 import json
 import re
@@ -19,6 +20,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile, File, Form, HTTPException
+from starlette.concurrency import run_in_threadpool
 from PIL import Image, ImageOps
 import pillow_heif
 from sqlalchemy import and_, case, cast, false, func, or_, select
@@ -333,17 +335,15 @@ async def create_sketch(
         if not _is_uuid(event_id):
             raise HTTPException(404, "Event not found")
         event_for_link(db, event_id, sketcher_id, CAPTURE_AFTER, "start a sketch at")
+    t0 = time.perf_counter()
     contents = await image.read()
+    t_read = time.perf_counter()
     try:
-        pil_image = Image.open(io.BytesIO(contents))
-        # Extracted from the freshly opened image, before exif_transpose or
-        # convert() touch it — same source scene_analysis.py's own EXIF
-        # extraction relies on, kept in this order defensively.
-        location, captured_at = extract_location_and_time(pil_image)
-        pil_image = ImageOps.exif_transpose(pil_image)
-        pil_image = pil_image.convert("RGB")
+        # Off the event loop: decoding a phone photo takes a moment.
+        pil_image, location, captured_at = await run_in_threadpool(_open_upload, contents)
     except Exception:
         raise HTTPException(400, "Could not decode image")
+    t_open = time.perf_counter()
     # A photo taken in the browser's camera (Take photo): iPhone removes its
     # GPS and often its time. Then the phone's position at that moment, and
     # now, stand in (November 18, 2026). The photo's own always win.
@@ -354,7 +354,10 @@ async def create_sketch(
         if captured_at is None:
             captured_at = datetime.utcnow()
 
+    # The place name is looked up while the photo goes to storage, not after.
+    geocode = asyncio.create_task(reverse_geocode(location["lat"], location["lon"])) if location else None
     original_image_url = await storage.save_image_async(pil_image, f"{uuid.uuid4()}.jpg")
+    t_save = time.perf_counter()
 
     # The common case: nothing was cropped, so reference_image_url just
     # reuses the same file as original_image_url -- no duplicate storage
@@ -380,7 +383,7 @@ async def create_sketch(
     )
     if location:
         sketch.location = WKTElement(f"POINT({location['lon']} {location['lat']})", srid=4326)
-        label = await reverse_geocode(location["lat"], location["lon"])
+        label = await geocode
         if label:
             sketch.location_label = label[:200]
     if crop_transform:
@@ -392,9 +395,34 @@ async def create_sketch(
     db.flush()
     if sketch.location is not None:
         refresh_home(db, sketcher_id, sketch.id)  # inside the home area?
+    t_place = time.perf_counter()
     db.commit()
     db.refresh(sketch)
-    return attach_events(db, [_sketch_to_dict(sketch)])[0]
+    result = attach_events(db, [_sketch_to_dict(sketch)])[0]
+    t_end = time.perf_counter()
+    # Where an upload's time goes (November 26, 2026), in ms.
+    print(f"[upload] {len(contents) // 1024} KB, {pil_image.width}x{pil_image.height}: "
+          f"read {(t_read - t0) * 1000:.0f}, open {(t_open - t_read) * 1000:.0f}, "
+          f"store {(t_save - t_open) * 1000:.0f}, place {(t_place - t_save) * 1000:.0f}, "
+          f"database {(t_end - t_place) * 1000:.0f}, total {(t_end - t0) * 1000:.0f}")
+    return result
+
+
+# Uploads are kept at most this long on their long side. The AI reads them
+# at 1600 px or less and the display copies are 1600 px (media.py), so the
+# rest only made the upload to storage slower.
+MAX_UPLOAD_SIDE = 2400
+
+
+def _open_upload(contents: bytes):
+    """The uploaded photo, upright, RGB, at most MAX_UPLOAD_SIDE, with the
+    location and time from its EXIF (read before anything changes it)."""
+    pil_image = Image.open(io.BytesIO(contents))
+    location, captured_at = extract_location_and_time(pil_image)
+    pil_image = ImageOps.exif_transpose(pil_image)
+    pil_image = pil_image.convert("RGB")
+    pil_image.thumbnail((MAX_UPLOAD_SIDE, MAX_UPLOAD_SIDE), Image.LANCZOS)
+    return pil_image, location, captured_at
 
 
 @router.put("/sketches/{sketch_id}")
