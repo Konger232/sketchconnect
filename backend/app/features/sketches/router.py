@@ -438,6 +438,11 @@ def _open_upload(contents: bytes):
     location and time from its EXIF (read before anything changes it)."""
     pil_image = Image.open(io.BytesIO(contents))
     location, captured_at = extract_location_and_time(pil_image)
+    # A large JPEG decodes at half size straight from the file (draft), much
+    # faster than decoding it whole and shrinking: a 12 MP phone photo comes
+    # out 2016 x 1512, still more than the 1600 px anything reads.
+    if pil_image.format == "JPEG" and max(pil_image.size) >= 3200:
+        pil_image.draft("RGB", (pil_image.width // 2, pil_image.height // 2))
     pil_image = ImageOps.exif_transpose(pil_image)
     pil_image = pil_image.convert("RGB")
     pil_image.thumbnail((MAX_UPLOAD_SIDE, MAX_UPLOAD_SIDE), Image.LANCZOS)
