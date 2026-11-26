@@ -20,7 +20,9 @@ from pathlib import Path
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Form, HTTPException
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException
 from starlette.concurrency import run_in_threadpool
 # The AI call and the photo load run in a worker thread (run_in_threadpool).
 # Run on the event loop, they stopped the server for the whole call: the
@@ -33,14 +35,14 @@ from sqlalchemy.orm import Session
 from config import COACHING_MAX_DIMENSION, DEBUG
 from app.features.marks_analysis import debug_report, plan_read
 from app.core.auth import get_current_sketcher_id
-from app.core.database import get_db
+from app.core.database import SessionLocal, get_db
 from app.core.gemini_service import GeminiQuotaExceededError
 from app.core.models import Sketch
 from app.core import storage
 from app.features.marks_analysis import service
 from app.features.marks_analysis.schemas import MarksAnalysisResponse
 from app.features.scene_analysis import service as scene_service
-from app.features.scene_analysis.router import cached_scene
+from app.features.scene_analysis.router import cached_scene, scene_analysis
 
 pillow_heif.register_heif_opener()
 
@@ -62,6 +64,55 @@ def _save_media(db: Session, sketch: Sketch, picks: list[str]) -> None:
     db.commit()
 
 CACHE_KEY = "marks_analysis"
+logger = logging.getLogger(__name__)
+
+
+# ---- Read the plan in the background (design doc, item 56) ----
+# Capture's Save answers at once; the scene analysis and the plan read run
+# after the response, like the critique (critique_agent/router.py). Both
+# routes below are called as they are, so their caches and checks hold.
+
+async def _read_plan_in_background(sketch_id: str, sketcher_id: str, media: str | None) -> None:
+    db = SessionLocal()
+    try:
+        status = "done"
+        try:
+            await scene_analysis(sketch_id=sketch_id, db=db, sketcher_id=sketcher_id)
+            await marks_analysis(sketch_id=sketch_id, media=media, db=db, sketcher_id=sketcher_id)
+        except Exception:
+            logger.exception("Plan read failed for sketch %s", sketch_id)
+            db.rollback()
+            status = "failed"
+        sketch = db.query(Sketch).filter(Sketch.id == sketch_id).first()
+        if sketch is not None:  # None: deleted meanwhile
+            sketch.plan_status = status
+            db.commit()
+    finally:
+        db.close()
+
+
+@router.post("/sketches/{sketch_id}/read-plan")
+async def read_plan(
+    sketch_id: str,
+    background_tasks: BackgroundTasks,
+    # The media picks, comma-separated keys, as for /marks-analysis.
+    media: str | None = Form(None),
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """Start reading the plan (scene analysis, then the plan read). Returns
+    right away; GET /api/sketches/{id} carries plan_status and, when done,
+    the plan."""
+    sketch = db.query(Sketch).filter(Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id).first()
+    if sketch is None:
+        raise HTTPException(404, "Sketch not found")
+    if sketch.final_sketch_url:
+        raise HTTPException(409, "The plan is locked once the final sketch is in.")
+    sketch.plan_status = "pending"
+    db.commit()
+    background_tasks.add_task(_read_plan_in_background, sketch.id, sketcher_id, media)
+    return {"plan_status": "pending"}
+
 
 
 @router.post("/marks-analysis", response_model=MarksAnalysisResponse)

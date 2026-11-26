@@ -1719,6 +1719,7 @@ async def get_sketch(
     data.update(social)
     data["owner"] = owner
     data["critique_status"] = sketch.critique_status
+    data["plan_status"] = sketch.plan_status
     # Scene analysis rows on the sketch page (owner only).
     scene = sketch.cached_scene_analysis or {}
     data["scene"] = {"summary": scene.get("scene_summary"), "scene_type": sketch.scene_type or scene.get("scene_type")}

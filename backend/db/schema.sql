@@ -736,3 +736,7 @@ where s.id = m.sketch_id and s.event_id is null;
 alter table profiles add column if not exists home_location geography(Point, 4326);
 alter table profiles add column if not exists home_radius_m integer;
 alter table sketches add column if not exists location_hidden boolean not null default false;
+
+-- Capture reads the plan in the background (November 26, 2026; design doc,
+-- item 56): None | pending | done | failed. Safe to run again.
+alter table sketches add column if not exists plan_status text;

@@ -54,6 +54,10 @@ class Sketch(Base):
     # Critique call progress: None (never run) | 'pending' | 'done' | 'failed'.
     # Set by features/critique_agent/router.py, polled by EditSketch.jsx.
     critique_status = Column(String, nullable=True)
+    # The plan read in the background after Save in Capture (design doc,
+    # item 56): None | 'pending' | 'done' | 'failed'. Set by
+    # POST /api/sketches/{id}/read-plan (marks_analysis/router.py).
+    plan_status = Column(String, nullable=True)
 
     # geography(Point, 4326) — see design doc, Section 3 "Location capture"
     location = Column(Geography(geometry_type="POINT", srid=4326), nullable=True)
