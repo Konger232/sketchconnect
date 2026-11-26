@@ -49,7 +49,7 @@ const TOOLS = [
   { key: 'outline', label: 'Outline', icon: 'pen' },
   { key: 'color', label: 'Color', icon: 'color', soon: true },
   { key: 'value', label: 'Value Study', icon: 'guide-value', soon: true },
-  { key: 'tips', label: 'Tips', icon: 'star' },
+  { key: 'tips', label: 'Tips', icon: 'sparkle' },
   // Details and everything else: the title, location, notes, media, sharing.
   { key: 'details', label: 'More' },
 ]

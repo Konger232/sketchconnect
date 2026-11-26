@@ -403,6 +403,18 @@ const ICONS = {
       </>
     ),
   },
+  // AI: a large four-point sparkle and a small one (Capture's Tips tool).
+  // Drawn for the app, in its line style.
+  sparkle: {
+    viewBox: '0 0 24 24',
+    draw: STROKE,
+    content: (
+      <>
+        <path d="M10 3.5c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z" />
+        <path d="M18 14.5c.3 1.6 1 2.3 2.5 2.5-1.5.3-2.2 1-2.5 2.5-.3-1.5-1-2.2-2.5-2.5 1.5-.2 2.2-.9 2.5-2.5Z" />
+      </>
+    ),
+  },
   star: {
     viewBox: '0 0 24 24',
     draw: STROKE,
