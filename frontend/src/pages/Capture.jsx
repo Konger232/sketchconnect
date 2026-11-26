@@ -81,12 +81,15 @@ export default function Capture() {
     else inputRef.current?.click()
   }
 
-  async function replacePhoto() {
+  // The picker opens at once, inside the tap (a browser opens it only
+  // then); the old sketch is deleted in the background.
+  function replacePhoto() {
     setConfirmingReplace(false)
-    try { await api.delete(`/api/sketches/${sketchId}`) } catch { /* best effort */ }
+    inputRef.current?.click()
+    const old = sketchId
     setSketch(null)
     setSaved(false)
-    inputRef.current?.click()
+    api.delete(`/api/sketches/${old}`).catch(() => { /* best effort */ })
   }
 
   async function handleFile(e) {
@@ -195,11 +198,10 @@ export default function Capture() {
   }
 
   // ===== RENDER =====
-  const tools = TOOLS.map((t) => ({
-    ...t,
-    // Before a photo, only Upload. Crop, Outline, Color and Value: next slices.
-    disabled: t.key !== 'upload' && (!sketchId || t.soon),
-  }))
+  // Before a photo, only Upload. Every tool lights up as soon as a photo
+  // is picked, while it uploads.
+  const tools = TOOLS.map((t) => ({ ...t, disabled: t.key !== 'upload' && !preview }))
+  const soon = TOOLS.find((t) => t.key === tool)?.soon
 
   let panel = null
   if (tool === 'upload') {
@@ -208,6 +210,18 @@ export default function Capture() {
         <p className="sc-body">
           {uploading ? 'Saving your photo…' : sketchId ? 'Tap the camera to use another photo.' : 'Photograph the scene, or pick a photo.'}
         </p>
+      </div>
+    )
+  } else if (soon) {
+    panel = (
+      <div className="sc-panel-body">
+        <p className="sc-body">This tool comes in the next build.</p>
+      </div>
+    )
+  } else if (tool === 'details' && !sketch) {
+    panel = (
+      <div className="sc-panel-body">
+        <p className="sc-body animate-pulse">Saving your photo. Details open in a moment.</p>
       </div>
     )
   } else if (tool === 'details' && sketch) {

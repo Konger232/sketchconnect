@@ -265,9 +265,25 @@ export default function SketchNotes({ sketch, owner }) {
  * this sketch. The microphone sits on the Field note label in EditSketch,
  * and starts a recording here through recordRequest (a counter). Dark panel.
  */
-export function DetailsVoiceNotes({ sketchId, notesShared, recordRequest = 0 }) {
-  const rec = useSketchNotes(sketchId)
+/** "Keep it private" for a sketch's notes, with its tip. Saved at once.
+ * Sits on the Field note row in Details (SketchDetailsForm). */
+export function KeepPrivateToggle({ sketchId, notesShared }) {
   const [shared, setShared] = useNotesShared(sketchId, notesShared)
+  return (
+    <div className="flex items-center gap-1.5 text-sm text-white">
+      <label className="flex items-center gap-2.5 text-white">
+        <input type="checkbox" checked={!shared} onChange={(e) => setShared(!e.target.checked)} className="h-4 w-4 accent-sc-guide" />
+        Keep it private
+      </label>
+      <InfoTip label="About Keep it private" align="right">
+        Checked: only you read your notes. Unchecked: anyone who can see this sketch reads your typed note and the text of your voice notes. The recordings always stay private.
+      </InfoTip>
+    </div>
+  )
+}
+
+export function DetailsVoiceNotes({ sketchId, recordRequest = 0 }) {
+  const rec = useSketchNotes(sketchId)
   const [recording, setRecording] = useState(false)
   const [removing, setRemoving] = useState(null)
   const voice = (rec.notes || []).filter((n) => n.kind === 'voice')
@@ -278,15 +294,6 @@ export function DetailsVoiceNotes({ sketchId, notesShared, recordRequest = 0 }) 
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-1.5 text-sm text-white">
-        <label className="flex items-center gap-2.5 text-white">
-          <input type="checkbox" checked={!shared} onChange={(e) => setShared(!e.target.checked)} className="h-4 w-4 accent-sc-guide" />
-          Keep it private
-        </label>
-        <InfoTip label="About Keep it private">
-          Checked: only you read your notes. Unchecked: anyone who can see this sketch reads your typed note and the text of your voice notes. The recordings always stay private.
-        </InfoTip>
-      </div>
       {rec.saving && <span className="animate-pulse text-sm text-sc-text3">Saving the recording…</span>}
       {rec.error && <p className="m-0 text-sm text-accent">{rec.error}</p>}
       {voice.length > 0 && (

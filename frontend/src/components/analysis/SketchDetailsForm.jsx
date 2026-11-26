@@ -2,7 +2,7 @@ import Icon from '../common/Icon'
 import InfoTip from '../common/InfoTip'
 import LocationSearchField from '../common/LocationSearchField'
 import LocationMap from '../common/LocationMap'
-import { DetailsVoiceNotes } from '../common/SketchNotes'
+import { DetailsVoiceNotes, KeepPrivateToggle } from '../common/SketchNotes'
 
 export const NOTE_LIMIT = 500
 
@@ -125,7 +125,8 @@ export default function SketchDetailsForm({ d, sketch, chips = null, extra = nul
               className="flex h-8 w-8 items-center justify-center rounded-full text-sc-text3 hover:bg-white/10 hover:text-white">
               <Icon name="mic" size={18} />
             </button>
-            {d.fieldNotes && <span className="ml-auto text-sm font-semibold text-sc-text3">{d.fieldNotes.length} / {NOTE_LIMIT}</span>}
+            {/* Keep it private covers the typed note and the voice notes. */}
+            <span className="ml-auto"><KeepPrivateToggle sketchId={sketch.id} notesShared={sketch.notes_shared} /></span>
           </span>
           <textarea
             id="field-note"
@@ -136,8 +137,9 @@ export default function SketchDetailsForm({ d, sketch, chips = null, extra = nul
             rows={4}
             className="sc-field min-h-[7rem] resize-y leading-normal"
           />
-          {/* Keep it private, then the recorded notes. It covers both. */}
-          <DetailsVoiceNotes sketchId={sketch.id} notesShared={sketch.notes_shared} recordRequest={d.recordRequest} />
+          {d.fieldNotes && <span className="self-end text-sm font-semibold text-sc-text3">{d.fieldNotes.length} / {NOTE_LIMIT}</span>}
+          {/* The recorded notes, written down by the AI. */}
+          <DetailsVoiceNotes sketchId={sketch.id} recordRequest={d.recordRequest} />
         </div>
 
         {extra}
