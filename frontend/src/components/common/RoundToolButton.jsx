@@ -7,7 +7,7 @@ export default function RoundToolButton({ image, label, selected = false, onClic
   return (
     <button type="button" className="sc-round-tool" aria-pressed={selected} onClick={onClick}>
       <span className="sc-round-tool-circle">
-        <img src={image} alt="" className="h-12 w-12 object-contain" draggable={false} />
+        <img src={image} alt="" className="h-[52px] w-[52px] object-contain" draggable={false} />
       </span>
       {label}
     </button>

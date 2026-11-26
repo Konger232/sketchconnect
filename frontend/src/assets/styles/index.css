@@ -192,6 +192,7 @@
   .sc-round-tool-circle { @apply flex h-14 w-14 items-center justify-center rounded-full transition-colors;
                           background: var(--round-tool-bg); }
   .sc-round-tool:hover .sc-round-tool-circle { background: var(--round-tool-hover); animation: sc-hop 0.35s ease-out; }
+  .sc-round-tool[aria-pressed='true'] { @apply font-bold text-white; }
   .sc-round-tool[aria-pressed='true'] .sc-round-tool-circle { background: var(--accent-guide); }
   .sc-round-tool:focus-visible { @apply outline-none; }
   .sc-round-tool:focus-visible .sc-round-tool-circle { @apply ring-2 ring-white; }
