@@ -121,7 +121,7 @@ export function useColorTool({ sketchId, sketch, enabled }) {
     </>
   )
   const panels = (photo) => [
-    { key: 'mask', label: 'In your mask', content: (
+    { key: 'mask', label: 'Gamut mask applied', content: (
       <div className="flex min-h-0 flex-1 flex-col">
         <MaskedPhoto src={photo} shapes={shapes} overlay={overlay} />
       </div>

@@ -67,7 +67,7 @@ export function SamplePhoto({ src, onSample, overlay }) {
 }
 
 /**
- * "In your mask": the reference photo in the mask's key (Gurney). The
+ * "Gamut mask applied": the reference photo in the mask's key (Gurney). The
  * whole wheel is squeezed into the mask, so every colour moves into it and
  * keeps its place relative to the others; lightness is kept. In the
  * browser, so it follows the mask as it is dragged; no AI call. It
