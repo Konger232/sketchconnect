@@ -262,7 +262,8 @@ export default function SketchDetail() {
   }
 
   // Capture (item 57): the plan before the final sketch, only the details after.
-  const openEdit = () => navigate(`/sketches/${s.id}/edit`, { state: { backgroundLocation: location } })
+  // The sketch goes along, so Capture opens with it at once.
+  const openEdit = () => navigate(`/sketches/${s.id}/edit`, { state: { backgroundLocation: location, sketch: s } })
 
   // ---- the final sketch's palette (owner) ----
   function openPaint(mode, paint, el) {

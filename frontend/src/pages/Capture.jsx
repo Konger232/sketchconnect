@@ -258,28 +258,39 @@ export default function Capture() {
   }, [])
   // ===== A SAVED SKETCH =====
   // Its photo, crop, strokes and media come back as saved, so nothing is
-  // saved or read again until something changes.
+  // saved or read again until something changes. The sketch page passes
+  // the sketch along, so it opens at once; the server's copy then brings
+  // only what may have changed since (the plan read, November 27, 2026).
+  const opening = editing && !sketch
   useEffect(() => {
     if (!openId) return
+    const seed = routerLocation.state?.sketch
+    if (seed?.id === openId) openSaved(seed)
     api.get(`/api/sketches/${openId}`).then(({ data }) => {
-      // Only the sketcher edits their sketch; anyone else sees its page.
-      if (!data.is_owner) return navigate(`/sketches/${openId}`, { replace: true })
-      setSketch(data)
-      setPreview(resolveUrl(data.original_image_url || data.reference_image_url))
-      let frame = crop.frame()
-      if (data.crop_transform) {
-        frame = crop.restore(data.crop_transform)
-        setFramed({ url: resolveUrl(data.reference_image_url), n: 0 })
-      }
-      const marks = data.marks || []
-      drawing.setMarks(marks)
-      savedMarksRef.current = JSON.stringify(marks)
-      if (data.media?.length) setMedia(data.media)
-      if (data.plan_read) readKeyRef.current = JSON.stringify([savedMarksRef.current, frame, data.media || []])
-      setOpened(new Set(TOOLS.map((t) => t.key)))
-      setTool(data.final_sketch_url ? 'details' : data.plan_read ? 'tips' : 'outline')
+      if (seed?.id !== openId) return openSaved(data)
+      setSketch((prev) => ({ ...prev, plan_status: data.plan_status, plan_read: data.plan_read,
+        focal_suggestions: data.focal_suggestions, session_choices: data.session_choices }))
     }).catch(() => setError('Could not open this sketch.'))
   }, [openId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function openSaved(data) {
+    // Only the sketcher edits their sketch; anyone else sees its page.
+    if (!data.is_owner) return navigate(`/sketches/${openId}`, { replace: true })
+    setSketch(data)
+    setPreview(resolveUrl(data.original_image_url || data.reference_image_url))
+    let frame = crop.frame()
+    if (data.crop_transform) {
+      frame = crop.restore(data.crop_transform)
+      setFramed({ url: resolveUrl(data.reference_image_url), n: 0 })
+    }
+    const marks = data.marks || []
+    drawing.setMarks(marks)
+    savedMarksRef.current = JSON.stringify(marks)
+    if (data.media?.length) setMedia(data.media)
+    if (data.plan_read) readKeyRef.current = JSON.stringify([savedMarksRef.current, frame, data.media || []])
+    setOpened(new Set(TOOLS.map((t) => t.key)))
+    setTool(data.final_sketch_url ? 'details' : data.plan_read ? 'tips' : 'outline')
+  }
 
   function toggleMedia(key) {
     setMedia((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]))
@@ -437,7 +448,7 @@ export default function Capture() {
   // Before a photo, only Upload. Every tool lights up as soon as a photo
   // is picked, while it uploads.
   const tools = TOOLS.map((t) => {
-    const disabled = (t.key !== 'upload' && !preview) || (locked && PLAN_TOOLS.includes(t.key))
+    const disabled = opening || (t.key !== 'upload' && !preview) || (locked && PLAN_TOOLS.includes(t.key))
     return { ...t, disabled, dot: !disabled && !opened.has(t.key) }
   })
   const studyTool = tool === 'value' || tool === 'color' ? tool : null
@@ -586,6 +597,9 @@ export default function Capture() {
           </ImagePanel>
           </div>
           </>
+        ) : opening ? (
+          // A saved sketch on its way: not the empty Upload screen.
+          <p className="m-auto animate-pulse text-md text-sc-text3">Opening your sketch…</p>
         ) : (
           <PhotoDropzone
             title="Photograph the scene you'll draw"
@@ -614,7 +628,7 @@ export default function Capture() {
 
       {/* ===== RIGHT: TOOLS ===== */}
       <div className="sc-panel sc-panel-pinned">
-        <ToolRow tools={tools} active={tool} onPick={(key) => (key === 'upload' ? (setTool('upload'), pickPhoto()) : setTool(key))} />
+        <ToolRow tools={tools} active={opening ? null : tool} onPick={(key) => (key === 'upload' ? (setTool('upload'), pickPhoto()) : setTool(key))} />
         {panel}
         {error && <p className="px-[var(--space-panel-x)] pb-2 text-base text-accent">{error}</p>}
         <div className="sc-footer sc-footer-pinned md:mt-auto">
