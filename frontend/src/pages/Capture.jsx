@@ -14,7 +14,8 @@ import StageStrip from '../components/analysis/StageStrip'
 import ValuePanel from '../components/analysis/ValuePanel'
 import ColorPanel from '../components/analysis/ColorPanel'
 import MediaPicker from '../components/analysis/MediaPicker'
-import PlanReadCard from '../components/analysis/PlanReadCard'
+import AIGuidance from '../components/analysis/AIGuidance'
+import ShapeOutlineOverlay from '../components/analysis/ShapeOutlineOverlay'
 import SketchDetailsForm from '../components/analysis/SketchDetailsForm'
 import { useSketchDetails } from '../components/analysis/useSketchDetails'
 import { api } from '../lib/api'
@@ -337,6 +338,16 @@ export default function Capture() {
     return () => clearInterval(t)
   }, [sketchId, planStatus])
 
+  // ===== TIPS: THE PLAN CARD (AIGuidance, as in Edit Sketch) =====
+  // A tapped tip highlights its strokes; a "consider adding" area shows in
+  // red, and a tap on it adds it as a stroke.
+  const [highlightIds, setHighlightIds] = useState([])
+  const [aiSuggestion, setAiSuggestion] = useState(null)
+  const [suggestionTap, setSuggestionTap] = useState(0)
+  const suggestedRegion = tool === 'tips' && Number.isInteger(aiSuggestion?.region_ref)
+    ? (sketch?.focal_regions || [])[aiSuggestion.region_ref] || null : null
+  const reviewAnalysis = { scene_type: sketch?.scene_type, prepared_prompts: [] }
+
   // ===== CLOSE AND DELETE =====
   // Closing keeps the sketch, with everything saved; deleting it is a
   // choice of its own, in More.
@@ -405,7 +416,22 @@ export default function Capture() {
             <Button variant="secondaryOnDark" onClick={() => readPlan().catch(() => {})}>Try again</Button>
           </div>
         ) : planStatus === 'done' && sketch?.plan_read ? (
-          <PlanReadCard planRead={sketch.plan_read} />
+          <AIGuidance
+            sketchId={sketchId}
+            referenceImageUrl={studyPhoto}
+            style={sketch.style}
+            analysis={reviewAnalysis}
+            review
+            savedChoices={sketch.session_choices || []}
+            planRead={sketch.plan_read}
+            focalSuggestions={sketch.focal_suggestions || []}
+            bookmarksLocked={Boolean(sketch.final_sketch_url)}
+            onHighlight={setHighlightIds}
+            onSuggestionChange={setAiSuggestion}
+            suggestionTap={suggestionTap}
+            // An added area comes back as a stroke: the plan now has it.
+            onMarksChange={(saved) => { drawing.setMarks(saved); savedMarksRef.current = JSON.stringify(saved) }}
+          />
         ) : (
           <p className="sc-body animate-pulse">Tips for this scene are coming. Go ahead and sketch.</p>
         )}
@@ -474,7 +500,13 @@ export default function Capture() {
             {...(tool === 'crop' ? cropHandlers : tool === 'outline' ? drawing.handlers : {})}
             onImageLoad={crop.handleImageLoad}
           >
-            <Fade show={tool !== 'crop'}><MarksLayer marks={drawing.marks} live={drawing.live} /></Fade>
+            <Fade show={tool !== 'crop'}>
+              <MarksLayer marks={drawing.marks} live={drawing.live} highlight={tool === 'tips' ? highlightIds : []} />
+            </Fade>
+            {suggestedRegion && (
+              <ShapeOutlineOverlay focalRegions={[suggestedRegion]} regionLabel={aiSuggestion?.label}
+                onRegionClick={() => setSuggestionTap((n) => n + 1)} />
+            )}
           </ImagePanel>
           </div>
           </>
