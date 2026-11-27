@@ -261,7 +261,8 @@ export default function SketchDetail() {
     }
   }
 
-  const openEdit = () => navigate(`/sketches/${s.id}/edit`, { state: { backgroundLocation: location, tab: 'details' } })
+  // Capture (item 57): the plan before the final sketch, only the details after.
+  const openEdit = () => navigate(`/sketches/${s.id}/edit`, { state: { backgroundLocation: location } })
 
   // ---- the final sketch's palette (owner) ----
   function openPaint(mode, paint, el) {
@@ -363,7 +364,7 @@ export default function SketchDetail() {
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           {shared && likeButton}
-          {viewer === 'owner' && <Button variant="editorial" onClick={openEdit}>Edit</Button>}
+          {viewer === 'owner' && <Button variant="editorial" onClick={openEdit}>{s.final_sketch_url ? 'Edit details' : 'Edit plan'}</Button>}
           {viewer === 'owner' && (
             <Button variant={shared ? 'editorial' : 'editorialSolid'} onClick={() => setUploading({})}>
               <Icon name="plus" size={15} /> Upload sketch

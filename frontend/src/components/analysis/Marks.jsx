@@ -28,16 +28,15 @@ import { squareScale } from '../../lib/markGeometry'
  *     drawn selects it, and a second tap unselects it (no Select tool since
  *     October 6, 2026). Marks analysis asks about selected marks first.
  *
- * Four pieces:
- *   - useMarkDrawing: pointer handling + the marks list (CreateSketch).
+ * Three pieces:
+ *   - useMarkDrawing: pointer handling + the marks list (Capture).
  *     Tool 'pen' draws (a tap on a drawn line selects or unselects it),
  *     'eraser' erases the mark under the tap.
  *   - MarksLayer: an SVG <g> that renders visible marks inside any 0-1000
- *     viewBox overlay (CreateSketch, GuideStage), with a halo under
+ *     viewBox overlay (Capture, SketchDetail), with a halo under
  *     highlighted marks
- *   - MarkPanel (default): the Marks step tools in the right panel, on
- *     tablet and desktop: Pen, Eraser, Undo, Color, Line
- *   - MarkRail: the same tools as a floating rail on the photo, on a phone
+ *   - MarkRail: the tools (Pen, Color, Eraser, Line, Undo) as a floating
+ *     rail on the photo, on every screen size
  */
 
 // Every mark uses one of the --mark-color-* tokens and one of the
@@ -78,10 +77,6 @@ export function markColor(key) {
   const c = MARK_COLORS.find((m) => m.key === key) || MARK_COLORS[1]
   return markToken(c.token, c.fallback)
 }
-
-// How to select a mark: shown under the tools (MarkPanel) and, on a phone,
-// in the panel below the photo (CreateSketch).
-export const SELECT_HINT = 'Tap a stroke you drew to select it. Tap it again to unselect. Selected strokes are asked about first.'
 
 // The label for a size button: the token's number, so "0.5mm" shows "0.5".
 const sizeLabel = (s) => markToken(s.token, s.fallback).replace(/mm$/, '')
@@ -369,87 +364,9 @@ export function useMarkDrawing(svgRef, { enabled, tool = 'pen', size = DEFAULT_M
   }
 }
 
-// The tools' shared props: tool, onToolChange, size, onSizeChange, color,
+// MarkRail's props: tool, onToolChange, size, onSizeChange, color,
 // onColorChange, count, canUndo, onUndo, disabled. Picking a size or a
 // colour also picks the Pen.
-
-/**
- * The Marks step tools in the right panel (tablet and desktop, where
- * there is room): how to select a mark first, then one tool per row: Pen,
- * Eraser, Undo, Color and Line. The step is optional; Skip lives in the
- * footer.
- */
-export default function MarkPanel({
-  tool,
-  onToolChange,
-  size = DEFAULT_MARK_SIZE,
-  onSizeChange,
-  color = DEFAULT_MARK_COLOR,
-  onColorChange,
-  count,
-  canUndo,
-  onUndo,
-  disabled,
-}) {
-  const toolClass = (on) =>
-    `flex h-11 items-center gap-1.5 whitespace-nowrap rounded-[10px] px-3 text-base font-semibold ${
-      on ? 'bg-sc-border text-white' : 'text-sc-text2 hover:text-white'
-    }`
-  return (
-    <div className="flex flex-col gap-1">
-      <p className="pb-2 text-sm text-sc-text3">{SELECT_HINT}</p>
-      <button type="button" aria-pressed={tool === 'pen'} className={`self-start ${toolClass(tool === 'pen')}`} onClick={() => onToolChange('pen')}>
-        <Icon name="pen" size={18} />Pen
-      </button>
-      <button type="button" aria-pressed={tool === 'eraser'} className={`self-start ${toolClass(tool === 'eraser')}`} onClick={() => onToolChange('eraser')} disabled={disabled || count === 0}>
-        <Icon name="eraser" size={18} />Eraser
-      </button>
-      <button type="button" className={`self-start ${toolClass(false)}`} onClick={onUndo} disabled={disabled || !(canUndo ?? count > 0)}>
-        <Icon name="undo" size={18} />Undo
-      </button>
-      <div className="flex items-center gap-1">
-        <span className="flex w-24 shrink-0 items-center gap-1.5 pl-3 text-base font-semibold text-sc-text2" id="mark-color-label">
-          <Icon name="color" size={18} />Color
-        </span>
-        <div role="group" aria-labelledby="mark-color-label" className="flex items-center gap-1">
-          {MARK_COLORS.map((c) => (
-            <button
-              key={c.key}
-              type="button"
-              aria-pressed={color === c.key}
-              aria-label={`${c.label} lines`}
-              className={toolClass(color === c.key)}
-              onClick={() => { onColorChange?.(c.key); onToolChange('pen') }}
-              disabled={disabled}
-            >
-              <span className="h-4 w-4 rounded-full" style={{ background: markColor(c.key) }} />
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="flex items-center gap-1">
-        <span className="flex w-24 shrink-0 items-center gap-1.5 pl-3 text-base font-semibold text-sc-text2" id="mark-size-label">
-          <Icon name="thickness" size={18} />Line
-        </span>
-        <div role="group" aria-labelledby="mark-size-label" className="flex items-center gap-1">
-          {MARK_SIZES.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              aria-pressed={size === s.key}
-              aria-label={`${sizeLabel(s)} mm line`}
-              className={toolClass(size === s.key)}
-              onClick={() => { onSizeChange?.(s.key); onToolChange('pen') }}
-              disabled={disabled}
-            >
-              {sizeLabel(s)}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 /**
  * The Marks step tools as a floating rail on the photo, for a phone, where

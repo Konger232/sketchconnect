@@ -27,14 +27,10 @@ import { previewUrl } from '../lib/previewUrl'
  * Capture (design doc, items 56 and 57): every tool at once, in a row,
  * instead of New Sketch's steps. Everything saves as the sketcher works;
  * Done starts the plan read in the background and opens the sketch, so
- * there is nothing to wait for.
+ * there is nothing to wait for. It replaced New Sketch and Edit Sketch
+ * (November 27, 2026).
  *
- * Built in slices beside New Sketch and Edit Sketch, which keep working
- * until the switch. Slice 1: Upload, Details, Tips.
- * Slice 2: Crop and Outline. Slice 3: Color and Value (shared with Edit
- * Sketch: useStudyTools), then Tips and saved sketches.
- *
- * A saved sketch opens here too (/capture-new/:sketchId): its photo,
+ * A saved sketch opens here too (/sketches/:sketchId/edit): its photo,
  * crop, strokes and media come back. Changing the photo, crop or strokes
  * asks first, as the plan is read again. Once the final sketch is in, the
  * plan is locked: only More (the details) and Tips stay open.
@@ -62,11 +58,11 @@ const STAGE_HINTS = {
 }
 
 const TOOLS = [
-  { key: 'upload', label: 'Capture the scene', icon: 'camera' },
-  { key: 'crop', label: 'Crop', icon: 'expand' },
+  { key: 'upload', label: 'Capture the scene', icon: 'capture' },
+  { key: 'crop', label: 'Crop', icon: 'crop' },
   { key: 'outline', label: 'Outline', icon: 'pen' },
-  { key: 'color', label: 'Color', icon: 'color' },
-  { key: 'value', label: 'Value Study', icon: 'guide-value' },
+  { key: 'color', label: 'Color', icon: 'palette' },
+  { key: 'value', label: 'Value Study', icon: 'value-tiles' },
   { key: 'tips', label: 'Tips', icon: 'sparkle' },
   // Details and everything else: the title, location, notes, media, sharing.
   { key: 'details', label: 'More' },
@@ -252,8 +248,10 @@ export default function Capture() {
 
   // ===== DETAILS: WHAT YOU DRAW WITH =====
   // Pre-filled from the last sketch. Sent with the plan read, which keeps them.
+  // A saved sketch keeps its own (or none), so its plan reads the same.
   const [media, setMedia] = useState([])
   useEffect(() => {
+    if (openId) return
     api.get('/api/sketch-media/last').then(({ data }) => {
       if (data?.media?.length) setMedia((cur) => (cur.length ? cur : data.media))
     }).catch(() => {})
@@ -264,6 +262,8 @@ export default function Capture() {
   useEffect(() => {
     if (!openId) return
     api.get(`/api/sketches/${openId}`).then(({ data }) => {
+      // Only the sketcher edits their sketch; anyone else sees its page.
+      if (!data.is_owner) return navigate(`/sketches/${openId}`, { replace: true })
       setSketch(data)
       setPreview(resolveUrl(data.original_image_url || data.reference_image_url))
       let frame = crop.frame()
@@ -404,7 +404,7 @@ export default function Capture() {
     return () => clearInterval(t)
   }, [sketchId, planStatus])
 
-  // ===== TIPS: THE PLAN CARD (AIGuidance, as in Edit Sketch) =====
+  // ===== TIPS: THE PLAN CARD (AIGuidance) =====
   // A tapped tip highlights its strokes; a "consider adding" area shows in
   // red, and a tap on it adds it as a stroke.
   const [highlightIds, setHighlightIds] = useState([])
@@ -412,7 +412,6 @@ export default function Capture() {
   const [suggestionTap, setSuggestionTap] = useState(0)
   const suggestedRegion = tool === 'tips' && Number.isInteger(aiSuggestion?.region_ref)
     ? (sketch?.focal_regions || [])[aiSuggestion.region_ref] || null : null
-  const reviewAnalysis = { scene_type: sketch?.scene_type, prepared_prompts: [] }
 
   // ===== CLOSE AND DELETE =====
   // Closing keeps the sketch, with everything saved; deleting it is a
@@ -484,14 +483,10 @@ export default function Capture() {
         ) : planStatus !== 'pending' && sketch?.plan_read ? (
           <AIGuidance
             sketchId={sketchId}
-            referenceImageUrl={studyPhoto}
-            style={sketch.style}
-            analysis={reviewAnalysis}
-            review
             savedChoices={sketch.session_choices || []}
             planRead={sketch.plan_read}
             focalSuggestions={sketch.focal_suggestions || []}
-            bookmarksLocked={Boolean(sketch.final_sketch_url)}
+            bookmarksLocked={locked}
             onHighlight={setHighlightIds}
             onSuggestionChange={setAiSuggestion}
             suggestionTap={suggestionTap}

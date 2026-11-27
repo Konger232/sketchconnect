@@ -33,6 +33,8 @@ export default function SketchDetailsForm({ d, sketch, chips = null, extra = nul
   return (
     <>
       <div className="sc-panel-body gap-[18px]">
+        {/* The panel's title, as on the Color panel (November 27, 2026). */}
+        <h3 className="text-white">About the sketch</h3>
         {chips}
 
         <label className="flex flex-col gap-2">

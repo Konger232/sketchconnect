@@ -3,9 +3,7 @@ import { AuthProvider, useAuth } from './components/common/AuthContext'
 import { supabaseConfigured } from './lib/supabaseClient'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
-import CreateSketch from './pages/CreateSketch'
 import Capture from './pages/Capture'
-import EditSketch from './pages/EditSketch'
 import SearchPage from './pages/SearchPage'
 import Explore from './pages/Explore'
 import YourWork from './pages/YourWork'
@@ -75,13 +73,10 @@ function Router() {
       <Routes location={backgroundLocation || location}>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/capture" element={<RequireAuth><CreateSketch /></RequireAuth>} />
-        {/* Capture as a set of tools (item 57), beside New Sketch until the switch. */}
-        <Route path="/capture-new" element={<RequireAuth><Capture /></RequireAuth>} />
-        <Route path="/capture-new/:sketchId" element={<RequireAuth><Capture /></RequireAuth>} />
+        <Route path="/capture" element={<RequireAuth><Capture /></RequireAuth>} />
         <Route path="/sketchers/:username" element={<MembersOnly><SketcherProfile /></MembersOnly>} /> {/* owner and member views */}
         <Route path="/sketches/:sketchId" element={<SketchPage />} /> {/* members: the full page; visitors: the public view */}
-        <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketch /></RequireAuth>} />
+        <Route path="/sketches/:sketchId/edit" element={<RequireAuth><Capture /></RequireAuth>} />
         <Route path="/search" element={<MembersOnly><SearchPage /></MembersOnly>} /> {/* search sketches by sketcher, title or place */}
         <Route path="/explore" element={<MembersOnly><Explore /></MembersOnly>} /> {/* the map of sketches */}
         <Route path="/your-work" element={<YourWork />} /> {/* public: how sketchers' work is protected */}
@@ -103,10 +98,8 @@ function Router() {
           as a normal full-page route. */}
       {backgroundLocation && (
         <Routes>
-          <Route path="/capture" element={<RequireAuth><CreateSketch /></RequireAuth>} />
-          <Route path="/capture-new" element={<RequireAuth><Capture /></RequireAuth>} />
-          <Route path="/capture-new/:sketchId" element={<RequireAuth><Capture /></RequireAuth>} />
-          <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketch /></RequireAuth>} />
+          <Route path="/capture" element={<RequireAuth><Capture /></RequireAuth>} />
+          <Route path="/sketches/:sketchId/edit" element={<RequireAuth><Capture /></RequireAuth>} />
         </Routes>
       )}
     </>
