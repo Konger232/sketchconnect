@@ -9,6 +9,10 @@ import ImagePanel from '../components/analysis/ImagePanel'
 import Fade from '../components/analysis/Fade'
 import { DEFAULT_MARK_COLOR, DEFAULT_MARK_SIZE, MarkRail, MarksLayer, useMarkDrawing } from '../components/analysis/Marks'
 import { useCropFrame } from '../components/analysis/useCropFrame'
+import { useColorTool, useValueTool } from '../components/analysis/useStudyTools'
+import StageStrip from '../components/analysis/StageStrip'
+import ValuePanel from '../components/analysis/ValuePanel'
+import ColorPanel from '../components/analysis/ColorPanel'
 import MediaPicker from '../components/analysis/MediaPicker'
 import PlanReadCard from '../components/analysis/PlanReadCard'
 import SketchDetailsForm from '../components/analysis/SketchDetailsForm'
@@ -26,7 +30,8 @@ import { previewUrl } from '../lib/previewUrl'
  *
  * Built in slices beside New Sketch and Edit Sketch, which keep working
  * until the switch. Slice 1: Upload, Details, Tips.
- * Slice 2: Crop and Outline. Color and Value come next.
+ * Slice 2: Crop and Outline. Slice 3: Color and Value (shared with Edit
+ * Sketch: useStudyTools), then Tips and saved sketches.
  */
 
 // A photo created this recently counts as just taken with the camera: the
@@ -48,8 +53,8 @@ const TOOLS = [
   { key: 'upload', label: 'Capture the scene', icon: 'camera' },
   { key: 'crop', label: 'Crop', icon: 'expand' },
   { key: 'outline', label: 'Outline', icon: 'pen' },
-  { key: 'color', label: 'Color', icon: 'color', soon: true },
-  { key: 'value', label: 'Value Study', icon: 'guide-value', soon: true },
+  { key: 'color', label: 'Color', icon: 'color' },
+  { key: 'value', label: 'Value Study', icon: 'guide-value' },
   { key: 'tips', label: 'Tips', icon: 'sparkle' },
   // Details and everything else: the title, location, notes, media, sharing.
   { key: 'details', label: 'More' },
@@ -223,6 +228,17 @@ export default function Capture() {
   // AI read is the one costly step, so it runs once, on Done (or when Tips
   // opens and nothing has been read for this plan yet).
 
+  // The framed photo as saved: { url (on this device), n (a count) }.
+  const [framed, setFramed] = useState(null)
+
+  // ===== COLOR AND VALUE (shared with Edit Sketch) =====
+  // They read the saved framed photo, so they wait while the crop has
+  // unsaved changes. Neither changes the plan or the tips.
+  const studiesReady = Boolean(sketchId) && !crop.changed()
+  const value = useValueTool({ sketchId, sketch, active: tool === 'value', enabled: studiesReady, photoKey: framed?.n })
+  const color = useColorTool({ sketchId, sketch, active: tool === 'color', enabled: studiesReady })
+  const studyPhoto = framed?.url || preview
+
   // The crop: baked and saved once the Crop tool closes (and the photo is
   // uploaded). Strokes are drawn on that frame.
   async function saveCrop() {
@@ -231,7 +247,8 @@ export default function Capture() {
     const framed = new FormData()
     framed.append('old_points', '[]')
     framed.append('new_points', '[]')
-    framed.append('framed_image', await crop.bake(), 'framed.jpg')
+    const blob = await crop.bake()
+    framed.append('framed_image', blob, 'framed.jpg')
     framed.append('crop_transform', JSON.stringify({
       aspect_ratio: f.aspect_ratio,
       ...(f.aspect_ratio === 'custom' && { ratio: f.ratio }),
@@ -239,6 +256,8 @@ export default function Capture() {
     }))
     await api.post(`/api/sketches/${sketchId}/focal-frame`, framed)
     crop.markSaved(f)
+    // Color and Value show this framed photo; Value reads it again.
+    setFramed((old) => { if (old) URL.revokeObjectURL(old.url); return { url: URL.createObjectURL(blob), n: (old?.n || 0) + 1 } })
   }
   useEffect(() => {
     if (tool !== 'crop') saveCrop().catch(() => setError('Could not save your crop.'))
@@ -345,16 +364,23 @@ export default function Capture() {
     const disabled = t.key !== 'upload' && !preview
     return { ...t, disabled, dot: !disabled && !opened.has(t.key) }
   })
-  const soon = TOOLS.find((t) => t.key === tool)?.soon
+  const studyTool = tool === 'value' || tool === 'color' ? tool : null
   const hint = tool === 'upload' && uploading ? 'Saving your photo…' : STAGE_HINTS[tool]
 
   let panel = null
   // Upload, Crop and Outline: their instruction is over the photo, and
   // Outline's tools float on it, so the right panel stays empty.
-  if (soon) {
+  if (tool === 'value') {
     panel = (
       <div className="sc-panel-body">
-        <p className="sc-body">This tool comes in the next build.</p>
+        <ValuePanel levels={value.levels} onLevels={value.pick} study={value.study} loading={!value.study} error={value.error} />
+      </div>
+    )
+  } else if (tool === 'color') {
+    panel = (
+      <div className="sc-panel-body">
+        {color.loaded ? <ColorPanel {...color.panelProps} />
+          : <p className="animate-pulse text-md text-sc-text3">Loading your paints…</p>}
       </div>
     )
   } else if (tool === 'details' && !sketch) {
@@ -424,6 +450,11 @@ export default function Capture() {
       <div className={`relative flex flex-col bg-sc-modal md:min-h-0 md:flex-1 ${preview ? 'flex-none' : 'min-h-[55vh] flex-1'}`}
         style={{ '--frame-ratio': crop.ratio }}>
         {preview ? (
+          <>
+          {/* Color and Value show their own photo strip. The crop stage stays
+              mounted, hidden, since saving the crop draws from it. */}
+          {studyTool && <StageStrip key={studyTool} panels={(studyTool === 'value' ? value : color).panels(studyPhoto)} />}
+          <div className={studyTool ? 'hidden' : 'contents'}>
           <ImagePanel
             containerRef={crop.containerRef}
             imgRef={crop.imgRef}
@@ -445,6 +476,8 @@ export default function Capture() {
           >
             <Fade show={tool !== 'crop'}><MarksLayer marks={drawing.marks} live={drawing.live} /></Fade>
           </ImagePanel>
+          </div>
+          </>
         ) : (
           <PhotoDropzone
             title="Photograph the scene you'll draw"

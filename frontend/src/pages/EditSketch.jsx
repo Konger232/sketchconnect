@@ -11,14 +11,10 @@ import AIGuidance from '../components/analysis/AIGuidance'
 import { MarksLayer, markAtPoint } from '../components/analysis/Marks'
 import { pointInOutline } from '../lib/markGeometry'
 import { useValueStudy } from '../lib/useValueStudy'
+import { useColorTool, useValueTool } from '../components/analysis/useStudyTools'
 import { api } from '../lib/api'
 import ValuePanel from '../components/analysis/ValuePanel'
 import ColorPanel from '../components/analysis/ColorPanel'
-import { DEFAULT_SHAPES, readMask } from '../lib/gamutMask'
-import { SamplePhoto, MaskedPhoto } from '../components/analysis/ColorStage'
-import SwatchOverlay from '../components/analysis/SwatchOverlay'
-import RecipeStrip from '../components/analysis/RecipeStrip'
-import { kitPaintList, starterPaints } from '../data/paints'
 import { runGuideAnalysis } from '../lib/guideAnalysis'
 import { notifySketchesChanged } from '../lib/sketchEvents'
 import { STYLES, sceneTypeLabel } from '../data/styles'
@@ -78,18 +74,6 @@ export default function EditSketch() {
   // The photo stage strip (StageStrip): show('plan' | 'photo' | 'final').
   const stripRef = useRef(null)
 
-  // ===== STATE: VALUE AND COLOR (design doc, item 37) =====
-  const [valueLevels, setValueLevels] = useState(5)
-  const [valueStudies, setValueStudies] = useState({}) // { levels: study }
-  const [valueError, setValueError] = useState(null)
-  const [maskShapes, setMaskShapes] = useState(DEFAULT_SHAPES)
-  const [colorSample, setColorSample] = useState(null)
-  const [swatches, setSwatches] = useState([]) // tiles collected from the wheel: [{ h, c, hex }]
-  const [kitPaints, setKitPaints] = useState(null) // null until loaded
-  // The paints the recipes mix from: the kit, or the starter palette.
-  const mixPaints = useMemo(() => (kitPaints?.length ? kitPaints : starterPaints()), [kitPaints])
-  const maskSaveRef = useRef(null)
-
   // ===== STATE: GUIDE =====
   const [analysis, setAnalysis] = useState(routerLocation.state?.analysis || null)
   const [analyzing, setAnalyzing] = useState(false)
@@ -141,6 +125,10 @@ export default function EditSketch() {
 
   const isOwner = sketch?.is_owner === true
 
+  // ===== VALUE AND COLOR (design doc, item 37; shared with Capture) =====
+  const value = useValueTool({ sketchId, sketch, active: tab === 'value', enabled: isOwner })
+  const color = useColorTool({ sketchId, sketch, active: tab === 'color', enabled: isOwner })
+
   // ===== LOAD =====
 
   useEffect(() => {
@@ -148,9 +136,6 @@ export default function EditSketch() {
       try {
         const { data } = await api.get(`/api/sketches/${sketchId}`)
         setSketch(data)
-        if (data.value_levels) setValueLevels(data.value_levels)
-        setMaskShapes(readMask(data.gamut_mask) || DEFAULT_SHAPES)
-        setSwatches(data.gamut_mask?.swatches || [])
       } catch (err) {
         setLoadError(err.response?.status === 404 ? 'not_found' : 'error')
       }
@@ -269,66 +254,6 @@ export default function EditSketch() {
     }
   }
 
-  // ===== VALUE AND COLOR =====
-
-  // The value study for the picked number of values, fetched once each.
-  useEffect(() => {
-    if (tab !== 'value' || !sketch?.is_owner || valueStudies[valueLevels]) return
-    setValueError(null)
-    api.get(`/api/sketches/${sketchId}/value-study`, { params: { levels: valueLevels, scale: true } })
-      .then(({ data }) => setValueStudies((m) => ({ ...m, [valueLevels]: data })))
-      .catch(() => setValueError('Could not read the values right now.'))
-  }, [tab, valueLevels, sketch?.is_owner]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function pickValueLevels(n) {
-    setValueLevels(n)
-    api.put(`/api/sketches/${sketchId}/studies`, { value_levels: n }).catch(() => {})
-  }
-
-  // The paints for the wheel: the kit's paints and the favourite palette,
-  // else the starter list.
-  useEffect(() => {
-    if (tab !== 'color' || kitPaints || !sketch?.is_owner) return
-    api.get('/api/profile').catch(() => ({ data: {} }))
-      .then((prof) => setKitPaints(kitPaintList(prof.data.favorite_paints || [], prof.data.palette_layout)))
-  }, [tab, kitPaints, sketch?.is_owner])
-
-  // The mask saves itself a moment after a change ends.
-  function saveMask(shapes, sw) {
-    clearTimeout(maskSaveRef.current)
-    maskSaveRef.current = setTimeout(() => {
-      api.put(`/api/sketches/${sketchId}/studies`, { gamut_mask: { shapes, swatches: sw } }).catch(() => {})
-    }, 400)
-  }
-  function changeMask(shapes, { done } = {}) {
-    setMaskShapes(shapes)
-    if (done) saveMask(shapes, swatches)
-    else clearTimeout(maskSaveRef.current)
-  }
-  // A tile tapped on the wheel toggles: collected into "Your colours" and
-  // shown, or, when already collected, taken out.
-  function pickTile(sel) {
-    if (swatches.some((s) => s.hex === sel.hex)) { dropSwatch(sel.hex); return }
-    setColorSample(sel)
-    const next = [...swatches, { h: sel.h, c: sel.c, hex: sel.hex }].slice(-16)
-    setSwatches(next)
-    saveMask(maskShapes, next)
-  }
-  function dropSwatch(hex) {
-    const next = swatches.filter((s) => s.hex !== hex)
-    setSwatches(next)
-    if (colorSample?.hex === hex) setColorSample(null)
-    saveMask(maskShapes, next)
-  }
-  const removeSwatch = () => dropSwatch(colorSample?.hex)
-  // A swatch dragged onto the photo: its place (0 to 1, from the top left)
-  // is kept for the critique.
-  function placeSwatch(hex, { x, y }) {
-    const next = swatches.map((s) => (s.hex === hex ? { ...s, x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000 } : s))
-    setSwatches(next)
-    saveMask(maskShapes, next)
-  }
-
   // ===== RENDER: LOADING / ERROR =====
 
   const modalTitle = mode === 'create' ? 'New Sketch Framework' : 'Edit Sketch Framework'
@@ -408,35 +333,8 @@ export default function EditSketch() {
       />
     ),
   })
-  const tabStudy = valueStudies[valueLevels]
-  // Over the photo: the recipe strip at the bottom, the swatches above it.
-  const swatchOverlay = (
-    <>
-      <RecipeStrip selected={colorSample} paints={mixPaints} onClose={() => setColorSample(null)} />
-      <SwatchOverlay swatches={swatches} selected={colorSample} onSelect={setColorSample}
-        onPlace={placeSwatch} onRemove={(hex) => dropSwatch(hex)} />
-    </>
-  )
-  const studyPanels = tab === 'value'
-    ? [
-        { key: 'values', label: `${valueLevels} values`, content: tabStudy
-          ? <StripImage src={tabStudy.valueStudyImage} alt={`The photo in ${valueLevels} values`} grid />
-          : <div className="flex min-h-[40vh] flex-1 animate-pulse items-center justify-center text-md text-sc-text3">Reading the values…</div> },
-        { key: 'photo', label: 'Reference photo', content: <StripImage src={referenceImageUrl} alt="Reference photo" grid /> },
-      ]
-    : tab === 'color'
-      ? [
-          { key: 'mask', label: 'In your mask', content: (
-            <div className="flex min-h-0 flex-1 flex-col">
-              <MaskedPhoto src={referenceImageUrl} shapes={maskShapes} overlay={swatchOverlay} />
-            </div>
-          ) },
-          { key: 'sample', label: 'Photo', content: (
-            <div className="flex min-h-0 flex-1 flex-col">
-              <SamplePhoto src={referenceImageUrl} onSample={setColorSample} overlay={swatchOverlay} />
-            </div>
-          ) },
-        ]
+  const studyPanels = tab === 'value' ? value.panels(referenceImageUrl)
+    : tab === 'color' ? color.panels(referenceImageUrl)
       : null
   const panels = studyPanels || [
     ...(hasPlan
@@ -606,7 +504,7 @@ export default function EditSketch() {
               {tab === 'value' && (
                 <>
                   <div className="sc-panel-body">
-                    <ValuePanel levels={valueLevels} onLevels={pickValueLevels} study={tabStudy} loading={!tabStudy} error={valueError} />
+                    <ValuePanel levels={value.levels} onLevels={value.pick} study={value.study} loading={!value.study} error={value.error} />
                   </div>
                   {startSketchingFooter}
                 </>
@@ -614,12 +512,8 @@ export default function EditSketch() {
               {tab === 'color' && (
                 <>
                   <div className="sc-panel-body">
-                    {kitPaints ? (
-                      <ColorPanel shapes={maskShapes} onChange={changeMask} paints={mixPaints}
-                        fromKit={kitPaints.length > 0} selected={colorSample} onSelect={setColorSample}
-                        onPickTile={pickTile} marked={swatches} onRemoveSwatch={removeSwatch}
-                        isSwatch={colorSample?.from === 'wheel' && swatches.some((s) => s.hex === colorSample.hex)}
-                        readOnly={Boolean(sketch.final_sketch_url)} />
+                    {color.loaded ? (
+                      <ColorPanel {...color.panelProps} readOnly={Boolean(sketch.final_sketch_url)} />
                     ) : <p className="animate-pulse text-md text-sc-text3">Loading your paints…</p>}
                   </div>
                   {startSketchingFooter}
