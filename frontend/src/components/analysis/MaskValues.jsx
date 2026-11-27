@@ -56,13 +56,14 @@ export default function MaskValues({ shapes, paints, onToggle, marked = [], read
   if (!bars.some((b) => b.length)) return null
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-white">Selected Color Values</h3>
-      {/* <span className="sc-field-label">Selected Color Values</span> */}
-      <p className="text-sm text-sc-text3">
-        Each mix at full strength, with water, and as a thin wash. 1 is the lightest, 9 the darkest. 
-        {!readOnly && 'Tap a colour to collect it and see how to mix it; tap it again to take it out.'}</p>
-        {!readOnly && <p className="m-0 text-sm text-sc-text3">Tap a colour in the chart, or a spot on the photo, to see how to mix it.</p>}
-     
+      <div className="flex flex-col gap-1">
+        <h3 className="text-white">Selected Color Values</h3>
+        {!readOnly && (
+          <p className="m-0 text-sm text-sc-text3">Tap a color in the chart to see how to mix it. To remove it, drag it off the photo.</p>
+        )}
+      </div>
+      {/* As on the Value panel. The strengths are explained with the recipe (RecipeStrip). */}
+      <span className="sc-field-label mt-2">Value distribution, %</span>
       {/* One row per value, lightest first (1 is the lightest): its number,
           its grey, and the colours on it. `bars` comes darkest first. */}
       

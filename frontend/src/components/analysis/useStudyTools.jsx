@@ -54,7 +54,7 @@ export function useValueTool({ sketchId, sketch, active, enabled, photoKey }) {
   return { levels, pick, study, error, panels }
 }
 
-export function useColorTool({ sketchId, sketch, active, enabled }) {
+export function useColorTool({ sketchId, sketch, enabled }) {
   const [shapes, setShapes] = useState(DEFAULT_SHAPES)
   const [sample, setSample] = useState(null)
   const [swatches, setSwatches] = useState([]) // tiles collected from the wheel: [{ h, c, hex }]
@@ -70,10 +70,12 @@ export function useColorTool({ sketchId, sketch, active, enabled }) {
   }, [sketch?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!active || kitPaints || !enabled) return
+    // Loaded as soon as the sketch opens, not when Color does: the wheel
+    // waited about 2 seconds for it (November 27, 2026).
+    if (kitPaints || !enabled) return
     api.get('/api/profile').catch(() => ({ data: {} }))
       .then((prof) => setKitPaints(kitPaintList(prof.data.favorite_paints || [], prof.data.palette_layout)))
-  }, [active, kitPaints, enabled])
+  }, [kitPaints, enabled])
 
   // The mask saves itself a moment after a change ends.
   function save(nextShapes, sw) {

@@ -299,7 +299,7 @@ export default function Capture() {
   // unsaved changes. Neither changes the plan or the tips.
   const studiesReady = Boolean(sketchId) && !crop.changed()
   const value = useValueTool({ sketchId, sketch, active: tool === 'value', enabled: studiesReady, photoKey: framed?.n })
-  const color = useColorTool({ sketchId, sketch, active: tool === 'color', enabled: studiesReady })
+  const color = useColorTool({ sketchId, sketch, enabled: studiesReady })
   const studyPhoto = framed?.url || preview
 
   // The crop: baked and saved once the Crop tool closes (and the photo is

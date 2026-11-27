@@ -127,7 +127,7 @@ export default function EditSketch() {
 
   // ===== VALUE AND COLOR (design doc, item 37; shared with Capture) =====
   const value = useValueTool({ sketchId, sketch, active: tab === 'value', enabled: isOwner })
-  const color = useColorTool({ sketchId, sketch, active: tab === 'color', enabled: isOwner })
+  const color = useColorTool({ sketchId, sketch, enabled: isOwner })
 
   // ===== LOAD =====
 

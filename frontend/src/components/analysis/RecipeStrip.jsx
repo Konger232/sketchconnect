@@ -45,6 +45,8 @@ export default function RecipeStrip({ selected, paints, onClose }) {
       <div className="min-w-0 flex-1">
         <p className="m-0 text-md font-semibold text-white">{recipeLine(r.recipe)}</p>
         {r.note && <p className="m-0 text-sm text-white/75">{r.note}</p>}
+        {/* The chart's rows (MaskValues), explained where the mix is. */}
+        <p className="m-0 text-xs text-white/60">Each mix at full strength, with water, and as a thin wash. 1 is the lightest, 9 the darkest.</p>
       </div>
       <button type="button" aria-label="Close the recipe" onClick={onClose}
         className="flex h-8 w-8 shrink-0 items-center justify-center text-lg text-white/80 hover:text-white">×</button>

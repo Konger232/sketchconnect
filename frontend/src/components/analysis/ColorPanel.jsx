@@ -30,7 +30,8 @@ const GURNEY = 'https://gurneyjourney.blogspot.com/2011/09/part-1-gamut-masking-
 const gamutLink = (
   <a href={GURNEY} target="_blank" rel="noreferrer" className="underline decoration-white/40 underline-offset-2 hover:decoration-white">gamut mask</a>
 )
-const LABEL = 'text-xs font-semibold text-sc-text2'
+// The same label as in Details.
+const LABEL = 'sc-field-label'
 
 export default function ColorPanel({ shapes, onChange, paints, fromKit, selected, onSelect, onPickTile, marked, isSwatch, onRemoveSwatch, readOnly }) {
   const [active, setActive] = useState(0)
@@ -52,16 +53,19 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
 
   return (
     <div className="flex flex-col gap-4">
+      {/* The heading and its instruction, with no gap between them. */}
+      <div className="flex flex-col gap-1">
       <h3 className="text-white">Gamut Masking (Inspired by James Gurney)</h3>
       <p className="text-sm text-sc-text3">
         {readOnly ? <>Your {gamutLink}, as planned.</> 
           : <>Shape your {gamutLink} on the wheel. Then tap colours in the chart to get paint mixing recipes.</>}
       </p>
       {readOnly && (
-        <p className="-mt-2 text-sm text-sc-text3">
+        <p className="text-sm text-sc-text3">
           Gamut mask locked for completed sketches. Remove the final sketch to modify your mask. You can still pick colors below.
         </p>
       )}
+      </div>
 
       <GamutWheel shapes={shapes} onChange={onChange} active={active} onActive={setActive} paints={paints} readOnly={readOnly} />
 
