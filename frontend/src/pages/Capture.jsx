@@ -287,6 +287,7 @@ export default function Capture() {
     drawing.setMarks(marks)
     savedMarksRef.current = JSON.stringify(marks)
     if (data.media?.length) setMedia(data.media)
+    savedMediaRef.current = JSON.stringify(data.media || [])
     if (data.plan_read) readKeyRef.current = JSON.stringify([savedMarksRef.current, frame, data.media || []])
     setOpened(new Set(TOOLS.map((t) => t.key)))
     setTool(data.final_sketch_url ? 'details' : data.plan_read ? 'tips' : 'outline')
@@ -295,6 +296,21 @@ export default function Capture() {
   function toggleMedia(key) {
     setMedia((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]))
   }
+  // The picks save as they change, at any stage, so the sketch page shows
+  // them after Done (November 27, 2026). Not only with a plan read.
+  const savedMediaRef = useRef(null)
+  async function saveMedia() {
+    const key = JSON.stringify(media)
+    if (!sketchId || key === savedMediaRef.current) return
+    const form = new FormData()
+    form.append('media', media.join(','))
+    await api.put(`/api/sketches/${sketchId}/media`, form)
+    savedMediaRef.current = key
+  }
+  useEffect(() => {
+    const t = setTimeout(() => { saveMedia().catch(() => {}) }, 600)
+    return () => clearTimeout(t)
+  }, [media, sketchId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ===== AUTOSAVE, AND DONE (November 26, 2026) =====
   // Everything saves as the sketcher works: Details as they type, the crop
@@ -360,6 +376,7 @@ export default function Capture() {
     if (!(await details.flush())) return false
     await saveCrop()
     await saveMarks()
+    await saveMedia()
     return true
   }
 
@@ -388,6 +405,7 @@ export default function Capture() {
         if (locked) setTool('details')
         return
       }
+      if (locked) await saveMedia()
       notifySketchesChanged()
       navigate(`/sketches/${sketchId}`, { replace: true })
     } catch (err) {

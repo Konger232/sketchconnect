@@ -63,6 +63,23 @@ def _save_media(db: Session, sketch: Sketch, picks: list[str]) -> None:
     sketch.session_choices = [c for c in sketch.session_choices or [] if c.get("key") != "media"] + [entry]
     db.commit()
 
+@router.put("/sketches/{sketch_id}/media")
+async def save_media(
+    sketch_id: str,
+    media: str = Form(""),
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """What the sketcher draws with, saved as they pick (Capture's More,
+    November 27, 2026), not only with a plan read. Allowed at any stage,
+    like the details: it describes the sketch. The next read follows it."""
+    sketch = db.query(Sketch).filter(Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id).first()
+    if sketch is None:
+        raise HTTPException(404, "Sketch not found")
+    _save_media(db, sketch, [m.strip() for m in media.split(",") if m.strip()])
+    return {"media": service.media_of(sketch)}
+
+
 CACHE_KEY = "marks_analysis"
 logger = logging.getLogger(__name__)
 

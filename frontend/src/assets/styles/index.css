@@ -169,7 +169,8 @@
   .sc-round-tool        { @apply flex w-[4.5rem] flex-col items-center gap-1.5 text-center text-sm font-normal leading-tight text-white; }
   .sc-round-tool-circle { @apply flex h-14 w-14 items-center justify-center rounded-full transition-[background-color,box-shadow];
                           background: var(--round-tool-bg); }
-  .sc-round-tool:hover .sc-round-tool-circle { background: var(--round-tool-hover); animation: sc-hop 0.35s ease-out; }
+  .sc-round-tool-image { @apply h-[52px] w-[52px] object-contain; }
+  button.sc-round-tool:hover .sc-round-tool-circle { background: var(--round-tool-hover); animation: sc-hop 0.35s ease-out; }
   /* Picked: a ring around the picture and a bold blue label (November 27, 2026). */
   .sc-round-tool[aria-pressed='true'] { @apply font-bold; color: var(--accent-guide); }
   .sc-round-tool[aria-pressed='true'] .sc-round-tool-circle { box-shadow: 0 0 0 3px var(--accent-guide); }
@@ -179,11 +180,17 @@
      a border around the picture and a bold blue label, as the line tools. */
   .sc-media-card        { @apply flex flex-col gap-1.5 text-center text-sm font-normal leading-tight text-white; }
   .sc-media-card-image  { @apply aspect-[3/4] w-full rounded-[10px] object-cover transition-shadow; }
-  .sc-media-card:hover .sc-media-card-image { box-shadow: 0 0 0 2px var(--round-tool-hover); animation: sc-hop 0.35s ease-out; }
+  button.sc-media-card:hover .sc-media-card-image { box-shadow: 0 0 0 2px var(--round-tool-hover); animation: sc-hop 0.35s ease-out; }
   .sc-media-card[aria-pressed='true'] { @apply font-bold; color: var(--accent-guide); }
   .sc-media-card[aria-pressed='true'] .sc-media-card-image { box-shadow: 0 0 0 3px var(--accent-guide); }
   .sc-media-card:focus-visible { @apply outline-none; }
   .sc-media-card:focus-visible .sc-media-card-image { @apply ring-2 ring-white; }
+  /* Shown only, smaller, on the light sketch page (Tool kit). */
+  .sc-round-tool.is-shown        { @apply w-16 text-xs; color: inherit; }
+  .sc-round-tool.is-shown .sc-round-tool-circle { @apply h-11 w-11; }
+  .sc-round-tool.is-shown .sc-round-tool-image  { @apply h-10 w-10; }
+  .sc-media-card.is-shown        { @apply w-16 text-xs; color: inherit; }
+  .sc-media-card.is-shown .sc-media-card-image  { @apply rounded-md; }
   /* Guide answers (AIGuidance.jsx). The own-words row: a pencil, a text
      field and the ">" button, the same size and border as a choice
      (Button.jsx). Active while the sketcher types or after a tap on empty
@@ -702,6 +709,6 @@
   100% { transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sc-round-tool:hover .sc-round-tool-circle,
-  .sc-media-card:hover .sc-media-card-image { animation: none; }
+  button.sc-round-tool:hover .sc-round-tool-circle,
+  button.sc-media-card:hover .sc-media-card-image { animation: none; }
 }

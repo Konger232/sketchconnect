@@ -46,3 +46,14 @@ export default function MediaPicker({ picks, onToggle }) {
     </div>
   )
 }
+
+/** One group's picks, shown only (the sketch page's Tool kit). */
+export function MediaPictures({ items, picks }) {
+  return (
+    <div className="flex flex-wrap items-start gap-3">
+      {items.filter(([key]) => picks.includes(key)).map(([key, name]) => (
+        <RoundToolButton key={key} card={Boolean(COLOR_CARDS[key])} image={COLOR_CARDS[key] || LINE_ICONS[key]} label={name} />
+      ))}
+    </div>
+  )
+}

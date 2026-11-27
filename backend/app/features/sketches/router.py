@@ -41,7 +41,7 @@ from app.features.sketches.schemas import (
 from app.core.schemas import FocalRegion, SessionChoice, normalize_source, region_points
 from app.core import design_fundamentals, rules
 from app.features.marks_analysis import question_bank as marks_bank
-from app.features.marks_analysis.service import chosen_principles, intents_from_choices
+from app.features.marks_analysis.service import chosen_principles, intents_from_choices, media_of
 from app.core.exif_utils import extract_location_and_time
 from app.features.sketches.focal_pairing import pair_focal_points, region_anchor
 from app.features.scene_analysis import question_bank
@@ -1781,7 +1781,7 @@ async def get_sketch(
         # name, without the tips or the sketcher's rating and bookmarks.
         principles = (cleaned.get("plan_read") or {}).get("principles") or []
         data["plan_short"] = [p.get("principle") for p in principles if p.get("group") in ("strong", "moderate")][:3]
-        data["media"] = cleaned.get("media") or []
+        data["media"] = media_of(sketch)  # saved as picked, not the last read's copy
         data["uploads"] = uploads_to_list(sketch, _uploads(db, sketch.id))
         data["place"] = _place_of(db, sketch, sketcher_id)
         return attach_events(db, [data])[0]
@@ -1816,7 +1816,7 @@ async def get_sketch(
     # The plan read they saw (design doc, item 25), from the cache, so Edit
     # Sketch shows the card without another call. None before item 25.
     data["plan_read"] = cleaned.get("plan_read")
-    data["media"] = cleaned.get("media") or []
+    data["media"] = media_of(sketch)  # saved as picked, not the last read's copy
     # The focal areas to consider, under the plan read.
     if cleaned.get("plan_read"):
         from app.features.marks_analysis.service import focal_list

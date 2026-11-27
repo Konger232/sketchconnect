@@ -20,6 +20,7 @@ import UploadSketchModal from '../components/common/UploadSketchModal'
 import { ColorSection, ValueSection } from '../components/common/StudiesSection'
 import { getSketchStatus } from '../lib/sketchStatus'
 import { MEDIA } from '../data/media'
+import { MediaPictures } from '../components/analysis/MediaPicker'
 import { paintById } from '../data/paints'
 import { sceneTypeLabel, STYLES } from '../data/styles'
 import { api } from '../lib/api'
@@ -188,7 +189,7 @@ export default function SketchDetail() {
     else bookmarked.delete(k)
   }
   const media = (s.media || [])
-  const mediaRows = MEDIA.map((g) => ({ group: g.group, items: g.items.filter(([k]) => media.includes(k)).map(([, label]) => label) })).filter((g) => g.items.length)
+  const mediaRows = MEDIA.filter((g) => g.items.some(([k]) => media.includes(k)))
   const uploadLabel = (u) => (u.is_final ? 'Final' : `Sketch ${uploads.filter((x) => !x.is_final).indexOf(u) + 1}`)
   // The top slideshow (HeroCarousel): the final, then the progress sketches in
   // order; a phone adds the reference photo at the end (the right column
@@ -605,7 +606,7 @@ export default function SketchDetail() {
         <section className="ed-section">
           <h2 className="ed-kicker m-0">Tool kit</h2>
           <dl className="m-0 max-w-[640px]">
-            {mediaRows.map((g) => <div key={g.group} className="ed-row"><dt>{g.group}</dt><dd className="font-semibold">{g.items.join(', ')}</dd></div>)}
+            {mediaRows.map((g) => <div key={g.group} className="ed-row"><dt>{g.group}</dt><dd><MediaPictures items={g.items} picks={media} /></dd></div>)}
           </dl>
         </section>
       )}
