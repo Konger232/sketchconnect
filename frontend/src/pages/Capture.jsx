@@ -444,7 +444,7 @@ export default function Capture() {
 
   // ===== CLOSE AND DELETE =====
   // Closing keeps the sketch, with everything saved; deleting it is a
-  // choice of its own, in More.
+  // choice of its own: the trash can, top right.
   function leave() {
     notifySketchesChanged()
     navigate(backgroundLocation || '/')
@@ -530,7 +530,7 @@ export default function Capture() {
   }
 
   return (
-    <SketchModal title="Capture" onClose={requestClose}>
+    <SketchModal title="Capture" onClose={requestClose} onDelete={sketchId ? () => setConfirmingDelete(true) : undefined}>
       <ConfirmDialog
         open={confirmingDelete}
         title="Delete this sketch?"
@@ -650,12 +650,7 @@ export default function Capture() {
         {panel}
         {error && <p className="px-[var(--space-panel-x)] pb-2 text-base text-accent">{error}</p>}
         <div className="sc-footer sc-footer-pinned md:mt-auto">
-          {/* Everything saves as you go. Delete is a choice of its own, in More. */}
-          {tool === 'details' && sketchId && (
-            <button type="button" onClick={() => setConfirmingDelete(true)} className="mr-auto text-base font-semibold text-sc-text3 hover:text-white">
-              Delete sketch
-            </button>
-          )}
+          {/* Everything saves as you go. Delete is the trash can, top right. */}
           <Button variant="action" onClick={handleDone} disabled={!sketchId || uploading || reading}>
             {reading ? 'Saving…' : 'Done'}
           </Button>
