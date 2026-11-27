@@ -5,9 +5,17 @@ import fountainPen from '../../assets/images/ico_fountainpen.png'
 import fineliner from '../../assets/images/ico_liner.png'
 import dipPen from '../../assets/images/ico_dip_nib.png'
 import brushPen from '../../assets/images/ico_brushpen.png'
+import pearWatercolor from '../../assets/images/pear-watercolor.webp'
+import pearGouache from '../../assets/images/pear-gouache.webp'
+import pearMarkers from '../../assets/images/pear-markers.webp'
+import pearPencils from '../../assets/images/pear-colored-pencil.webp'
+import pearPastel from '../../assets/images/pear-pastel.webp'
 
-// The line tools show as round picture buttons; the color media as chips.
+// The line tools show as round picture buttons. The colour media show as
+// portrait cards, two to a row: the same pear in each medium (November 27,
+// 2026), so the difference between them is the medium itself.
 const LINE_ICONS = { pencil, fountain_pen: fountainPen, fineliner, dip_pen: dipPen, brush_pen: brushPen }
+const COLOR_CARDS = { watercolor: pearWatercolor, gouache: pearGouache, markers: pearMarkers, watercolor_pencils: pearPencils, pastels: pearPastel }
 
 /**
  * "What you draw with" (design doc, item 25): the media picks, any number.
@@ -27,21 +35,9 @@ export default function MediaPicker({ picks, onToggle }) {
               ))}
             </div>
           ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4">
             {items.map(([key, name]) => (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={picks.includes(key)}
-                onClick={() => onToggle(key)}
-                className={`rounded-full border-[1.5px] px-3.5 py-2 text-md font-semibold transition-colors ${
-                  picks.includes(key)
-                    ? 'border-sc-guide bg-sc-guide text-sc-guide-ink'
-                    : 'border-sc-divider text-white hover:border-white/60'
-                }`}
-              >
-                {name}
-              </button>
+              <RoundToolButton key={key} card image={COLOR_CARDS[key]} label={name} selected={picks.includes(key)} onClick={() => onToggle(key)} />
             ))}
           </div>
           )}

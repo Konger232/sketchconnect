@@ -32,7 +32,7 @@ MEDIA = {
     "line": {"pencil": "pencil", "fountain_pen": "fountain pen", "fineliner": "fineliner",
              "dip_pen": "dip pen", "brush_pen": "brush pen"},
     "color": {"watercolor": "watercolor", "gouache": "gouache", "markers": "markers",
-              "watercolor_pencils": "watercolor pencils", "pastels": "pastels"},
+              "watercolor_pencils": "color pencils", "pastels": "pastels"},  # key kept; label "Color Pencils" (November 27, 2026)
 }
 MEDIA_NAMES = {k: v for group in MEDIA.values() for k, v in group.items()}
 TOOL_WORDS = {"ink", "pen", "pens", "marker", "markers", "brush", "brushes", "pencil", "pencils",
