@@ -170,15 +170,17 @@
   .sc-round-tool-circle { @apply flex h-14 w-14 items-center justify-center rounded-full transition-[background-color,box-shadow];
                           background: var(--round-tool-bg); }
   .sc-round-tool:hover .sc-round-tool-circle { background: var(--round-tool-hover); animation: sc-hop 0.35s ease-out; }
-  /* Picked: only a ring around the picture (November 27, 2026). The label stays as it is. */
+  /* Picked: a ring around the picture and a bold label (November 27, 2026). */
+  .sc-round-tool[aria-pressed='true'] { @apply font-bold; }
   .sc-round-tool[aria-pressed='true'] .sc-round-tool-circle { box-shadow: 0 0 0 3px var(--accent-guide); }
   .sc-round-tool:focus-visible { @apply outline-none; }
   .sc-round-tool:focus-visible .sc-round-tool-circle { @apply ring-2 ring-white; }
   /* The colour media as portrait cards, two to a row (MediaPicker). Picked:
-     only a border around the picture; the label stays white. */
+     a border around the picture and a bold label, as the line tools. */
   .sc-media-card        { @apply flex flex-col gap-1.5 text-center text-sm font-normal leading-tight text-white; }
   .sc-media-card-image  { @apply aspect-[3/4] w-full rounded-[10px] object-cover transition-shadow; }
   .sc-media-card:hover .sc-media-card-image { box-shadow: 0 0 0 2px var(--round-tool-hover); }
+  .sc-media-card[aria-pressed='true'] { @apply font-bold; }
   .sc-media-card[aria-pressed='true'] .sc-media-card-image { box-shadow: 0 0 0 3px var(--accent-guide); }
   .sc-media-card:focus-visible { @apply outline-none; }
   .sc-media-card:focus-visible .sc-media-card-image { @apply ring-2 ring-white; }

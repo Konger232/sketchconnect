@@ -1,8 +1,8 @@
 /**
  * A picture button with its name under it, for "What you draw with"
  * (MediaPicker): round for the line tools, a portrait card for the colour
- * media (card). A small hop on hover; picked shows only a guide-blue ring
- * or border around the picture, and the label stays as it is.
+ * media (card). A small hop on hover; picked shows a guide-blue ring or
+ * border around the picture and a bold label.
  * Styles: .sc-round-tool and .sc-media-card in index.css.
  */
 export default function RoundToolButton({ image, label, selected = false, onClick, card = false }) {
