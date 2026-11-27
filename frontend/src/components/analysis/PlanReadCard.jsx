@@ -173,13 +173,13 @@ export default function PlanReadCard({
   return (
     <div className="flex flex-col gap-3">
       <p className="font-heading text-question font-bold text-white">
-        {carried.length ? 'Your plan' : 'Ideas for this scene'}
+        Tips for your sketch
       </p>
-      {/* How to use the tips, in one line. */}
+      {/* How to use the tips, in one line. With no strokes, nothing to highlight. */}
       <p className="-mt-1 text-sm text-sc-text3">
         {carried.length
-          ? 'Tap a tip to see the strokes behind it. Bookmark the ones to keep in mind when you pull out your sketchbook.'
-          : 'Bookmark the ones to keep in mind when you pull out your sketchbook.'}
+          ? 'Tap a tip to highlight the strokes. Bookmark any you want to try.'
+          : 'Bookmark any you want to try.'}
       </p>
       {carried.length ? top.map(block) : <div className="sc-options">{ideas.slice(0, 2).map(ideaRow)}</div>}
       {hasMore && (
