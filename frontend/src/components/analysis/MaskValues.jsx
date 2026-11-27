@@ -93,7 +93,7 @@ export default function MaskValues({ shapes, paints, onToggle, marked = [], read
             </div>
             {shares && (
               <span className="flex h-6 w-10 shrink-0 items-center justify-end text-xs font-semibold text-sc-text2">
-                {shares[i].toFixed(shares[i] < 10 ? 1 : 0)}%
+                {Math.round(shares[i])}%
               </span>
             )}
           </div>

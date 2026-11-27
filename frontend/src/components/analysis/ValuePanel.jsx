@@ -29,7 +29,7 @@ export function ValueChart({ study }) {
             <span className="flex h-6 min-w-0 flex-1 items-center">
               <span className="block h-4 border border-white/15" style={{ width: `${Math.max(1, (pct / max) * 100)}%`, background: grey }} />
             </span>
-            <span className="w-10 shrink-0 text-right text-xs font-semibold text-sc-text2">{pct.toFixed(pct < 10 ? 1 : 0)}%</span>
+            <span className="w-10 shrink-0 text-right text-xs font-semibold text-sc-text2">{Math.round(pct)}%</span>
           </div>
         )
       })}
