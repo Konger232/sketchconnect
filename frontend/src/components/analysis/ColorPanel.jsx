@@ -33,7 +33,7 @@ const gamutLink = (
 // The same label as in Details.
 const LABEL = 'sc-field-label'
 
-export default function ColorPanel({ shapes, onChange, paints, fromKit, selected, onSelect, onPickTile, marked, isSwatch, onRemoveSwatch, readOnly }) {
+export default function ColorPanel({ shapes, onChange, paints, fromKit, selected, onSelect, onPickTile, marked, isSwatch, onRemoveSwatch, readOnly, photo }) {
   const [active, setActive] = useState(0)
   const [preset, setPreset] = useState(null)
   const shape = shapes.length ? shapes[Math.min(active, shapes.length - 1)] : null
@@ -106,7 +106,7 @@ export default function ColorPanel({ shapes, onChange, paints, fromKit, selected
       {!shapes.length && (
         <p className="m-0 text-sm text-sc-text3">No mask: the whole wheel is open. Pick a shape to see its colours by value.</p>
       )}
-      <MaskValues shapes={shapes} paints={paints} onToggle={onPickTile} marked={marked} />
+      <MaskValues shapes={shapes} paints={paints} onToggle={onPickTile} marked={marked} photo={photo} />
 
        {/* <p className="text-sm text-sc-text3">
         {fromKit ? 'Mixed from the paints in My palette.' : 'Mixed from the starter palette. Add your own paints in My palette on your page.'} Parts are a starting point.

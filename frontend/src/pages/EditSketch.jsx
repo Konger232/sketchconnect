@@ -513,7 +513,7 @@ export default function EditSketch() {
                 <>
                   <div className="sc-panel-body">
                     {color.loaded ? (
-                      <ColorPanel {...color.panelProps} readOnly={Boolean(sketch.final_sketch_url)} />
+                      <ColorPanel {...color.panelProps} photo={referenceImageUrl} readOnly={Boolean(sketch.final_sketch_url)} />
                     ) : <p className="animate-pulse text-md text-sc-text3">Loading your paints…</p>}
                   </div>
                   {startSketchingFooter}

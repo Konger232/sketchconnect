@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Color, mix } from 'spectral.js'
 import { tileHex } from './GamutWheel'
-import { bestRecipe, greyOf, lightness, tilesInMask, valueStep } from '../../lib/gamutMask'
+import { bestRecipe, greyOf, lightness, tilesInMask, valueShares, valueStep } from '../../lib/gamutMask'
+import { usePhotoPixels } from './ColorStage'
 
 const MAX_COLOURS = 12
 const PAPER = new Color('#ffffff')
@@ -23,7 +24,10 @@ const STRENGTHS = [
  * value, and how light or dark each can go. Worked out a moment after the
  * mask stops moving.
  */
-export default function MaskValues({ shapes, paints, onToggle, marked = [], readOnly = false }) {
+export default function MaskValues({ shapes, paints, onToggle, marked = [], readOnly = false, photo }) {
+  // How much of the photo is on each row, as on the Value panel.
+  const pixels = usePhotoPixels(photo)
+  const shares = useMemo(() => (pixels ? valueShares(pixels) : null), [pixels])
   const [stable, setStable] = useState(shapes)
   useEffect(() => {
     const t = setTimeout(() => setStable(shapes), 250)
@@ -87,6 +91,11 @@ export default function MaskValues({ shapes, paints, onToggle, marked = [], read
                   aria-label={`A colour at value ${9 - i}`} />
               ))}
             </div>
+            {shares && (
+              <span className="flex h-6 w-10 shrink-0 items-center justify-end text-xs font-semibold text-sc-text2">
+                {shares[i].toFixed(shares[i] < 10 ? 1 : 0)}%
+              </span>
+            )}
           </div>
         ))}
       </div>

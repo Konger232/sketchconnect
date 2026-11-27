@@ -204,6 +204,31 @@ export function tilesInMask(shapes) {
 // of 1 (darkest) to 9 (lightest), and the grey of the same lightness.
 export const lightness = (hex) => new Color(hex).OKLab[0]
 export const valueStep = (L) => Math.max(1, Math.min(9, 1 + Math.round(L * 8)))
+
+// sRGB 0..255 to linear light, once.
+const LINEAR = Array.from({ length: 256 }, (_, i) => {
+  const c = i / 255
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+})
+/**
+ * How much of a photo (ImageData) falls on each value step, in %, darkest
+ * (step 1) first: the same OKLab L and steps as the colour chart, so its
+ * rows and the photo line up. Every 4th pixel is enough.
+ */
+export function valueShares(pixels) {
+  const counts = Array(9).fill(0)
+  const d = pixels.data
+  let n = 0
+  for (let i = 0; i < d.length; i += 16) {
+    const r = LINEAR[d[i]], g = LINEAR[d[i + 1]], b = LINEAR[d[i + 2]]
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+    counts[valueStep(0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s) - 1]++
+    n++
+  }
+  return counts.map((c) => (n ? (100 * c) / n : 0))
+}
 export function greyOf(L) {
   const y = L ** 3 // OKLab L to linear light, for a neutral grey
   const s = y <= 0.0031308 ? 12.92 * y : 1.055 * y ** (1 / 2.4) - 0.055

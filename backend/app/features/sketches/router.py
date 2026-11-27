@@ -2225,8 +2225,8 @@ async def save_studies(
     mask is part of the plan, so it locks once the final sketch is in."""
     sketch = _owned_sketch(db, sketch_id, sketcher_id)
     if body.value_levels is not None:
-        if body.value_levels not in (3, 5, 7, 9):
-            raise HTTPException(400, "Pick 3, 5, 7 or 9 values")
+        if body.value_levels not in range(2, 8):  # 2 to 7 (November 27, 2026)
+            raise HTTPException(400, "Pick 2 to 7 values")
         sketch.value_levels = body.value_levels
     if body.gamut_mask is not None or body.clear_mask:
         if sketch.final_sketch_url:

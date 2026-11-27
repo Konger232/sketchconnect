@@ -1,12 +1,13 @@
 /**
  * The Value tab's right panel (design doc, item 37): how many values to
- * see (3, 5, 7 or 9), and the value distribution, as a value scale from
+ * see (2 to 7), and the value distribution, as a value scale from
  * light to dark (1 is the lightest): how much of the photo falls in each value.
  *
  *   levels, onLevels(n)
  *   study   { toneValues, distribution } | null
  */
-export const VALUE_LEVELS = [3, 5, 7, 9]
+// 2 to 7 (November 27, 2026): 9 values is more than a sketch can hold.
+export const VALUE_LEVELS = [2, 3, 4, 5, 6, 7]
 
 /**
  * The value distribution chart, for the Value tab and SketchDetail. One row
@@ -45,7 +46,7 @@ export default function ValuePanel({ levels, onLevels, study, loading, error }) 
       <div className="flex gap-2" role="radiogroup" aria-label="Number of values">
         {VALUE_LEVELS.map((n) => (
           <button key={n} type="button" role="radio" aria-checked={levels === n} onClick={() => onLevels(n)}
-            className={`h-11 min-w-[56px] flex-1 rounded-full border-[1.5px] text-md font-bold transition-colors ${
+            className={`h-11 min-w-0 flex-1 rounded-full border-[1.5px] text-md font-bold transition-colors ${
               levels === n ? 'border-sc-guide bg-sc-guide text-white' : 'border-sc-border bg-sc-raised text-white hover:border-sc-strong'
             }`}>
             {n}

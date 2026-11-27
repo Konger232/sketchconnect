@@ -26,7 +26,8 @@ export function useValueTool({ sketchId, sketch, active, enabled, photoKey }) {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    if (sketch?.value_levels) setLevels(sketch.value_levels)
+    // A sketch saved with 9 values, from before 9 was dropped, shows 7.
+    if (sketch?.value_levels) setLevels(Math.min(7, sketch.value_levels))
   }, [sketch?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setStudies({}) }, [photoKey])
 

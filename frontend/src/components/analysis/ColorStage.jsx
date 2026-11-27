@@ -10,7 +10,7 @@ const MAX_PX = 720 // the photo is worked on at this size, at most
 // its own URL: the page may already have this photo cached from a plain
 // <img> (no CORS header), and the browser would reuse that copy and block
 // the read.
-function usePhotoPixels(src) {
+export function usePhotoPixels(src) {
   const [pixels, setPixels] = useState(null)
   useEffect(() => {
     if (!src) return

@@ -456,7 +456,7 @@ export default function Capture() {
   } else if (tool === 'color') {
     panel = (
       <div className="sc-panel-body">
-        {color.loaded ? <ColorPanel {...color.panelProps} />
+        {color.loaded ? <ColorPanel {...color.panelProps} photo={studyPhoto} />
           : <p className="animate-pulse text-md text-sc-text3">Loading your paints…</p>}
       </div>
     )
