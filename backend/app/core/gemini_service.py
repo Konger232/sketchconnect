@@ -68,7 +68,7 @@ def call_gemini_json_with_raw(
     images = [im for im in images if im is not None]
     contents = [prompt, *images]
 
-    # Every call type (scene analysis, persona, critique, Help Quest)
+    # Every call type (scene analysis, persona, critique)
     # funnels through here. With DEBUG=true in .env, the whole request and
     # response print in the uvicorn terminal (config.DEBUG).
     if DEBUG:
@@ -166,7 +166,7 @@ def call_gemini_json(
     mock_name: str = "scene_analysis",
 ) -> dict:
     """Existing public shape — parsed dict only. Unchanged for every
-    caller that doesn't need the raw text (Persona, Critique, Help Quest)."""
+    caller that doesn't need the raw text (Persona, Critique)."""
     parsed, _raw_text = call_gemini_json_with_raw(prompt, response_schema, image, mock_name)
     return parsed
 

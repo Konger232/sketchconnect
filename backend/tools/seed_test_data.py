@@ -1023,7 +1023,7 @@ def reset(dry_run: bool = False, yes: bool = False):
     every seed image. dry_run: count only. Asks before deleting unless yes."""
     from app.core.database import SessionLocal
     from app.core.models import (CritiqueResponse, Event, EventComment, EventHiddenSketch, EventInstructor,
-                                 EventInterest, EventReport, Follow, HelpQuestLog, KitItem, KitWish, Paint, PaintFlag,
+                                 EventInterest, EventReport, Follow, KitItem, KitWish, Paint, PaintFlag,
                                  PaletteItem, Persona, Profile, Sketch, SketchComment, SketchLike, SketchTag,
                                  SketchUpload, Spot, SpotPhoto)
     from sqlalchemy import or_
@@ -1056,7 +1056,6 @@ def reset(dry_run: bool = False, yes: bool = False):
             (Follow, or_(Follow.follower_id.in_(uids), Follow.followed_id.in_(uids))),
             (SketchUpload, SketchUpload.sketch_id.in_(sketch_ids)),
             (CritiqueResponse, CritiqueResponse.sketch_id.in_(sketch_ids)),
-            (HelpQuestLog, HelpQuestLog.sketch_id.in_(sketch_ids)),
             (KitWish, or_(KitWish.sketcher_id.in_(uids), KitWish.kit_item_id.in_(kit_ids))),
             (KitItem, KitItem.id.in_(kit_ids)),
             (PaintFlag, or_(PaintFlag.sketcher_id.in_(uids), PaintFlag.paint_id.in_(paint_ids))),

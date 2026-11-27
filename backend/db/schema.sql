@@ -65,17 +65,8 @@ create table if not exists personas (
   unique (sketcher_id, style)
 );
 
-create table if not exists help_quest_log (
-  id uuid primary key default gen_random_uuid(),
-  sketch_id uuid not null references sketches (id) on delete cascade,
-  sketcher_id uuid not null references auth.users (id) on delete cascade,
-  step_id text not null,
-  question text not null,
-  answer text not null,
-  principle_reference text,
-  created_at timestamptz not null default now()
-);
-create index if not exists help_quest_log_sketch_id_idx on help_quest_log (sketch_id);
+-- help_quest_log: removed with Help Quest (November 27, 2026). Run once:
+-- drop table if exists help_quest_log;
 
 create table if not exists critique_responses (
   id uuid primary key default gen_random_uuid(),
@@ -96,13 +87,11 @@ create index if not exists critique_responses_sketch_id_idx on critique_response
 alter table profiles enable row level security;
 alter table sketches enable row level security;
 alter table personas enable row level security;
-alter table help_quest_log enable row level security;
 alter table critique_responses enable row level security;
 
 create policy "own profile" on profiles for all using (auth.uid() = id);
 create policy "own sketches" on sketches for all using (auth.uid() = sketcher_id);
 create policy "own personas" on personas for all using (auth.uid() = sketcher_id);
-create policy "own help quest log" on help_quest_log for all using (auth.uid() = sketcher_id);
 create policy "own critiques" on critique_responses for all using (auth.uid() = sketcher_id);
 
 -- My kit (design doc, item 28, October 17, 2026): one row per tool the

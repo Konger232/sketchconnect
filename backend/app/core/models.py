@@ -168,22 +168,6 @@ class Persona(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-class HelpQuestLog(Base):
-    """One row per Help Quest question/answer (design doc, "History and storage")."""
-    __tablename__ = "help_quest_log"
-
-    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    sketch_id = Column(UUID(as_uuid=False), ForeignKey("sketches.id"), nullable=False, index=True)
-    sketcher_id = Column(UUID(as_uuid=False), nullable=False, index=True)
-
-    step_id = Column(String, nullable=False)
-    question = Column(Text, nullable=False)
-    answer = Column(Text, nullable=False)
-    principle_reference = Column(String, nullable=True)
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-
 class CritiqueResponse(Base):
     """
     One row per Critique Agent call (design doc: "Each call's response is

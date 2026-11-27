@@ -2,7 +2,7 @@
 Critique agent call (schema: gemini_call_schemas.md #3).
 
 Reads the whole journey from the database -- guided answers
-(sketches.session_choices), Help Quest history (help_quest_log), the latest
+(sketches.session_choices), the latest
 prior review, the sketcher's focal points and planning marks -- and sends
 up to three images, in this order (core/composite.py):
   1. the untouched original photo -- always
@@ -25,7 +25,7 @@ from PIL import Image
 from sqlalchemy.orm import Session
 
 from app.core import debug
-from app.core.models import Sketch, Persona, CritiqueResponse, HelpQuestLog, SketchNote, SketchUpload
+from app.core.models import Sketch, Persona, CritiqueResponse, SketchNote, SketchUpload
 from app.core.prompt_loader import render_prompt
 from app.core.composite import (
     describe_focal_points,
@@ -42,8 +42,6 @@ from config import STYLES
 
 PROMPTS = Path(__file__).parent / "prompts"
 
-# Most recent Help Quest Q&As included in the critique prompt.
-HELP_QUEST_HISTORY_LIMIT = 10
 
 
 # Habits and opportunities (design doc, Section 11, item 15).
@@ -299,20 +297,6 @@ def run_critique(db: Session, sketch: Sketch) -> None:
     persona = COACH
 
     session_choices = json.dumps(sketch.session_choices or [])
-    # Only the most recent Help Quest exchanges, oldest first, so a long
-    # session doesn't keep growing the prompt.
-    recent_help = (
-        db.query(HelpQuestLog)
-        .filter(HelpQuestLog.sketch_id == sketch.id)
-        .order_by(HelpQuestLog.created_at.desc())
-        .limit(HELP_QUEST_HISTORY_LIMIT)
-        .all()
-    )
-    help_quest_log = json.dumps([
-        {"step_id": h.step_id, "question": h.question, "answer": h.answer,
-         "principle_reference": h.principle_reference}
-        for h in reversed(recent_help)
-    ])
     latest = (
         db.query(CritiqueResponse)
         .filter(CritiqueResponse.sketch_id == sketch.id)
@@ -374,7 +358,6 @@ def run_critique(db: Session, sketch: Sketch) -> None:
         session_choices=session_choices,
         plan_read=plan_read_text(sketch),
         color_plan=color_plan_text(sketch),
-        help_quest_log=help_quest_log,
         voice_notes=voice_notes_text(db, sketch),
         prior_review_summary=prior_review_summary or "none — first critique this session",
         principles=", ".join(principles()),

@@ -531,9 +531,8 @@ async def save_focal_frame(
     sketcher_id: str = Depends(get_current_sketcher_id),
 ):
     """
-    Persists the result of FocalFrameEditor.jsx's mark-then-frame-refine
-    flow (frontend: FocalFrameEditor.jsx, geometry: lib/focalGeometry.js;
-    backend geometry: features/sketches/focal_pairing.py -- see that file's own
+    Saves the plan: the crop and the strokes from Capture, and the focal
+    points of the old flow (backend geometry: features/sketches/focal_pairing.py -- see that file's own
     docstring for why pairing is plain geometry here rather than another
     Gemini call).
 
@@ -547,7 +546,6 @@ async def save_focal_frame(
         to a region label; it's the frame the sketcher was looking at
         while marking, not necessarily the frame they end up confirming.
       - new_points: [{x, y}], the same points reprojected (client-side,
-        via focalGeometry.js's toOriginalSpace/toFrameSpace round trip
         through the original photo's own coordinate space) into whatever
         frame the sketcher settled on after the pan/zoom refine step --
         i.e. the frame `framed_image` below actually shows. These are the
@@ -1063,10 +1061,9 @@ async def delete_sketch(
 ):
     """
     Permanently removes a sketch: its image file(s) on disk, then the
-    Sketch row itself. help_quest_log and critique_responses rows for
-    this sketch are cleaned up by Postgres automatically -- schema.sql
-    has ON DELETE CASCADE on both tables' sketch_id foreign keys, so
-    there's nothing to do for those here.
+    Sketch row itself. Its critique_responses rows are cleaned up by
+    Postgres automatically -- schema.sql has ON DELETE CASCADE on their
+    sketch_id foreign key, so there's nothing to do for those here.
 
     This is the sketcher's one way to remove a sketch, at any point in
     its life -- right after Step 1's upload with nothing else done yet,

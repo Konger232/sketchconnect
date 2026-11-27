@@ -7,7 +7,6 @@ from typing import Optional, Literal
 from pydantic import BaseModel, Field
 
 from app.core.schemas import SceneType, SessionChoice, Style
-from app.features.help_quest.schemas import HelpQuestEntry
 from app.features.persona.schemas import PersonaResponse
 
 class CritiqueRequest(BaseModel):
@@ -16,7 +15,6 @@ class CritiqueRequest(BaseModel):
     scene_type: SceneType
     persona: PersonaResponse
     session_choices: list[SessionChoice] = Field(default_factory=list)
-    help_quest_log: list[HelpQuestEntry] = Field(default_factory=list)
     final_sketch_provided: bool = False
     prior_review_summary: Optional[str] = None
 

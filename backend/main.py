@@ -28,7 +28,6 @@ from app.features.notes import router as notes
 from app.features.marks_analysis import router as marks_analysis
 from app.features.persona import router as persona
 from app.features.critique_agent import router as critique
-from app.features.help_quest import router as help_quest
 from app.features.sketches import router as sketches
 from app.features.profile import router as profile
 from app.features.geocode import router as geocode
@@ -144,7 +143,6 @@ app.include_router(scene_analysis.router)
 app.include_router(marks_analysis.router)
 app.include_router(persona.router)
 app.include_router(critique.router)
-app.include_router(help_quest.router)
 app.include_router(sketches.router)
 app.include_router(profile.router)
 app.include_router(geocode.router)

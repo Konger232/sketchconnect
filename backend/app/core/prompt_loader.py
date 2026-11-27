@@ -5,7 +5,7 @@ Each feature keeps its own templates in a `prompts/` folder next to its
 service.py and passes that folder in, e.g.
 
     PROMPTS = Path(__file__).parent / "prompts"
-    render_prompt(PROMPTS / "help_quest.md", question=..., ...)
+    render_prompt(PROMPTS / "critique_agent.md", style=..., ...)
 
 A bare filename (no folder) is looked up in core/prompts/, which holds the
 templates shared by several features (planning_image.md).

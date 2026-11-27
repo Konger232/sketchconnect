@@ -1,7 +1,7 @@
 """
 Coaching composite: the sketcher's framed reference photo with their own
-focal points and planning marks drawn on top, for the Help Quest, Critique
-Agent and scene analysis calls.
+focal points and planning marks drawn on top, for the Critique Agent and
+scene analysis calls.
 
 Scene analysis sends it only as a second image, after the clean
 reference_image_url, and its prompt reads every scene fact and coordinate
@@ -11,8 +11,8 @@ is rebuilt from sketches.focal_points + sketches.marks each time it's
 needed rather than stored, so it can't drift out of sync with them.
 
 Coordinates: focal_points and marks are both 0-1000 in the frame that
-reference_image_url shows (see Marks.jsx / FocalSpotPicker.jsx). Drawing
-matches the frontend: red square reticles (FocalSpotPicker's Reticle) and
+reference_image_url shows (see Marks.jsx). Focal points, from the old
+flow, are drawn as red square reticles; marks as
 round-capped polylines whose width is in "px on a 1000px-wide frame".
 """
 from __future__ import annotations
@@ -28,7 +28,7 @@ from app.core.mark_geometry import visible_marks
 
 
 FOCAL_COLOR = (255, 7, 58)          # --focal-accent-user
-RETICLE_HALF = 30                   # frame units, same as Reticle (60 wide)
+RETICLE_HALF = 30                   # frame units (60 wide)
 RETICLE_REACH = 16                  # cross-hair overhang, frame units
 
 COLOR_NAMES = {
@@ -88,7 +88,7 @@ def render_composite(sketch, label_ids: bool = False) -> Image.Image | None:
     marks = visible_marks(sketch.marks)  # erased marks are data, never drawn
     if not was_reframed(sketch) and not focal_points and not marks:
         return None
-    # Coaching-size: Help Quest, the critique and scene analysis's Image 2
+    # Coaching-size: the critique and scene analysis's Image 2
     # read composition from it, not exact coordinates.
     img = _load_upload(sketch.reference_image_url, COACHING_MAX_DIMENSION)
     if img is None:
@@ -248,8 +248,8 @@ def _describe_mark(m: dict) -> str:
 
 def summarize_marks(marks: list[dict] | None) -> str:
     """
-    A short summary of the visible marks for the critique and Help Quest,
-    which see them on the planning image. Counts by kind, then describes
+    A short summary of the visible marks for the critique, which sees them
+    on the planning image. Counts by kind, then describes
     only the marks that carry meaning: the selected ones (the sketcher's
     focus) and the prompted ones (added from an AI suggestion, item 17),
     at most MAX_MARKS_FOR_AI. Colour only when the marks use more than

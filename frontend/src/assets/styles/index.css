@@ -109,35 +109,11 @@
     transform: translate(-50%, -50%);
   }
 
-    /* AI guided prompts: AIGuidance.jsx, ColorPalettePicker.jsx */
-  .ai-mascot   { @apply h-5 w-5 md:h-4 md:w-4; }
-  .ai-close    { @apply text-xl leading-none md:text-lg text-white/50 transition-colors hover:text-white; }
-
-  .ai-question { @apply text-base font-semibold leading-snug md:text-sm; }
-  .ai-options  { @apply flex flex-col gap-2 md:gap-1.5; }
-  .ai-option   { @apply rounded-xl border border-white/15 text-white/80 text-left transition-all duration-150
-                        hover:bg-white/10 active:scale-[0.98]
-                        px-4 py-2.5 text-sm md:px-3 md:py-2 md:text-xs; }
-
-  .ai-help-heading { @apply text-base font-semibold md:text-sm; }
-  .ai-help-text    { @apply text-sm md:text-xs; }
-  .ai-help-input   { @apply px-3 py-2 text-sm md:px-2.5 md:py-1.5 md:text-xs; }
-
-  .palette-heading { @apply text-base font-semibold md:text-sm; }
-  .palette-grid    { @apply grid grid-cols-3 gap-3 md:gap-2; }
-  .palette-swatch  { @apply h-16 w-16 md:h-12 md:w-12; }
-  .palette-label   { @apply text-xs font-medium md:text-2xs; }
 
 
-  /* Dark right panel, shared by EditSketch and CreateSketch. */
-  /* Padding and spacing for everything below the panel header. */
-  .panel-body    { @apply flex flex-col gap-4 px-4; }
-  .panel-label   { @apply text-xs font-semibold uppercase tracking-wide text-white/50; }
-  .panel-input   { @apply mt-1 w-full rounded-lg border border-white/15 bg-gray-800 px-4 py-2.5
-                          text-sm text-white/80 transition-colors focus:border-white/40; }
 
-  /* Create / Edit sketch modal (design handoff: SketchModal.jsx,
-     GuideStage.jsx, CreateSketch.jsx, EditSketch.jsx). Colours come from
+  /* The Capture modal (design handoff: SketchModal.jsx, Capture.jsx).
+     Colours come from
      the sc-* Tailwind colours, which point at the tokens in :root. */
   .sc-panel       { @apply flex min-h-0 w-full shrink-0 flex-col border-sc-divider bg-sc-panel text-sc-text
                            md:w-[var(--panel-w-ipad)] md:border-l lg:w-[var(--panel-w-desktop)]; }
@@ -246,14 +222,6 @@
   .sc-dropzone    { @apply flex min-h-0 flex-1 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed
                            border-sc-strong p-6 text-center; }
 
-  /* Habits and opportunities (JourneyTrace.jsx). --trace-accent is set
-     per section from the two accent tokens. */
-  .trace-row      { @apply flex flex-col gap-1.5 rounded-[12px] px-3.5 py-3;
-                    background: var(--trace-row-bg); border-left: 3px solid var(--trace-accent); }
-  .trace-icon     { @apply flex h-[26px] w-[26px] items-center justify-center rounded-full;
-                    color: var(--trace-accent); background: var(--trace-icon-bg); }
-  .trace-tag      { @apply rounded-full px-2.5 py-0.5 text-sm font-semibold;
-                    background: var(--trace-tag-bg); color: var(--trace-tag-ink); }
 
   /* Floating Marks rail (Marks.jsx MarkRail), on a phone in the Marks step. */
   .rail           { @apply flex gap-1 rounded-[var(--rail-radius)] border-[1.5px] border-sc-rail-border bg-sc-rail p-1; }
@@ -270,30 +238,11 @@
 }
 
 /*
- * Focal-area marking design tokens (sketcher-marked vs. Gemini-suggested
+ * Photo overlay tokens: the sketcher's blue, the guide fade, the AI's
+ * suggested area and the parts picked by tap.
  */
 :root {
   --focal-accent-user: #60a5fa;   /* sketcher's own focal point (handoff blue) */
-  /* Gemini-suggested spot (a single point): the same red and line width as
-     the suggested focal area's outline (--focal-shape-*), no white halo. */
-  --focal-accent-ai: var(--focal-shape-color);
-  --focal-ai-ring-width: var(--focal-shape-stroke-width);
-  --focal-reticle-stroke-width: 2px;
-  --focal-reticle-stroke-opacity: 1;
-  --focal-reticle-fill-opacity: 0.4;
-
-  /* AI-suggested focal point (AISuggestedReticle.jsx): the reticle in
-     --focal-accent-ai over a radial-gradient glow of the same colour. */
-  --focal-ai-glow-opacity: 0.55;       /* glow strength at its centre */
-  --focal-ai-fade-in: 900ms;           /* reticle + glow fade in */
-  --focal-ai-fade-out: 500ms;          /* fade out, before the next one */
-  --focal-ai-scale-from: 0.85;         /* glow blooms up from this size */
-  --focal-ai-easing: cubic-bezier(0.22, 1, 0.36, 1);
-
-  /* Proportions overlay (ProportionOverlay.jsx): the unit and the spans
-     measured against it. */
-  --proportion-color: #ff3b30;
-  --proportion-stroke-width: 1px;
 
   /* Show / hide fade for every photo guide (Fade.jsx). */
   --guide-fade-in: 350ms;
@@ -317,35 +266,6 @@
   --answer-outline-opacity: 1;
   --answer-outline-fill: var(--focal-accent-user);
   --answer-outline-fill-opacity: 0.12;   /* 0 = no fill */
-
-  /* Perspective (PerspectiveLinesOverlay.jsx): edges extended to their
-     vanishing points, the vanishing point ring, and eye level. */
-  --perspective-edge-color: #60a5fa;
-  --perspective-edge-width: 2.5px;
-  --perspective-edge-opacity: 1;
-  --perspective-vp-radius: 8px;          /* ring on a vanishing point in frame */
-  --perspective-vp-width: 2px;
-  --perspective-eye-color: #ffffff;
-  --perspective-eye-width: 2px;
-  --perspective-eye-dash: 10 8;          /* dash, gap */
-  --perspective-eye-opacity: 1;
-
-  /* Square grid for the grid method (SquareGridOverlay.jsx), used in
-     place of the rule-of-thirds grid for the realistic style. */
-  --grid-cell-mm: 10;                        /* cell size on screen, in mm */
-  --grid-line-color: rgba(255, 255, 255, 0.45);
-  --grid-line-width: 1px;
-
-
-  /* Focal points (Reticle in FocalSpotPicker.jsx). While placing, each is
-     a numbered disc; on the guide stage, a ring with a white halo. */
-  --focal-point-size: 36px;              /* numbered disc diameter */
-  --focal-point-ring: #ffffff;           /* white ring around the disc */
-  --focal-point-ring-width: 3px;
-  --focal-point-number: #0b1220;         /* number inside the disc */
-  --focal-ring-radius: 15px;             /* guide-stage ring */
-  --focal-ring-width: 3px;               /* blue ring */
-  --focal-ring-halo: 5px;                /* white halo under the ring */
 
   /* Marks (Marks.jsx): the three line colours in the Marks tools. All
      marks share one colour; picking another redraws every mark in it.
@@ -396,13 +316,6 @@
   --modal-radius: 0px;
   --stage-inset: 24px;                   /* photo inset on the stage, top and bottom (from 768px) */
 
-  /* Habits and opportunities under the feedback (JourneyTrace.jsx). */
-  --trace-habit-accent: #60a5fa;          /* Habits: guide blue */
-  --trace-opportunity-accent: #fbbf24;    /* Opportunities: warm amber */
-  --trace-row-bg: #1f2937;
-  --trace-icon-bg: rgba(255, 255, 255, 0.08);
-  --trace-tag-bg: #374151;                /* the principle tag, e.g. "Emphasis" */
-  --trace-tag-ink: #e5e7eb;
 
   /* Bottom sheet (.sc-sheet): Edit Sketch's panel on a phone. */
   --sheet-max-h: 58vh;                   /* open; the photo shows above it */
@@ -529,46 +442,6 @@
   }
 }
 
-/*
- * AI-suggested focal point: gradient fade in and out (AISuggestedReticle.jsx).
- * The whole reticle fades; the glow also blooms from --focal-ai-scale-from.
- * Tune with the --focal-ai-* tokens in :root above.
- */
-.focal-ai,
-.focal-ai-glow {
-  transform-box: fill-box;
-  transform-origin: center;
-}
-.focal-ai--in {
-  animation: focal-ai-fade-in var(--focal-ai-fade-in) var(--focal-ai-easing) both;
-}
-.focal-ai--in .focal-ai-glow {
-  animation: focal-ai-glow-in var(--focal-ai-fade-in) var(--focal-ai-easing) both;
-}
-.focal-ai--out {
-  animation: focal-ai-fade-out var(--focal-ai-fade-out) ease-in both;
-}
-@keyframes focal-ai-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes focal-ai-glow-in {
-  from { transform: scale(var(--focal-ai-scale-from)); opacity: 0; }
-  to   { transform: scale(1); opacity: 1; }
-}
-@keyframes focal-ai-fade-out {
-  from { opacity: 1; }
-  to   { opacity: 0; }
-}
-/* Reduced motion: near-instant, but still fires animationend so the next
-   suggestion swaps in. */
-@media (prefers-reduced-motion: reduce) {
-  .focal-ai--in,
-  .focal-ai--in .focal-ai-glow,
-  .focal-ai--out {
-    animation-duration: 1ms;
-  }
-}
 
 /* Photo guides fade in and out when toggled (Fade.jsx). */
 .guide-fade--in {

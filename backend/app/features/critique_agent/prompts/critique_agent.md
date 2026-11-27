@@ -19,7 +19,6 @@ Variables:
   $session_choices       JSON list of guided-question answers (focus, key,
                          option_index, mark_ids, answered_at when saved;
                          one per question, the latest)
-  $help_quest_log        JSON list of Help Quest questions and answers
   $voice_notes           the sketcher's field notes (typed, and voice notes
                          as text), when they chose to share them with the
                          coach; else "none shared"
@@ -44,7 +43,7 @@ Working patterns from this journey that served the sketch. Example: "Blocked in 
 - `evidence`: where the item came from. Pick the first that fits:
   - `stages`: the item is about change across sketch uploads. Only when more than one upload is attached.
   - `prompted`: the sketcher answered yes to a guided question with focus `unseen` (the AI raised something they had not marked, such as "There is the ... here. Add it to your plan?"), then drew it or worked that way. A mark listed as "added from an AI suggestion" came from such a yes.
-  - `plan`: the sketcher's own plan: their marks, selected marks, focal points, the crop, their answers to guided questions about their own plan (focus `selected` or `other`, or no focus), and what they asked in Help Quest. Carried through or changed while drawing.
+  - `plan`: the sketcher's own plan: their marks, selected marks, focal points, the crop, their answers to guided questions about their own plan (focus `selected` or `other`, or no focus). Carried through or changed while drawing.
   - `instinct`: none of the above. Nothing in the plan and no guided question led to it. This includes something they drew after declining an `unseen` question, and everything drawn when there was no plan.
 An answer with key `mark_meaning` is what the sketcher saw those marks as, in their own choice or words. It wins over your own reading of the marks.
 An answer with key `relationship` is how the sketcher sees two or more marked subjects connect. Its `relationship` gives the kind the AI read (such as gesture, layering or story), that kind's principle, and the subjects. The question states the connection the AI saw; the sketcher answers Yes (option 0) or No (option 1). A Yes is the sketcher's intent, with evidence `plan`: note whether their process carried that connection through, such as keeping the two figures leaning in or the sign in front of the receding street. Never tell them to add it. A No means that connection is not what they were after: do not judge the sketch on it.
@@ -86,6 +85,5 @@ Plan read (the principles the app read from the strokes, with the sketcher's thu
 $plan_read
 Guided-question answers (one per question, the sketcher's latest choice; `mark_ids` are the lines that answer refers to): $session_choices
 Colour plan: $color_plan
-Help Quest history: $help_quest_log
 Field notes the sketcher typed or recorded on location (their own words; recorded ones transcribed; context about the place, the conditions and what they meant to capture, never something to grade or quote back at length): $voice_notes
 Prior review summary: $prior_review_summary

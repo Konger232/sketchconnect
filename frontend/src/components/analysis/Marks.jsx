@@ -118,7 +118,6 @@ export function markAtPoint(marks, p, aspect = 1) {
 }
 
 // Screen px per frame unit, from the enclosing <svg>'s rendered width.
-// Same idea as Reticle's aspect measurement in FocalSpotPicker.jsx.
 function useSvgScale(ref) {
   const [scale, setScale] = useState(1)
   useEffect(() => {

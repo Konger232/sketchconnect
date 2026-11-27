@@ -143,7 +143,7 @@ class DebugTrafficMiddleware:
     Headers are not printed, so the sign-in token never shows, and any
     body field named like a password, token or key prints as ***.
     Only the endpoints in WATCH print: marks, guided answers, scene
-    analysis, critique and help quest. A plain ASGI middleware, so the
+    analysis and critique. A plain ASGI middleware, so the
     request body still reaches the endpoint untouched.
     """
 
@@ -157,7 +157,6 @@ class DebugTrafficMiddleware:
             # ("POST", r"^/api/sketches/[^/]+/session-choices$"),      # guided answers
             ("POST", r"^/api/scene-analysis$"),                      # guided questions
             ("POST", r"^/api/critique$"),                            # art coach
-            ("POST", r"^/api/help-quest$"),                          # help quest
         ]
     ]
 

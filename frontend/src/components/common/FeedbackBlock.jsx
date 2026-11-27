@@ -4,8 +4,7 @@ const EVIDENCE = { plan: 'From your plan', intended: 'From your plan', prompted:
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : '')
 
 /**
- * The owner's feedback on the sketch page, light version of JourneyTrace
- * (Edit Sketch). Labelled "Only you". The critique text, then Habits and
+ * The owner's feedback on the sketch page. Labelled "Only you". The critique text, then Habits and
  * Opportunities, each with its principle. Neutral icons, no checks or
  * warnings (design doc, item 15).
  */
