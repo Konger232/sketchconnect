@@ -290,10 +290,19 @@ export function useCropFrame({ active, layoutKey }) {
     })
   }
   function markSaved(f = frame()) { savedFrameRef.current = f }
+  // A saved sketch's frame: on the stage, and counted as saved.
+  function restore(f) {
+    const saved = { ...UNTOUCHED_FRAME, ...f, ratio: f.aspect_ratio === 'custom' ? f.ratio : null }
+    setAspectRatioKey(saved.aspect_ratio)
+    setCustomRatio(saved.ratio)
+    resetTransform({ zoom: saved.zoom, offset: { x: saved.offset_x, y: saved.offset_y } })
+    savedFrameRef.current = saved
+    return saved
+  }
 
   return {
     boxShift: holding ? { x: held.dx, y: held.dy } : null,
     containerRef, imgRef, naturalSize, boxSize, box, zoom, offset, ratio, cropRect,
-    stageHandlers, cornerHandlers, handleImageLoad, frame, changed, bake, markSaved, reset,
+    stageHandlers, cornerHandlers, handleImageLoad, frame, changed, bake, markSaved, restore, reset,
   }
 }

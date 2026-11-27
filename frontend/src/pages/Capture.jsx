@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import Button from '../components/common/Button'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import SketchModal from '../components/common/SketchModal'
@@ -33,6 +33,11 @@ import { previewUrl } from '../lib/previewUrl'
  * until the switch. Slice 1: Upload, Details, Tips.
  * Slice 2: Crop and Outline. Slice 3: Color and Value (shared with Edit
  * Sketch: useStudyTools), then Tips and saved sketches.
+ *
+ * A saved sketch opens here too (/capture-new/:sketchId): its photo,
+ * crop, strokes and media come back. Changing the photo, crop or strokes
+ * asks first, as the plan is read again. Once the final sketch is in, the
+ * plan is locked: only More (the details) and Tips stay open.
  */
 
 // A photo created this recently counts as just taken with the camera: the
@@ -41,6 +46,12 @@ import { previewUrl } from '../lib/previewUrl'
 const JUST_TAKEN_MS = 2 * 60 * 1000
 // How often Tips checks whether the plan read is done.
 const POLL_MS = 3000
+// Locked once the final sketch is in: the plan the sketch was drawn from.
+const PLAN_TOOLS = ['upload', 'crop', 'outline', 'color', 'value']
+
+function resolveUrl(url) {
+  return url && !url.startsWith('http') ? `${api.defaults.baseURL}${url}` : url
+}
 
 // A tool's instruction, always in the same place: over the photo, at the
 // top. The right panel holds only what a tool needs beyond that.
@@ -79,6 +90,9 @@ export default function Capture() {
   const backgroundLocation = routerLocation.state?.backgroundLocation
   // Capture from an event page (item 49): sent with the photo.
   const captureEvent = routerLocation.state?.event || null
+  // A saved sketch, opened from its page (Edit plan, Edit details).
+  const { sketchId: openId } = useParams()
+  const editing = Boolean(openId)
 
   const [tool, setTool] = useState('upload')
   // Tools opened so far. The others show a dot, to invite exploring before
@@ -87,6 +101,11 @@ export default function Capture() {
   useEffect(() => { setOpened((s) => (s.has(tool) ? s : new Set([...s, tool]))) }, [tool])
   const [sketch, setSketch] = useState(null)
   const sketchId = sketch?.id || null
+  const locked = Boolean(sketch?.final_sketch_url)
+  // Editing a plan that was read: the first change to the strokes or the
+  // crop asks first, as the tips are read again. After Yes, no more asking.
+  const [planChangeOk, setPlanChangeOk] = useState(false)
+  const guardPlan = editing && Boolean(sketch?.plan_read) && !planChangeOk
   const details = useSketchDetails({ sketchId, sketch, setSketch, enabled: Boolean(sketchId) })
 
   // ===== CROP AND OUTLINE =====
@@ -113,7 +132,7 @@ export default function Capture() {
   const [confirmingCrop, setConfirmingCrop] = useState(false)
   function guarded(handler) {
     return (...args) => {
-      if (drawing.count > 0) {
+      if (drawing.count > 0 || guardPlan) {
         args[args.length - 1]?.stopPropagation?.()
         setConfirmingCrop(true)
         return
@@ -124,8 +143,13 @@ export default function Capture() {
   const cropHandlers = {
     ...crop.stageHandlers,
     onPointerDown: guarded(crop.stageHandlers.onPointerDown),
-    onWheel: (e) => (drawing.count > 0 ? (e.preventDefault(), setConfirmingCrop(true)) : crop.stageHandlers.onWheel(e)),
+    onWheel: (e) => (drawing.count > 0 || guardPlan ? (e.preventDefault(), setConfirmingCrop(true)) : crop.stageHandlers.onWheel(e)),
   }
+  // Strokes, on a plan that was read: the first change asks.
+  const [confirmingStrokes, setConfirmingStrokes] = useState(false)
+  const askStrokes = (e) => { e?.stopPropagation?.(); setConfirmingStrokes(true) }
+  const outlineHandlers = guardPlan ? { ...drawing.handlers, onPointerDown: askStrokes } : drawing.handlers
+  if (guardPlan) markTools.onUndo = askStrokes
   const cornerHandlers = { ...crop.cornerHandlers, down: guarded(crop.cornerHandlers.down) }
 
   // ===== UPLOAD =====
@@ -145,16 +169,25 @@ export default function Capture() {
 
   // The picker opens at once, inside the tap (a browser opens it only
   // then); the old sketch is deleted in the background.
+  // A saved sketch keeps its details, so its photo is swapped once the new
+  // one is picked (startOver, in handleFile).
   function replacePhoto() {
     setConfirmingReplace(false)
     inputRef.current?.click()
+    if (editing) return
     const old = sketchId
     setSketch(null)
+    startOver()
+    api.delete(`/api/sketches/${old}`).catch(() => { /* best effort */ })
+  }
+
+  // A new photo: no crop, no strokes, nothing read.
+  function startOver() {
     savedMarksRef.current = '[]'
     readKeyRef.current = null
+    setFramed(null)
     crop.reset()
     drawing.clear()
-    api.delete(`/api/sketches/${old}`).catch(() => { /* best effort */ })
   }
 
   async function handleFile(e) {
@@ -173,10 +206,16 @@ export default function Capture() {
       if (pick !== pickRef.current) return
       const url = await previewUrl(f)
       if (pick !== pickRef.current) return URL.revokeObjectURL(url)
+      if (editing) startOver()
       setPreview((old) => { if (old) URL.revokeObjectURL(old); return url })
       setUploading(true)
       const form = new FormData()
       form.append('image', f)
+      if (editing) {
+        const { data } = await api.post(`/api/sketches/${sketchId}/photo`, form)
+        if (pick === pickRef.current) setSketch((prev) => ({ ...prev, ...data, plan_read: null, focal_suggestions: [] }))
+        return
+      }
       if (captureEvent?.id) form.append('event_id', captureEvent.id)
       if (justTaken) {
         form.append('camera', 'true')
@@ -219,6 +258,29 @@ export default function Capture() {
       if (data?.media?.length) setMedia((cur) => (cur.length ? cur : data.media))
     }).catch(() => {})
   }, [])
+  // ===== A SAVED SKETCH =====
+  // Its photo, crop, strokes and media come back as saved, so nothing is
+  // saved or read again until something changes.
+  useEffect(() => {
+    if (!openId) return
+    api.get(`/api/sketches/${openId}`).then(({ data }) => {
+      setSketch(data)
+      setPreview(resolveUrl(data.original_image_url || data.reference_image_url))
+      let frame = crop.frame()
+      if (data.crop_transform) {
+        frame = crop.restore(data.crop_transform)
+        setFramed({ url: resolveUrl(data.reference_image_url), n: 0 })
+      }
+      const marks = data.marks || []
+      drawing.setMarks(marks)
+      savedMarksRef.current = JSON.stringify(marks)
+      if (data.media?.length) setMedia(data.media)
+      if (data.plan_read) readKeyRef.current = JSON.stringify([savedMarksRef.current, frame, data.media || []])
+      setOpened(new Set(TOOLS.map((t) => t.key)))
+      setTool(data.final_sketch_url ? 'details' : data.plan_read ? 'tips' : 'outline')
+    }).catch(() => setError('Could not open this sketch.'))
+  }, [openId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function toggleMedia(key) {
     setMedia((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]))
   }
@@ -310,7 +372,11 @@ export default function Capture() {
     setReading(true)
     setError(null)
     try {
-      if (!(await readPlan())) return
+      // After the final, only the details can change: nothing to read.
+      if (locked ? !(await details.flush()) : !(await readPlan())) {
+        if (locked) setTool('details')
+        return
+      }
       notifySketchesChanged()
       navigate(`/sketches/${sketchId}`, { replace: true })
     } catch (err) {
@@ -322,7 +388,7 @@ export default function Capture() {
 
   // Tips opens: read the plan if this plan has not been read yet.
   useEffect(() => {
-    if (tool !== 'tips' || !sketchId || uploading || readKeyRef.current === planKey) return
+    if (tool !== 'tips' || !sketchId || uploading || locked || readKeyRef.current === planKey) return
     readPlan().catch(() => setError('Could not start your tips.'))
   }, [tool, sketchId, uploading]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -372,7 +438,7 @@ export default function Capture() {
   // Before a photo, only Upload. Every tool lights up as soon as a photo
   // is picked, while it uploads.
   const tools = TOOLS.map((t) => {
-    const disabled = t.key !== 'upload' && !preview
+    const disabled = (t.key !== 'upload' && !preview) || (locked && PLAN_TOOLS.includes(t.key))
     return { ...t, disabled, dot: !disabled && !opened.has(t.key) }
   })
   const studyTool = tool === 'value' || tool === 'color' ? tool : null
@@ -415,7 +481,7 @@ export default function Capture() {
             <p className="sc-body">The tips could not be made this time.</p>
             <Button variant="secondaryOnDark" onClick={() => readPlan().catch(() => {})}>Try again</Button>
           </div>
-        ) : planStatus === 'done' && sketch?.plan_read ? (
+        ) : planStatus !== 'pending' && sketch?.plan_read ? (
           <AIGuidance
             sketchId={sketchId}
             referenceImageUrl={studyPhoto}
@@ -453,7 +519,9 @@ export default function Capture() {
       <ConfirmDialog
         open={confirmingReplace}
         title="Replace this photo?"
-        message="A new photo starts this sketch over."
+        message={editing
+          ? 'Changing the reference photo would remove all analysis. Do you want to continue?'
+          : 'A new photo starts this sketch over.'}
         confirmLabel="Replace photo"
         cancelLabel="Keep this one"
         onConfirm={replacePhoto}
@@ -462,11 +530,22 @@ export default function Capture() {
       <ConfirmDialog
         open={confirmingCrop}
         title="Change the crop?"
-        message="Changing the crop clears your strokes. Do you want to continue?"
+        message={editing && sketch?.plan_read
+          ? 'Changing the crop clears your strokes and reruns the analysis. Do you want to continue?'
+          : 'Changing the crop clears your strokes. Do you want to continue?'}
         confirmLabel="Clear strokes"
         cancelLabel="Keep my strokes"
-        onConfirm={() => { setConfirmingCrop(false); drawing.clear() }}
+        onConfirm={() => { setConfirmingCrop(false); setPlanChangeOk(true); drawing.clear() }}
         onCancel={() => setConfirmingCrop(false)}
+      />
+      <ConfirmDialog
+        open={confirmingStrokes}
+        title="Change your strokes?"
+        message="Changing your strokes reruns the analysis. Do you want to continue?"
+        confirmLabel="Continue"
+        cancelLabel="Keep my strokes"
+        onConfirm={() => { setConfirmingStrokes(false); setPlanChangeOk(true) }}
+        onCancel={() => setConfirmingStrokes(false)}
       />
       {/* No capture attribute: the phone offers the camera and the library. */}
       <input ref={inputRef} type="file" accept="image/*,.heic" onChange={handleFile} className="hidden" />
@@ -487,6 +566,8 @@ export default function Capture() {
             svgRef={svgRef}
             boxSize={crop.boxSize}
             imageUrl={preview}
+            // A saved photo comes from the server: read with CORS, so a new crop can be baked from it.
+            crossOrigin={preview.startsWith('blob:') ? undefined : 'anonymous'}
             imageClassName={uploading ? 'opacity-80' : ''}
             zoom={crop.zoom}
             offset={crop.offset}
@@ -497,7 +578,7 @@ export default function Capture() {
             cropRect={crop.cropRect}
             boxShift={crop.boxShift}
             cornerHandlers={tool === 'crop' ? cornerHandlers : undefined}
-            {...(tool === 'crop' ? cropHandlers : tool === 'outline' ? drawing.handlers : {})}
+            {...(tool === 'crop' ? cropHandlers : tool === 'outline' ? outlineHandlers : {})}
             onImageLoad={crop.handleImageLoad}
           >
             <Fade show={tool !== 'crop'}>

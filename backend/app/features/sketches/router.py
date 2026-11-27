@@ -644,6 +644,45 @@ async def save_focal_frame(
     return _sketch_to_dict(sketch)
 
 
+@router.post("/sketches/{sketch_id}/photo")
+async def replace_photo(
+    sketch_id: str,
+    background_tasks: BackgroundTasks,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    sketcher_id: str = Depends(get_current_sketcher_id),
+):
+    """A new reference photo for a saved sketch, from Capture's Upload
+    (November 27, 2026). The details stay: title, place, notes, voice
+    notes, media. Everything read from the old photo goes: the crop, the
+    strokes, the analysis, the plan and its tips. Not after the final."""
+    sketch = db.query(Sketch).filter(
+        Sketch.id == sketch_id, Sketch.sketcher_id == sketcher_id
+    ).first()
+    if sketch is None:
+        raise HTTPException(404, "Sketch not found")
+    if sketch.final_sketch_url:
+        raise HTTPException(409, "The plan is locked once the final sketch is in.")
+    try:
+        pil_image, _, _ = await run_in_threadpool(_open_upload, await image.read())
+    except Exception:
+        raise HTTPException(400, "Could not decode image")
+    url, data = await run_in_threadpool(
+        storage.save_image_local_first, pil_image, f"{uuid.uuid4()}.jpg")
+    background_tasks.add_task(storage.push, url, data)
+    for old in {sketch.reference_image_url, sketch.original_image_url} - {None}:
+        _delete_upload_file(old)
+    sketch.original_image_url = sketch.reference_image_url = url
+    sketch.crop_transform = sketch.focal_points = sketch.marks = None
+    sketch.cached_scene_analysis = sketch.scene_type = sketch.plan_status = None
+    # Only the media picks are kept from the answers: they are not about the photo.
+    sketch.session_choices = [c for c in sketch.session_choices or [] if c.get("key") == "media"]
+    sketch.palettes = {k: v for k, v in (sketch.palettes or {}).items() if k != "scene"}
+    db.commit()
+    db.refresh(sketch)
+    return _sketch_to_dict(sketch)
+
+
 # Guided-question keys asked more than once per sketch (one per selected
 # shape, or per missed focal area). Matched with AIGuidance.jsx. The marks
 # analysis bank adds its per-shape keys (principle_intent, the seed

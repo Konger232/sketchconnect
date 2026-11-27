@@ -78,6 +78,7 @@ function Router() {
         <Route path="/capture" element={<RequireAuth><CreateSketch /></RequireAuth>} />
         {/* Capture as a set of tools (item 57), beside New Sketch until the switch. */}
         <Route path="/capture-new" element={<RequireAuth><Capture /></RequireAuth>} />
+        <Route path="/capture-new/:sketchId" element={<RequireAuth><Capture /></RequireAuth>} />
         <Route path="/sketchers/:username" element={<MembersOnly><SketcherProfile /></MembersOnly>} /> {/* owner and member views */}
         <Route path="/sketches/:sketchId" element={<SketchPage />} /> {/* members: the full page; visitors: the public view */}
         <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketch /></RequireAuth>} />
@@ -104,6 +105,7 @@ function Router() {
         <Routes>
           <Route path="/capture" element={<RequireAuth><CreateSketch /></RequireAuth>} />
           <Route path="/capture-new" element={<RequireAuth><Capture /></RequireAuth>} />
+          <Route path="/capture-new/:sketchId" element={<RequireAuth><Capture /></RequireAuth>} />
           <Route path="/sketches/:sketchId/edit" element={<RequireAuth><EditSketch /></RequireAuth>} />
         </Routes>
       )}
