@@ -601,9 +601,11 @@ export default function Capture() {
           />
         )}
 
-        {/* The drawing tools float on the photo, on every screen size. */}
+        {/* The drawing tools float on the photo, in the corner nearest the
+            tool row (November 27, 2026): bottom right on a phone, where the
+            row is under the photo; top right on a computer, beside it. */}
         {tool === 'outline' && (
-          <div className="absolute bottom-4 right-4">
+          <div className="absolute bottom-4 right-4 md:bottom-auto md:top-3">
             <MarkRail {...markTools} disabled={reading} />
           </div>
         )}
