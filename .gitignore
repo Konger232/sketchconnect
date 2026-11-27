@@ -40,3 +40,6 @@ backend/plan_read_out/
 # Local only: the image backup and Firebase's deploy cache
 backend/uploads_backup/
 frontend/.firebase/
+
+# Stray local build output
+.vbuild_tmp/
